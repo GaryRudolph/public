@@ -1,0 +1,30 @@
+#!/bin/bash
+export TOOLS=~/Applications
+export GRAPHVIZ_DOT=/opt/local/bin/dot
+export JAVA_HOME="/Library/Java/JavaVirtualMachines/jdk-19.0.2.jdk.openjdk/Contents/Home"
+#export JAVA_HOME="/Applications/Android Studio.app/Contents/jbr/Contents/Home"
+export ANDROID_HOME="/Users/gary/Library/Android/sdk"
+export ANDROID_NDK_HOME=${TOOLS}/android-ndk-r9
+export DEX2JAR_HOME=${TOOLS}/dex-tools-2.1
+export SMALI_HOME=${TOOLS}/smali-1.2.6
+export ARAXIS_HOME=/Applications/Araxis\ Merge.app
+export MAVEN_OPTS="-server -Xmx2048m -XX:MaxPermSize=512m"
+export MAVEN_HOME=${TOOLS}/apache-maven-3.3.9
+#export GRADLE_OPTS="-server -Xmx2048m -XX:MaxPermSize=512m"
+#export GRADLE_HOME=${TOOLS}/gradle-3.0
+export GIT_HOME=/usr/local/git
+export GCLOUD_HOME=${TOOLS}/google-cloud-sdk
+export VSCODE_HOME=/Applications/Visual\ Studio\ Code.app
+export HOMEBREW_HOME=/opt/homebrew
+export RAR_HOME=/usr/local/rar
+export RUBY_HOME="${HOMEBREW_HOME}/opt/ruby"
+export PATH=~/bin:${HOMEBREW_HOME}/sbin:${HOMEBREW_HOME}/bin:${RUBY_HOME}/bin:${JAVA_HOME}/bin:${GIT_HOME}/bin:${TOOLS}/visualvm/bin:${MAVEN_HOME}/bin:"${ANDROID_HOME}/emulator":"${ANDROID_HOME}/tools":"${ANDROID_HOME}/cmdline-tools/latest/bin":"${ANDROID_HOME}/platform-tools":"${ANDROID_NDK_HOME}":${DEX2JAR_HOME}:${SMALI_HOME}:${ARAXIS_HOME}/Contents/Utilities:${GRADLE_HOME}/bin:"${VSCODE_HOME}/Contents/Resources/app/bin":${RAR_HOME}:${PATH}
+export PYTHONPATH=/Applications/GoogleAppEngineLauncher.app/Contents/Resources/GoogleAppEngine-default.bundle/Contents/Resources/google_appengine/lib
+
+alias "rmm=rmm.sh"
+
+# The next line updates PATH for the Google Cloud SDK.
+if [ -f "${GCLOUD_HOME}/path.zsh.inc" ]; then source "${GCLOUD_HOME}/path.zsh.inc"; fi
+
+# The next line enables shell command completion for gcloud.
+if [ -f "${GCLOUD_HOME}/completion.zsh.inc" ]; then source "${GCLOUD_HOME}/completion.zsh.inc"; fi

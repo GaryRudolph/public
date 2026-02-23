@@ -1,0 +1,24 @@
+#
+# Your previous .profile  (if any) is saved as .profile.mpsaved
+# Setting the path for MacPorts.
+. ~/.bashrc
+
+##
+# DELUXE-USR-LOCAL-BIN-INSERT
+# (do not remove this comment)
+##
+echo $PATH | grep -q -s "/usr/local/bin"
+if [ $? -eq 1 ] ; then
+    PATH=$PATH:/usr/local/bin
+    export PATH
+fi
+export PATH=~/.npm/bin:${PATH}
+
+##
+# Your previous /Users/gary/.profile file was backed up as /Users/gary/.profile.macports-saved_2016-09-24_at_16:40:41
+##
+
+# MacPorts Installer addition on 2016-09-24_at_16:40:41: adding an appropriate PATH variable for use with MacPorts.
+export PATH="/opt/local/bin:/opt/local/sbin:$PATH"
+# Finished adapting your PATH environment variable for use with MacPorts.
+

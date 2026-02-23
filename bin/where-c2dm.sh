@@ -1,0 +1,4 @@
+#!/bin/bash
+curl -d 'accountType=GOOGLE' -d 'Email=where@lolay.com' -d 'Passwd=ch3r0k33' -d 'service=ac2dm' https://www.google.com/accounts/ClientLogin
+
+#curl -k -H 'Authorization: GoogleLogin auth=DQAAAPUAAACqMIoraWd8Dw8K7rwz-FCSIJhWy1Bx0ELnBcnvQ-5znOX8MsBALTkB7c6o-m3nqaw898Buxi_UTuySDmejuNAGlQxAyFwR9IbgG3LHimDQFXt-xNgHDb68WcHanvU0S4-eLVubi9oYwdJViE0iOyl4andHNha6pnrUYi3JJyOmFiqGJ1Z2PCy14elW48q9LsiF9pwOAS2OxggzH9U9yt49Yfa4XWo6UvgKKOvSqNhhWtvjHuoO4OjHiz6lv4SugoBYqsdI3EXme_djCO7j4Tq57FUUDT7Pt2UzgW7rdgKsa0FX3oVkMuGrMQBeKBgAZ_XmpLi7DPFUdC3wwqgWmgoP' https://android.apis.google.com/c2dm/send -d 'registration_id=APA91bH2sRqrxKiYQMm4t8q__PmjjYyyITXQlbYC3AbanQVn7d_F0YIUyJX1sVLyVfrINtJZqZKpQVw8H9sAHjmBU0rBzr4HW7g4F0kBZWb0x3pFF6YdgxHCbCS2IqFAM9TV0nLP-pFe3K3kqCNh2Sjbio7jp0UDMA' -d 'collapse_key=0' -d 'data.test=test'

@@ -1,0 +1,201 @@
+#!/bin/zsh
+
+typeset -U path
+
+# Source global definitions
+if [ -f /etc/sshrc ]; then
+	. /etc/zshrc
+fi
+
+umask 002
+
+if [ -n "$SSH_CLIENT" ] || [ -n "$SSH_TTY" ]; then
+	SESSION_TYPE=ssh
+else
+	SESSION_TYPE=local
+fi
+
+if [ $SESSION_TYPE = "local" ]; then
+	# sets the title to cwd
+#	precmd () { print -Pn "\e]1;%2~\a" ; print -Pn "\e]2;[%n@%m] %~\a" }
+	# sets title to running process
+#	preexec () { print -Pn "\e]1;$1\a" ; print -Pn "\e]2;[%n@%m] %~ : $1\a" }
+else
+	# sets the title to cwd
+#	precmd () { print -Pn "\e]1;%m[%2~]\a" ; print -Pn "\e]2;%2~\a" }
+	# sets title to running process
+#	preexec () { print -Pn "\e]1;%m[$1]\a" ; print -Pn "\e]2;%2~[$1]\a" }
+fi
+
+autoload -U colors && colors
+#DISABLE_AUTO_TITLE="true"
+precmd () { print -Pn "\e]0;%n@%m\a" }
+
+export PS1="%U\
+                                                                                \
+%u"$'\n'"\
+[%* %{$fg[blue]%}%n%{$fg[yellow]%}@%{$fg[green]%}%m%{$reset_color%}:%4~]"$'\n'"\
+[%!] "
+export PS2="... "
+
+HISTSIZE=50
+SAVEHIST=50
+HISTORY_IGNORE="(x|exit|ls|h|history|pwd|cd|cd ..)"
+setopt HIST_IGNORE_ALL_DUPS
+setopt HIST_REDUCE_BLANKS
+setopt HIST_IGNORE_SPACE
+
+export EDITOR=vi
+export VISUAL=vi
+export IGNOREEOF=1
+export TABSTOP=4
+export SHELL_INTERPRETER=shell
+
+alias "mroe=more"
+alias "whois=whois -h whois"
+if [ `uname` = "Darwin" ]; then
+	SSH_TUNNEL=Y
+	alias "dir=ls -laFG"
+	alias "ls=ls -FqG"
+	alias "l=ls -alFG"
+else
+	SSH_TUNNEL=X
+	alias "dir=ls -laF --color"
+	alias "ls=ls -Fq --color"
+	alias "l=ls -alF --color"
+fi
+alias "h=history"
+alias "md=mkdir"
+alias "rd=rmdir"
+alias "rmm=rmm.sh"
+alias "cls=clear"
+alias "x=exit"
+alias "copy=cp"
+alias "move=mv"
+alias "back=cd -"
+alias "pwd=/bin/pwd"
+alias "ssh=ssh -${SSH_TUNNEL}"
+alias "entitlements=codesign -dvvvv --entitlements -"
+alias "fixvpn=sudo /System/Library/StartupItems/CiscoVPN/CiscoVPN restart"
+alias "enablelid=sudo pmset -a lidwake 1"
+alias "disablelid=sudo pmset -a lidwake 0"
+alias "ql=qlmanage -p"
+#alias "flushdns=sudo dscacheutil -flushcache"
+alias "flushdns=sudo discoveryutil mdnsflushcache; sudo discoveryutil udnsflushcaches"
+alias "gitu=git pull; git submodule init; git submodule update"
+alias "gitkt=git log --graph --pretty=format:'%Cred%h%Creset -%C(yellow)%d%Creset %s %Cgreen(%cr) %C(bold blue)<%an>%Creset' --abbrev-commit --date=relative"
+alias "symbolicate=/Applications/Xcode.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/Library/PrivateFrameworks/DTDeviceKitBase.framework/Versions/Current/Resources/symbolicatecrash"
+alias "pdf_join=/System/Library/Automator/Combine\ PDF\ Pages.action/Contents/Resources/join.py"
+alias filetree="ls -R | grep ":$" | sed -e 's/:$//' -e 's/[^-][^\/]*\//--/g' -e 's/^/ /' -e 's/-/|/'"
+function xman() { open x-man-page://$@ ; }
+
+if [ ! -f ~/.exrc ] ; then
+	touch ~/.exrc
+	echo "set showmode" >> ~/.exrc
+	echo "set tabstop=4" >> ~/.exrc
+	echo "set ruler" >> ~/.exrc
+fi
+
+# Local Bin
+export PATH="/usr/local/bin:${PATH}"
+
+# Homebrew Home
+HOMEBREW_HOME="/opt/homebrew"
+if [[ -d "${HOMEBREW_HOME}" ]]; then
+	export HOMEBREW_HOME
+fi
+
+TOOLS_HOME=~/Applications
+if [[ -d "${TOOLS_HOME}" ]]; then
+	export TOOLS_HOME
+fi
+
+# Docker
+if [ -f /usr/local/bin/docker ]; then
+	alias "docker_stop_all=docker stop \$(docker ps -a -q)"
+	alias "docker_rm_all=docker rm \$(docker ps -a -q)"
+	alias "docker_rmi_all=docker rmi \$(docker images -q)"
+	alias "docker_rmi_dangling=docker rmi \$(docker images -q -f dangling=true)"
+fi
+
+# Java
+#JAVA_HOME="${HOMEBREW_HOME}/opt/openjdk"
+JAVA_HOME="/Applications/Android Studio.app/Contents/jbr/Contents/Home"
+if [[ -d "${JAVA_HOME}" ]]; then
+	export JAVA_HOME
+	path=("${JAVA_HOME}/bin" ${path})
+fi
+
+# Gradle
+GRADLE_HOME=${TOOLS_HOME}/gradle-3.0
+if [[ -d "${GRADLE_HOME}" ]]; then
+	export GRADLE_HOME
+	path=("${GRADLE_HOME}/bin" ${path})
+fi
+
+# Maven
+MAVEN_HOME="${TOOLS_HOME}/apache-maven-3.3.9"
+if [[ -d "${MAVEN_HOME}" ]]; then
+	export MAVEN_HOME
+	export MAVEN_OPTS="-server -Xmx2048m -XX:MaxPermSize=512m"
+	path=("${MAVEN_HOME}/bin" ${path})
+fi
+
+# Android
+ANDROID_SDK_ROOT="~/Library/Android/sdk"
+ANDROID_HOME="${ANDROID_SDK_ROOT}"
+ANDROID_NDK_HOME="${TOOLS_HOME}/android-ndk-r9"
+if [[ -d "${ANDROID_HOME}" ]]; then
+	export ANDROID_SDK_ROOT
+	export ANDROID_HOME
+	path=("${ANDROID_SDK_ROOT}/emulator" "${ANDROID_SDK_ROOT}/platform-tools" "${ANDROID_SDK_ROOT}/cmdline-tools/latest/bin" ${path})
+fi
+if [[ -d "${ANDROID_NDK_HOME}" ]]; then
+	export ANDROID_NDK_HOME
+	path=("${ANDROID_NDK_HOME}" ${path})
+fi
+
+# Google
+GCLOUD_HOME="${TOOLS_HOME}/google-cloud-sdk"
+if [[ -d "${GCLOUD_HOME}" ]]; then
+	export GCLOUD_HOME
+	path=("${GCLOUD_HOME}/bin" ${path})
+
+	# The next line updates PATH for the Google Cloud SDK.
+	if [[ -f "${GCLOUD_HOME}/path.zsh.inc" ]]; then
+		source "${GCLOUD_HOME}/path.zsh.inc"
+	fi
+	# The next line enables shell command completion for gcloud.
+	if [[ -f "${GCLOUD_HOME}/completion.zsh.inc" ]]; then
+		source "${GCLOUD_HOME}/completion.zsh.inc"
+	fi
+fi
+
+# VS Code
+VSCODE_HOME="/Applications/Visual Studio Code.app"
+if [[ -d "${VSCODE_HOME}" ]]; then
+	export VSCODE_HOME
+	path=("${VSCODE_HOME}/Contents/Resources/app/bin" ${path})
+fi
+
+# Rust
+RUSTUP_HOME=~/.rustup
+if [[ -d "${RUSTUP_HOME}" ]]; then
+	export RUSTUP_HOME
+fi
+
+CARGO_HOME=~/.cargo
+if [[ -d "${CARGO_HOME}" ]]; then
+	export CARGO_HOME
+	. "${CARGO_HOME}/env"
+fi
+
+eval "$(/opt/homebrew/bin/brew shellenv)"
+
+# My bin
+export PATH="~/bin:${PATH}"
+
+if [[ -f ~/.zshrc-local ]] ; then
+	. ~/.zshrc-local
+fi
+

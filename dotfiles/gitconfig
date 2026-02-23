@@ -1,0 +1,9 @@
+[user]
+	name = Gary Rudolph
+	email = GaryRudolph@mac.com
+[credential "https://source.developers.google.com"]
+	helper = gcloud.sh
+[http]
+	cookiefile = /Users/gary/.gitcookies
+[diff]
+	colorMoved = zebra
