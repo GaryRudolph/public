@@ -496,6 +496,55 @@ Talisman(app,
 )
 ```
 
+## Python-Specific Security
+
+### Dangerous Functions
+
+Never use on untrusted input:
+
+```python
+eval(user_input)              # Arbitrary code execution
+exec(user_input)              # Arbitrary code execution
+pickle.loads(untrusted_data)  # Arbitrary code execution
+yaml.load(data)               # Use yaml.safe_load() instead
+```
+
+### Subprocess Security
+
+```python
+import subprocess
+
+# Good — explicit argument list, no shell
+subprocess.run(["ls", "-la", path], shell=False, check=True)
+
+# Vulnerable to injection — never use shell=True with dynamic input
+subprocess.run(f"ls -la {path}", shell=True)
+```
+
+### Randomness
+
+```python
+import secrets
+import random
+
+# Good — cryptographically secure
+token = secrets.token_urlsafe(32)
+otp = secrets.randbelow(1000000)
+
+# Bad — predictable, not for security
+token = random.randint(0, 999999)  # Never use random for security
+```
+
+### Bandit Static Analysis
+
+Run [Bandit](https://bandit.readthedocs.io/) as part of CI to catch common security issues:
+
+```bash
+bandit -r src/ -c pyproject.toml
+```
+
+Or integrate via Ruff with the `S` (flake8-bandit) rule set in `[tool.ruff.lint]`.
+
 ## Dependency Security
 
 ### Regular Updates
@@ -513,8 +562,8 @@ safety check
 ### Supply Chain Security
 
 ```bash
-# Use a lock file
-pip freeze > requirements.txt
+# Use a lock file — prefer modern lock formats
+# uv.lock (uv), poetry.lock (Poetry), or requirements.txt (pip)
 
 # Verify package integrity with hashes
 pip install --require-hashes -r requirements.txt
@@ -564,9 +613,18 @@ pip show package-name
 9. **Logging Failures** - Log security events, monitor for anomalies
 10. **Server-Side Request Forgery** - Validate URLs, whitelist destinations
 
+## Mobile Security
+
+For mobile-specific security standards, see the platform-specific guides:
+
+- **[Swift / iOS Security](security-swift.md)** — Keychain, ATS, CryptoKit, biometric auth, OWASP MASVS
+- **[Kotlin / Android Security](security-kotlin.md)** — EncryptedSharedPreferences, Android Keystore, ProGuard/R8, OWASP MASVS
+
 ## Resources
 
 - [OWASP Top 10](https://owasp.org/www-project-top-ten/)
+- [OWASP MASVS v2 (Mobile)](https://mas.owasp.org/MASVS/)
 - [OWASP Cheat Sheet Series](https://cheatsheetseries.owasp.org/)
 - [CWE Top 25](https://cwe.mitre.org/top25/)
 - [Security Headers](https://securityheaders.com/)
+- [Bandit (Python Security)](https://bandit.readthedocs.io/)

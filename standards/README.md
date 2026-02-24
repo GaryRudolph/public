@@ -14,6 +14,25 @@ This directory contains comprehensive coding standards for the project. These st
 - **[Git Workflow](git.md)** - Branching strategy, commit conventions, and PR process
 - **[Security](security.md)** - Security requirements and vulnerability prevention
 
+### Language-Specific Standards
+
+#### Python
+- **[Code Style — Python](code-style-python.md)** - PEP 8, Ruff/Black config, type annotations, mypy
+- **[Documentation — Python](documentation-python.md)** - Google-style docstrings, Sphinx
+- **[Testing — Python](testing-python.md)** - pytest, Hypothesis, coverage config, fixtures
+
+#### Swift
+- **[Code Style — Swift](code-style-swift.md)** - Apple API Guidelines, SwiftLint, access control
+- **[Documentation — Swift](documentation-swift.md)** - `///` doc comments, DocC catalogs
+- **[Testing — Swift](testing-swift.md)** - Swift Testing, XCTest, snapshot testing, UI testing
+- **[Security — Swift](security-swift.md)** - Keychain, ATS, CryptoKit, OWASP MASVS
+
+#### Kotlin
+- **[Code Style — Kotlin](code-style-kotlin.md)** - JetBrains conventions, detekt/ktlint, idioms
+- **[Documentation — Kotlin](documentation-kotlin.md)** - KDoc, Dokka
+- **[Testing — Kotlin](testing-kotlin.md)** - JUnit 5, MockK, Turbine, Compose UI testing
+- **[Security — Kotlin](security-kotlin.md)** - EncryptedSharedPreferences, Android Keystore, OWASP MASVS
+
 ## Purpose
 
 These standards serve as:

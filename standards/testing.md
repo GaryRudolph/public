@@ -877,3 +877,9 @@ class TestAuthenticationIntegration:
     """
     # tests...
 ```
+
+## Language-Specific Testing
+
+- **[Python](testing-python.md)** - pytest config, Hypothesis, coverage, fixtures, monkeypatch
+- **[Swift](testing-swift.md)** - Swift Testing, XCTest, snapshot testing, UI testing
+- **[Kotlin](testing-kotlin.md)** - JUnit 5, MockK, Kotest, Turbine, Compose UI testing

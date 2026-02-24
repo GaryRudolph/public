@@ -41,6 +41,29 @@
 - Never skip layers (presentation → data access)
 - Keep layers thin and focused
 
+### Hexagonal Architecture (Ports & Adapters)
+
+An alternative to strict layering. The core domain is framework-independent — you can swap Django for FastAPI or SQLAlchemy for DynamoDB without touching business logic.
+
+- **Ports**: abstract interfaces (`Protocol` or `ABC`) defining what the domain needs
+- **Adapters**: concrete implementations of ports (e.g., `PostgresUserRepository` implements `UserRepository`)
+- **The Dependency Rule**: inner layers never import from outer layers
+
+```
+┌──────────────────────────────────────────────┐
+│                  Adapters                     │
+│  ┌────────────────────────────────────────┐  │
+│  │          Application Services          │  │
+│  │  ┌──────────────────────────────────┐  │  │
+│  │  │        Domain (pure logic)       │  │  │
+│  │  │     No framework imports here    │  │  │
+│  │  └──────────────────────────────────┘  │  │
+│  └────────────────────────────────────────┘  │
+└──────────────────────────────────────────────┘
+```
+
+Use when you need to isolate business logic from infrastructure choices, especially in Python where framework coupling is common.
+
 ### Module Structure
 
 **Python:**
@@ -541,6 +564,82 @@ struct TicketsView: View {
 }
 ```
 
+### MVI Pattern (Kotlin / Jetpack Compose)
+
+MVI (Model-View-Intent) is the preferred pattern for Jetpack Compose. Its unidirectional data flow aligns with Compose's declarative recomposition model:
+
+```kotlin
+// State — single sealed interface for all screen states
+sealed interface UiState {
+    data object Loading : UiState
+    data class Success(val items: List<Item>) : UiState
+    data class Error(val message: String) : UiState
+}
+
+// Intent — user actions sent to the ViewModel
+sealed interface UiEvent {
+    data object Refresh : UiEvent
+    data class ItemClicked(val id: String) : UiEvent
+    data class SearchChanged(val query: String) : UiEvent
+}
+
+// ViewModel — reduces events into state
+class ItemsViewModel(
+    private val repository: ItemRepository,
+) : ViewModel() {
+
+    private val _state = MutableStateFlow<UiState>(UiState.Loading)
+    val state: StateFlow<UiState> = _state.asStateFlow()
+
+    fun onEvent(event: UiEvent) {
+        when (event) {
+            is UiEvent.Refresh -> loadItems()
+            is UiEvent.ItemClicked -> navigateToDetail(event.id)
+            is UiEvent.SearchChanged -> search(event.query)
+        }
+    }
+
+    private fun loadItems() {
+        viewModelScope.launch {
+            _state.value = UiState.Loading
+            try {
+                val items = repository.getItems()
+                _state.value = UiState.Success(items)
+            } catch (e: Exception) {
+                _state.value = UiState.Error(e.message ?: "Unknown error")
+            }
+        }
+    }
+}
+
+// Composable — observes state, sends events
+@Composable
+fun ItemsScreen(viewModel: ItemsViewModel = hiltViewModel()) {
+    val state by viewModel.state.collectAsStateWithLifecycle()
+
+    when (val s = state) {
+        is UiState.Loading -> CircularProgressIndicator()
+        is UiState.Success -> ItemsList(s.items) { id -> viewModel.onEvent(UiEvent.ItemClicked(id)) }
+        is UiState.Error -> ErrorMessage(s.message) { viewModel.onEvent(UiEvent.Refresh) }
+    }
+}
+```
+
+**Rules:**
+- ViewModel exposes a single `StateFlow<UiState>` — UI sends `Event` objects, ViewModel reduces them into new state
+- Use `sealed class` / `sealed interface` for state, events, and navigation
+- Use `data class` for states carrying data, `data object` for singleton states
+- ViewModels should never hold references to `Context`, `View`, or `Activity`
+- Use **Hilt** for dependency injection
+
+### Kotlin State Management Hierarchy (Compose)
+
+1. `remember {}` — ephemeral, single-composable state (animations, toggles)
+2. `rememberSaveable {}` / `SavedStateHandle` — survives process death
+3. `ViewModel` — survives configuration changes (rotation)
+4. Scoped ViewModel (nav graph / activity) — shared multi-screen state
+5. Hoist to parent composable — sibling composables needing shared state
+
 ### Router Pattern (SwiftUI Navigation)
 
 Navigation is driven by router objects, not inline view state. A `NavigationRouter` protocol defines the contract, and base classes provide stack, sheet, or tab behaviors:
@@ -867,6 +966,33 @@ Order.Meta.table_name = _config.table_name
 Order.Meta.region = _config.region
 
 __all__ = ["Order", "OrderItem", "OrderError", "OrderNotFoundError"]
+```
+
+## Concurrency Architecture
+
+### Swift Concurrency
+
+- Use Swift Concurrency (`async`/`await`, `Actor`) instead of GCD/completion handlers for all new code
+- Use `@MainActor` for all UI-bound types (ViewModels, UI services)
+- Isolate shared mutable state in custom `actor` types to prevent data races
+- Prefer value types (`struct`, `enum`) over reference types (`class`) unless identity semantics are required — value semantics prevent shared mutable state
+- Use `Sendable` conformance to verify thread safety at compile time (Swift 6 strict concurrency)
+
+### Kotlin Coroutines
+
+- Use structured concurrency — never use `GlobalScope`
+- Launch coroutines in `viewModelScope` (Android) or an injected `CoroutineScope`
+- Expose reactive data as `Flow` / `StateFlow` from repositories and ViewModels
+- Use `Dispatchers.IO` for blocking I/O, `Dispatchers.Default` for CPU-heavy work
+- Use `Dispatchers.Main` for UI updates (automatic in `viewModelScope`)
+
+```kotlin
+class UserRepository(private val api: UserApi) {
+    fun getUsers(): Flow<List<User>> = flow {
+        val users = api.fetchUsers()
+        emit(users)
+    }.flowOn(Dispatchers.IO)
+}
 ```
 
 ## API Design

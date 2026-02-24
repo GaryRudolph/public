@@ -2,6 +2,8 @@
 
 ## Branch Strategy
 
+We follow **GitHub Flow** — short-lived feature branches merged frequently to `main` via pull requests. For apps with scheduled release trains a stabalization branch is acceptable.
+
 ### Main Branch
 - **`main`** - Production-ready code, always deployable
 
@@ -153,15 +155,17 @@ unique constraint and proper error handling.
 Fixes #123
 ```
 
-**Breaking change:**
+**Breaking change (shorthand):**
 ```
-feat(api): change user endpoint response format
+feat(api)!: change user endpoint response format
 
-BREAKING CHANGE: User endpoint now returns { data: user }
-instead of user directly. Update all API clients accordingly.
+User endpoint now returns { data: user } instead of user
+directly. Update all API clients accordingly.
 
 Migration guide: https://docs.example.com/migration/v2
 ```
+
+Append `!` after the type/scope to signal a breaking change inline. Optionally also include a `BREAKING CHANGE:` footer for longer explanations.
 
 ### Commit Message Rules
 
@@ -169,7 +173,7 @@ Migration guide: https://docs.example.com/migration/v2
    - Use imperative mood ("add" not "added" or "adds")
    - Don't capitalize first letter
    - No period at the end
-   - Maximum 50 characters
+   - Maximum 72 characters
    - Be specific and descriptive
 
 2. **Body (optional)**
@@ -591,7 +595,7 @@ echo "Pre-commit checks passed"
 
 # Validate commit message format
 commit_msg=$(cat "$1")
-pattern='^(feat|fix|docs|style|refactor|perf|test|chore|ci|build)(\(.+\))?: .{1,50}'
+pattern='^(feat|fix|docs|style|refactor|perf|test|chore|ci|build)(\(.+\))?!?: .{1,72}'
 
 if ! [[ $commit_msg =~ $pattern ]]; then
   echo "Invalid commit message format"

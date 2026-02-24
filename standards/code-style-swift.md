@@ -1,6 +1,15 @@
 # Code Style — Swift
 
-Follows general principles in [code-style.md](code-style.md).
+Follows general principles in [code-style.md](code-style.md) and [Apple Swift API Design Guidelines](https://swift.org/documentation/api-design-guidelines).
+
+## Formatting
+
+- **4 spaces** per indentation level (Apple/Xcode default). Overrides the general 2-space default for Swift.
+- **120-character** line length (SwiftLint default warning threshold).
+- Every file ends with exactly one trailing newline.
+- No semicolons.
+- No parentheses around `if`/`guard`/`while`/`switch` conditions.
+- Compile with **zero warnings**.
 
 ## Naming Conventions
 
@@ -21,6 +30,16 @@ let maxRetryAttempts = 3
 let uab = 1000
 func calc(i: [Any]) { }
 ```
+
+### Apple API Design Guidelines
+
+- **Boolean properties** read as assertions: `isEmpty`, `isEnabled`, `hasContent` (not `empty`, `enabled`)
+- **Factory methods** begin with `make`: `makeIterator()`, `makeWidget(gears:)`
+- **Mutating/nonmutating pairs**: imperative verb for mutating, past participle for non-mutating: `sort()` / `sorted()`, `append()` / `appending()`
+- **Protocols**: nouns for "what something is" (`Collection`), `-able`/`-ible`/`-ing` for capabilities (`Equatable`, `ProgressReporting`)
+- **Acronyms**: uniformly up- or down-cased per position: `var utf8Bytes`, `class HTTPSConnection`, `var urlString`
+- **Omit needless words**: `allViews.remove(cancelButton)` not `allViews.removeElement(cancelButton)`
+- **Name by role, not type**: `var greeting = "Hello"` not `var string = "Hello"`
 
 ## Protocol + Implementation Naming
 
@@ -573,3 +592,77 @@ guard let user = user else { return }
 guard user.isActive else { return }
 guard user.hasPermission else { return }
 ```
+
+## Access Control
+
+- Default to `private`, then `fileprivate`, then `internal` — use the most restrictive level possible
+- Don't use naming conventions (leading underscore) as a substitute for access control
+- Don't use `public extension` to grant blanket access — put access modifiers on individual members unless intentionally providing default protocol implementations
+
+## Shorthand Types
+
+```swift
+// Good — use shorthand syntax
+var items: [Item]
+var lookup: [String: User]
+var optionalName: String?
+
+// Avoid — verbose generic syntax
+var items: Array<Item>
+var lookup: Dictionary<String, User>
+var optionalName: Optional<String>
+```
+
+## Trailing Closures
+
+```swift
+// Good — single trailing closure
+let even = numbers.filter { $0 % 2 == 0 }
+
+// Avoid — trailing closure when there are multiple closure parameters
+// Use labeled arguments instead for clarity
+UIView.animate(withDuration: 0.3, animations: {
+    view.alpha = 0
+}, completion: { finished in
+    view.removeFromSuperview()
+})
+```
+
+## Force Unwraps and Force Casts
+
+- `!` (force unwrap) and `as!` (force cast) are **strongly discouraged** in production code. If used, require a comment explaining the invariant.
+- `try!` is **forbidden** in production code except for compile-time-provable safety (e.g., regex literals).
+- Implicitly unwrapped optionals (`!`) are only permitted for `@IBOutlet` and lifecycle-dependent properties.
+
+```swift
+// Avoid in production
+let user = users.first!
+
+// Good — handle the nil case
+guard let user = users.first else {
+    throw AppError.noUsers
+}
+```
+
+## Complexity Thresholds (SwiftLint)
+
+| Metric | Warning | Error |
+|---|---|---|
+| Line length | 120 chars | 200 chars |
+| Function body length | 50 lines | 100 lines |
+| Type body length | 250 lines | 350 lines |
+| File length | 400 lines | 1000 lines |
+| Cyclomatic complexity | 10 | 20 |
+| Function parameter count | 5 | 8 |
+
+## Tools
+
+- **SwiftLint** — Linting and style enforcement (integrate via SPM or build phase)
+- Run in CI and optionally as a pre-commit hook
+- Configure via `.swiftlint.yml` in the project root
+
+## References
+
+- [Apple Swift API Design Guidelines](https://swift.org/documentation/api-design-guidelines)
+- [Google Swift Style Guide](https://google.github.io/swift/)
+- [SwiftLint Rule Directory](https://realm.github.io/SwiftLint/rule-directory.html)

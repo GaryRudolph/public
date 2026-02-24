@@ -2,11 +2,19 @@
 
 Follows general principles in [code-style.md](code-style.md) and [PEP 8](https://peps.python.org/pep-0008/).
 
+## Formatting
+
+- **4 spaces** per indentation level (per PEP 8). No tabs.
+- **88-character** line length (Black/Ruff default). Overrides the general 100-char default for Python.
+- **Double quotes** by default (Black convention).
+- **Trailing comma** on the last element of multi-line collections, arguments, and parameters — forces multi-line formatting and produces cleaner diffs.
+
 ## Naming Conventions
 
 - Use **snake_case** for variables, functions, and file names: `user_service.py`
 - Use **PascalCase** for classes: `UserRepository`
 - Use **SCREAMING_SNAKE_CASE** for constants: `MAX_RETRY_ATTEMPTS`
+- Use **`_leading_underscore`** for private/internal attributes and functions: `_internal_cache`, `_validate_input()`
 
 ```python
 # Good
@@ -63,8 +71,6 @@ __all__ = [
 
 ## Spacing
 
-Use **4 spaces** for indentation (per PEP 8). No tabs.
-
 ```python
 # Good spacing
 def calculate(a, b):
@@ -110,7 +116,10 @@ x = 5
 
 - Prefer `X | Y` over `Optional[X]` and `Union[X, Y]` (Python 3.10+)
 - Always annotate return types, including `-> None`
+- Use lowercase builtins: `list[int]`, `dict[str, Any]`, `tuple[int, ...]` (Python 3.9+)
+- Use `Protocol` for structural subtyping instead of ABCs where possible
 - Use `*args: Any, **kwargs: Any` when forwarding arguments
+- All **public functions** must have full type annotations (parameters + return type)
 
 ```python
 # Good
@@ -289,6 +298,20 @@ if not user.has_permission:
     return
 ```
 
+### Dangerous Functions
+
+```python
+# Never use on untrusted input
+eval(user_input)              # Arbitrary code execution
+exec(user_input)              # Arbitrary code execution
+pickle.loads(untrusted_data)  # Arbitrary code execution
+
+# Use subprocess safely — never shell=True with dynamic input
+import subprocess
+subprocess.run(["ls", "-la", path], shell=False, check=True)  # Good
+subprocess.run(f"ls -la {path}", shell=True)                  # Vulnerable to injection
+```
+
 ## Tools
 
 ### Linting and Formatting
@@ -301,12 +324,52 @@ ruff check --fix . # Lint with auto-fix
 ruff format .      # Format
 ```
 
+### Ruff Configuration
+
+Add to `pyproject.toml`. Start with the recommended tier and expand as the codebase matures:
+
+```toml
+[tool.ruff]
+target-version = "py312"
+line-length = 88
+
+[tool.ruff.lint]
+select = [
+    "E",    # pycodestyle errors
+    "W",    # pycodestyle warnings
+    "F",    # Pyflakes (undefined names, unused imports)
+    "UP",   # pyupgrade (modernize syntax)
+    "B",    # flake8-bugbear (likely bugs)
+    "SIM",  # flake8-simplify
+    "I",    # isort (import sorting)
+    "C4",   # flake8-comprehensions
+    "RUF",  # Ruff-specific rules
+]
+fixable = ["ALL"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["my_package"]
+```
+
+For strict projects, add: `"S"` (bandit security), `"D"` (docstrings), `"ANN"` (annotations), `"PTH"` (pathlib), `"T20"` (no print), `"N"` (naming), `"ARG"` (unused arguments).
+
 ### Type Checking
 
-Use **mypy** for static type checking:
+Use **mypy** in strict mode for static type checking:
 
 ```bash
 mypy src/
+```
+
+Configuration in `pyproject.toml`:
+
+```toml
+[tool.mypy]
+strict = true
+warn_return_any = true
+warn_unused_ignores = true
+disallow_untyped_defs = true
+no_implicit_optional = true
 ```
 
 ### Package Management

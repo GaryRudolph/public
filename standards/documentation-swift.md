@@ -57,6 +57,13 @@ func complexFunction() { }
 // NOTE: This must run before initDatabase()
 ```
 
+## Documentation Rules
+
+- **Write a `///` or `/** */` doc comment for every `public` and `open` declaration** — no exceptions
+- **Start with a single-sentence summary** as a sentence fragment, not "This method..." or "This property is..." — it's redundant
+- Document the **complexity** of any computed property that is not O(1): `/// - Complexity: O(n)`
+- Use `///` for single-line and member documentation; `/** */` is acceptable for longer type-level docs
+
 ## Protocol Documentation
 
 Use `/** */` block comments for protocol and major type-level documentation. Use `///` for individual members:
@@ -279,6 +286,26 @@ An iOS app README should cover build prerequisites, target configurations, and a
 bundle install
 bundle exec fastlane build
 ```
+```
+
+## DocC Documentation Catalogs
+
+For frameworks and packages, add a documentation catalog (`.docc` bundle):
+
+- Write long-form **articles** in Markdown for conceptual guides
+- Organize with **Topics** groups in your documentation catalog
+- Include code examples — runnable where possible
+- Use `@Tutorial` for step-by-step guides with associated images
+
+```
+Sources/
+└── MyFramework/
+    ├── MyFramework.docc/
+    │   ├── MyFramework.md          # Landing page
+    │   ├── GettingStarted.md       # Article
+    │   └── Resources/              # Images, sample code
+    ├── MyService.swift
+    └── ...
 ```
 
 ## Documentation Tools
