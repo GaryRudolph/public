@@ -1,6 +1,6 @@
 # Testing — Swift
 
-Follows general principles in [testing.md](testing.md).
+Follows general principles in [testing.md](../testing.md).
 
 ## Testing Frameworks
 

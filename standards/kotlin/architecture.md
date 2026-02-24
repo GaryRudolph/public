@@ -1,6 +1,6 @@
 # Architecture — Kotlin
 
-Follows general principles in [architecture.md](architecture.md).
+Follows general principles in [architecture.md](../architecture.md).
 
 ## Design Patterns
 

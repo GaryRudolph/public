@@ -1,6 +1,6 @@
 # Code Style — Swift
 
-Follows general principles in [code-style.md](code-style.md) and [Apple Swift API Design Guidelines](https://swift.org/documentation/api-design-guidelines).
+Follows general principles in [code-style.md](../code-style.md) and [Apple Swift API Design Guidelines](https://swift.org/documentation/api-design-guidelines).
 
 ## Formatting
 

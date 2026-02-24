@@ -1,6 +1,6 @@
 # Code Style — Python
 
-Follows general principles in [code-style.md](code-style.md) and [PEP 8](https://peps.python.org/pep-0008/).
+Follows general principles in [code-style.md](../code-style.md) and [PEP 8](https://peps.python.org/pep-0008/).
 
 ## Formatting
 

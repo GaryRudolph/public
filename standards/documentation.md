@@ -136,6 +136,6 @@ Follow [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) format with sect
 
 ## Language-Specific Guidelines
 
-- **[Python](documentation-python.md)**
-- **[Swift](documentation-swift.md)**
-- **[Kotlin](documentation-kotlin.md)**
+- **[Python](python/documentation.md)**
+- **[Swift](swift/documentation.md)**
+- **[Kotlin](kotlin/documentation.md)**

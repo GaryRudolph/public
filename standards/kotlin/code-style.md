@@ -1,6 +1,6 @@
 # Code Style — Kotlin
 
-Follows general principles in [code-style.md](code-style.md) and [Kotlin Official Coding Conventions](https://kotlinlang.org/docs/coding-conventions.html).
+Follows general principles in [code-style.md](../code-style.md) and [Kotlin Official Coding Conventions](https://kotlinlang.org/docs/coding-conventions.html).
 
 ## Naming Conventions
 

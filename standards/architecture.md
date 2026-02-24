@@ -220,6 +220,6 @@ Don't document:
 
 ## Language-Specific Guidelines
 
-- **[Python](architecture-python.md)**
-- **[Swift](architecture-swift.md)**
-- **[Kotlin](architecture-kotlin.md)**
+- **[Python](python/architecture.md)**
+- **[Swift](swift/architecture.md)**
+- **[Kotlin](kotlin/architecture.md)**

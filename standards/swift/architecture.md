@@ -1,6 +1,6 @@
 # Architecture — Swift
 
-Follows general principles in [architecture.md](architecture.md).
+Follows general principles in [architecture.md](../architecture.md).
 
 ## Module Structure
 

@@ -1,6 +1,6 @@
 # Documentation — Swift
 
-Follows general principles in [documentation.md](documentation.md).
+Follows general principles in [documentation.md](../documentation.md).
 
 ## Code Comments
 

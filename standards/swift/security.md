@@ -1,6 +1,6 @@
 # Security — Swift / iOS
 
-Follows general principles in [security.md](security.md) and [OWASP MASVS v2](https://mas.owasp.org/MASVS/).
+Follows general principles in [security.md](../security.md) and [OWASP MASVS v2](https://mas.owasp.org/MASVS/).
 
 ## OWASP MASVS Overview
 

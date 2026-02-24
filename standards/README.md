@@ -17,21 +17,21 @@ This directory contains comprehensive coding standards for the project. These st
 ### Language-Specific Standards
 
 #### Python
-- **[Code Style — Python](code-style-python.md)** - PEP 8, Ruff/Black config, type annotations, mypy
-- **[Documentation — Python](documentation-python.md)** - Google-style docstrings, Sphinx
-- **[Testing — Python](testing-python.md)** - pytest, Hypothesis, coverage config, fixtures
+- **[Code Style — Python](python/code-style.md)** - PEP 8, Ruff/Black config, type annotations, mypy
+- **[Documentation — Python](python/documentation.md)** - Google-style docstrings, Sphinx
+- **[Testing — Python](python/testing.md)** - pytest, Hypothesis, coverage config, fixtures
 
 #### Swift
-- **[Code Style — Swift](code-style-swift.md)** - Apple API Guidelines, SwiftLint, access control
-- **[Documentation — Swift](documentation-swift.md)** - `///` doc comments, DocC catalogs
-- **[Testing — Swift](testing-swift.md)** - Swift Testing, XCTest, snapshot testing, UI testing
-- **[Security — Swift](security-swift.md)** - Keychain, ATS, CryptoKit, OWASP MASVS
+- **[Code Style — Swift](swift/code-style.md)** - Apple API Guidelines, SwiftLint, access control
+- **[Documentation — Swift](swift/documentation.md)** - `///` doc comments, DocC catalogs
+- **[Testing — Swift](swift/testing.md)** - Swift Testing, XCTest, snapshot testing, UI testing
+- **[Security — Swift](swift/security.md)** - Keychain, ATS, CryptoKit, OWASP MASVS
 
 #### Kotlin
-- **[Code Style — Kotlin](code-style-kotlin.md)** - JetBrains conventions, detekt/ktlint, idioms
-- **[Documentation — Kotlin](documentation-kotlin.md)** - KDoc, Dokka
-- **[Testing — Kotlin](testing-kotlin.md)** - JUnit 5, MockK, Turbine, Compose UI testing
-- **[Security — Kotlin](security-kotlin.md)** - EncryptedSharedPreferences, Android Keystore, OWASP MASVS
+- **[Code Style — Kotlin](kotlin/code-style.md)** - JetBrains conventions, detekt/ktlint, idioms
+- **[Documentation — Kotlin](kotlin/documentation.md)** - KDoc, Dokka
+- **[Testing — Kotlin](kotlin/testing.md)** - JUnit 5, MockK, Turbine, Compose UI testing
+- **[Security — Kotlin](kotlin/security.md)** - EncryptedSharedPreferences, Android Keystore, OWASP MASVS
 
 ## Purpose
 

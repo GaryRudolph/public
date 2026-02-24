@@ -8,22 +8,22 @@ like it to work together.
 All code generation and modifications should follow the standards defined in the [standards/](../standards/) directory:
 
 - **[Code Style](../standards/code-style.md)** - Formatting, naming conventions, and code organization
-  - **[Python](../standards/code-style-python.md)**
-  - **[Swift](../standards/code-style-swift.md)**
-  - **[Kotlin](../standards/code-style-kotlin.md)**
+  - **[Python](../standards/python/code-style.md)**
+  - **[Swift](../standards/swift/code-style.md)**
+  - **[Kotlin](../standards/kotlin/code-style.md)**
 - **[Architecture](../standards/architecture.md)** - Design patterns and architectural principles
 - **[Testing](../standards/testing.md)** - Testing strategy and best practices
-  - **[Python](../standards/testing-python.md)**
-  - **[Swift](../standards/testing-swift.md)**
-  - **[Kotlin](../standards/testing-kotlin.md)**
+  - **[Python](../standards/python/testing.md)**
+  - **[Swift](../standards/swift/testing.md)**
+  - **[Kotlin](../standards/kotlin/testing.md)**
 - **[Documentation](../standards/documentation.md)** - Code documentation requirements
-  - **[Python](../standards/documentation-python.md)**
-  - **[Swift](../standards/documentation-swift.md)**
-  - **[Kotlin](../standards/documentation-kotlin.md)**
+  - **[Python](../standards/python/documentation.md)**
+  - **[Swift](../standards/swift/documentation.md)**
+  - **[Kotlin](../standards/kotlin/documentation.md)**
 - **[Git Workflow](../standards/git.md)** - Commit messages and branching strategy
 - **[Security](../standards/security.md)** - Security best practices and requirements
-  - **[Swift / iOS](../standards/security-swift.md)**
-  - **[Kotlin / Android](../standards/security-kotlin.md)**
+  - **[Swift / iOS](../standards/swift/security.md)**
+  - **[Kotlin / Android](../standards/kotlin/security.md)**
 
 ## Quick Reference
 

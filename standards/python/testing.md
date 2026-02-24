@@ -1,6 +1,6 @@
 # Testing — Python
 
-Follows general principles in [testing.md](testing.md).
+Follows general principles in [testing.md](../testing.md).
 
 ## pytest Configuration
 

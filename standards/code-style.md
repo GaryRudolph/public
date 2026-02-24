@@ -103,6 +103,6 @@ Configure your editor to:
 
 ## Language-Specific Guidelines
 
-- **[Python](code-style-python.md)**
-- **[Swift](code-style-swift.md)**
-- **[Kotlin](code-style-kotlin.md)**
+- **[Python](python/code-style.md)**
+- **[Swift](swift/code-style.md)**
+- **[Kotlin](kotlin/code-style.md)**

@@ -617,8 +617,8 @@ pip show package-name
 
 For mobile-specific security standards, see the platform-specific guides:
 
-- **[Swift / iOS Security](security-swift.md)** — Keychain, ATS, CryptoKit, biometric auth, OWASP MASVS
-- **[Kotlin / Android Security](security-kotlin.md)** — EncryptedSharedPreferences, Android Keystore, ProGuard/R8, OWASP MASVS
+- **[Swift / iOS Security](swift/security.md)** — Keychain, ATS, CryptoKit, biometric auth, OWASP MASVS
+- **[Kotlin / Android Security](kotlin/security.md)** — EncryptedSharedPreferences, Android Keystore, ProGuard/R8, OWASP MASVS
 
 ## Resources
 

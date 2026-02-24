@@ -1,6 +1,6 @@
 # Testing — Kotlin
 
-Follows general principles in [testing.md](testing.md).
+Follows general principles in [testing.md](../testing.md).
 
 ## Testing Pyramid
 
