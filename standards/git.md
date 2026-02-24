@@ -170,7 +170,7 @@ Migration guide: https://docs.example.com/migration/v2
 ### Commit Message Rules
 
 1. **Subject line (first line)**
-   - Use imperative mood ("add" not "added" or "adds")
+   - Use imperative mood — the subject should complete the sentence "if applied, this commit will ..."  (e.g., "add" not "added" or "adds")
    - Don't capitalize first letter (after ticket, if present)
    - No period at the end
    - Maximum 72 characters (including ticket)
