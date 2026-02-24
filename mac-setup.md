@@ -25,7 +25,11 @@
   * `ln -s Projects/personal/public/bin bin`
   * `ln -s Projects/personal/public/dotfiles/zshrc .zshrc`
   * `ln -s Projects/personal/public/dotfiles/zshrc-gMacBook .zshrc-local`
-  * `cd .claude; ln -s ../Projects/personal/public/agents/CLAUDE.md`
+
+- [ ] Configure AI agent tools (see [agents/README.md](agents/README.md))
+  * `echo '@~/Projects/personal/public/agents/CLAUDE.md' > ~/.claude/CLAUDE.md`
+  * `mkdir -p ~/.gemini && echo '@~/Projects/personal/public/agents/GEMINI.md' > ~/.gemini/GEMINI.md`
+  * `mkdir -p ~/.codex && ln -s ~/Projects/personal/public/agents/AGENTS.md ~/.codex/AGENTS.md`
 
 - [ ] Checkout the private repo to `Projects/personal/private` and
       create Symbolic Links
