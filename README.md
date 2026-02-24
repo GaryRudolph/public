@@ -7,4 +7,4 @@ machines.
 2. **dotfiles** contain the MacOS dot files for zsh and similar.
 3. [standards](standards/README.md) General AI coding agent standards
 4. [agents](agents/README.md) Specific AI agent coding standards
-5. [Mac Setup](mac-setup.md) for setting up a Fresh Mac
+5. [Mac Setup](setup/mac.md) for setting up a Fresh Mac
