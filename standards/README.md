@@ -5,21 +5,22 @@ This directory contains comprehensive coding standards for the project. These st
 ## Standards Documents
 
 ### Core Standards
-- **[Code Style](code-style.md)** - Formatting rules, naming conventions, and code organization
-- **[Architecture](architecture.md)** - Design patterns, module structure, and architectural decisions
-- **[Testing](testing.md)** - Test coverage requirements, testing patterns, and best practices
+- **[Code Style](code-style.md)** - Naming conventions, formatting principles, and code organization
+- **[Architecture](architecture.md)** - Design patterns, module structure, cross-platform parity, and architectural decisions
+- **[Testing](testing.md)** - Testing philosophy, coverage requirements, and cross-language patterns
 - **[Documentation](documentation.md)** - Documentation requirements and formats
 
 ### Process Standards
 - **[Git Workflow](git.md)** - Branching strategy, commit conventions, and PR process
-- **[Security](security.md)** - Security requirements and vulnerability prevention
+- **[Security](security.md)** - Security principles, OWASP guidance, and cross-language patterns
 
 ### Language-Specific Standards
 
 #### Python
 - **[Code Style — Python](python/code-style.md)** - PEP 8, Ruff/Black config, type annotations, mypy
 - **[Documentation — Python](python/documentation.md)** - Google-style docstrings, Sphinx
-- **[Testing — Python](python/testing.md)** - pytest, Hypothesis, coverage config, fixtures
+- **[Testing — Python](python/testing.md)** - pytest, Hypothesis, coverage, fixtures, moto/AWS, integration patterns
+- **[Security — Python](python/security.md)** - bcrypt, JWT, Flask security, Pydantic, Bandit, cryptography
 
 #### Swift
 - **[Code Style — Swift](swift/code-style.md)** - Apple API Guidelines, SwiftLint, access control

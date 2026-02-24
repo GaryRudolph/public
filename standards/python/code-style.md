@@ -5,7 +5,7 @@ Follows general principles in [code-style.md](../code-style.md) and [PEP 8](http
 ## Formatting
 
 - **4 spaces** per indentation level (per PEP 8). No tabs.
-- **88-character** line length (Black/Ruff default). Overrides the general 100-char default for Python.
+- **88-character** line length (Black/Ruff default).
 - **Double quotes** by default (Black convention).
 - **Trailing comma** on the last element of multi-line collections, arguments, and parameters — forces multi-line formatting and produces cleaner diffs.
 
@@ -164,6 +164,30 @@ class Order(Model):
 
     state: State = State.PENDING
 ```
+
+## File Headers
+
+For open-source packages, include a copyright and license header at the top of every source file, before imports:
+
+```python
+# Copyright © 2024 Company, Inc.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+from __future__ import annotations
+```
+
+For private/internal projects, a shorter header (just copyright) or no header is acceptable. Be consistent within a repository.
 
 ## Imports
 
