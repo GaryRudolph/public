@@ -93,7 +93,7 @@ git push origin v3
 git checkout -b fix/critical-security-issue v3
 
 # 2. Make fix and commit
-git commit -m "fix: critical security issue"
+git commit -m "fix critical security issue"
 
 # 3. Create release branch from the version tag
 git checkout -b release/v3.1 v3
@@ -116,73 +116,76 @@ git branch -d release/v3.1
 
 ### Format
 ```
-<type>(<scope>): <subject>
+[optional ticket] <imperative description>
 
-<body>
+[optional body]
 
-<footer>
+[optional footer]
 ```
 
-### Types
-- **feat** - New feature
-- **fix** - Bug fix
-- **docs** - Documentation changes
-- **style** - Code style changes (formatting, missing semicolons, etc.)
-- **refactor** - Code refactoring without changing functionality
-- **perf** - Performance improvements
-- **test** - Adding or updating tests
-- **chore** - Maintenance tasks, dependencies, config
-- **ci** - CI/CD changes
-- **build** - Build system changes
+Keep it simple: a short, descriptive subject line — optionally prefixed with a ticket number — that reads like a command. Add a body only when the *why* isn't obvious from the subject.
 
 ### Examples
 
-**Simple commit:**
+**One-liner (most commits):**
 ```
-feat(auth): add login endpoint
-
-Implements OAuth 2.0 authentication with JWT tokens.
+add login endpoint
 ```
 
-**Detailed commit:**
+**With ticket:**
 ```
-fix(api): prevent race condition in user creation
-
-Race condition occurred when multiple requests tried to create
-users with the same email simultaneously. Added database-level
-unique constraint and proper error handling.
-
-Fixes #123
+PROJ-123 add login endpoint
 ```
 
-**Breaking change (shorthand):**
+**With body:**
 ```
-feat(api)!: change user endpoint response format
+PROJ-123 add login endpoint
 
-User endpoint now returns { data: user } instead of user
-directly. Update all API clients accordingly.
+Implements OAuth 2.0 authentication with short-lived JWTs.
+Refresh tokens are stored server-side with automatic rotation.
+```
 
+**With footer:**
+```
+PROJ-123 fix auth bypass on expired tokens
+
+Tokens were not validated against the revocation list, allowing
+expired tokens to access protected endpoints.
+
+Fixes #456
+Co-authored-by: Alice <alice@example.com>
+```
+
+**Breaking change:**
+```
+change user endpoint response format
+
+User endpoint now returns { data: user } instead of the user
+object directly. All API clients must update their parsers.
+
+BREAKING CHANGE: response envelope changed
 Migration guide: https://docs.example.com/migration/v2
 ```
-
-Append `!` after the type/scope to signal a breaking change inline. Optionally also include a `BREAKING CHANGE:` footer for longer explanations.
 
 ### Commit Message Rules
 
 1. **Subject line (first line)**
    - Use imperative mood ("add" not "added" or "adds")
-   - Don't capitalize first letter
+   - Don't capitalize first letter (after ticket, if present)
    - No period at the end
-   - Maximum 72 characters
+   - Maximum 72 characters (including ticket)
    - Be specific and descriptive
 
-2. **Body (optional)**
+2. **Ticket number (optional)**
+   - Bare format at the start of the subject: `PROJ-123 add feature`
+   - Include when a ticket exists; omit when there isn't one
+
+3. **Body (optional)**
+   - Separate from subject with a blank line
    - Wrap at 72 characters
    - Explain *what* and *why*, not *how*
-   - Separate from subject with blank line
-   - Use bullet points for multiple points
 
-3. **Footer (optional)**
+4. **Footer (optional)**
    - Reference issues: `Fixes #123`, `Closes #456`
    - Note breaking changes: `BREAKING CHANGE: description`
    - Credit co-authors: `Co-authored-by: Name <email>`
@@ -191,10 +194,11 @@ Append `!` after the type/scope to signal a breaking change inline. Optionally a
 
 ```bash
 # Good
-feat(user): add email verification
-fix(api): handle null values in user response
-refactor(auth): extract token validation logic
-docs(readme): add installation instructions
+add email verification
+PROJ-123 add email verification
+fix null values in user response
+extract token validation into shared module
+update installation instructions in README
 
 # Bad
 update stuff        # Too vague
@@ -212,10 +216,10 @@ asdfgh            # Not descriptive
 
 ```bash
 # Good - atomic commits
-git commit -m "feat(user): add User model"
-git commit -m "feat(user): add UserRepository"
-git commit -m "feat(user): add UserService"
-git commit -m "test(user): add user service tests"
+git commit -m "add User model"
+git commit -m "add UserRepository"
+git commit -m "add UserService"
+git commit -m "add user service tests"
 
 # Avoid - mixed changes
 git commit -m "add user feature and fix login bug and update docs"
@@ -302,10 +306,13 @@ htmlcov/
    - Split large changes into multiple PRs
 
 ### PR Title Format
+
+PR titles follow the same format as commit messages:
+
 ```
-feat(scope): brief description
-fix(scope): brief description
-docs: update README
+PROJ-123 add user authentication
+fix memory leak in connection pool
+update README with installation steps
 ```
 
 ### Reviewing PRs
@@ -391,7 +398,7 @@ git checkout -b feature/new-feature
 
 # 2. Make changes and commit
 git add .
-git commit -m "feat: add new feature"
+git commit -m "add new feature"
 
 # 3. Push to remote
 git push -u origin feature/new-feature
@@ -413,7 +420,7 @@ git checkout -b fix/critical-bug v2
 
 # 2. Fix and commit
 git add .
-git commit -m "fix: resolve critical bug"
+git commit -m "fix critical bug"
 
 # 3. Create release branch from the version tag
 git checkout -b release/v2.1 v2
@@ -593,13 +600,17 @@ echo "Pre-commit checks passed"
 # .git/hooks/commit-msg
 #!/bin/bash
 
-# Validate commit message format
-commit_msg=$(cat "$1")
-pattern='^(feat|fix|docs|style|refactor|perf|test|chore|ci|build)(\(.+\))?!?: .{1,72}'
+commit_msg=$(head -1 "$1")
 
-if ! [[ $commit_msg =~ $pattern ]]; then
-  echo "Invalid commit message format"
-  echo "Use: <type>(<scope>): <subject>"
+# Reject empty or vague messages
+if [[ ${#commit_msg} -lt 10 ]]; then
+  echo "Commit message too short (min 10 chars)"
+  exit 1
+fi
+
+# Enforce 72-character subject line limit
+if [[ ${#commit_msg} -gt 72 ]]; then
+  echo "Subject line too long (${#commit_msg} chars, max 72)"
   exit 1
 fi
 ```
@@ -651,5 +662,4 @@ git checkout -b recovered-branch abc123
 ## Resources
 
 - [Git Documentation](https://git-scm.com/doc)
-- [Conventional Commits](https://www.conventionalcommits.org/)
 - [Git Flight Rules](https://github.com/k88hudson/git-flight-rules)
