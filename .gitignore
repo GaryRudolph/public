@@ -1,0 +1,15 @@
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# PDF build artifacts
+*.aux
+*.log
+*.out
+
+# Editor
+.vscode/
+.idea/
+*.swp
+*.swo
