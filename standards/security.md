@@ -28,341 +28,290 @@
 ### Password Security
 
 **Requirements:**
-```typescript
-// Password policy
-const PASSWORD_REQUIREMENTS = {
-  minLength: 12,
-  requireUppercase: true,
-  requireLowercase: true,
-  requireNumbers: true,
-  requireSpecialChars: true,
-  preventCommonPasswords: true,
-  preventReuse: 5, // Don't reuse last 5 passwords
-};
+```python
+# Password policy
+PASSWORD_REQUIREMENTS = {
+    "min_length": 12,
+    "require_uppercase": True,
+    "require_lowercase": True,
+    "require_numbers": True,
+    "require_special_chars": True,
+    "prevent_common_passwords": True,
+    "prevent_reuse": 5,  # Don't reuse last 5 passwords
+}
 ```
 
 **Hashing:**
-```typescript
-// Good - use bcrypt with proper cost factor
-import bcrypt from 'bcrypt';
+```python
+# Good - use bcrypt with proper cost factor
+from passlib.hash import bcrypt
 
-const SALT_ROUNDS = 12; // Adjust based on performance/security tradeoff
+ROUNDS = 12  # Adjust based on performance/security tradeoff
 
-async function hashPassword(password: string): Promise<string> {
-  return bcrypt.hash(password, SALT_ROUNDS);
-}
+def hash_password(password: str) -> str:
+    return bcrypt.using(rounds=ROUNDS).hash(password)
 
-async function verifyPassword(password: string, hash: string): Promise<boolean> {
-  return bcrypt.compare(password, hash);
-}
+def verify_password(password: str, hashed: str) -> bool:
+    return bcrypt.verify(password, hashed)
 
-// Never do this
-const hash = crypto.createHash('md5').update(password).digest('hex'); // Insecure!
+# Never do this
+import hashlib
+hash = hashlib.md5(password.encode()).hexdigest()  # Insecure!
 ```
 
 ### Token Security
 
-```typescript
-// JWT best practices
-const token = jwt.sign(
-  { userId: user.id, role: user.role }, // Minimal payload
-  process.env.JWT_SECRET,
-  {
-    expiresIn: '15m', // Short expiration
-    algorithm: 'HS256',
-    issuer: 'your-app',
-    audience: 'your-app-api',
-  }
-);
+```python
+import jwt
+import os
 
-// Refresh tokens
-const refreshToken = generateSecureRandomToken();
-await storeRefreshToken(userId, refreshToken, {
-  expiresAt: Date.now() + 7 * 24 * 60 * 60 * 1000, // 7 days
-  rotateOnUse: true,
-});
+# JWT best practices
+def create_token(user_id: str, role: str) -> str:
+    return jwt.encode(
+        {"user_id": user_id, "role": role},  # Minimal payload
+        os.environ["JWT_SECRET"],
+        algorithm="HS256",
+    )
+
+# Refresh tokens
+import secrets
+
+def generate_refresh_token() -> str:
+    return secrets.token_urlsafe(32)
 ```
 
 ### Session Management
 
-```typescript
-// Secure session configuration
-app.use(session({
-  secret: process.env.SESSION_SECRET, // Long random string
-  name: 'sessionId', // Don't use default name
-  resave: false,
-  saveUninitialized: false,
-  cookie: {
-    secure: true, // HTTPS only
-    httpOnly: true, // No JavaScript access
-    maxAge: 15 * 60 * 1000, // 15 minutes
-    sameSite: 'strict', // CSRF protection
-  },
-}));
+```python
+# Secure session configuration (Flask example)
+app.config.update(
+    SECRET_KEY=os.environ["SESSION_SECRET"],  # Long random string
+    SESSION_COOKIE_NAME="sessionId",          # Don't use default name
+    SESSION_COOKIE_SECURE=True,               # HTTPS only
+    SESSION_COOKIE_HTTPONLY=True,             # No JavaScript access
+    SESSION_COOKIE_SAMESITE="Strict",         # CSRF protection
+    PERMANENT_SESSION_LIFETIME=900,           # 15 minutes
+)
 ```
 
 ### Multi-Factor Authentication
 
-```typescript
-// Implement MFA for sensitive operations
-interface MFAConfig {
-  required: boolean;
-  methods: ['totp', 'sms', 'email'];
-  backupCodes: number; // Number of backup codes
-}
+```python
+# TOTP (Time-based One-Time Password)
+import pyotp
 
-// TOTP (Time-based One-Time Password)
-import speakeasy from 'speakeasy';
+def generate_mfa_secret() -> str:
+    return pyotp.random_base32()
 
-const secret = speakeasy.generateSecret({
-  name: 'YourApp (user@example.com)',
-  length: 32,
-});
+def get_totp_uri(secret: str, email: str) -> str:
+    totp = pyotp.TOTP(secret)
+    return totp.provisioning_uri(name=email, issuer_name="YourApp")
 
-const verified = speakeasy.totp.verify({
-  secret: secret.base32,
-  encoding: 'base32',
-  token: userEnteredCode,
-  window: 1, // Allow 1 step before/after
-});
+def verify_totp(secret: str, code: str) -> bool:
+    totp = pyotp.TOTP(secret)
+    return totp.verify(code, valid_window=1)  # Allow 1 step before/after
 ```
 
 ## Input Validation
 
 ### Validation Rules
 
-```typescript
-// Always validate input
-import { z } from 'zod';
+```python
+# Always validate input with Pydantic
+from pydantic import BaseModel, EmailStr, Field
+import re
 
-const CreateUserSchema = z.object({
-  email: z.string().email().max(255),
-  password: z.string().min(12).max(128),
-  name: z.string().min(1).max(100).regex(/^[a-zA-Z\s'-]+$/),
-  age: z.number().int().min(0).max(150),
-});
+class CreateUserRequest(BaseModel):
+    email: EmailStr
+    password: str = Field(min_length=12, max_length=128)
+    name: str = Field(min_length=1, max_length=100, pattern=r"^[a-zA-Z\s'-]+$")
+    age: int = Field(ge=0, le=150)
 
-function createUser(input: unknown) {
-  // Validate before processing
-  const data = CreateUserSchema.parse(input);
-  // ... proceed with validated data
-}
+def create_user(input_data: dict):
+    # Validate before processing
+    data = CreateUserRequest(**input_data)
+    # ... proceed with validated data
 ```
 
 ### Sanitization
 
-```typescript
-// HTML sanitization
-import DOMPurify from 'isomorphic-dompurify';
+```python
+# HTML sanitization
+import bleach
 
-function sanitizeHtml(dirty: string): string {
-  return DOMPurify.sanitize(dirty, {
-    ALLOWED_TAGS: ['b', 'i', 'em', 'strong', 'p', 'br'],
-    ALLOWED_ATTR: [],
-  });
-}
+ALLOWED_TAGS = ["b", "i", "em", "strong", "p", "br"]
 
-// SQL injection prevention - use parameterized queries
-// Good
-const users = await db.query(
-  'SELECT * FROM users WHERE email = $1',
-  [email]
-);
+def sanitize_html(dirty: str) -> str:
+    return bleach.clean(dirty, tags=ALLOWED_TAGS, attributes={}, strip=True)
 
-// Never do this
-const users = await db.query(
-  `SELECT * FROM users WHERE email = '${email}'` // SQL injection!
-);
+# SQL injection prevention - use parameterized queries
+import psycopg2
+
+# Good
+cursor.execute("SELECT * FROM users WHERE email = %s", (email,))
+
+# Never do this
+cursor.execute(f"SELECT * FROM users WHERE email = '{email}'")  # SQL injection!
 ```
 
 ### File Upload Security
 
-```typescript
-// Secure file upload handling
-const ALLOWED_MIME_TYPES = ['image/jpeg', 'image/png', 'image/gif'];
-const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
+```python
+import magic
+import uuid
+import os
 
-function validateUpload(file: UploadedFile) {
-  // Check file size
-  if (file.size > MAX_FILE_SIZE) {
-    throw new Error('File too large');
-  }
+ALLOWED_MIME_TYPES = {"image/jpeg", "image/png", "image/gif"}
+MAX_FILE_SIZE = 5 * 1024 * 1024  # 5MB
 
-  // Check MIME type
-  if (!ALLOWED_MIME_TYPES.includes(file.mimetype)) {
-    throw new Error('Invalid file type');
-  }
+MIME_TO_EXT = {"image/jpeg": "jpg", "image/png": "png", "image/gif": "gif"}
 
-  // Verify file content matches extension
-  const actualType = await detectFileType(file.buffer);
-  if (actualType !== file.mimetype) {
-    throw new Error('File type mismatch');
-  }
+def validate_upload(file_data: bytes, declared_mimetype: str) -> str:
+    # Check file size
+    if len(file_data) > MAX_FILE_SIZE:
+        raise ValueError("File too large")
 
-  // Generate safe filename
-  const safeFilename = `${uuid()}.${getExtension(file.mimetype)}`;
+    # Check declared MIME type
+    if declared_mimetype not in ALLOWED_MIME_TYPES:
+        raise ValueError("Invalid file type")
 
-  return { safeFilename, file };
-}
+    # Verify file content matches declared type
+    actual_type = magic.from_buffer(file_data, mime=True)
+    if actual_type != declared_mimetype:
+        raise ValueError("File type mismatch")
+
+    # Generate safe filename
+    ext = MIME_TO_EXT[declared_mimetype]
+    return f"{uuid.uuid4()}.{ext}"
 ```
 
 ## Cross-Site Scripting (XSS) Prevention
 
 ### Output Encoding
 
-```typescript
-// React automatically escapes (safe)
-<div>{userInput}</div>
+```python
+import html
 
-// Be careful with dangerouslySetInnerHTML
-<div dangerouslySetInnerHTML={{ __html: sanitizeHtml(userInput) }} />
+def escape_html(unsafe: str) -> str:
+    return html.escape(unsafe, quote=True)
 
-// Template literals - manually escape
-function escapeHtml(unsafe: string): string {
-  return unsafe
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#039;');
-}
+# Template engines like Jinja2 auto-escape by default
+# {{ user_input }}  ← safe (auto-escaped)
+# {{ user_input | safe }}  ← unsafe, only use for trusted content
 ```
 
 ### Content Security Policy
 
-```typescript
-// Set CSP headers
-app.use((req, res, next) => {
-  res.setHeader(
-    'Content-Security-Policy',
-    "default-src 'self'; " +
-    "script-src 'self' 'unsafe-inline' https://trusted-cdn.com; " +
-    "style-src 'self' 'unsafe-inline'; " +
-    "img-src 'self' data: https:; " +
-    "font-src 'self'; " +
-    "connect-src 'self' https://api.yourapp.com; " +
-    "frame-ancestors 'none';"
-  );
-  next();
-});
+```python
+# Set CSP headers (Flask example)
+@app.after_request
+def set_security_headers(response):
+    response.headers["Content-Security-Policy"] = (
+        "default-src 'self'; "
+        "script-src 'self' https://trusted-cdn.com; "
+        "style-src 'self' 'unsafe-inline'; "
+        "img-src 'self' data: https:; "
+        "font-src 'self'; "
+        "connect-src 'self' https://api.yourapp.com; "
+        "frame-ancestors 'none';"
+    )
+    return response
 ```
 
 ## Cross-Site Request Forgery (CSRF) Prevention
 
-```typescript
-// Use CSRF tokens
-import csrf from 'csurf';
+```python
+# Use Flask-WTF or similar for CSRF protection
+from flask_wtf.csrf import CSRFProtect
 
-app.use(csrf({ cookie: true }));
+csrf = CSRFProtect(app)
 
-// Include token in forms
-app.get('/form', (req, res) => {
-  res.render('form', { csrfToken: req.csrfToken() });
-});
-
-// Verify token on submission
-app.post('/submit', (req, res) => {
-  // Token automatically verified by middleware
-});
-
-// For APIs, use double-submit cookie pattern or custom headers
-app.use((req, res, next) => {
-  if (req.method !== 'GET' && req.method !== 'HEAD') {
-    const token = req.headers['x-csrf-token'];
-    const cookieToken = req.cookies.csrfToken;
-
-    if (token !== cookieToken) {
-      return res.status(403).json({ error: 'Invalid CSRF token' });
-    }
-  }
-  next();
-});
+# For APIs, validate custom header (browsers can't set this cross-origin)
+@app.before_request
+def verify_csrf():
+    if request.method not in ("GET", "HEAD"):
+        token = request.headers.get("X-CSRF-Token")
+        cookie_token = request.cookies.get("csrfToken")
+        if token != cookie_token:
+            abort(403, "Invalid CSRF token")
 ```
 
 ## API Security
 
 ### Rate Limiting
 
-```typescript
-import rateLimit from 'express-rate-limit';
+```python
+from slowapi import Limiter
+from slowapi.util import get_remote_address
 
-// General rate limiting
-const limiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100, // Limit each IP to 100 requests per windowMs
-  message: 'Too many requests, please try again later',
-  standardHeaders: true,
-  legacyHeaders: false,
-});
+limiter = Limiter(key_func=get_remote_address)
 
-// Stricter for authentication endpoints
-const authLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000,
-  max: 5, // Only 5 attempts per 15 minutes
-  skipSuccessfulRequests: true,
-});
+# General rate limiting
+@app.route("/api/data")
+@limiter.limit("100/15minutes")
+def api_data():
+    pass
 
-app.use('/api/', limiter);
-app.use('/api/auth/', authLimiter);
+# Stricter for authentication endpoints
+@app.route("/api/auth/login", methods=["POST"])
+@limiter.limit("5/15minutes")
+def login():
+    pass
 ```
 
 ### API Key Security
 
-```typescript
-// Store API keys securely
-interface ApiKey {
-  id: string;
-  userId: string;
-  keyHash: string; // Store hash, not plain key
-  name: string;
-  permissions: string[];
-  expiresAt: Date;
-  lastUsed: Date;
-}
+```python
+import secrets
+import hashlib
+from dataclasses import dataclass
+from datetime import datetime
 
-// Generate secure API keys
-function generateApiKey(): string {
-  return `app_${crypto.randomBytes(32).toString('base64url')}`;
-}
+@dataclass
+class ApiKey:
+    id: str
+    user_id: str
+    key_hash: str  # Store hash, not plain key
+    name: str
+    permissions: list[str]
+    expires_at: datetime
+    last_used: datetime
 
-// Validate API key
-async function validateApiKey(key: string): Promise<ApiKey | null> {
-  const keyHash = hashApiKey(key);
-  const apiKey = await db.findByHash(keyHash);
+def generate_api_key() -> str:
+    return f"app_{secrets.token_urlsafe(32)}"
 
-  if (!apiKey || apiKey.expiresAt < new Date()) {
-    return null;
-  }
+def hash_api_key(key: str) -> str:
+    return hashlib.sha256(key.encode()).hexdigest()
 
-  // Update last used
-  await db.updateLastUsed(apiKey.id);
+async def validate_api_key(key: str) -> ApiKey | None:
+    key_hash = hash_api_key(key)
+    api_key = await db.find_by_hash(key_hash)
 
-  return apiKey;
-}
+    if not api_key or api_key.expires_at < datetime.utcnow():
+        return None
+
+    await db.update_last_used(api_key.id)
+    return api_key
 ```
 
 ## Database Security
 
 ### SQL Injection Prevention
 
-```typescript
-// Always use parameterized queries
-// Good
-const user = await db.query(
-  'SELECT * FROM users WHERE email = $1 AND role = $2',
-  [email, role]
-);
+```python
+# Always use parameterized queries
 
-// Good - ORM
-const user = await User.findOne({
-  where: { email, role },
-});
+# Good - psycopg2
+cursor.execute(
+    "SELECT * FROM users WHERE email = %s AND role = %s",
+    (email, role)
+)
 
-// Never concatenate SQL
-// Bad
-const user = await db.query(
-  `SELECT * FROM users WHERE email = '${email}'` // Vulnerable!
-);
+# Good - SQLAlchemy ORM
+user = session.query(User).filter_by(email=email, role=role).first()
+
+# Never concatenate SQL
+cursor.execute(f"SELECT * FROM users WHERE email = '{email}'")  # Vulnerable!
 ```
 
 ### Least Privilege
@@ -383,195 +332,168 @@ GRANT SELECT ON products TO app_user;
 
 ### Environment Variables
 
-```typescript
-// .env file (never commit!)
-DATABASE_URL=postgresql://user:pass@localhost/db
-JWT_SECRET=your-very-long-random-secret-here
-API_KEY=your-api-key-here
+```python
+# .env file (never commit!)
+# DATABASE_URL=postgresql://user:pass@localhost/db
+# JWT_SECRET=your-very-long-random-secret-here
+# API_KEY=your-api-key-here
 
-// Load securely
-import dotenv from 'dotenv';
-dotenv.config();
+import os
+from dotenv import load_dotenv
 
-// Validate required secrets exist
-const requiredEnvVars = ['DATABASE_URL', 'JWT_SECRET', 'API_KEY'];
-for (const varName of requiredEnvVars) {
-  if (!process.env[varName]) {
-    throw new Error(`Missing required environment variable: ${varName}`);
-  }
-}
+load_dotenv()
 
-// Never log secrets
-console.log(`Using database: ${process.env.DATABASE_URL}`); // Bad!
-console.log('Database configured'); // Good
+# Validate required secrets exist
+REQUIRED_ENV_VARS = ["DATABASE_URL", "JWT_SECRET", "API_KEY"]
+for var in REQUIRED_ENV_VARS:
+    if not os.environ.get(var):
+        raise RuntimeError(f"Missing required environment variable: {var}")
+
+# Never log secrets
+print(f"Using database: {os.environ['DATABASE_URL']}")  # Bad!
+print("Database configured")  # Good
 ```
 
 ### Secret Rotation
 
-```typescript
-// Support multiple active keys for rotation
-const JWT_SECRETS = [
-  process.env.JWT_SECRET_CURRENT,
-  process.env.JWT_SECRET_PREVIOUS,
-];
+```python
+import jwt
+import os
 
-function verifyToken(token: string): TokenPayload {
-  let lastError: Error;
+# Support multiple active keys for rotation
+JWT_SECRETS = [
+    os.environ["JWT_SECRET_CURRENT"],
+    os.environ["JWT_SECRET_PREVIOUS"],
+]
 
-  // Try each secret
-  for (const secret of JWT_SECRETS) {
-    try {
-      return jwt.verify(token, secret);
-    } catch (err) {
-      lastError = err;
-    }
-  }
-
-  throw lastError;
-}
+def verify_token(token: str) -> dict:
+    last_error = None
+    for secret in JWT_SECRETS:
+        try:
+            return jwt.decode(token, secret, algorithms=["HS256"])
+        except jwt.InvalidTokenError as e:
+            last_error = e
+    raise last_error
 ```
 
 ## Encryption
 
 ### Data at Rest
 
-```typescript
-// Encrypt sensitive data before storing
-import crypto from 'crypto';
+```python
+# Encrypt sensitive data before storing
+import os
+from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 
-const ALGORITHM = 'aes-256-gcm';
-const KEY = Buffer.from(process.env.ENCRYPTION_KEY, 'hex'); // 32 bytes
+KEY = bytes.fromhex(os.environ["ENCRYPTION_KEY"])  # 32 bytes
 
-function encrypt(text: string): { encrypted: string; iv: string; tag: string } {
-  const iv = crypto.randomBytes(16);
-  const cipher = crypto.createCipheriv(ALGORITHM, KEY, iv);
+def encrypt(plaintext: str) -> dict:
+    nonce = os.urandom(12)
+    aesgcm = AESGCM(KEY)
+    ciphertext = aesgcm.encrypt(nonce, plaintext.encode(), None)
+    return {
+        "ciphertext": ciphertext.hex(),
+        "nonce": nonce.hex(),
+    }
 
-  let encrypted = cipher.update(text, 'utf8', 'hex');
-  encrypted += cipher.final('hex');
-
-  return {
-    encrypted,
-    iv: iv.toString('hex'),
-    tag: cipher.getAuthTag().toString('hex'),
-  };
-}
-
-function decrypt(encrypted: string, iv: string, tag: string): string {
-  const decipher = crypto.createDecipheriv(
-    ALGORITHM,
-    KEY,
-    Buffer.from(iv, 'hex')
-  );
-
-  decipher.setAuthTag(Buffer.from(tag, 'hex'));
-
-  let decrypted = decipher.update(encrypted, 'hex', 'utf8');
-  decrypted += decipher.final('utf8');
-
-  return decrypted;
-}
+def decrypt(ciphertext_hex: str, nonce_hex: str) -> str:
+    aesgcm = AESGCM(KEY)
+    plaintext = aesgcm.decrypt(
+        bytes.fromhex(nonce_hex),
+        bytes.fromhex(ciphertext_hex),
+        None,
+    )
+    return plaintext.decode()
 ```
 
 ### Data in Transit
 
-```typescript
-// Always use HTTPS
-// Redirect HTTP to HTTPS
-app.use((req, res, next) => {
-  if (!req.secure && process.env.NODE_ENV === 'production') {
-    return res.redirect('https://' + req.headers.host + req.url);
-  }
-  next();
-});
+```python
+# Always use HTTPS
+# Redirect HTTP to HTTPS (Flask example)
+@app.before_request
+def enforce_https():
+    if not request.is_secure and app.env == "production":
+        url = request.url.replace("http://", "https://", 1)
+        return redirect(url, code=301)
 
-// Set security headers
-app.use((req, res, next) => {
-  res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
-  res.setHeader('X-Content-Type-Options', 'nosniff');
-  res.setHeader('X-Frame-Options', 'DENY');
-  res.setHeader('X-XSS-Protection', '1; mode=block');
-  next();
-});
+# Set security headers
+@app.after_request
+def set_security_headers(response):
+    response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["X-Frame-Options"] = "DENY"
+    response.headers["X-XSS-Protection"] = "1; mode=block"
+    return response
 ```
 
 ## Logging & Monitoring
 
 ### Security Logging
 
-```typescript
-// Log security events
-interface SecurityEvent {
-  type: 'login' | 'logout' | 'failed_login' | 'permission_denied' | 'suspicious_activity';
-  userId?: string;
-  ip: string;
-  userAgent: string;
-  timestamp: Date;
-  details: Record<string, any>;
-}
+```python
+import logging
+from dataclasses import dataclass
+from datetime import datetime
+from typing import Literal
 
-function logSecurityEvent(event: SecurityEvent) {
-  // Never log sensitive data
-  const sanitized = {
-    ...event,
-    details: {
-      ...event.details,
-      password: undefined,
-      token: undefined,
-      apiKey: undefined,
-    },
-  };
+@dataclass
+class SecurityEvent:
+    type: Literal["login", "logout", "failed_login", "permission_denied", "suspicious_activity"]
+    ip: str
+    user_agent: str
+    timestamp: datetime
+    user_id: str | None = None
+    details: dict | None = None
 
-  logger.security(sanitized);
+def log_security_event(event: SecurityEvent):
+    # Never log sensitive data
+    safe_details = {k: v for k, v in (event.details or {}).items()
+                    if k not in ("password", "token", "api_key")}
 
-  // Alert on suspicious patterns
-  if (shouldAlert(event)) {
-    alertSecurityTeam(event);
-  }
-}
+    logging.getLogger("security").info({
+        **vars(event),
+        "details": safe_details,
+    })
 
-// Monitor failed login attempts
-const failedAttempts = new Map<string, number>();
+    if should_alert(event):
+        alert_security_team(event)
 
-function trackFailedLogin(ip: string) {
-  const attempts = (failedAttempts.get(ip) || 0) + 1;
-  failedAttempts.set(ip, attempts);
+# Monitor failed login attempts
+failed_attempts: dict[str, int] = {}
 
-  if (attempts > 5) {
-    logSecurityEvent({
-      type: 'suspicious_activity',
-      ip,
-      userAgent: req.headers['user-agent'],
-      timestamp: new Date(),
-      details: { failedAttempts: attempts },
-    });
+def track_failed_login(ip: str):
+    failed_attempts[ip] = failed_attempts.get(ip, 0) + 1
 
-    // Implement temporary IP ban
-    banIP(ip, 15 * 60 * 1000); // 15 minutes
-  }
-}
+    if failed_attempts[ip] > 5:
+        log_security_event(SecurityEvent(
+            type="suspicious_activity",
+            ip=ip,
+            user_agent=request.headers.get("User-Agent", ""),
+            timestamp=datetime.utcnow(),
+            details={"failed_attempts": failed_attempts[ip]},
+        ))
+        ban_ip(ip, duration_seconds=15 * 60)
 ```
 
 ## Security Headers
 
-```typescript
-// Use helmet.js for security headers
-import helmet from 'helmet';
+```python
+# Use Flask-Talisman for security headers
+from flask_talisman import Talisman
 
-app.use(helmet({
-  contentSecurityPolicy: {
-    directives: {
-      defaultSrc: ["'self'"],
-      styleSrc: ["'self'", "'unsafe-inline'"],
-      scriptSrc: ["'self'"],
-      imgSrc: ["'self'", 'data:', 'https:'],
+Talisman(app,
+    content_security_policy={
+        "default-src": "'self'",
+        "style-src": ["'self'", "'unsafe-inline'"],
+        "script-src": "'self'",
+        "img-src": ["'self'", "data:", "https:"],
     },
-  },
-  hsts: {
-    maxAge: 31536000,
-    includeSubDomains: true,
-    preload: true,
-  },
-}));
+    strict_transport_security=True,
+    strict_transport_security_max_age=31536000,
+    strict_transport_security_include_subdomains=True,
+    strict_transport_security_preload=True,
+)
 ```
 
 ## Dependency Security
@@ -580,25 +502,25 @@ app.use(helmet({
 
 ```bash
 # Check for vulnerabilities
-npm audit
+pip-audit
 
-# Fix automatically
-npm audit fix
+# Or with safety
+safety check
 
-# Use dependabot or renovate for automated updates
+# Use Dependabot or Renovate for automated updates
 ```
 
 ### Supply Chain Security
 
 ```bash
-# Verify package integrity
-npm install --package-lock-only
+# Use a lock file
+pip freeze > requirements.txt
 
-# Use lock files
-# Commit package-lock.json or yarn.lock
+# Verify package integrity with hashes
+pip install --require-hashes -r requirements.txt
 
 # Review dependencies before adding
-npm view package-name
+pip show package-name
 ```
 
 ## Security Checklist

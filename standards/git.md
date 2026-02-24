@@ -226,14 +226,21 @@ git commit -m "add user feature and fix login bug and update docs"
 ### What Not to Commit
 ```bash
 # Add to .gitignore
-node_modules/
 .env
 .env.local
 *.log
 .DS_Store
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
 dist/
 build/
-coverage/
+*.egg-info/
+.pytest_cache/
+.coverage
+htmlcov/
 *.swp
 *.swo
 .idea/
@@ -253,10 +260,10 @@ coverage/
    git rebase origin/main
 
    # Run tests
-   npm test
+   pytest
 
    # Run linting
-   npm run lint
+   ruff check .
    ```
 
 2. **Create descriptive PR:**
@@ -569,10 +576,10 @@ git config --global core.editor "code --wait"
 #!/bin/bash
 
 # Run linting
-npm run lint || exit 1
+ruff check . || exit 1
 
 # Run tests
-npm test || exit 1
+pytest || exit 1
 
 echo "Pre-commit checks passed"
 ```

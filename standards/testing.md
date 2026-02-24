@@ -34,52 +34,48 @@
 ```
 src/
 ├── feature/
-│   ├── service.ts
-│   └── __tests__/
-│       ├── service.test.ts
-│       └── service.integration.test.ts
+│   ├── service.py
+│   └── tests/
+│       ├── test_service.py
+│       └── test_service_integration.py
 └── tests/
     ├── unit/           # Additional unit tests
     ├── integration/    # Integration tests
-    └── e2e/           # End-to-end tests
+    └── e2e/            # End-to-end tests
 ```
 
 ### Test Naming
 Use descriptive names that explain the scenario:
 
-```typescript
-// Good - describes behavior
-describe('UserService', () => {
-  describe('createUser', () => {
-    it('should create user with valid data', () => {});
-    it('should throw ValidationError when email is invalid', () => {});
-    it('should send welcome email after user creation', () => {});
-  });
-});
+```python
+# Good - describes behavior
+class TestUserService:
+    class TestCreateUser:
+        def test_creates_user_with_valid_data(self): ...
+        def test_raises_validation_error_when_email_is_invalid(self): ...
+        def test_sends_welcome_email_after_user_creation(self): ...
 
-// Avoid - vague names
-describe('UserService', () => {
-  it('test1', () => {});
-  it('works', () => {});
-});
+# Avoid - vague names
+class TestUserService:
+    def test_1(self): ...
+    def test_works(self): ...
 ```
 
 ### AAA Pattern (Arrange, Act, Assert)
-```typescript
-it('should calculate total with discount', () => {
-  // Arrange - Setup test data
-  const items = [
-    { price: 10, quantity: 2 },
-    { price: 5, quantity: 1 },
-  ];
-  const discount = 0.1;
+```python
+def test_calculates_total_with_discount():
+    # Arrange - setup test data
+    items = [
+        {"price": 10, "quantity": 2},
+        {"price": 5, "quantity": 1},
+    ]
+    discount = 0.1
 
-  // Act - Execute the code under test
-  const total = calculateTotal(items, discount);
+    # Act - execute the code under test
+    total = calculate_total(items, discount)
 
-  // Assert - Verify the result
-  expect(total).toBe(22.5); // (10*2 + 5*1) * 0.9
-});
+    # Assert - verify the result
+    assert total == 22.5  # (10*2 + 5*1) * 0.9
 ```
 
 ## Unit Testing
@@ -91,60 +87,56 @@ it('should calculate total with discount', () => {
 - No network or file system access
 
 ### Example
-```typescript
-describe('OrderService', () => {
-  let orderService: OrderService;
-  let mockOrderRepository: jest.Mocked<OrderRepository>;
-  let mockPaymentService: jest.Mocked<PaymentService>;
+```python
+from unittest.mock import MagicMock, AsyncMock
+import pytest
 
-  beforeEach(() => {
-    // Arrange - Create mocks
-    mockOrderRepository = {
-      save: jest.fn(),
-      findById: jest.fn(),
-    } as any;
+@pytest.fixture
+def mock_order_repository():
+    repo = MagicMock()
+    repo.save = AsyncMock()
+    repo.find_by_id = AsyncMock()
+    return repo
 
-    mockPaymentService = {
-      processPayment: jest.fn(),
-    } as any;
+@pytest.fixture
+def mock_payment_service():
+    svc = MagicMock()
+    svc.process_payment = AsyncMock()
+    return svc
 
-    orderService = new OrderService(
-      mockOrderRepository,
-      mockPaymentService
-    );
-  });
+@pytest.fixture
+def order_service(mock_order_repository, mock_payment_service):
+    return OrderService(mock_order_repository, mock_payment_service)
 
-  describe('createOrder', () => {
-    it('should create order and process payment', async () => {
-      // Arrange
-      const orderData = { items: [{ id: '1', quantity: 2 }] };
-      mockPaymentService.processPayment.mockResolvedValue({ success: true });
-      mockOrderRepository.save.mockResolvedValue({ id: 'order-1', ...orderData });
+class TestOrderService:
+    class TestCreateOrder:
+        async def test_creates_order_and_processes_payment(
+            self, order_service, mock_order_repository, mock_payment_service
+        ):
+            # Arrange
+            order_data = {"items": [{"id": "1", "quantity": 2}]}
+            mock_payment_service.process_payment.return_value = {"success": True}
+            mock_order_repository.save.return_value = {"id": "order-1", **order_data}
 
-      // Act
-      const result = await orderService.createOrder(orderData);
+            # Act
+            result = await order_service.create_order(order_data)
 
-      // Assert
-      expect(mockPaymentService.processPayment).toHaveBeenCalledWith(
-        expect.objectContaining({ amount: expect.any(Number) })
-      );
-      expect(mockOrderRepository.save).toHaveBeenCalledTimes(1);
-      expect(result).toHaveProperty('id', 'order-1');
-    });
+            # Assert
+            mock_payment_service.process_payment.assert_called_once()
+            mock_order_repository.save.assert_called_once()
+            assert result["id"] == "order-1"
 
-    it('should rollback order if payment fails', async () => {
-      // Arrange
-      const orderData = { items: [{ id: '1', quantity: 2 }] };
-      mockPaymentService.processPayment.mockRejectedValue(
-        new Error('Payment failed')
-      );
+        async def test_does_not_save_order_if_payment_fails(
+            self, order_service, mock_order_repository, mock_payment_service
+        ):
+            # Arrange
+            order_data = {"items": [{"id": "1", "quantity": 2}]}
+            mock_payment_service.process_payment.side_effect = Exception("Payment failed")
 
-      // Act & Assert
-      await expect(orderService.createOrder(orderData)).rejects.toThrow('Payment failed');
-      expect(mockOrderRepository.save).not.toHaveBeenCalled();
-    });
-  });
-});
+            # Act & Assert
+            with pytest.raises(Exception, match="Payment failed"):
+                await order_service.create_order(order_data)
+            mock_order_repository.save.assert_not_called()
 ```
 
 ## Integration Testing
@@ -155,48 +147,43 @@ describe('OrderService', () => {
 - Test database operations, API calls
 
 ### Database Tests
-```typescript
-describe('UserRepository Integration', () => {
-  let db: Database;
-  let userRepository: UserRepository;
+```python
+import pytest
 
-  beforeAll(async () => {
-    // Setup test database
-    db = await createTestDatabase();
-    userRepository = new UserRepository(db);
-  });
+@pytest.fixture(scope="session")
+def db():
+    database = create_test_database()
+    yield database
+    database.close()
 
-  beforeEach(async () => {
-    // Clean database before each test
-    await db.query('TRUNCATE users CASCADE');
-  });
+@pytest.fixture(autouse=True)
+def clean_db(db):
+    yield
+    db.execute("TRUNCATE users CASCADE")
 
-  afterAll(async () => {
-    // Cleanup
-    await db.close();
-  });
+class TestUserRepositoryIntegration:
+    async def test_saves_and_retrieves_user(self, db):
+        # Arrange
+        user_repo = UserRepository(db)
+        user = {"email": "test@example.com", "name": "Test User"}
 
-  it('should save and retrieve user', async () => {
-    // Arrange
-    const user = { email: 'test@example.com', name: 'Test User' };
+        # Act
+        saved = await user_repo.save(user)
+        retrieved = await user_repo.find_by_id(saved["id"])
 
-    // Act
-    const saved = await userRepository.save(user);
-    const retrieved = await userRepository.findById(saved.id);
+        # Assert
+        assert retrieved["email"] == user["email"]
+        assert retrieved["name"] == user["name"]
 
-    // Assert
-    expect(retrieved).toMatchObject(user);
-  });
+    async def test_raises_error_when_saving_duplicate_email(self, db):
+        # Arrange
+        user_repo = UserRepository(db)
+        user = {"email": "test@example.com", "name": "Test User"}
+        await user_repo.save(user)
 
-  it('should throw error when saving duplicate email', async () => {
-    // Arrange
-    const user = { email: 'test@example.com', name: 'Test User' };
-    await userRepository.save(user);
-
-    // Act & Assert
-    await expect(userRepository.save(user)).rejects.toThrow('Email already exists');
-  });
-});
+        # Act & Assert
+        with pytest.raises(Exception, match="Email already exists"):
+            await user_repo.save(user)
 ```
 
 ## End-to-End Testing
@@ -207,103 +194,90 @@ describe('UserRepository Integration', () => {
 - Fewer tests, higher confidence
 
 ### Example
-```typescript
-describe('User Registration Flow', () => {
-  let browser: Browser;
-  let page: Page;
+```python
+import pytest
+from playwright.sync_api import Page, expect
 
-  beforeAll(async () => {
-    browser = await puppeteer.launch();
-  });
+@pytest.fixture(scope="session")
+def browser(playwright):
+    browser = playwright.chromium.launch()
+    yield browser
+    browser.close()
 
-  beforeEach(async () => {
-    page = await browser.newPage();
-    await page.goto('http://localhost:3000/register');
-  });
+@pytest.fixture
+def page(browser):
+    page = browser.new_page()
+    page.goto("http://localhost:8000/register")
+    yield page
+    page.close()
 
-  afterEach(async () => {
-    await page.close();
-  });
+class TestUserRegistrationFlow:
+    def test_registers_new_user_successfully(self, page: Page):
+        # Arrange & Act
+        page.fill("#email", "newuser@example.com")
+        page.fill("#password", "SecurePass123!")
+        page.fill("#confirm-password", "SecurePass123!")
+        page.click("button[type='submit']")
+        page.wait_for_url("**/dashboard")
 
-  afterAll(async () => {
-    await browser.close();
-  });
+        # Assert
+        expect(page).to_have_url(re.compile(r"/dashboard"))
+        expect(page.locator(".welcome")).to_contain_text("Welcome")
 
-  it('should register new user successfully', async () => {
-    // Arrange & Act
-    await page.type('#email', 'newuser@example.com');
-    await page.type('#password', 'SecurePass123!');
-    await page.type('#confirmPassword', 'SecurePass123!');
-    await page.click('button[type="submit"]');
+    def test_shows_error_for_invalid_email(self, page: Page):
+        # Act
+        page.fill("#email", "invalid-email")
+        page.fill("#password", "SecurePass123!")
+        page.click("button[type='submit']")
 
-    // Wait for redirect
-    await page.waitForNavigation();
-
-    // Assert
-    const url = page.url();
-    expect(url).toContain('/dashboard');
-
-    const welcomeMessage = await page.$eval('.welcome', el => el.textContent);
-    expect(welcomeMessage).toContain('Welcome');
-  });
-
-  it('should show error for invalid email', async () => {
-    // Act
-    await page.type('#email', 'invalid-email');
-    await page.type('#password', 'SecurePass123!');
-    await page.click('button[type="submit"]');
-
-    // Assert
-    const error = await page.$eval('.error', el => el.textContent);
-    expect(error).toContain('Invalid email');
-  });
-});
+        # Assert
+        expect(page.locator(".error")).to_contain_text("Invalid email")
 ```
 
 ## Test Data Management
 
 ### Test Fixtures
-```typescript
-// test/fixtures/users.ts
-export const validUser = {
-  email: 'user@example.com',
-  name: 'Test User',
-  role: 'user',
-};
+```python
+# tests/fixtures/users.py
+valid_user = {
+    "email": "user@example.com",
+    "name": "Test User",
+    "role": "user",
+}
 
-export const adminUser = {
-  email: 'admin@example.com',
-  name: 'Admin User',
-  role: 'admin',
-};
+admin_user = {
+    "email": "admin@example.com",
+    "name": "Admin User",
+    "role": "admin",
+}
 
-// Usage
-import { validUser } from './fixtures/users';
+# Usage
+from tests.fixtures.users import valid_user
 
-it('should create user', async () => {
-  const result = await userService.createUser(validUser);
-  expect(result.email).toBe(validUser.email);
-});
+async def test_creates_user():
+    result = await user_service.create_user(valid_user)
+    assert result["email"] == valid_user["email"]
 ```
 
 ### Factory Functions
-```typescript
-// test/factories/user.factory.ts
-let userIdCounter = 0;
+```python
+# tests/factories/user_factory.py
+from itertools import count
 
-export function createUser(overrides: Partial<User> = {}): User {
-  return {
-    id: `user-${++userIdCounter}`,
-    email: `user${userIdCounter}@example.com`,
-    name: 'Test User',
-    createdAt: new Date(),
-    ...overrides,
-  };
-}
+_counter = count(1)
 
-// Usage
-const user1 = createUser({ email: 'specific@example.com' });
-const user2 = createUser(); // Gets auto-generated email
+def create_user(**overrides) -> dict:
+    n = next(_counter)
+    return {
+        "id": f"user-{n}",
+        "email": f"user{n}@example.com",
+        "name": "Test User",
+        **overrides,
+    }
+
+# Usage
+user1 = create_user(email="specific@example.com")
+user2 = create_user()  # Gets auto-generated email
 ```
 
 ## Mocking Best Practices
@@ -320,163 +294,148 @@ const user2 = createUser(); // Gets auto-generated email
 - Internal business logic
 
 ### Mock Examples
-```typescript
-// Mock external API
-jest.mock('./api/github', () => ({
-  fetchUser: jest.fn().mockResolvedValue({
-    id: '123',
-    name: 'Test User',
-  }),
-}));
+```python
+from unittest.mock import patch, MagicMock
+from datetime import datetime
 
-// Mock date
-const mockDate = new Date('2024-01-01');
-jest.spyOn(global, 'Date').mockImplementation(() => mockDate);
+# Mock external API
+with patch("app.api.github.fetch_user") as mock_fetch:
+    mock_fetch.return_value = {"id": "123", "name": "Test User"}
+    result = fetch_user("123")
 
-// Mock module
-jest.mock('./config', () => ({
-  API_KEY: 'test-key',
-  API_URL: 'http://test-api.com',
-}));
+# Mock datetime
+with patch("app.service.datetime") as mock_dt:
+    mock_dt.utcnow.return_value = datetime(2024, 1, 1)
+    result = service.create_event()
+
+# Mock module-level config
+with patch.dict("os.environ", {"API_KEY": "test-key", "API_URL": "http://test-api.com"}):
+    result = service.call_api()
 ```
 
 ## Testing Async Code
 
-### Promises
-```typescript
-it('should fetch user data', async () => {
-  const user = await userService.getUser('123');
-  expect(user).toBeDefined();
-});
+### pytest-asyncio
+```python
+import pytest
 
-// Alternative
-it('should fetch user data', () => {
-  return userService.getUser('123').then(user => {
-    expect(user).toBeDefined();
-  });
-});
+@pytest.mark.asyncio
+async def test_fetches_user_data():
+    user = await user_service.get_user("123")
+    assert user is not None
 ```
 
 ### Error Handling
-```typescript
-it('should throw error for invalid id', async () => {
-  await expect(userService.getUser('invalid')).rejects.toThrow('User not found');
-});
+```python
+@pytest.mark.asyncio
+async def test_raises_error_for_invalid_id():
+    with pytest.raises(Exception, match="User not found"):
+        await user_service.get_user("invalid")
 ```
 
 ## Test Assertions
 
-### Use Specific Matchers
-```typescript
-// Good - specific matchers
-expect(value).toBe(5);
-expect(array).toHaveLength(3);
-expect(string).toContain('substring');
-expect(object).toHaveProperty('name', 'John');
-expect(fn).toHaveBeenCalledWith(arg1, arg2);
+### Use Specific Assertions
+```python
+# Good - specific assertions
+assert value == 5
+assert len(array) == 3
+assert "substring" in string
+assert obj["name"] == "John"
+mock_fn.assert_called_with(arg1, arg2)
 
-// Avoid - vague assertions
-expect(value > 0).toBe(true);
-expect(!!value).toBe(true);
+# Avoid - vague assertions
+assert value > 0  # OK but prefer assertEqual when possible
+assert bool(value)
 ```
 
-### Custom Matchers
-```typescript
-expect.extend({
-  toBeValidEmail(received: string) {
-    const pass = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(received);
-    return {
-      pass,
-      message: () => `expected ${received} to be a valid email`,
-    };
-  },
-});
+### Custom Assertions
+```python
+import re
 
-// Usage
-expect('user@example.com').toBeValidEmail();
+def assert_valid_email(email: str):
+    pattern = r"^[^\s@]+@[^\s@]+\.[^\s@]+$"
+    assert re.match(pattern, email), f"Expected {email!r} to be a valid email"
+
+# Usage
+assert_valid_email("user@example.com")
 ```
 
 ## Testing Anti-Patterns
 
 ### Don't Test Implementation Details
-```typescript
-// Avoid - testing internal state
-it('should set internal flag', () => {
-  const service = new UserService();
-  service.someMethod();
-  expect(service['internalFlag']).toBe(true); // Bad!
-});
+```python
+# Avoid - testing internal state
+def test_sets_internal_flag():
+    service = UserService()
+    service.some_method()
+    assert service._internal_flag  # Bad!
 
-// Good - test behavior
-it('should send notification after user creation', async () => {
-  await userService.createUser(userData);
-  expect(mockNotificationService.send).toHaveBeenCalled();
-});
+# Good - test behavior
+async def test_sends_notification_after_user_creation():
+    await user_service.create_user(user_data)
+    mock_notification_service.send.assert_called_once()
 ```
 
 ### Don't Write Brittle Tests
-```typescript
-// Avoid - too specific, breaks easily
-expect(result).toEqual({
-  id: '123',
-  name: 'John',
-  email: 'john@example.com',
-  createdAt: '2024-01-01T00:00:00.000Z',
-  updatedAt: '2024-01-01T00:00:00.000Z',
-  version: 1,
-});
+```python
+# Avoid - too specific, breaks easily
+assert result == {
+    "id": "123",
+    "name": "John",
+    "email": "john@example.com",
+    "created_at": "2024-01-01T00:00:00",
+    "updated_at": "2024-01-01T00:00:00",
+    "version": 1,
+}
 
-// Good - test what matters
-expect(result).toMatchObject({
-  name: 'John',
-  email: 'john@example.com',
-});
-expect(result.id).toBeDefined();
-expect(result.createdAt).toBeInstanceOf(Date);
+# Good - test what matters
+assert result["name"] == "John"
+assert result["email"] == "john@example.com"
+assert "id" in result
+assert isinstance(result["created_at"], datetime)
 ```
 
 ### Avoid Test Interdependence
-```typescript
-// Avoid - tests depend on execution order
-let userId: string;
+```python
+# Avoid - tests depend on execution order
+user_id = None
 
-it('should create user', async () => {
-  const user = await createUser();
-  userId = user.id; // Shared state!
-});
+def test_creates_user():
+    global user_id
+    user = create_user()
+    user_id = user["id"]  # Shared state!
 
-it('should update user', async () => {
-  await updateUser(userId); // Depends on previous test
-});
+def test_updates_user():
+    update_user(user_id)  # Depends on previous test
 
-// Good - each test is independent
-it('should create user', async () => {
-  const user = await createUser();
-  expect(user.id).toBeDefined();
-});
+# Good - each test is independent
+async def test_creates_user():
+    user = await create_user()
+    assert "id" in user
 
-it('should update user', async () => {
-  const user = await createUser(); // Create own data
-  const updated = await updateUser(user.id);
-  expect(updated).toBeDefined();
-});
+async def test_updates_user():
+    user = await create_user()  # Create own data
+    updated = await update_user(user["id"])
+    assert updated is not None
 ```
 
 ## Performance Testing
 
 ### Test Execution Time
-```typescript
-it('should process large dataset efficiently', () => {
-  const start = Date.now();
-  const result = processLargeDataset(data);
-  const duration = Date.now() - start;
+```python
+import time
 
-  expect(duration).toBeLessThan(1000); // Should complete in < 1s
-});
+def test_processes_large_dataset_efficiently():
+    start = time.monotonic()
+    result = process_large_dataset(data)
+    duration = time.monotonic() - start
+
+    assert duration < 1.0  # Should complete in < 1s
 ```
 
 ### Load Testing
-- Use dedicated tools (k6, Artillery, JMeter)
+- Use dedicated tools (Locust, k6, Artillery)
 - Test realistic scenarios
 - Monitor system resources
 
@@ -485,10 +444,10 @@ it('should process large dataset efficiently', () => {
 ### Pre-commit Hooks
 ```bash
 # Run tests before commit
-npm test
+pytest
 
 # Run linting
-npm run lint
+ruff check .
 ```
 
 ### CI/CD Pipeline
@@ -500,13 +459,18 @@ jobs:
   test:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install dependencies
+        run: pip install -r requirements.txt
       - name: Run unit tests
-        run: npm run test:unit
+        run: pytest tests/unit
       - name: Run integration tests
-        run: npm run test:integration
+        run: pytest tests/integration
       - name: Upload coverage
-        uses: codecov/codecov-action@v2
+        uses: codecov/codecov-action@v4
 ```
 
 ## Test Documentation
@@ -517,14 +481,13 @@ Document:
 - Reasons for skipped tests
 - Test environment requirements
 
-```typescript
-/**
- * Tests user authentication flow.
- *
- * Note: These tests require a test database to be running.
- * Run `npm run test:db:setup` before executing.
- */
-describe('Authentication Integration Tests', () => {
-  // tests...
-});
+```python
+class TestAuthenticationIntegration:
+    """
+    Tests user authentication flow.
+
+    Note: These tests require a test database to be running.
+    Run `make test-db-setup` before executing.
+    """
+    # tests...
 ```

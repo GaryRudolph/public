@@ -45,14 +45,14 @@
 
 ```
 feature/
-├── index.ts              # Public API
-├── types.ts              # Type definitions
-├── service.ts            # Business logic
-├── repository.ts         # Data access
-├── validators.ts         # Input validation
-└── __tests__/           # Tests
-    ├── service.test.ts
-    └── repository.test.ts
+├── __init__.py          # Public API
+├── types.py             # Type definitions
+├── service.py           # Business logic
+├── repository.py        # Data access
+├── validators.py        # Input validation
+└── tests/
+    ├── test_service.py
+    └── test_repository.py
 ```
 
 ## Design Patterns
@@ -60,92 +60,85 @@ feature/
 ### Repository Pattern
 Encapsulate data access logic
 
-```typescript
-interface UserRepository {
-  findById(id: string): Promise<User | null>;
-  findByEmail(email: string): Promise<User | null>;
-  save(user: User): Promise<User>;
-  delete(id: string): Promise<void>;
-}
+```python
+from typing import Protocol
 
-class DatabaseUserRepository implements UserRepository {
-  async findById(id: string): Promise<User | null> {
-    // Database-specific implementation
-  }
-  // ... other methods
-}
+class UserRepository(Protocol):
+    async def find_by_id(self, id: str) -> User | None: ...
+    async def find_by_email(self, email: str) -> User | None: ...
+    async def save(self, user: User) -> User: ...
+    async def delete(self, id: str) -> None: ...
+
+class DatabaseUserRepository:
+    async def find_by_id(self, id: str) -> User | None:
+        # Database-specific implementation
+        pass
+    # ... other methods
 ```
 
 ### Service Layer Pattern
 Encapsulate business logic
 
-```typescript
-class UserService {
-  constructor(
-    private userRepository: UserRepository,
-    private emailService: EmailService
-  ) {}
+```python
+class UserService:
+    def __init__(self, user_repository: UserRepository, email_service: EmailService):
+        self._user_repository = user_repository
+        self._email_service = email_service
 
-  async createUser(data: CreateUserData): Promise<User> {
-    // 1. Validate
-    this.validateUserData(data);
+    async def create_user(self, data: CreateUserData) -> User:
+        # 1. Validate
+        self._validate_user_data(data)
 
-    // 2. Business logic
-    const user = new User(data);
+        # 2. Business logic
+        user = User(data)
 
-    // 3. Persist
-    await this.userRepository.save(user);
+        # 3. Persist
+        await self._user_repository.save(user)
 
-    // 4. Side effects
-    await this.emailService.sendWelcome(user);
+        # 4. Side effects
+        await self._email_service.send_welcome(user)
 
-    return user;
-  }
-}
+        return user
 ```
 
 ### Factory Pattern
 When object creation is complex
 
-```typescript
-class UserFactory {
-  createFromApiResponse(data: ApiUser): User {
-    return new User({
-      id: data.user_id,
-      email: data.email_address,
-      createdAt: new Date(data.created_timestamp),
-    });
-  }
-}
+```python
+class UserFactory:
+    def create_from_api_response(self, data: ApiUser) -> User:
+        return User(
+            id=data.user_id,
+            email=data.email_address,
+            created_at=datetime.fromtimestamp(data.created_timestamp),
+        )
 ```
 
 ### Strategy Pattern
 When you have multiple algorithms for the same task
 
-```typescript
-interface PaymentStrategy {
-  processPayment(amount: number): Promise<PaymentResult>;
-}
+```python
+from typing import Protocol
 
-class CreditCardPayment implements PaymentStrategy {
-  async processPayment(amount: number): Promise<PaymentResult> {
-    // Credit card specific logic
-  }
-}
+class PaymentStrategy(Protocol):
+    async def process_payment(self, amount: float) -> PaymentResult: ...
 
-class PayPalPayment implements PaymentStrategy {
-  async processPayment(amount: number): Promise<PaymentResult> {
-    // PayPal specific logic
-  }
-}
+class CreditCardPayment:
+    async def process_payment(self, amount: float) -> PaymentResult:
+        # Credit card specific logic
+        pass
 
-class PaymentService {
-  constructor(private strategy: PaymentStrategy) {}
+class PayPalPayment:
+    async def process_payment(self, amount: float) -> PaymentResult:
+        # PayPal specific logic
+        pass
 
-  async pay(amount: number) {
-    return this.strategy.processPayment(amount);
-  }
-}
+class PaymentService:
+    def __init__(self, strategy: PaymentStrategy):
+        self._strategy = strategy
+
+    async def pay(self, amount: float) -> PaymentResult:
+        return await self._strategy.process_payment(amount)
 ```
 
 ## Dependency Management
@@ -155,80 +148,72 @@ class PaymentService {
 - Makes code testable and flexible
 - Avoid global state and singletons
 
-```typescript
-// Good - dependencies injected
-class OrderService {
-  constructor(
-    private orderRepository: OrderRepository,
-    private paymentService: PaymentService,
-    private logger: Logger
-  ) {}
-}
+```python
+# Good - dependencies injected
+class OrderService:
+    def __init__(
+        self,
+        order_repository: OrderRepository,
+        payment_service: PaymentService,
+        logger: Logger,
+    ):
+        self._order_repository = order_repository
+        self._payment_service = payment_service
+        self._logger = logger
 
-// Avoid - hardcoded dependencies
-class OrderService {
-  private orderRepository = new OrderRepository();
-  private paymentService = new PaymentService();
-}
+# Avoid - hardcoded dependencies
+class OrderService:
+    def __init__(self):
+        self._order_repository = OrderRepository()
+        self._payment_service = PaymentService()
 ```
 
 ### Dependency Direction
 - High-level modules should not depend on low-level modules
 - Both should depend on abstractions (interfaces)
 
-```typescript
-// Business logic defines the interface it needs
-interface EmailSender {
-  send(to: string, subject: string, body: string): Promise<void>;
-}
+```python
+from typing import Protocol
 
-// Business logic depends on abstraction
-class UserService {
-  constructor(private emailSender: EmailSender) {}
-}
+# Business logic defines the interface it needs
+class EmailSender(Protocol):
+    async def send(self, to: str, subject: str, body: str) -> None: ...
 
-// Infrastructure implements the interface
-class SendGridEmailSender implements EmailSender {
-  async send(to: string, subject: string, body: string): Promise<void> {
-    // SendGrid specific implementation
-  }
-}
+# Business logic depends on abstraction
+class UserService:
+    def __init__(self, email_sender: EmailSender):
+        self._email_sender = email_sender
+
+# Infrastructure implements the interface
+class SendGridEmailSender:
+    async def send(self, to: str, subject: str, body: str) -> None:
+        # SendGrid specific implementation
+        pass
 ```
 
 ## Error Handling Architecture
 
 ### Error Hierarchy
-```typescript
-// Base error class
-class AppError extends Error {
-  constructor(
-    message: string,
-    public statusCode: number,
-    public isOperational: boolean = true
-  ) {
-    super(message);
-    this.name = this.constructor.name;
-  }
-}
+```python
+# Base error class
+class AppError(Exception):
+    def __init__(self, message: str, status_code: int, is_operational: bool = True):
+        super().__init__(message)
+        self.status_code = status_code
+        self.is_operational = is_operational
 
-// Specific error types
-class ValidationError extends AppError {
-  constructor(message: string) {
-    super(message, 400);
-  }
-}
+# Specific error types
+class ValidationError(AppError):
+    def __init__(self, message: str):
+        super().__init__(message, 400)
 
-class NotFoundError extends AppError {
-  constructor(resource: string) {
-    super(`${resource} not found`, 404);
-  }
-}
+class NotFoundError(AppError):
+    def __init__(self, resource: str):
+        super().__init__(f"{resource} not found", 404)
 
-class AuthenticationError extends AppError {
-  constructor(message: string = 'Authentication failed') {
-    super(message, 401);
-  }
-}
+class AuthenticationError(AppError):
+    def __init__(self, message: str = "Authentication failed"):
+        super().__init__(message, 401)
 ```
 
 ### Error Handling Layers
@@ -273,14 +258,14 @@ HTTP Response
 - Predictable state updates
 
 ### Avoid Global State
-```typescript
-// Avoid - global mutable state
-let currentUser: User | null = null;
+```python
+# Avoid - global mutable state
+current_user: User | None = None
 
-// Good - passed explicitly
-function processOrder(order: Order, user: User) {
-  // user is explicit parameter
-}
+# Good - passed explicitly
+def process_order(order: Order, user: User):
+    # user is explicit parameter
+    pass
 ```
 
 ## API Design
@@ -297,11 +282,11 @@ function processOrder(order: Order, user: User) {
 - Document breaking changes
 
 ### Response Format
-```typescript
+```json
 // Success response
 {
-  "data": { /* resource */ },
-  "meta": { /* pagination, etc */ }
+  "data": { },
+  "meta": { }
 }
 
 // Error response
