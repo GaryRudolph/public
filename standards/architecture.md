@@ -57,7 +57,25 @@ feature/
     └── test_repository.py
 ```
 
-**Swift (iOS):**
+**Swift (SPM Library):**
+
+```
+PackageName/
+├── Package.swift                    # Package manifest (platforms, dependencies, targets)
+├── Sources/
+│   └── ModuleName/
+│       ├── ModuleProtocol.swift     # Public protocols
+│       ├── ModuleImpl.swift         # Implementations
+│       ├── ModuleHelpers.swift      # Internal helpers
+│       └── Type+ModuleName.swift    # Extensions on system types
+└── Tests/
+    └── ModuleNameTests/
+        ├── ModuleProtocolTests.swift
+        ├── ModuleImplTests.swift
+        └── Localizable.strings      # Test resources (via .process in Package.swift)
+```
+
+**Swift (iOS App):**
 
 ```
 AppName/
@@ -279,6 +297,130 @@ class PaymentService:
     async def pay(self, amount: float) -> PaymentResult:
         return await self._strategy.process_payment(amount)
 ```
+
+### Delegate Pattern (Swift)
+
+Use the delegate pattern when an object needs to notify or ask another object for decisions without a tight coupling. The delegate is a `weak` protocol reference, avoiding retain cycles:
+
+```swift
+@MainActor
+public protocol ErrorManagerDelegate: AnyObject {
+    func errorManager(_ manager: ErrorManager, shouldPresent error: Error) -> Bool
+    func errorManager(_ manager: ErrorManager, didPresent error: Error)
+    func errorManager(_ manager: ErrorManager, titleFor error: Error) -> String
+    func errorManager(_ manager: ErrorManager, messageFor error: Error) -> String?
+}
+
+@MainActor
+public class ErrorManager {
+    public weak var delegate: ErrorManagerDelegate?
+    private let bundle: Bundle?
+
+    public init(bundle: Bundle? = nil) {
+        self.bundle = bundle
+    }
+
+    public func present(_ error: Error) {
+        if let delegate, !delegate.errorManager(self, shouldPresent: error) { return }
+
+        let title = delegate?.errorManager(self, titleFor: error)
+            ?? localizedTitle(for: error)
+            ?? "Error"
+        let message = delegate?.errorManager(self, messageFor: error)
+            ?? error.localizedDescription
+
+        // present alert with title and message
+    }
+}
+```
+
+The delegate protocol should be `AnyObject`-constrained so the delegate property can be `weak`. The manager provides default behavior when no delegate is set.
+
+### Base Class with No-Op Defaults
+
+When a protocol has many methods but most implementations only need a subset, provide a base class with empty (no-op) implementations. Subclasses override only the methods they care about:
+
+```swift
+public protocol Tracker {
+    func setIdentifier(_ identifier: String)
+    func logEvent(_ name: String)
+    func logEvent(_ name: String, parameters: [String: String])
+    func logPage(_ name: String)
+    func logError(_ error: Error)
+}
+
+public class BaseTracker: Tracker {
+    public func setIdentifier(_ identifier: String) { }
+    public func logEvent(_ name: String) { }
+    public func logEvent(_ name: String, parameters: [String: String]) { }
+    public func logPage(_ name: String) { }
+    public func logError(_ error: Error) { }
+}
+
+public class OSLogTracker: BaseTracker {
+    private let log: OSLog
+
+    public init(bundleIdentifier: String) {
+        self.log = OSLog(subsystem: bundleIdentifier, category: String(describing: type(of: self)))
+    }
+
+    override public func logEvent(_ name: String) {
+        os_log(.info, log: log, "event=%{PUBLIC}@", name)
+    }
+
+    override public func logError(_ error: Error) {
+        os_log(.error, log: log, "error=%{PUBLIC}@", error.localizedDescription)
+    }
+}
+```
+
+A `NoopTracker` subclass that overrides nothing is useful as a test double or a placeholder when tracking is disabled.
+
+### Composite / Multiplexer Pattern
+
+When you need to broadcast to multiple implementations of the same protocol, wrap them in a composite that iterates over a collection of delegates:
+
+```swift
+public class CompositeTracker: BaseTracker {
+    private let trackers: [Tracker]
+
+    public init(_ trackers: Tracker...) {
+        self.trackers = trackers
+    }
+
+    override public func setIdentifier(_ identifier: String) {
+        for tracker in trackers { tracker.setIdentifier(identifier) }
+    }
+
+    override public func logEvent(_ name: String) {
+        for tracker in trackers { tracker.logEvent(name) }
+    }
+
+    override public func logEvent(_ name: String, parameters: [String: String]) {
+        for tracker in trackers { tracker.logEvent(name, parameters: parameters) }
+    }
+
+    override public func logPage(_ name: String) {
+        for tracker in trackers { tracker.logPage(name) }
+    }
+
+    override public func logError(_ error: Error) {
+        for tracker in trackers { tracker.logError(error) }
+    }
+}
+```
+
+Usage at the composition root:
+
+```swift
+let tracker = CompositeTracker(
+    OSLogTracker(bundleIdentifier: Bundle.main.bundleIdentifier!),
+    FirebaseTracker(),
+    CrashlyticsTracker()
+)
+```
+
+This keeps callers unaware of how many (or which) backends are active.
 
 ### Error Catalog Pattern
 Centralize error definitions as classmethods on a single class. Each method maps a domain error to a status code and error code, providing a single source of truth for all API error responses:

@@ -49,6 +49,33 @@ class AccountManagerImpl: AccountManager {
 }
 ```
 
+## Extension File Naming
+
+Name extension files as `Type+ModuleName.swift` when extending system or third-party types. This groups all extensions from a module together and avoids collisions across packages:
+
+```swift
+// File: Logger+LolayFundamenta.swift
+public extension Logger {
+    static func logForType<T>(_ type: T.Type, bundle: Bundle = Bundle.main) -> Logger {
+        let subsystem = bundle.bundleIdentifier ?? bundle.bundlePath
+        return Logger(subsystem: subsystem, category: String(describing: type))
+    }
+}
+
+// File: String+LolayFundamenta.swift
+public extension String {
+    static func randomString(length: Int = 16) -> String { /* ... */ }
+    var isEmail: Bool { /* ... */ }
+}
+
+// File: URL+LolayFundamenta.swift
+public extension URL {
+    var queryParameters: [String: String]? { /* ... */ }
+}
+```
+
+For app-internal extensions that don't belong to a reusable module, use `Type+Feature.swift` or `Type+Helpers.swift`.
+
 ## File Organization with MARK Comments
 
 Use `// MARK: -` to organize files into logical sections:
@@ -309,6 +336,37 @@ extension Money: CustomStringConvertible {
     var description: String { /* ... */ }
 }
 ```
+
+### Protocol Extensions for Default Implementations
+
+Use `public extension` on a protocol to provide default behavior that conforming types can rely on or override:
+
+```swift
+public protocol LolayError: Error {
+    var errorKey: String { get }
+}
+
+public extension LolayError {
+    var errorKey: String {
+        String(describing: type(of: self))
+    }
+}
+```
+
+Conforming types get `errorKey` for free but can override it when needed:
+
+```swift
+enum OrderError: String, Error, LolayError {
+    case notFound
+    case expired
+
+    var errorKey: String {
+        String(describing: type(of: self)) + "." + self.rawValue
+    }
+}
+```
+
+This is preferred over a base class when the protocol may be adopted by structs, enums, or classes that already have a different superclass.
 
 ### Private Extensions for File-Local Helpers
 
