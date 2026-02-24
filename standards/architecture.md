@@ -20,6 +20,58 @@
 - Data access separate from business logic
 - Configuration separate from code
 
+### Cross-Platform Architectural Parity
+
+When a product ships native iOS (Swift) and Android (Kotlin) apps, the two codebases should use parallel architecture, directory structure, and naming. An engineer editing `LoginViewModel` in Swift should be able to find `LoginViewModel` in Kotlin without searching. This is not a brute-force port — each codebase remains idiomatic to its platform — but the high-level design is intentionally mirrored.
+
+This practice is sometimes called **architectural parity** or **platform parity**. Prior art includes [Uber's RIBs framework](https://github.com/uber/ribs/wiki) (explicitly designed for cross-platform structural parity), [Clean Architecture](https://blog.cleancoder.com/uncle-bob/2012/08/13/the-clean-architecture.html) (platform-agnostic layering that naturally produces parallel structures), and the convergence of both ecosystems on MVVM/MVI patterns with ViewModels at the center.
+
+**Naming parity:**
+
+| Concept | Convention |
+|---|---|
+| Feature modules | Same name on both platforms: `Login/`, `Inventory/`, `Settings/` |
+| ViewModels | Same class name: `LoginViewModel`, `TicketsViewModel` |
+| Repositories | Same class name: `UserRepository`, `OrderRepository` |
+| Domain models | Same name, no platform suffix: `Account`, `Ticket`, `Order` |
+| DI wiring | Parallel concept — the mechanism differs (manual factory vs Hilt) but the dependency graph mirrors |
+
+**Layer parity:**
+
+Both platforms use the same logical layers with the same names:
+
+| Layer | Swift | Kotlin |
+|---|---|---|
+| Presentation | SwiftUI Views + `@ObservableObject` ViewModels | Compose screens + MVI ViewModels |
+| Business Logic | Manager protocols + `Impl` classes | Use-case / service classes |
+| Data | Repositories, network clients | Repositories, network clients |
+| Navigation | Router pattern (`NavigationRouter`) | Navigation component / router |
+
+**Platform concept mapping:**
+
+Each platform has idiomatic equivalents for the same underlying concepts. Use the platform-native version, not a literal translation:
+
+| Concept | Swift | Kotlin |
+|---|---|---|
+| Reactive state | `@Published` / `ObservableObject` | `StateFlow` / `MutableStateFlow` |
+| Main-thread binding | `@MainActor` | `Dispatchers.Main` / `viewModelScope` |
+| Structured concurrency | `async`/`await`, `TaskGroup` | Coroutines, `CoroutineScope` |
+| Sealed state types | `enum` with associated values | `sealed interface` / `sealed class` |
+| Dependency injection | Constructor injection + `ManagerFactory` | Constructor injection + Hilt modules |
+| Error modeling | `enum: Error` + `LocalizedError` | `sealed interface Result` / custom exceptions |
+| Immutable collections | `let` + value types | `val` + `List` / `Map` (read-only interfaces) |
+
+**Where divergence is expected:**
+
+Parity applies to architecture and naming, not platform mechanics. These should remain fully idiomatic and should *not* be forced to match:
+
+- UI framework specifics (SwiftUI modifiers vs Compose modifiers)
+- Concurrency primitives (`Task` vs `launch`, `Actor` vs `Mutex`)
+- DI mechanism (manual lazy factory vs Hilt annotation processing)
+- Build system and module structure (SPM/Xcode vs Gradle)
+- Platform APIs (HealthKit, WorkManager, etc.)
+- File organization conventions (Swift groups vs Kotlin packages)
+
 ## Architectural Patterns
 
 ### Layered Architecture
