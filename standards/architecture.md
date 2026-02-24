@@ -2,9 +2,10 @@
 
 ## Core Principles
 
-- **Solve the current problem** — don't build for hypothetical futures; only abstract when you have 3+ concrete examples
+- **Solve the current problem** — don't build for hypothetical futures; only abstract when it's low effort or you have 3+ concrete examples
 - **Prefer boring technology** — established patterns and libraries over novel approaches
 - **Separation of concerns** — business logic separate from presentation; data access separate from business logic; configuration separate from code
+- **Keep things consistent** - it's better to be consistent, even if it's less than ideal, than have 5 different variants
 
 ## Layered Architecture
 
