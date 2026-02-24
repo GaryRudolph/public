@@ -20,12 +20,16 @@
   * `chmod 600 ~/.ssh/id_ed25519`
   * `chmod 644 ~/.ssh/id_ed25519.pub`
 
-- [ ] Checkout this repo to `Projects/personal/eng` and create Symbolic Links
-  * `git clone git@github.com:GaryRudolph/eng.git`
-  * `ln -s Projects/personal/eng/bin bin`
-  * `ln -s Projects/personal/eng/dotfiles/zshrc .zshrc`
-  * `ln -s Projects/personal/eng/dotfiles/zshrc-gMacBook .zshrc-local`
-  * `cd .claude; ln -s ../Projects/personal/eng/standards/CLAUDE.md`
+- [ ] Checkout this repo to `Projects/personal/public` and create Symbolic Links
+  * `git clone git@github.com:GaryRudolph/public.git`
+  * `ln -s Projects/personal/public/bin bin`
+  * `ln -s Projects/personal/public/dotfiles/zshrc .zshrc`
+  * `ln -s Projects/personal/public/dotfiles/zshrc-gMacBook .zshrc-local`
+  * `cd .claude; ln -s ../Projects/personal/public/agents/CLAUDE.md`
+
+- [ ] Checkout the private repo to `Projects/personal/private` and
+      create Symbolic Links
+  * `git clone git@github.com:GaryRudolph/private.git`
 
 - Standard Software
   * [ ] Dropbox
@@ -35,6 +39,7 @@
   * [ ] Zoom
   * [ ] Claude
   * [ ] ChatGPT
+  * [ ] Cursor
   * [ ] Jabra Direct
   * [ ] Parallels
   * [ ] Adobe Reader, Illustrator, Photoshop
