@@ -101,7 +101,7 @@ def test_uses_custom_timeout(monkeypatch):
 - Prefer **DI** over patching; prefer **fakes** over mocks
 
 ```python
-class FakeUserRepository:
+class FakeUserStore:
     def __init__(self) -> None:
         self._users: dict[str, User] = {}
 

@@ -47,7 +47,7 @@ class UserService:
     """Service for managing user accounts.
 
     Handles user creation, authentication, and profile management.
-    Uses UserRepository for data persistence and EmailService for notifications.
+    Uses UserStore for data persistence and EmailService for notifications.
     """
 ```
 

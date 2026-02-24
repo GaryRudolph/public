@@ -9,25 +9,25 @@ feature/
 ├── __init__.py          # Public API
 ├── types.py             # Type definitions
 ├── service.py           # Business logic
-├── repository.py        # Data access
+├── store.py             # Data access
 ├── validators.py        # Input validation
 └── tests/
     ├── test_service.py
-    └── test_repository.py
+    └── test_store.py
 ```
 
 ## Data Access Patterns
 
-### Repository Pattern
+### Store Pattern
 
 Use when testability through interface substitution is critical:
 
 ```python
-class UserRepository(Protocol):
+class UserStore(Protocol):
     async def find_by_id(self, id: str) -> User | None: ...
     async def save(self, user: User) -> User: ...
 
-class DatabaseUserRepository:
+class DatabaseUserStore:
     async def find_by_id(self, id: str) -> User | None: ...
 ```
 
@@ -115,13 +115,13 @@ class ServiceFactory:
         self._config = config
 
     @cached_property
-    def order_repository(self) -> OrderRepository:
-        return DynamoOrderRepository(table=self._config.table_name)
+    def order_store(self) -> OrderStore:
+        return DynamoOrderStore(table=self._config.table_name)
 
     @cached_property
     def order_service(self) -> OrderService:
         return OrderService(
-            order_repository=self.order_repository,
+            order_store=self.order_store,
             payment_service=self.payment_service,
             notification_service=self.notification_service,
         )

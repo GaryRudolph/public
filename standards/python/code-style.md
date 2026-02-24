@@ -10,7 +10,7 @@ Follows [code-style.md](../code-style.md) and [PEP 8](https://peps.python.org/pe
 ## Naming
 
 - **snake_case** for variables, functions, files: `user_service.py`
-- **PascalCase** for classes: `UserRepository`
+- **PascalCase** for classes: `UserStore`
 - **SCREAMING_SNAKE_CASE** for constants: `MAX_RETRY_ATTEMPTS`
 - **`_leading_underscore`** for private/internal: `_internal_cache`, `_validate_input()`
 
@@ -43,7 +43,7 @@ Use `__all__` in `__init__.py` to define the public API explicitly. Use relative
 def calculate_total_price(items: list[Item]) -> float:
     return sum(item.price for item in items)
 
-class UserRepository:
+class UserStore:
     def find_by_id(self, user_id: int) -> User | None:
         pass
 ```
