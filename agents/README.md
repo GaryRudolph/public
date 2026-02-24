@@ -11,20 +11,18 @@ shared coding standards from `standards/`.
 | `CLAUDE.md` | Claude Code | Imports `SHARED.md` via `@` syntax |
 | `GEMINI.md` | Gemini CLI | Imports `SHARED.md` via `@` syntax |
 | `AGENTS.md` | Codex CLI / Cursor | Inlined content (Codex does not support `@` imports) |
-| `SHARED.md` | — | Common instructions with `@` imports to core standards |
+| `SHARED.md` | — | Common instructions (no `@` imports to standards — agents load on demand) |
 
 ## How It Works
 
-`SHARED.md` contains the actual agent instructions and uses `@`
-import syntax to pull in the core standards files from `standards/`. Claude Code
-and Gemini CLI both support `@` imports, so their entry points simply import
-`SHARED.md`. Codex CLI does not support `@` imports, so
-`AGENTS.md` has the content inlined.
+`SHARED.md` contains core preferences inline and lists standards files by path.
+Agents load specific standards only when the task is relevant, keeping context
+efficient. Claude Code and Gemini CLI import `SHARED.md` via `@` syntax. Codex
+CLI gets an inlined copy in `AGENTS.md`.
 
 ## Global Setup
 
-Each tool reads a global config file from your home directory. These one-line
-files point back to the entry points in this repo:
+Each tool reads a global config file from your home directory:
 
 ```bash
 # Claude Code (~/.claude/CLAUDE.md)
@@ -41,8 +39,6 @@ ln -s ~/Projects/personal/public/agents/AGENTS.md ~/.codex/AGENTS.md
 
 ## Editing
 
-To change the shared instructions, edit `SHARED.md`. Changes
-propagate to Claude Code and Gemini CLI automatically via the `@` imports.
-
-For Codex CLI, also update `AGENTS.md` to keep it in sync (since its content
-is inlined rather than imported).
+Edit `SHARED.md` for shared instructions. Changes propagate to Claude Code and
+Gemini CLI automatically. For Codex CLI, also update `AGENTS.md` to keep it in
+sync (its content is inlined).

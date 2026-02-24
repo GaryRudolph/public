@@ -2,119 +2,37 @@
 
 ## Branch Strategy
 
-We follow **GitHub Flow** — short-lived feature branches merged frequently to `main` via pull requests. For apps with scheduled release trains a stabalization branch is acceptable.
+We follow **GitHub Flow** — short-lived feature branches merged frequently to `main` via pull requests. For apps with scheduled release trains a stabilization branch is acceptable.
 
-### Main Branch
-- **`main`** - Production-ready code, always deployable
+- **`main`** — production-ready, always deployable
+- **Feature**: `feature/feature-name` or `feature/TICKET-123-feature-name`
+- **Bugfix**: `fix/issue-description` or `fix/TICKET-123-description`
+- **Release**: `release/v2` (short-lived, for hotfixes only; ideally not needed)
 
-### Supporting Branches
-- **Feature branches** - `feature/feature-name` or `feature/TICKET-123-feature-name`
-- **Bugfix branches** - `fix/issue-description` or `fix/TICKET-123-description`
-- **Release branches** - `release/v2` (short-lived, for hotfixes only; ideally not needed)
+## Versioning
 
-### Branch Naming
-```bash
-# Good
-feature/user-authentication
-feature/PROJ-123-add-login
-fix/memory-leak
-fix/PROJ-456-null-pointer
-release/v2
-release/v2.1
+Simplified scheme with always-incrementing major versions:
 
-# Avoid
-feature/stuff
-my-branch
-test
-bugfix
-```
+- **Standard releases**: `v1`, `v2`, `v3`, `v4`, ...
+- **Hotfixes** (rare): `v2.1`, `v2.2` — next planned release is still `v3`
 
-## Versioning Convention
-
-### Version Numbering
-
-Use a simplified versioning scheme with always-incrementing major versions:
-
-- **Standard releases** - `v1`, `v2`, `v3`, `v4`, etc.
-- **Hotfixes** (rare cases only) - `v1.1`, `v2.1`, `v3.1`, etc.
-
-### Rules
-
-1. **Major versions always increment** - Each new release increments the version number
-   - After `v1` comes `v2`, after `v2` comes `v3`, etc.
-   - Never reset or decrement version numbers
-
-2. **Hotfixes use minor versions** - Only in rare cases for critical production fixes
-   - If `v2` has a critical bug, release `v2.1`
-   - If another critical bug appears, release `v2.2`
-   - The next planned release is still `v3` (not `v2.3`)
-
-3. **Prefer major versions** - Default to incrementing the major version
-   - Minor versions are exceptional, not the norm
-   - Most bug fixes should wait for the next major version
-
-### Examples
+Use minor versions **only** for critical security vulnerabilities, data loss bugs, or service outages. Regular bug fixes wait for the next major version.
 
 ```bash
-# Good - standard progression
-v1  → v2  → v3  → v4
-v1  → v2  → v2.1 → v3  # v2.1 is a hotfix
-v1  → v1.1 → v2  → v2.1 → v2.2 → v3  # Multiple hotfixes
+# Standard release — tag main directly
+git tag v3 && git push origin v3
 
-# Avoid
-v1.0  → v1.1  → v1.2  # Use major versions instead
-v1.2.3  # Avoid semantic versioning with patch numbers
-v2  → v1.5  # Never go backwards
-```
-
-### When to Use Minor Versions (Hotfixes)
-
-Only use minor versions for:
-- **Critical security vulnerabilities** in production
-- **Data loss or corruption bugs** affecting users
-- **Service outages** that must be fixed immediately
-
-Do NOT use minor versions for:
-- Regular bug fixes (wait for next major version)
-- New features (always a new major version)
-- Performance improvements (wait for next major version)
-- Non-critical fixes (wait for next major version)
-
-### Tagging Releases
-
-```bash
-# Standard release - tag main directly
-git checkout main
-git tag v3
-git push origin v3
-
-# Hotfix workflow (rare) - only when patching a prior release
-# 1. Create bugfix branch from the prior version tag
-git checkout -b fix/critical-security-issue v3
-
-# 2. Make fix and commit
-git commit -m "fix critical security issue"
-
-# 3. Create release branch from the version tag
+# Hotfix — branch from prior tag, fix, tag, delete branch
+git checkout -b fix/critical-issue v3
+# ... fix and commit ...
 git checkout -b release/v3.1 v3
-
-# 4. Merge bugfix into release branch
-git merge fix/critical-security-issue
-
-# 5. Tag the release
-git tag v3.1
-git push origin v3.1
-
-# 6. Delete the release branch - it's no longer needed
+git merge fix/critical-issue
+git tag v3.1 && git push origin v3.1
 git push origin --delete release/v3.1
-git branch -d release/v3.1
 ```
-
-**Note:** Release branches should be as short-lived as possible and ideally not needed at all. For standard releases, tag `main` directly. Only create release branches for hotfixes on prior versions, and delete them immediately after tagging.
 
 ## Commit Messages
 
-### Format
 ```
 [optional ticket] <imperative description>
 
@@ -123,543 +41,73 @@ git branch -d release/v3.1
 [optional footer]
 ```
 
-Keep it simple: a short, descriptive subject line — optionally prefixed with a ticket number — that reads like a command. Add a body only when the *why* isn't obvious from the subject.
+### Rules
 
-### Examples
-
-**One-liner (most commits):**
-```
-add login endpoint
-```
-
-**With ticket:**
-```
-PROJ-123 add login endpoint
-```
-
-**With body:**
-```
-PROJ-123 add login endpoint
-
-Implements OAuth 2.0 authentication with short-lived JWTs.
-Refresh tokens are stored server-side with automatic rotation.
-```
-
-**With footer:**
-```
-PROJ-123 fix auth bypass on expired tokens
-
-Tokens were not validated against the revocation list, allowing
-expired tokens to access protected endpoints.
-
-Fixes #456
-Co-authored-by: Alice <alice@example.com>
-```
-
-**Breaking change:**
-```
-change user endpoint response format
-
-User endpoint now returns { data: user } instead of the user
-object directly. All API clients must update their parsers.
-
-BREAKING CHANGE: response envelope changed
-Migration guide: https://docs.example.com/migration/v2
-```
-
-### Commit Message Rules
-
-1. **Subject line (first line)**
-   - Use imperative mood — the subject should complete the sentence "if applied, this commit will ..."  (e.g., "add" not "added" or "adds")
-   - Don't capitalize first letter (after ticket, if present)
-   - No period at the end
-   - Maximum 72 characters (including ticket)
-   - Be specific and descriptive
-
-2. **Ticket number (optional)**
-   - Bare format at the start of the subject: `PROJ-123 add feature`
-   - Include when a ticket exists; omit when there isn't one
-
-3. **Body (optional)**
-   - Separate from subject with a blank line
-   - Wrap at 72 characters
-   - Explain *what* and *why*, not *how*
-
-4. **Footer (optional)**
-   - Reference issues: `Fixes #123`, `Closes #456`
-   - Note breaking changes: `BREAKING CHANGE: description`
-   - Credit co-authors: `Co-authored-by: Name <email>`
-
-### Good vs Bad Commits
+1. **Subject**: imperative mood ("add" not "added"), no capital after ticket, no period, max 72 chars
+2. **Ticket**: bare at start — `PROJ-123 add feature`; omit when there isn't one
+3. **Body**: separate with blank line, wrap at 72 chars, explain *what* and *why*
+4. **Footer**: `Fixes #123`, `BREAKING CHANGE: description`, `Co-authored-by: Name <email>`
 
 ```bash
 # Good
-add email verification
-PROJ-123 add email verification
+add login endpoint
+PROJ-123 add login endpoint
 fix null values in user response
-extract token validation into shared module
-update installation instructions in README
 
 # Bad
-update stuff        # Too vague
-Fixed bug          # Not descriptive, wrong tense
-WIP                # Not descriptive
-asdfgh            # Not descriptive
+update stuff        # too vague
+Fixed bug          # wrong tense
 ```
-
-## Commit Practices
 
 ### Atomic Commits
-- Each commit should represent one logical change
-- Should be able to revert without breaking other features
-- Makes debugging and code review easier
 
-```bash
-# Good - atomic commits
-git commit -m "add User model"
-git commit -m "add UserRepository"
-git commit -m "add UserService"
-git commit -m "add user service tests"
+Each commit = one logical change. Makes reverting and reviewing straightforward.
 
-# Avoid - mixed changes
-git commit -m "add user feature and fix login bug and update docs"
+## Pull Requests
+
+### Creating
+
+- Rebase on latest `main` before opening
+- One feature or fix per PR; keep PRs < 400 lines changed
+- PR titles follow commit message format: `PROJ-123 add user authentication`
+
+### PR Body
+
+```markdown
+## Summary
+Brief description of changes
+
+## Changes
+- Added user authentication
+- Updated API endpoints
+- Added tests
+
+## Test Plan
+- [ ] Unit tests pass
+- [ ] Integration tests pass
+
+## Breaking Changes
+(if any)
 ```
 
-### Commit Frequency
-- Commit early and often (in feature branches)
-- Each logical step should be a commit
-- Don't commit broken code to shared branches
-- Can squash commits before merging to main
+### Merging
 
-### What Not to Commit
+- **Squash and merge** (default for features) — single commit on main
+- **Rebase and merge** — for clean branches with good commit history
+- Delete feature branches after merging
+
+## .gitignore Essentials
+
 ```bash
-# Add to .gitignore
 .env
-.env.local
 *.log
 .DS_Store
 __pycache__/
-*.pyc
-*.pyo
 .venv/
-venv/
 dist/
 build/
-*.egg-info/
-.pytest_cache/
-.coverage
-htmlcov/
-*.swp
-*.swo
 .idea/
 .vscode/
 *.key
 *.pem
 ```
-
-## Pull Request Workflow
-
-### Creating a PR
-
-1. **Before creating PR:**
-   ```bash
-   # Update your branch with latest main
-   git fetch origin
-   git rebase origin/main
-
-   # Run tests
-   pytest
-
-   # Run linting
-   ruff check .
-   ```
-
-2. **Create descriptive PR:**
-   ```markdown
-   ## Summary
-   Brief description of changes
-
-   ## Changes
-   - Added user authentication
-   - Updated API endpoints
-   - Added tests
-
-   ## Test Plan
-   - [ ] Unit tests pass
-   - [ ] Integration tests pass
-   - [ ] Manual testing completed
-
-   ## Screenshots
-   (if applicable)
-
-   ## Breaking Changes
-   (if any)
-
-   ## Related Issues
-   Closes #123
-   Related to #456
-   ```
-
-3. **Keep PRs focused:**
-   - One feature or fix per PR
-   - Reasonable size (< 400 lines changed ideally)
-   - Split large changes into multiple PRs
-
-### PR Title Format
-
-PR titles follow the same format as commit messages:
-
-```
-PROJ-123 add user authentication
-fix memory leak in connection pool
-update README with installation steps
-```
-
-### Reviewing PRs
-
-**As a reviewer:**
-- Review within 24 hours
-- Check for functionality, style, tests, docs
-- Be constructive and specific in feedback
-- Approve when ready or request changes
-
-**As an author:**
-- Respond to all comments
-- Make requested changes or explain why not
-- Mark conversations as resolved
-- Re-request review after changes
-
-### Merging Strategies
-
-**Squash and merge (recommended for features):**
-```bash
-# Creates single commit on main
-# Good for: Feature branches with many WIP commits
-git merge --squash feature-branch
-```
-
-**Rebase and merge:**
-```bash
-# Maintains linear history
-# Good for: Clean branches with good commit history
-git rebase main
-git merge feature-branch
-```
-
-**Merge commit:**
-```bash
-# Preserves all commits
-# Good for: Release branches, preserving history
-git merge --no-ff feature-branch
-```
-
-## Branch Management
-
-### Creating Branches
-```bash
-# Create and switch to new branch
-git checkout -b feature/user-auth
-
-# Or with newer syntax
-git switch -c feature/user-auth
-
-# From specific commit or branch
-git checkout -b hotfix/critical-bug origin/main
-```
-
-### Keeping Branches Updated
-```bash
-# Rebase on main (recommended)
-git fetch origin
-git rebase origin/main
-
-# Or merge main into branch
-git merge origin/main
-```
-
-### Deleting Branches
-```bash
-# Delete local branch
-git branch -d feature/completed-feature
-
-# Delete remote branch
-git push origin --delete feature/completed-feature
-
-# Prune deleted remote branches
-git fetch --prune
-```
-
-## Common Workflows
-
-### Feature Development
-```bash
-# 1. Create feature branch
-git checkout -b feature/new-feature
-
-# 2. Make changes and commit
-git add .
-git commit -m "add new feature"
-
-# 3. Push to remote
-git push -u origin feature/new-feature
-
-# 4. Create pull request on GitHub/GitLab
-
-# 5. After approval, merge via UI
-
-# 6. Delete local branch
-git checkout main
-git pull
-git branch -d feature/new-feature
-```
-
-### Hotfix Workflow (Critical Production Fixes)
-```bash
-# 1. Create bugfix branch from the version tag needing the fix
-git checkout -b fix/critical-bug v2
-
-# 2. Fix and commit
-git add .
-git commit -m "fix critical bug"
-
-# 3. Create release branch from the version tag
-git checkout -b release/v2.1 v2
-
-# 4. Merge bugfix into release branch
-git merge fix/critical-bug
-
-# 5. Tag the hotfix version
-git tag v2.1
-git push origin v2.1
-
-# 6. Clean up - delete both branches
-git branch -d fix/critical-bug
-git push origin --delete release/v2.1
-git branch -d release/v2.1
-```
-
-**Important:** Release branches are temporary. Once tagged, delete them immediately. The version tag is the permanent reference point.
-
-### Updating Feature with Main Changes
-```bash
-# Rebase approach (cleaner history)
-git checkout feature/my-feature
-git fetch origin
-git rebase origin/main
-
-# Resolve conflicts if any
-git add resolved-files
-git rebase --continue
-
-git push --force-with-lease
-
-# Merge approach (preserves history)
-git checkout feature/my-feature
-git merge origin/main
-git push
-```
-
-## Resolving Conflicts
-
-```bash
-# 1. Fetch latest changes
-git fetch origin
-
-# 2. Start rebase or merge
-git rebase origin/main
-# or
-git merge origin/main
-
-# 3. Resolve conflicts in files
-# Look for conflict markers:
-# <<<<<<< HEAD
-# your changes
-# =======
-# their changes
-# >>>>>>> origin/main
-
-# 4. After resolving
-git add resolved-files
-
-# For rebase
-git rebase --continue
-
-# For merge
-git commit
-```
-
-## Advanced Git
-
-### Interactive Rebase
-```bash
-# Clean up last 3 commits
-git rebase -i HEAD~3
-
-# Options:
-# pick   - keep commit
-# reword - change commit message
-# edit   - amend commit
-# squash - combine with previous
-# drop   - remove commit
-```
-
-### Cherry-pick
-```bash
-# Apply specific commit to current branch
-git cherry-pick abc123
-
-# Cherry-pick range
-git cherry-pick abc123..def456
-```
-
-### Stashing
-```bash
-# Save work in progress
-git stash
-
-# Save with message
-git stash save "WIP: working on feature"
-
-# List stashes
-git stash list
-
-# Apply most recent stash
-git stash pop
-
-# Apply specific stash
-git stash apply stash@{1}
-
-# Delete stash
-git stash drop stash@{0}
-```
-
-### Viewing History
-```bash
-# View commit history
-git log --oneline --graph --all
-
-# View changes in a commit
-git show abc123
-
-# View file history
-git log -p filename
-
-# Find when a bug was introduced
-git bisect start
-git bisect bad
-git bisect good abc123
-```
-
-## Git Configuration
-
-### User Settings
-```bash
-# Set user name and email
-git config --global user.name "Your Name"
-git config --global user.email "your.email@example.com"
-
-# Set default branch name
-git config --global init.defaultBranch main
-
-# Set default editor
-git config --global core.editor "code --wait"
-```
-
-### Useful Aliases
-```bash
-# Add to ~/.gitconfig
-[alias]
-  st = status
-  co = checkout
-  br = branch
-  ci = commit
-  unstage = reset HEAD --
-  last = log -1 HEAD
-  lg = log --oneline --graph --all --decorate
-  amend = commit --amend --no-edit
-```
-
-## Git Hooks
-
-### Pre-commit Hook
-```bash
-# .git/hooks/pre-commit
-#!/bin/bash
-
-# Run linting
-ruff check . || exit 1
-
-# Run tests
-pytest || exit 1
-
-echo "Pre-commit checks passed"
-```
-
-### Commit Message Hook
-```bash
-# .git/hooks/commit-msg
-#!/bin/bash
-
-commit_msg=$(head -1 "$1")
-
-# Reject empty or vague messages
-if [[ ${#commit_msg} -lt 10 ]]; then
-  echo "Commit message too short (min 10 chars)"
-  exit 1
-fi
-
-# Enforce 72-character subject line limit
-if [[ ${#commit_msg} -gt 72 ]]; then
-  echo "Subject line too long (${#commit_msg} chars, max 72)"
-  exit 1
-fi
-```
-
-## Best Practices
-
-### Do's
-- ✅ Write clear, descriptive commit messages
-- ✅ Commit early and often (in feature branches)
-- ✅ Keep commits atomic and focused
-- ✅ Pull latest changes before starting work
-- ✅ Create feature branches from main
-- ✅ Delete branches after merging
-- ✅ Use meaningful branch names
-- ✅ Review your changes before committing
-
-### Don'ts
-- ❌ Don't commit sensitive data (keys, passwords)
-- ❌ Don't commit to main directly
-- ❌ Don't push broken code to shared branches
-- ❌ Don't rewrite published history (unless force-with-lease)
-- ❌ Don't commit large binary files
-- ❌ Don't mix unrelated changes in one commit
-- ❌ Don't use vague commit messages
-
-## Recovery and Undo
-
-```bash
-# Undo last commit (keep changes)
-git reset --soft HEAD~1
-
-# Undo last commit (discard changes)
-git reset --hard HEAD~1
-
-# Undo changes to a file
-git checkout -- filename
-
-# Restore deleted file
-git checkout HEAD -- filename
-
-# Undo a public commit
-git revert abc123
-
-# Recover deleted branch
-git reflog
-git checkout -b recovered-branch abc123
-```
-
-## Resources
-
-- [Git Documentation](https://git-scm.com/doc)
-- [Git Flight Rules](https://github.com/k88hudson/git-flight-rules)
