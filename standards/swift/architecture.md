@@ -105,6 +105,8 @@ class AccountManagerImpl: AccountManager {
 }
 ```
 
+Domain models that belong to a specific manager live in that manager's subfolder inside `Managers/` and use the plain domain name — no `Model` suffix. For example, `AccountManager` owns `Account` (not `AccountModel`). The separate top-level `Model/` folder is for domain models and resolvers that are not owned by a single manager.
+
 ### Delegate Pattern
 
 Use the delegate pattern when an object needs to notify or ask another object for decisions without a tight coupling. The delegate is a `weak` protocol reference, avoiding retain cycles:
