@@ -57,6 +57,41 @@ func complexFunction() { }
 // NOTE: This must run before initDatabase()
 ```
 
+## Protocol Documentation
+
+Use `/** */` block comments for protocol and major type-level documentation. Use `///` for individual members:
+
+```swift
+/**
+ A factory to manage all the other managers. This is effectively a lightweight dependency
+ injector where all the managers use constructor injection.
+ */
+protocol ManagerFactory {
+    /// Manager for reading & writing data to persistent stores
+    var storeManager: StoreManager { get set }
+    /// Configuration manager that can be refreshed remotely
+    var configManager: ConfigManager { get }
+    /// Authentication manager for requesting access tokens
+    var authManager: AuthManager { get set }
+}
+```
+
+```swift
+/**
+ Retrieves and saves information about an account.
+ */
+protocol AccountManager: Manager {
+
+    /**
+     Retrieves a summary for a specific accountId.
+     - parameter accountId: The accountId of which to get the account.
+     - parameter context: Trace context used for tracing a request (i.e. Datadog)
+     - returns: The found account summary
+     */
+    func getAccountSummary(accountId: String, context: TraceContext) async throws -> AccountSummary
+}
+```
+
 ## Function Documentation
 
 Use `///` doc comments with Swift's documentation markup:
@@ -102,6 +137,64 @@ class UserService {
 }
 ```
 
+## Callout Markers
+
+Use DocC callout markers to highlight important information in doc comments:
+
+```swift
+/// Factory method to construct an instance using the app's standard manager instances.
+///
+/// - Important: This method is intended for production and SwiftUI preview code only.
+///   Tests should call the primary `init(...)` directly with mock dependencies.
+///
+/// - Note: This pattern prepares the codebase for an eventual shift to dependency
+///   injection via Resolver (or similar).
+///
+/// - Tip: Once `make()` is backed by Resolver, even views that call it directly
+///   become testable, since registrations can be overridden at test time.
+///
+/// Example usage:
+/// ```swift
+/// @StateObject var viewModel: TicketsViewModel = .make()
+/// ```
+static func make() -> TicketsViewModel {
+    TicketsViewModel(
+        connectionManager: AppShared.shared.managers.connectionManager,
+        inventoryManager: AppShared.shared.managers.inventoryManager
+    )
+}
+```
+
+## Enum Documentation
+
+Document enum types and individual cases with `///`:
+
+```swift
+/**
+ Status to categorize an async operation. Typically used to display loading
+ information or disable a button to prevent multiple clicks.
+ */
+enum AsyncStatus: String {
+    case none
+    case started
+    case finished
+}
+```
+
+```swift
+/**
+ Errors for `NetworkManager` that can occur in preparing or handling the request.
+ */
+enum NetworkError: Error {
+    /// Token is nil, effectively already logged out
+    case nilClient
+    /// The request didn't validate properly according to GRPC
+    case invalidMessage
+    case server(Error)
+    case unknown(Error)
+}
+```
+
 ## Inline Documentation
 
 ### Complex Algorithms
@@ -134,7 +227,7 @@ let result = value * taxRate
 
 ## README Files
 
-### Module README — Structure
+### Module/Library README — Structure
 ```markdown
 ## Structure
 
@@ -153,6 +246,38 @@ import Module
 
 let service = ModuleService()
 let result = try await service.doSomething()
+```
+```
+
+### iOS App README — Structure
+
+An iOS app README should cover build prerequisites, target configurations, and architecture:
+
+```markdown
+# AppName
+
+## Prerequisites
+- Xcode 15+
+- Ruby & Bundler (for Fastlane)
+- CocoaPods or SPM dependencies
+
+## Targets
+| Target | Environment | Notes |
+|--------|-------------|-------|
+| AppDebug | Development | Mock auth available |
+| AppBeta | Staging | TestFlight builds |
+| AppProduction | Production | App Store release |
+
+## Architecture
+- **MVVM** with SwiftUI
+- **Managers** for business logic (protocol + implementation)
+- **ManagerFactory** for dependency injection
+- **Router pattern** for navigation
+
+## Build & Run
+```bash
+bundle install
+bundle exec fastlane build
 ```
 ```
 

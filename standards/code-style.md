@@ -26,7 +26,8 @@
 ## Formatting
 
 ### Indentation
-- Use **2 spaces** for indentation (or 4 spaces, but be consistent)
+- **Python**: 4 spaces (per PEP 8)
+- **Swift**: 4 spaces
 - No tabs
 
 ### Line Length

@@ -56,6 +56,25 @@ def complex_function():
 # NOTE: This must run before init_database()
 ```
 
+## Module Docstrings
+
+Every module should have a docstring. Use a one-line docstring for simple or obvious modules:
+
+```python
+"""PynamoDB model for InferenceRequest."""
+```
+
+Use a multi-line docstring when the module does something non-obvious or coordinates multiple concerns:
+
+```python
+"""
+Shared test fixtures for inference store tests.
+
+Provides mock AWS credentials, DynamoDB table setup/teardown,
+and sample UUID generators for use across test modules.
+"""
+```
+
 ## Function Documentation
 
 Use Google-style docstrings:
@@ -119,6 +138,55 @@ class UserService:
         pass
 ```
 
+## Test Documentation
+
+### Test Functions
+
+Each test function should have a one-line docstring describing what it verifies:
+
+```python
+def test_format_pk(sample_request_id: UUID) -> None:
+    """Test PK formatting with UUID."""
+    pk = InferenceRequest.format_pk(sample_request_id)
+    assert pk == f"R#{str(sample_request_id)}"
+
+
+def test_get_nonexistent_request(test_settings: Settings) -> None:
+    """Test getting a request that doesn't exist."""
+    with pytest.raises(ItemNotFoundError):
+        InferenceRequest.get(uuid4())
+```
+
+### Fixtures
+
+Fixtures should include a docstring. Use Args/Returns sections when the fixture takes parameters or yields/returns a value:
+
+```python
+@pytest.fixture
+def dynamodb_table(aws_credentials: None) -> Generator[None, None, None]:
+    """Create and tear down a mock DynamoDB table.
+
+    Args:
+        aws_credentials: Ensures mock credentials are set before table creation
+
+    Returns:
+        Generator that yields after table creation and cleans up on teardown
+    """
+    mock = mock_aws()
+    mock.start()
+    try:
+        MyModel.create_table(billing_mode="PAY_PER_REQUEST", wait=True)
+        yield
+    finally:
+        mock.stop()
+
+
+@pytest.fixture
+def sample_id() -> uuid.UUID:
+    """Generate a UUID for testing."""
+    return uuid.uuid4()
+```
+
 ## Inline Documentation
 
 ### Complex Algorithms
@@ -171,6 +239,32 @@ from project import Feature
 feature = Feature()
 feature.do_something()
 ```
+```
+
+### Library README Structure
+
+For standalone libraries or packages, use a comprehensive structure:
+
+```markdown
+# Package Name
+
+Brief description of what the package does.
+
+## Overview
+## Installation
+## Building
+## Testing
+## Quick Start
+## How It Works
+### Architecture
+### Data Models
+### Configuration
+### Error Handling
+## API Reference
+## Development
+### Running Tests
+### Code Quality
+## Design Decisions
 ```
 
 ### Module README — Structure

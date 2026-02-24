@@ -31,6 +31,21 @@
 ## Test Structure
 
 ### Test Organization
+
+**Colocated tests** (preferred for libraries) — test files live alongside source with a `_test.py` suffix:
+
+```
+src/mypackage/
+├── __init__.py
+├── conftest.py              # Shared fixtures
+├── models.py
+├── models_test.py           # Tests for models
+├── service.py
+└── service_test.py          # Tests for service
+```
+
+**Separate test directory** (common for applications):
+
 ```
 src/
 ├── feature/
@@ -48,18 +63,32 @@ src/
 Use descriptive names that explain the scenario:
 
 ```python
-# Good - describes behavior
+# Good - flat functions with docstrings (preferred for smaller modules)
+def test_creates_user_with_valid_data(sample_user: dict) -> None:
+    """Test that valid data produces a saved user."""
+    ...
+
+def test_raises_validation_error_when_email_is_invalid() -> None:
+    """Test that invalid email raises ValidationError."""
+    ...
+
+# Good - class-based grouping (useful when a module has many tests)
 class TestUserService:
     class TestCreateUser:
-        def test_creates_user_with_valid_data(self): ...
-        def test_raises_validation_error_when_email_is_invalid(self): ...
-        def test_sends_welcome_email_after_user_creation(self): ...
+        def test_creates_user_with_valid_data(self) -> None: ...
+        def test_raises_validation_error_when_email_is_invalid(self) -> None: ...
+        def test_sends_welcome_email_after_user_creation(self) -> None: ...
 
 # Avoid - vague names
 class TestUserService:
     def test_1(self): ...
     def test_works(self): ...
 ```
+
+### Test Function Conventions
+
+- Always annotate test functions with `-> None` return type
+- Always include a one-line docstring describing what the test verifies
 
 ### AAA Pattern (Arrange, Act, Assert)
 ```python
@@ -146,7 +175,7 @@ class TestOrderService:
 - Use real dependencies where practical
 - Test database operations, API calls
 
-### Database Tests
+### Database Tests (SQL)
 ```python
 import pytest
 
@@ -184,6 +213,290 @@ class TestUserRepositoryIntegration:
         # Act & Assert
         with pytest.raises(Exception, match="Email already exists"):
             await user_repo.save(user)
+```
+
+### AWS Service Tests (moto)
+
+Use **moto** to mock AWS services (DynamoDB, S3, SQS, etc.) and **pytest-socket** to prevent accidental network calls:
+
+```python
+import os
+from typing import Generator
+
+import pytest
+from moto import mock_aws
+
+from .models import Order
+
+@pytest.fixture(scope="session")
+def aws_credentials() -> None:
+    """Set mock AWS credentials for moto."""
+    os.environ["AWS_ACCESS_KEY_ID"] = "testing"
+    os.environ["AWS_SECRET_ACCESS_KEY"] = "testing"
+    os.environ["AWS_DEFAULT_REGION"] = "us-east-1"
+
+@pytest.fixture
+def dynamodb_table(aws_credentials: None) -> Generator[None, None, None]:
+    """Create and tear down a mock DynamoDB table."""
+    mock = mock_aws()
+    mock.start()
+    try:
+        Order.create_table(billing_mode="PAY_PER_REQUEST", wait=True)
+        yield
+    finally:
+        mock.stop()
+
+def test_creates_and_retrieves_order(dynamodb_table: None) -> None:
+    """Test round-trip create and get for an Order."""
+    order = Order.create(order_id=uuid4(), items=[item])
+    order.save()
+
+    retrieved = Order.get(order.order_id)
+    assert retrieved.order_id == order.order_id
+```
+
+### HTTP Integration Tests
+
+For API tests that hit real endpoints, use a base test class with class-level setup for expensive operations (creating test users, authenticating). Use numbered test names when execution order matters:
+
+```python
+import unittest
+from http import HTTPStatus
+
+class BaseApiTest(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls) -> None:
+        cls._base_url = "http://localhost:8080/api"
+
+    def _get(self, path: str, token: str) -> dict:
+        """Issue an authenticated GET and return the JSON response."""
+        response = requests.get(
+            f"{self._base_url}{path}",
+            headers={"Authorization": f"Bearer {token}"},
+        )
+        return response.json()
+
+    def _post(self, path: str, token: str, data: dict) -> dict:
+        """Issue an authenticated POST and return the JSON response."""
+        response = requests.post(
+            f"{self._base_url}{path}",
+            headers={"Authorization": f"Bearer {token}"},
+            json=data,
+        )
+        return response.json()
+
+
+class TestUserApi(BaseApiTest):
+    @classmethod
+    def setUpClass(cls) -> None:
+        super().setUpClass()
+        cls._user = cls._register(test_token)
+
+    @classmethod
+    def tearDownClass(cls) -> None:
+        cls._cleanup(cls._user)
+        super().tearDownClass()
+
+    def test_01_create_user(self) -> None:
+        """Verify user registration returns a valid user and token."""
+        response = self._post("/users", token, {"name": "Test"})
+        self.assertIsNotNone(response.get("user"))
+        self.assertIsNotNone(response.get("token"))
+
+    def test_02_login(self) -> None:
+        """Verify login with existing credentials succeeds."""
+        response = self._post("/login", token, {})
+        self.assertEqual(response["user"]["id"], self._user["id"])
+```
+
+### Skipping Environment-Dependent Tests
+
+Use `pytest.mark.skip` with a reason when tests cannot run in a mock environment:
+
+```python
+@pytest.mark.skip(reason="moto doesn't support LSI queries - test against real DynamoDB")
+def test_query_by_index(dynamodb_table: None) -> None:
+    """Test querying via local secondary index."""
+    ...
+```
+
+## Swift / XCTest
+
+### Test Organization (Swift)
+
+Tests live in a separate `AppNameTests/` target mirroring the source directory structure:
+
+```
+AppNameTests/
+├── BaseTests.swift                  # Minimal XCTestCase base
+├── BaseManagerTests.swift           # Base class with shared fixtures
+├── Managers/
+│   ├── Account/
+│   │   └── AccountManagerTests.swift
+│   └── Network/
+│       └── NetworkManagerTests.swift
+├── Models/                          # ViewModel tests
+│   └── Tickets/
+│       └── TicketsViewModelTests.swift
+├── Mocks/
+│   ├── MockManagerFactoryImpl.swift # Full mock DI container
+│   └── Managers/
+│       └── BaseMocks/              # fatalError stubs per protocol
+│           ├── BaseMockAccountManager.swift
+│           └── BaseMockNetworkManager.swift
+└── Support/                         # Noop implementations
+    ├── NoopTraceContext.swift
+    └── NoopAnalyticsService.swift
+```
+
+### Base Test Classes
+
+Use a class hierarchy for shared setup. The root class is a minimal `XCTestCase`; domain bases add shared fixtures:
+
+```swift
+class BaseTests: XCTestCase { }
+
+class BaseManagerTests: BaseTests {
+    var build: Build!
+    var info: Info!
+    var storeManager: StoreManager!
+
+    // MARK: - Lifecycle
+
+    override func setUpWithError() throws {
+        try super.setUpWithError()
+        self.info = Info.decode(name: "Info.plist", bundle: Bundle(for: BaseManagerTests.self))
+        self.build = Build.decode(name: "TestBuild.plist", bundle: Bundle(for: BaseManagerTests.self))
+        self.storeManager = SimpleStoreManager()
+        self.storeManager?.reset()
+    }
+
+    override func tearDownWithError() throws {
+        try super.tearDownWithError()
+        self.storeManager?.reset()
+    }
+
+    // MARK: - Helpers
+
+    func loadFile(name: String, type: String) -> Data {
+        let path = Bundle(for: BaseManagerTests.self).path(forResource: name, ofType: type)
+        return FileManager.default.contents(atPath: path!)!
+    }
+}
+```
+
+### @testable import
+
+Use `@testable import` to access `internal` types from the test target:
+
+```swift
+import XCTest
+@testable import MyAppDebug
+
+class AccountManagerTests: BaseManagerTests {
+    var manager: AccountManager!
+
+    override func setUp() {
+        let authManager = MinimalAuthManager()
+        authManager.testUserId = "test-user-id"
+        authManager.token = authManager.randomToken()
+
+        let networkManager = NetworkManagerImpl(
+            host: self.build.apiHost, port: self.build.apiPort,
+            tls: self.build.apiTls, authManager: authManager, debug: self.build.debug
+        )
+
+        self.manager = AccountManagerImpl(
+            storeManager: self.storeManager,
+            authManager: authManager,
+            networkManager: networkManager
+        )
+    }
+
+    override func tearDown() {
+        self.manager = nil
+    }
+
+    func testGetAccountSummary() async throws {
+        let account = try await self.manager.getAccountSummary(
+            accountId: "a-test-1", context: NoopTraceContext()
+        )
+        XCTAssertEqual(account.accountId, "a-test-1")
+    }
+}
+```
+
+### Async Test Methods
+
+Mark tests that call async code with `async throws`:
+
+```swift
+func testSyncInventory() async throws {
+    try await manager.syncInventory(accountId: "a-test-1", context: NoopTraceContext())
+    let result = try await manager.getInventory(accountId: "a-test-1", context: NoopTraceContext())
+    XCTAssertFalse(result.isEmpty)
+}
+
+func testThrowsForInvalidAccount() async throws {
+    do {
+        _ = try await manager.getAccountSummary(accountId: "invalid", context: NoopTraceContext())
+        XCTFail("Expected error to be thrown")
+    } catch { }
+}
+```
+
+### BaseMock Pattern
+
+Create `BaseMock*` classes that implement a protocol with `fatalError` for every method. Tests override only the methods they need:
+
+```swift
+class BaseMockAccountManager: AccountManager {
+    func getAccountSummary(accountId: String, context: TraceContext) async throws -> AccountSummary {
+        fatalError("getAccountSummary not implemented")
+    }
+    func removeAccount(accountId: String, context: TraceContext) async throws {
+        fatalError("removeAccount not implemented")
+    }
+}
+```
+
+### Noop Implementations
+
+Create lightweight noop implementations of cross-cutting concerns (tracing, analytics) for test isolation:
+
+```swift
+class NoopTraceContext: TraceContext {
+    func startTrace<T>(type: T.Type, functionName: String) {}
+    func finishTrace() {}
+    func setError(_ error: Error) {}
+    func appendHeaders(_ headers: inout HPACKHeaders) {}
+}
+
+class NoopAnalyticsService: AnalyticsService {
+    func track(event: String, data: [String: Any]) {}
+}
+```
+
+### MockManagerFactory
+
+A full mock DI container mirrors the production factory but uses mock or minimal implementations:
+
+```swift
+class MockManagerFactoryImpl: ManagerFactory {
+    lazy var storeManager: StoreManager = { SimpleStoreManager() }()
+    lazy var authManager: AuthManager = {
+        let auth = MinimalAuthManager()
+        auth.testUserId = "test-user-id"
+        auth.token = auth.randomToken()
+        return auth
+    }()
+    lazy var networkManager: NetworkManager = {
+        NetworkManagerImpl(host: self.build.apiHost, port: self.build.apiPort,
+                           tls: self.build.apiTls, authManager: self.authManager,
+                           debug: self.build.debug)
+    }()
+    // ... other managers
+}
 ```
 
 ## End-to-End Testing
@@ -236,7 +549,46 @@ class TestUserRegistrationFlow:
 
 ## Test Data Management
 
-### Test Fixtures
+### conftest.py Fixtures
+
+Use `conftest.py` for shared fixtures, colocated with the test files. Choose fixture scope based on cost:
+
+```python
+# conftest.py
+import uuid
+from typing import Generator
+
+import pytest
+from moto import mock_aws
+
+@pytest.fixture(scope="session")
+def aws_credentials() -> None:
+    """Set mock AWS credentials for moto."""
+    os.environ["AWS_ACCESS_KEY_ID"] = "testing"
+    os.environ["AWS_SECRET_ACCESS_KEY"] = "testing"
+
+@pytest.fixture
+def dynamodb_table(aws_credentials: None) -> Generator[None, None, None]:
+    """Create and tear down a mock DynamoDB table."""
+    mock = mock_aws()
+    mock.start()
+    try:
+        MyModel.create_table(billing_mode="PAY_PER_REQUEST", wait=True)
+        yield
+    finally:
+        mock.stop()
+
+@pytest.fixture
+def sample_id() -> uuid.UUID:
+    """Generate a UUID for testing."""
+    return uuid.uuid4()
+```
+
+- **Session-scoped** for expensive one-time setup (credentials, connections)
+- **Function-scoped** (default) for test data and mutable state
+- Use `Generator[YieldType, None, None]` as the return type for yield-based fixtures
+
+### Static Test Data
 ```python
 # tests/fixtures/users.py
 valid_user = {

@@ -43,7 +43,27 @@ def _validate_input():
     pass
 ```
 
+### Public API (`__init__.py`)
+
+Use `__all__` to define the public API of a package explicitly:
+
+```python
+from .models import User, UserRole
+from .exceptions import ValidationError, NotFoundError
+from .service import UserService
+
+__all__ = [
+    "User",
+    "UserRole",
+    "UserService",
+    "ValidationError",
+    "NotFoundError",
+]
+```
+
 ## Spacing
+
+Use **4 spaces** for indentation (per PEP 8). No tabs.
 
 ```python
 # Good spacing
@@ -86,6 +106,12 @@ x = 5
 - Follow PEP 8
 - Use type hints for function signatures
 
+### Type Hints
+
+- Prefer `X | Y` over `Optional[X]` and `Union[X, Y]` (Python 3.10+)
+- Always annotate return types, including `-> None`
+- Use `*args: Any, **kwargs: Any` when forwarding arguments
+
 ```python
 # Good
 def calculate_total_price(items: list[Item]) -> float:
@@ -95,6 +121,39 @@ def calculate_total_price(items: list[Item]) -> float:
 class UserRepository:
     def find_by_id(self, user_id: int) -> User | None:
         pass
+
+def save(self, *args: Any, **kwargs: Any) -> dict[str, Any]:
+    return super().save(*args, **kwargs)
+
+def process(data: str) -> None:
+    print(data)
+```
+
+### Enumerations
+
+Use `StrEnum` with `auto()` for state machines and string-valued enums:
+
+```python
+from enum import StrEnum, auto
+
+class OrderState(StrEnum):
+    PENDING = auto()    # "pending"
+    APPROVED = auto()   # "approved"
+    SHIPPED = auto()    # "shipped"
+    DELIVERED = auto()  # "delivered"
+    CANCELLED = auto()  # "cancelled"
+```
+
+Nest enums inside the class they belong to when they are tightly coupled:
+
+```python
+class Order(Model):
+    class State(StrEnum):
+        PENDING = auto()
+        APPROVED = auto()
+        SHIPPED = auto()
+
+    state: State = State.PENDING
 ```
 
 ## Imports
@@ -108,9 +167,74 @@ import sys
 import requests
 import flask
 
-# Local
+# Local (absolute for inter-package)
 from services.user import UserService
 from config import config
+```
+
+### Relative Imports
+
+Use relative imports for intra-package references. Use absolute imports for inter-package references.
+
+```python
+# Within the same package — use relative
+from .exceptions import ValidationError
+from .models import User
+
+# From a different package — use absolute
+from services.auth import AuthService
+```
+
+### Deferred Imports
+
+Import inside a function body to break circular dependencies:
+
+```python
+class Order(Model):
+    @classmethod
+    def create(cls, data: dict) -> "Order":
+        from .pricing import calculate_total
+
+        total = calculate_total(data["items"])
+        return cls(total=total, **data)
+```
+
+## Debug Logging
+
+Use entry/exit logging in service and API methods for traceability:
+
+```python
+import logging
+
+log = logging.getLogger(__name__)
+
+class OrderService:
+    def create_order(self, user_id: str, items: list[Item]) -> Order:
+        log.debug("enter user_id=%s, items=%d", user_id, len(items))
+
+        order = Order.create(user_id=user_id, items=items)
+
+        log.debug("exit order_id=%s", order.order_id)
+        return order
+```
+
+## Model Self-Serialization
+
+Models should serialize themselves via a `to_dict()` method that calls `super()` and extends:
+
+```python
+class BaseModel:
+    def to_dict(self) -> dict[str, Any]:
+        return {"id": self.id}
+
+class User(BaseModel):
+    name: str
+    email: str
+
+    def to_dict(self) -> dict[str, Any]:
+        result = super().to_dict()
+        result.update({"name": self.name, "email": self.email})
+        return result
 ```
 
 ## Error Handling
@@ -163,4 +287,57 @@ if not user.is_active:
     return
 if not user.has_permission:
     return
+```
+
+## Tools
+
+### Linting and Formatting
+
+Use **ruff** for both linting and formatting (replaces black, isort, flake8):
+
+```bash
+ruff check .       # Lint
+ruff check --fix . # Lint with auto-fix
+ruff format .      # Format
+```
+
+### Type Checking
+
+Use **mypy** for static type checking:
+
+```bash
+mypy src/
+```
+
+### Package Management
+
+Use **uv** as the package manager and **pyproject.toml** as the project configuration:
+
+```bash
+uv venv               # Create virtual environment
+uv sync --extra dev   # Install with dev dependencies
+uv build              # Build package
+```
+
+### Build Configuration
+
+Use `pyproject.toml` with hatchling as the build backend:
+
+```toml
+[project]
+name = "my-package"
+version = "0.1.0"
+requires-python = ">=3.12"
+dependencies = []
+
+[project.optional-dependencies]
+dev = [
+    "mypy",
+    "pytest",
+    "ruff",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
 ```
