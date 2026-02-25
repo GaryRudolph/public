@@ -8,7 +8,7 @@ Follows [architecture.md](../architecture.md).
 PackageName/
 ├── Package.swift
 ├── Sources/ModuleName/
-│   ├── ModuleProtocol.swift
+│   ├── Module.swift             (Protocol)
 │   ├── ModuleImpl.swift
 │   ├── ModuleHelpers.swift
 │   └── Type+ModuleName.swift
@@ -27,7 +27,6 @@ AppName/
 │   ├── Network/ (NetworkManager.swift, NetworkError.swift)
 │   └── Shared/               # Shared models (Money, Interval, etc.)
 ├── Error Handling/            # Error protocols and filters
-├── Model/                     # Domain models not owned by one manager
 ├── UI/                        # SwiftUI views grouped by feature
 │   ├── Inventory/ (TicketsView.swift, TicketsViewModel.swift)
 │   ├── Navigation/ (Core/, FeatureRouters/)
@@ -42,7 +41,7 @@ Business logic in Manager classes. Protocol + `Impl` class. Dependencies via con
 
 ```swift
 protocol AccountManager: Manager {
-    func getAccountSummary(accountId: String, context: TraceContext) async throws -> AccountSummary
+    func getSummary(accountId: String, context: TraceContext) async throws -> AccountSummary
 }
 
 class AccountManagerImpl: AccountManager {
@@ -55,7 +54,7 @@ class AccountManagerImpl: AccountManager {
         self.networkManager = networkManager
     }
 
-    func getAccountSummary(accountId: String, context: TraceContext) async throws -> AccountSummary {
+    func getSummary(accountId: String, context: TraceContext) async throws -> AccountSummary {
         Self.log.debug("\(#function): enter accountId=\(accountId, privacy: .public)")
         context.startTrace(type: AccountManagerImpl.self, functionName: "\(#function)")
         defer { context.finishTrace() }
@@ -63,7 +62,7 @@ class AccountManagerImpl: AccountManager {
         guard let client = self.networkManager.accountClient else { throw NetworkError.nilClient }
         let options = try await self.networkManager.callOptions(context: context)
         do {
-            let remote = try await client.getAccountSummary(request, callOptions: options)
+            let remote = try await client.getSummary(request, callOptions: options)
             return AccountSummary(remote: remote)
         } catch {
             throw self.networkManager.mapError(error)
