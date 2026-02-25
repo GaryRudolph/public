@@ -102,11 +102,11 @@ from slowapi.util import get_remote_address
 
 limiter = Limiter(key_func=get_remote_address)
 
-@app.route("/api/data")
+@app.route("/api/v1/data")
 @limiter.limit("100/15minutes")
 def api_data(): pass
 
-@app.route("/api/auth/login", methods=["POST"])
+@app.route("/api/v1/auth/login", methods=["POST"])
 @limiter.limit("5/15minutes")
 def login(): pass
 ```
