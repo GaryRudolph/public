@@ -16,42 +16,31 @@ feature/
     └── test_store.py
 ```
 
-## Data Access Patterns
+## Data Access — Store Pattern
 
-### Store Pattern
-
-Use when testability through interface substitution is critical:
+Models are plain data classes. A separate store class owns all persistence logic:
 
 ```python
-class UserStore(Protocol):
-    async def find_by_id(self, id: str) -> User | None: ...
-    async def save(self, user: User) -> User: ...
-
-class DatabaseUserStore:
-    async def find_by_id(self, id: str) -> User | None: ...
-```
-
-### ActiveRecord Pattern
-
-Models handle their own persistence. Use for simpler domains or single-table designs:
-
-```python
-class Order(Model):
+@dataclass
+class Order:
     class State(StrEnum):
         PENDING = auto()
         SHIPPED = auto()
 
-    @classmethod
-    def create(cls, order_id: UUID, items: list[Item]) -> "Order":
-        return cls(order_id=order_id, state=cls.State.PENDING,
-                   total=sum(i.price * i.quantity for i in items))
+    order_id: UUID
+    state: State
+    total: Decimal
 
-    @classmethod
-    def get(cls, order_id: UUID) -> "Order":
-        try:
-            return super().get(str(order_id))
-        except cls.DoesNotExist as e:
-            raise OrderNotFoundError(order_id) from e
+class OrderStore(Protocol):
+    async def get(self, order_id: UUID) -> Order | None: ...
+    async def save(self, order: Order) -> Order: ...
+
+class DynamoOrderStore:
+    def __init__(self, table: Table) -> None:
+        self._table = table
+
+    async def get(self, order_id: UUID) -> Order | None: ...
+    async def save(self, order: Order) -> Order: ...
 ```
 
 ## Error Catalog Pattern
@@ -79,15 +68,19 @@ Extract shared request handling into a base class:
 
 ```python
 class BaseApi:
+    def __init__(self, token_store: TokenStore) -> None:
+        self._token_store = token_store
+
     def _get_and_verify_token(self, request: Request) -> Token:
         header_token = request.headers.get("X-Token-Id")
-        token = Token.get_by_key(header_token)
+        token = self._token_store.get_by_key(header_token)
         if not token:
             Errors.bad_token()
         return token
 
 class UserApi(BaseApi):
-    def __init__(self, queue_service: QueueService) -> None:
+    def __init__(self, token_store: TokenStore, queue_service: QueueService) -> None:
+        super().__init__(token_store)
         self._queue_service = queue_service
 
     def update_user(self, user_id: str) -> dict[str, Any]:
