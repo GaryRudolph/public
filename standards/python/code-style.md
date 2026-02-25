@@ -143,7 +143,7 @@ Use **uv** + **pyproject.toml** with hatchling:
 ```toml
 [project]
 name = "my-package"
-version = "0.1.0"
+version = "1"
 requires-python = ">=3.12"
 
 [build-system]
