@@ -75,14 +75,23 @@ struct K {
 
 ## Static Logging
 
-```swift
-class InventoryManager {
-    private static let log = Logger.logForType(InventoryManager.self)
+Each manager/service class gets a static logger. Log entry with key parameters and exit with key results:
 
-    func syncInventory(accountId: String) async throws {
+```swift
+class InventoryManagerImpl: InventoryManager {
+    private static let log = Logger.logForType(InventoryManagerImpl.self)
+
+    func search(accountId: String, query: String) async throws -> [Item] {
+        Self.log.debug("\(#function): enter accountId=\(accountId, privacy: .public)")
+        // ...
+        Self.log.debug("\(#function): exit items=\(items.count)")
+        return items
+    }
+
+    func sync(accountId: String) async throws {
         Self.log.debug("\(#function): enter accountId=\(accountId, privacy: .public)")
         defer { Self.log.debug("\(#function): exit") }
-        // ...
+        // ... use defer when there's no meaningful result to log
     }
 }
 ```
