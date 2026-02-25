@@ -12,7 +12,7 @@ PackageName/
 │   ├── ModuleImpl.swift
 │   ├── ModuleHelpers.swift
 │   └── Type+ModuleName.swift
-└── Tests/ModuleNameTests/
+└── Tests/ModuleName/
 ```
 
 ## Module Structure — iOS App

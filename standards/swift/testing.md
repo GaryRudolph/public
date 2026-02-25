@@ -44,9 +44,9 @@ struct UserServiceTests {
 ```
 Sources/UserService/
 Tests/
-├── UserServiceTests/
-├── IntegrationTests/
-└── UITests/
+├── UserService/
+├── Integration/
+└── UI/
 ```
 
 - Mirror source structure; separate unit/integration/UI into distinct targets
