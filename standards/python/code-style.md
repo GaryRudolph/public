@@ -64,7 +64,7 @@ class Order(Model):
 
 ## File Headers
 
-For open-source packages: copyright and license header before imports. Private projects: shorter or none — be consistent.
+For open-source packages: copyright and license header before imports. Private projects: shorter preferred or none — be consistent.
 
 ## Debug Logging
 
