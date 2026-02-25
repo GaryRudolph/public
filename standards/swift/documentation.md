@@ -7,7 +7,7 @@ Follows [documentation.md](../documentation.md).
 - **`///` or `/** */` doc comment for every `public` and `open` declaration** — no exceptions
 - Start with a single-sentence summary as a sentence fragment, not "This method..."
 - Document **complexity** of any computed property that is not O(1): `/// - Complexity: O(n)`
-- Use `///` for single-line/member docs; `/** */` for longer type-level docs
+- Use `///` for single-line docs; `/** */` for multi-line docs (types, functions with parameters, etc.)
 
 ## Protocol Documentation
 
@@ -27,25 +27,29 @@ protocol ManagerFactory {
 ## Function Documentation
 
 ```swift
-/// Calculates the total price including tax and discount.
-///
-/// - Parameters:
-///   - items: Array of items with price and quantity
-///   - taxRate: Tax rate as decimal (e.g., 0.08 for 8%)
-/// - Returns: The total price after tax and discount
-/// - Throws: `ValidationError` if items array is empty
+/**
+ Calculates the total price including tax and discount.
+
+ - Parameters:
+   - items: Array of items with price and quantity
+   - taxRate: Tax rate as decimal (e.g., 0.08 for 8%)
+ - Returns: The total price after tax and discount
+ - Throws: `ValidationError` if items array is empty
+ */
 func calculateTotal(items: [Item], taxRate: Double) throws -> Double { }
 ```
 
 ## Callout Markers
 
 ```swift
-/// Factory method to construct an instance using the app's standard managers.
-///
-/// - Important: Intended for production and SwiftUI preview code only.
-///   Tests should call `init(...)` directly with mock dependencies.
-///
-/// - Note: Prepares for eventual shift to DI via Resolver.
+/**
+ Factory method to construct an instance using the app's standard managers.
+
+ - Important: Intended for production and SwiftUI preview code only.
+   Tests should call `init(...)` directly with mock dependencies.
+
+ - Note: Prepares for eventual shift to DI via Resolver.
+ */
 static func make() -> TicketsViewModel { }
 ```
 
