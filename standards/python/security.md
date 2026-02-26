@@ -49,16 +49,20 @@ def verify_token(token: str) -> dict:
     raise last_error
 ```
 
-## Session Configuration (Flask)
+## Cookie / Session Configuration (FastAPI)
+
+Use `SessionMiddleware` from Starlette for cookie-based sessions:
 
 ```python
-app.config.update(
-    SECRET_KEY=os.environ["SESSION_SECRET"],
-    SESSION_COOKIE_NAME="sessionId",
-    SESSION_COOKIE_SECURE=True,
-    SESSION_COOKIE_HTTPONLY=True,
-    SESSION_COOKIE_SAMESITE="Strict",
-    PERMANENT_SESSION_LIFETIME=900,
+from starlette.middleware.sessions import SessionMiddleware
+
+app.add_middleware(
+    SessionMiddleware,
+    secret_key=settings.session_secret,
+    session_cookie="sessionId",
+    https_only=True,
+    same_site="strict",
+    max_age=900,
 )
 ```
 
@@ -96,19 +100,22 @@ def validate_upload(file_data: bytes, declared_mimetype: str) -> str:
 
 ## Rate Limiting
 
+Use `slowapi` with FastAPI:
+
 ```python
 from slowapi import Limiter
 from slowapi.util import get_remote_address
 
 limiter = Limiter(key_func=get_remote_address)
+app.state.limiter = limiter
 
-@app.route("/api/v1/data")
+@router.get("/api/v1/data")
 @limiter.limit("100/15minutes")
-def api_data(): pass
+async def api_data(request: Request) -> dict: ...
 
-@app.route("/api/v1/auth/login", methods=["POST"])
+@router.post("/api/v1/auth/login")
 @limiter.limit("5/15minutes")
-def login(): pass
+async def login(request: Request) -> dict: ...
 ```
 
 ## API Key Security

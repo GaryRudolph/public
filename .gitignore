@@ -13,3 +13,6 @@
 .idea/
 *.swp
 *.swo
+
+# Claude Code — local overrides only; settings.json is tracked
+.claude/settings.local.json

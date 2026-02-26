@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git -C /Users/gary/Projects/personal/public diff HEAD --stat)",
+      "Bash(git -C /Users/gary/Projects/personal/public commit -m \"refactor Python architecture to app/ convention with api/, models/, alembic/, docker/\")",
+      "Bash(git -C /Users/gary/Projects/personal/public commit -m \"add app/core/config.py for settings and app/models/base.py for DeclarativeBase\")",
+      "Bash(git -C /Users/gary/Projects/personal/public commit -m \"add shared schemas.py and services.py under app/api/\")"
+    ]
+  }
+}
