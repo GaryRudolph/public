@@ -2,45 +2,86 @@
 
 Follows [architecture.md](../architecture.md).
 
+## Technology Stack
+
+| Concern | Library |
+|---|---|
+| REST framework | FastAPI |
+| Validation / schemas | Pydantic v2 |
+| ORM — PostgreSQL | SQLAlchemy 2.x (async) |
+| ORM — DynamoDB | PynamoDB |
+
 ## Module Structure
 
+FastAPI routes, Pydantic schemas, and service logic live together under `services/{domain}/`. SQLAlchemy ORM models and database setup live under `models/`.
+
+**Standard layout:**
 ```
-feature/
-├── __init__.py          # Public API
-├── types.py             # Type definitions
-├── service.py           # Business logic
-├── store.py             # Data access
-├── validators.py        # Input validation
-└── tests/
-    ├── test_service.py
-    └── test_store.py
+services/
+└── orders/
+    ├── router.py        # FastAPI routes
+    ├── schemas.py       # Pydantic request/response models
+    └── service.py       # Business logic
+models/
+├── database.py          # SQLAlchemy engine and session factory
+└── orders.py            # SQLAlchemy ORM models for the orders domain
 ```
 
-## Data Access — Store Pattern
+**Simple domain** — router, schemas, and logic can be combined in a single file:
+```
+services/
+└── notifications/
+    └── router.py        # Routes, schemas, and logic in one file
+```
 
-Models are plain data classes. A separate store class owns all persistence logic:
+**Complex domain** — split by sub-domain operation:
+```
+services/
+└── orders/
+    ├── create_order_router.py
+    ├── create_order_schemas.py
+    ├── create_order_service.py
+    ├── fulfill_order_router.py
+    ├── fulfill_order_schemas.py
+    └── fulfill_order_service.py
+```
+
+## Data Access — Models
+
+### PostgreSQL — SQLAlchemy
+
+ORM table definitions live in `models/{domain}.py`. Database session setup lives in `models/database.py`:
 
 ```python
-@dataclass
-class Order:
-    class State(StrEnum):
-        PENDING = auto()
-        SHIPPED = auto()
+# models/database.py
+engine = create_async_engine(settings.database_url)
+AsyncSessionLocal = async_sessionmaker(engine, expire_on_commit=False)
 
-    order_id: UUID
-    state: State
-    total: Decimal
+async def get_session() -> AsyncGenerator[AsyncSession, None]:
+    async with AsyncSessionLocal() as session:
+        yield session
 
-class OrderStore(Protocol):
-    async def get(self, order_id: UUID) -> Order | None: ...
-    async def save(self, order: Order) -> Order: ...
+# models/orders.py
+class OrderRow(Base):
+    __tablename__ = "orders"
+    order_id: Mapped[UUID] = mapped_column(primary_key=True)
+    state: Mapped[str]
+    total: Mapped[Decimal]
+```
 
-class DynamoOrderStore:
-    def __init__(self, table: Table) -> None:
-        self._table = table
+### DynamoDB — PynamoDB
 
-    async def get(self, order_id: UUID) -> Order | None: ...
-    async def save(self, order: Order) -> Order: ...
+PynamoDB model definitions also live in `models/{domain}.py`:
+
+```python
+# models/orders.py
+class OrderModel(Model):
+    class Meta:
+        table_name = "orders"
+
+    order_id = UnicodeAttribute(hash_key=True)
+    state = UnicodeAttribute()
+    total = NumberAttribute()
 ```
 
 ## Error Catalog Pattern
@@ -62,12 +103,31 @@ class Errors:
         raise AppError(HTTPStatus.BAD_REQUEST, 10, f"Missing required field: {field}")
 ```
 
-## Base API / Handler Pattern
+## Request / Response Schemas — Pydantic
 
-Extract shared request handling into a base class:
+Pydantic models for request bodies and response shapes live in `services/{domain}/schemas.py` alongside the router and service that use them:
 
 ```python
-class BaseApi:
+# services/orders/schemas.py
+class CreateOrderRequest(BaseModel):
+    total: Decimal
+    items: list[OrderItemRequest]
+
+class OrderResponse(BaseModel):
+    order_id: UUID
+    state: str
+    total: Decimal
+
+    model_config = ConfigDict(from_attributes=True)
+```
+
+## Base API / Handler Pattern
+
+Extract shared request handling into a base class. FastAPI dependency injection handles auth and sessions:
+
+```python
+# services/base.py
+class BaseService:
     def __init__(self, token_store: TokenStore) -> None:
         self._token_store = token_store
 
@@ -78,26 +138,39 @@ class BaseApi:
             Errors.bad_token()
         return token
 
-class UserApi(BaseApi):
+# services/users/service.py
+class UserService(BaseService):
     def __init__(self, token_store: TokenStore, queue_service: QueueService) -> None:
         super().__init__(token_store)
         self._queue_service = queue_service
 
-    def update_user(self, user_id: str) -> dict[str, Any]:
+    async def update_user(self, user_id: str, body: UpdateUserRequest, request: Request) -> UserResponse:
         token = self._get_and_verify_token(request)
         user = self._get_and_verify_self(token, user_id)
-        return {"user": user.to_dict()}
+        return UserResponse.model_validate(user)
 ```
 
 ## Centralized Route Registration
 
-Register all routes in a single function for discoverability:
+Register all routers in a single function for discoverability. Each `services/{domain}/router.py` exports a `router`:
 
 ```python
-def setup_routing(app: App) -> None:
-    app.route("/api/users", methods=["POST"], handler=users_api.create_user)
-    app.route("/api/users/<user_id>", methods=["PUT"], handler=users_api.update_user)
-    app.route("/api/users/<user_id>/orders", methods=["GET"], handler=orders_api.get_orders)
+# main.py
+def setup_routing(app: FastAPI) -> None:
+    app.include_router(users_router, prefix="/api/v1/users")
+    app.include_router(orders_router, prefix="/api/v1/orders")
+
+# services/orders/router.py
+from services.orders.schemas import CreateOrderRequest, OrderResponse
+from services.orders.service import OrderService
+
+router = APIRouter()
+
+@router.post("/", response_model=OrderResponse, status_code=201)
+async def create_order(body: CreateOrderRequest, service: OrderService = Depends()) -> OrderResponse: ...
+
+@router.get("/{order_id}", response_model=OrderResponse)
+async def get_order(order_id: UUID, service: OrderService = Depends()) -> OrderResponse: ...
 ```
 
 ## Constructor Injection + Factory Builder
