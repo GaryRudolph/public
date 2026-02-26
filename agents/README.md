@@ -10,7 +10,7 @@ shared coding standards from `standards/`.
 |------|------|--------------|
 | `CLAUDE.md` | Claude Code | Imports `SHARED.md` via `@` syntax |
 | `GEMINI.md` | Gemini CLI | Imports `SHARED.md` via `@` syntax |
-| `AGENTS.md` | Codex CLI / Cursor | Inlined content (Codex does not support `@` imports) |
+| `AGENTS.md` | Codex CLI / Cursor | Inlined content (neither tool supports `@` imports) |
 | `SHARED.md` | — | Common instructions (no `@` imports to standards — agents load on demand) |
 
 ## How It Works
@@ -35,6 +35,22 @@ echo '@~/Projects/personal/public/agents/GEMINI.md' > ~/.gemini/GEMINI.md
 # Codex CLI (~/.codex/AGENTS.md) — symlink since Codex lacks @ imports
 mkdir -p ~/.codex
 ln -s ~/Projects/personal/public/agents/AGENTS.md ~/.codex/AGENTS.md
+
+# Cursor — no file-based global config; paste AGENTS.md content into:
+# Cursor → Settings → General → Rules for AI
+```
+
+## Cursor Project Setup
+
+Cursor reads rules per-project. Symlink into the repo root:
+
+```bash
+# Option A: .cursorrules (simple, widely supported)
+ln -s ~/Projects/personal/public/agents/AGENTS.md .cursorrules
+
+# Option B: .cursor/rules/ (newer MDC format)
+mkdir -p .cursor/rules
+ln -s ~/Projects/personal/public/agents/AGENTS.md .cursor/rules/main.mdc
 ```
 
 ## Editing
