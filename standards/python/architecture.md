@@ -13,28 +13,38 @@ Follows [architecture.md](../architecture.md).
 
 ## Module Structure
 
-FastAPI routes, Pydantic schemas, and service logic live together under `services/{domain}/`. SQLAlchemy ORM models and database setup live under `models/`.
+Follows the FastAPI `app/` convention. Routes, Pydantic schemas, and service logic live under `app/api/{domain}/`. SQLAlchemy ORM models and database setup live under `app/models/`.
 
-**Standard layout:**
 ```
-services/
-└── orders/
-    ├── router.py        # FastAPI routes
-    ├── schemas.py       # Pydantic request/response models
-    └── service.py       # Business logic
-models/
-├── database.py          # SQLAlchemy engine and session factory
-└── orders.py            # SQLAlchemy ORM models for the orders domain
+app/
+├── main.py              # FastAPI app entry point, route registration
+├── api/
+│   ├── schemas.py       # Shared/base Pydantic schemas (pagination, errors, etc.)
+│   └── orders/
+│       ├── router.py    # FastAPI routes
+│       ├── schemas.py   # Pydantic request/response models
+│       └── services.py  # Business logic
+└── models/
+    ├── database.py      # SQLAlchemy engine and session factory
+    └── orders.py        # ORM models for the orders domain
+alembic/
+├── env.py               # Alembic environment config
+├── script.py.mako       # Migration template
+└── versions/            # Generated migration files
+alembic.ini              # Alembic configuration
+docker/
+├── Dockerfile
+└── docker-compose.yml
 ```
 
 ## Data Access — Models
 
 ### PostgreSQL — SQLAlchemy
 
-ORM table definitions live in `models/{domain}.py`. Database session setup lives in `models/database.py`:
+ORM table definitions live in `app/models/{domain}.py`. Database session setup lives in `app/models/database.py`:
 
 ```python
-# models/database.py
+# app/models/database.py
 engine = create_async_engine(settings.database_url)
 AsyncSessionLocal = async_sessionmaker(engine, expire_on_commit=False)
 
@@ -42,7 +52,7 @@ async def get_session() -> AsyncGenerator[AsyncSession, None]:
     async with AsyncSessionLocal() as session:
         yield session
 
-# models/orders.py
+# app/models/orders.py
 class Order(Base):
     __tablename__ = "orders"
     order_id: Mapped[UUID] = mapped_column(primary_key=True)
@@ -61,10 +71,10 @@ class OrderItem(Base):
 
 ### DynamoDB — PynamoDB
 
-PynamoDB model definitions also live in `models/{domain}.py`:
+PynamoDB model definitions also live in `app/models/{domain}.py`:
 
 ```python
-# models/orders.py
+# app/models/orders.py
 class OrderItem(MapAttribute):
     item_id = UnicodeAttribute()
     product_id = UnicodeAttribute()
@@ -101,10 +111,10 @@ class Errors:
 
 ## Request / Response Schemas — Pydantic
 
-Pydantic models for request bodies and response shapes live in `services/{domain}/schemas.py` alongside the router and service that use them:
+Pydantic models for request bodies and response shapes live in `app/api/{domain}/schemas.py` alongside the router and service that use them:
 
 ```python
-# services/orders/schemas.py
+# app/api/orders/schemas.py
 class CreateOrderRequest(BaseModel):
     total: Decimal
     items: list[OrderItemRequest]
@@ -122,7 +132,7 @@ class OrderResponse(BaseModel):
 Extract shared request handling into a base class. FastAPI dependency injection handles auth and sessions:
 
 ```python
-# services/base.py
+# app/api/base.py
 class BaseService:
     def __init__(self, token_store: TokenStore) -> None:
         self._token_store = token_store
@@ -134,7 +144,7 @@ class BaseService:
             Errors.bad_token()
         return token
 
-# services/users/service.py
+# app/api/users/services.py
 class UserService(BaseService):
     def __init__(self, token_store: TokenStore, queue_service: QueueService) -> None:
         super().__init__(token_store)
@@ -148,7 +158,7 @@ class UserService(BaseService):
 
 ## Centralized Route Registration
 
-Register all routers in a single function for discoverability. Each `services/{domain}/router.py` exports a `router`:
+Register all routers in a single function for discoverability. Each `app/api/{domain}/router.py` exports a `router`:
 
 ```python
 # main.py
@@ -156,9 +166,9 @@ def setup_routing(app: FastAPI) -> None:
     app.include_router(users_router, prefix="/api/v1/users")
     app.include_router(orders_router, prefix="/api/v1/orders")
 
-# services/orders/router.py
-from services.orders.schemas import CreateOrderRequest, OrderResponse
-from services.orders.service import OrderService
+# app/api/orders/router.py
+from app.api.orders.schemas import CreateOrderRequest, OrderResponse
+from app.api.orders.service import OrderService
 
 router = APIRouter()
 
