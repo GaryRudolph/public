@@ -27,25 +27,6 @@ models/
 └── orders.py            # SQLAlchemy ORM models for the orders domain
 ```
 
-**Simple domain** — router, schemas, and logic can be combined in a single file:
-```
-services/
-└── notifications/
-    └── router.py        # Routes, schemas, and logic in one file
-```
-
-**Complex domain** — split by sub-domain operation:
-```
-services/
-└── orders/
-    ├── create_order_router.py
-    ├── create_order_schemas.py
-    ├── create_order_service.py
-    ├── fulfill_order_router.py
-    ├── fulfill_order_schemas.py
-    └── fulfill_order_service.py
-```
-
 ## Data Access — Models
 
 ### PostgreSQL — SQLAlchemy
