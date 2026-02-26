@@ -56,10 +56,16 @@ cursor-rules
 
 | File | Applies when |
 |------|-------------|
-| `agents/cursor/main.mdc` | Always — core preferences + general standards |
-| `agents/cursor/python.mdc` | `**/*.py` |
-| `agents/cursor/swift.mdc` | `**/*.swift` |
-| `agents/cursor/kotlin.mdc` | `**/*.kt` |
+| `agents/cursor/personal-main.mdc` | Always — core preferences + general standards |
+| `agents/cursor/personal-python.mdc` | `**/*.py` |
+| `agents/cursor/personal-swift.mdc` | `**/*.swift` |
+| `agents/cursor/personal-kotlin.mdc` | `**/*.kt` |
+
+Add to `.gitignore` in each project to keep personal rules out of version control:
+
+```
+.cursor/rules/personal-*
+```
 
 For global Cursor rules (across all projects), paste `AGENTS.md` content into:
 **Cursor → Settings → General → Rules for AI**
