@@ -6,7 +6,7 @@ Follows [testing.md](../testing.md).
 
 ```toml
 [tool.pytest.ini_options]
-testpaths = ["tests", "src"]
+testpaths = ["tests", "app"]
 python_files = ["test_*.py", "*_test.py"]
 python_classes = ["Test*"]
 python_functions = ["test_*"]
@@ -22,7 +22,7 @@ asyncio_mode = "auto"
 
 ```toml
 [tool.coverage.run]
-source = ["src"]
+source = ["app"]
 relative_files = true
 omit = ["*/tests/*", "*/__pycache__/*"]
 
@@ -48,7 +48,7 @@ exclude_lines = [
 
 **Colocated** (preferred for libraries): `models.py` alongside `models_test.py`
 
-**Separate directory** (common for apps): `src/feature/tests/test_service.py`
+**Separate directory** (common for apps): `app/api/{domain}/tests/test_services.py`
 
 ## Test Naming and Conventions
 

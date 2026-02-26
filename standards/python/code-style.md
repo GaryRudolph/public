@@ -53,13 +53,15 @@ class UserStore:
 Use `StrEnum` with `auto()` for string-valued enums. Nest enums inside the class they belong to when tightly coupled:
 
 ```python
-class Order(Model):
+class Order(Base):
+    __tablename__ = "orders"
+
     class State(StrEnum):
         PENDING = auto()
         APPROVED = auto()
         SHIPPED = auto()
 
-    state: State = State.PENDING
+    state: Mapped[str] = mapped_column(default=State.PENDING)
 ```
 
 ## File Headers
@@ -81,19 +83,22 @@ class OrderService:
         return order
 ```
 
-## Model Self-Serialization
+## Model Serialization
 
-Models serialize via `to_dict()` calling `super()` and extending:
+Pydantic models serialize via `model_dump()`. Use `model_validate()` to construct from ORM objects:
 
 ```python
-class User(BaseModel):
+class UserResponse(BaseModel):
     name: str
     email: str
 
-    def to_dict(self) -> dict[str, Any]:
-        result = super().to_dict()
-        result.update({"name": self.name, "email": self.email})
-        return result
+    model_config = ConfigDict(from_attributes=True)
+
+# Serialize to dict
+data = user_response.model_dump()
+
+# Construct from SQLAlchemy model
+response = UserResponse.model_validate(user_row)
 ```
 
 ## Error Handling

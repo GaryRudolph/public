@@ -132,11 +132,14 @@ def hash_api_key(key: str) -> str:
 
 ## Secrets Management
 
+All secrets are declared as required fields in `Settings` (`app/core/config.py`). `pydantic-settings` raises a `ValidationError` at startup if any are missing — no manual checks needed:
+
 ```python
-REQUIRED_ENV_VARS = ["DATABASE_URL", "JWT_SECRET", "API_KEY"]
-for var in REQUIRED_ENV_VARS:
-    if not os.environ.get(var):
-        raise RuntimeError(f"Missing required environment variable: {var}")
+class Settings(BaseSettings):
+    database_url: str       # required — missing = startup failure
+    jwt_secret: str         # required
+    api_key: str            # required
+    environment: str = "development"  # optional with default
 ```
 
 ## Encryption (AES-256-GCM)

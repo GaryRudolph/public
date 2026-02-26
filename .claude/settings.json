@@ -4,7 +4,13 @@
       "Bash(git -C /Users/gary/Projects/personal/public diff HEAD --stat)",
       "Bash(git -C /Users/gary/Projects/personal/public commit -m \"refactor Python architecture to app/ convention with api/, models/, alembic/, docker/\")",
       "Bash(git -C /Users/gary/Projects/personal/public commit -m \"add app/core/config.py for settings and app/models/base.py for DeclarativeBase\")",
-      "Bash(git -C /Users/gary/Projects/personal/public commit -m \"add shared schemas.py and services.py under app/api/\")"
+      "Bash(git -C /Users/gary/Projects/personal/public commit -m \"add shared schemas.py and services.py under app/api/\")",
+      "Bash(git -C /Users/gary/Projects/personal/public add .gitignore standards/python/security.md)",
+      "Bash(git -C /Users/gary/Projects/personal/public commit -m \"update Python security to FastAPI, ignore .claude/settings.local.json\")",
+      "Bash(git -C /Users/gary/Projects/personal/public diff)",
+      "Bash(git -C /Users/gary/Projects/personal/public log --oneline -5)",
+      "Bash(git -C /Users/gary/Projects/personal/public add standards/python/architecture.md standards/python/code-style.md standards/python/security.md standards/python/testing.md .claude/settings.json)",
+      "Bash(git -C /Users/gary/Projects/personal/public commit -m \"align Python standards with app/ layout and FastAPI/Pydantic/SQLAlchemy stack\")"
     ]
   }
 }

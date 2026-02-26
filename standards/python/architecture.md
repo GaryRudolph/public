@@ -196,7 +196,7 @@ def setup_routing(app: FastAPI) -> None:
 
 # app/api/orders/router.py
 from app.api.orders.schemas import CreateOrderRequest, OrderResponse
-from app.api.orders.service import OrderService
+from app.api.orders.services import OrderService
 
 router = APIRouter()
 
