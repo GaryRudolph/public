@@ -67,7 +67,6 @@ fi
 alias "h=history"
 alias "md=mkdir"
 alias "rd=rmdir"
-alias "rmm=rmm.sh"
 alias "cls=clear"
 alias "x=exit"
 alias "copy=cp"
