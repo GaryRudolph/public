@@ -40,6 +40,7 @@ app/
 │   └── config.py        # Pydantic-settings Settings class
 ├── api/
 │   ├── schemas.py       # Shared/base Pydantic schemas (pagination, errors, etc.)
+│   ├── services.py      # Shared/base services, logic (auth, permissions, etc.)
 │   └── orders/
 │       ├── router.py    # FastAPI routes
 │       ├── schemas.py   # Pydantic request/response models
