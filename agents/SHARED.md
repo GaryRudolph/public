@@ -32,18 +32,18 @@ Guidelines for AI coding agents working with me.
 
 Load these only when the current task is relevant to the standard's topic:
 
-- `standards/code-style.md` — naming, formatting, imports, anti-patterns
-- `standards/architecture.md` — layering, DI, API design, error handling
-- `standards/platform-parity.md` — cross-platform Swift/Kotlin naming and layer conventions
-- `standards/testing.md` — coverage targets, test structure, mocking rules
-- `standards/documentation.md` — what to document, ADR format, TODO conventions
-- `standards/git.md` — branching, versioning, commit format, PR workflow
-- `standards/security.md` — auth, encryption, input validation, checklists
+- `../standards/code-style.md` — naming, formatting, imports, anti-patterns
+- `../standards/architecture.md` — layering, DI, API design, error handling
+- `../standards/platform-parity.md` — cross-platform Swift/Kotlin naming and layer conventions
+- `../standards/testing.md` — coverage targets, test structure, mocking rules
+- `../standards/documentation.md` — what to document, ADR format, TODO conventions
+- `../standards/git.md` — branching, versioning, commit format, PR workflow
+- `../standards/security.md` — auth, encryption, input validation, checklists
 
 ### Language-Specific Standards
 
 Load when working in that language:
 
-- **Python**: `standards/python/` (code-style, architecture, testing, documentation, security)
-- **Swift**: `standards/swift/` (code-style, architecture, testing, documentation, security)
-- **Kotlin**: `standards/kotlin/` (code-style, architecture, testing, documentation, security)
+- **Python**: `../standards/python/` (code-style, architecture, testing, documentation, security)
+- **Swift**: `../standards/swift/` (code-style, architecture, testing, documentation, security)
+- **Kotlin**: `../standards/kotlin/` (code-style, architecture, testing, documentation, security)
