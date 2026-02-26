@@ -1,0 +1,42 @@
+---
+description: Core coding preferences and general standards
+alwaysApply: true
+---
+
+# AI Agent Instructions
+
+Guidelines for AI coding agents working with me.
+
+## Core Preferences
+
+- **Simplicity first** — solve the current problem; prefer boring, established technology
+- **Readability over cleverness** — descriptive names, self-documenting code
+- **Consistency** — follow existing patterns in the codebase
+- **Constructor injection** — all dependencies via constructor; a single factory/composition root wires them
+- **Test behavior, not implementation** — prefer fakes over mocks, DI over patching
+- **Comments explain why, not what** — no narration of obvious code
+- **Immutable by default** — prefer value types and immutable data
+
+## Code Style Quick Rules
+
+- PascalCase for types; snake_case or camelCase per language convention
+- Prefix booleans: `is`, `has`, `can`, `should`
+- File name matches primary export; colocate related files
+- Imports ordered: stdlib, third-party, local
+- Functions < 50 lines; extract complex logic
+
+## Git Conventions
+
+- **Branching**: GitHub Flow — `feature/name`, `fix/name`, `release/vN`
+- **Versioning**: simplified — `v1`, `v2`, `v3`; hotfixes only: `v2.1`
+- **Commits**: imperative mood, optional ticket prefix, 72-char subject, no period
+- **PRs**: squash-and-merge preferred; one feature/fix per PR
+
+## General Standards
+
+@~/Projects/personal/public/standards/code-style.md
+@~/Projects/personal/public/standards/architecture.md
+@~/Projects/personal/public/standards/testing.md
+@~/Projects/personal/public/standards/documentation.md
+@~/Projects/personal/public/standards/git.md
+@~/Projects/personal/public/standards/security.md

@@ -1,0 +1,11 @@
+---
+description: Python-specific coding standards
+globs: **/*.py
+alwaysApply: false
+---
+
+@~/Projects/personal/public/standards/python/code-style.md
+@~/Projects/personal/public/standards/python/architecture.md
+@~/Projects/personal/public/standards/python/testing.md
+@~/Projects/personal/public/standards/python/documentation.md
+@~/Projects/personal/public/standards/python/security.md

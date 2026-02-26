@@ -1,0 +1,11 @@
+---
+description: Kotlin-specific coding standards
+globs: **/*.kt
+alwaysApply: false
+---
+
+@~/Projects/personal/public/standards/kotlin/code-style.md
+@~/Projects/personal/public/standards/kotlin/architecture.md
+@~/Projects/personal/public/standards/kotlin/testing.md
+@~/Projects/personal/public/standards/kotlin/documentation.md
+@~/Projects/personal/public/standards/kotlin/security.md

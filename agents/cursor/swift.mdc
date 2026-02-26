@@ -1,0 +1,11 @@
+---
+description: Swift-specific coding standards
+globs: **/*.swift
+alwaysApply: false
+---
+
+@~/Projects/personal/public/standards/swift/code-style.md
+@~/Projects/personal/public/standards/swift/architecture.md
+@~/Projects/personal/public/standards/swift/testing.md
+@~/Projects/personal/public/standards/swift/documentation.md
+@~/Projects/personal/public/standards/swift/security.md

@@ -1,0 +1,26 @@
+#!/usr/bin/env zsh
+set -euo pipefail
+
+RULES_SRC=~/Projects/personal/public/agents/cursor
+RULES_DST=".cursor/rules"
+
+# Verify source directory exists
+if [[ ! -d "$RULES_SRC" ]]; then
+  echo "error: source directory not found: $RULES_SRC" >&2
+  exit 1
+fi
+
+# Create destination directory
+mkdir -p "$RULES_DST"
+
+# Remove existing symlinks in destination
+find "$RULES_DST" -maxdepth 1 -type l -delete
+
+# Symlink each .mdc file from source
+for src in "$RULES_SRC"/*.mdc; do
+  filename="$(basename "$src")"
+  ln -s "$src" "$RULES_DST/$filename"
+  echo "linked $filename"
+done
+
+echo "done: $(ls "$RULES_DST" | wc -l | tr -d ' ') rules in $RULES_DST"

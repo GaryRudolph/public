@@ -105,7 +105,7 @@ if [[ -d "${HOMEBREW_HOME}" ]]; then
 	export HOMEBREW_HOME
 fi
 
-TOOLS_HOME=~/Applications
+TOOLS_HOME=${HOME}/Applications
 if [[ -d "${TOOLS_HOME}" ]]; then
 	export TOOLS_HOME
 fi
@@ -142,7 +142,7 @@ if [[ -d "${MAVEN_HOME}" ]]; then
 fi
 
 # Android
-ANDROID_SDK_ROOT="~/Library/Android/sdk"
+ANDROID_SDK_ROOT="${HOME}/Library/Android/sdk"
 ANDROID_HOME="${ANDROID_SDK_ROOT}"
 ANDROID_NDK_HOME="${TOOLS_HOME}/android-ndk-r9"
 if [[ -d "${ANDROID_HOME}" ]]; then
@@ -179,12 +179,12 @@ if [[ -d "${VSCODE_HOME}" ]]; then
 fi
 
 # Rust
-RUSTUP_HOME=~/.rustup
+RUSTUP_HOME=${HOME}/.rustup
 if [[ -d "${RUSTUP_HOME}" ]]; then
 	export RUSTUP_HOME
 fi
 
-CARGO_HOME=~/.cargo
+CARGO_HOME=${HOME}/.cargo
 if [[ -d "${CARGO_HOME}" ]]; then
 	export CARGO_HOME
 	. "${CARGO_HOME}/env"
@@ -193,7 +193,7 @@ fi
 eval "$(/opt/homebrew/bin/brew shellenv)"
 
 # My bin
-export PATH="~/bin:${PATH}"
+export PATH="${HOME}/bin:${PATH}"
 
 if [[ -f ~/.zshrc-local ]] ; then
 	. ~/.zshrc-local
