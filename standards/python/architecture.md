@@ -43,11 +43,20 @@ async def get_session() -> AsyncGenerator[AsyncSession, None]:
         yield session
 
 # models/orders.py
-class OrderRow(Base):
+class Order(Base):
     __tablename__ = "orders"
     order_id: Mapped[UUID] = mapped_column(primary_key=True)
     state: Mapped[str]
     total: Mapped[Decimal]
+    items: Mapped[list["OrderItem"]] = relationship(back_populates="order")
+
+class OrderItem(Base):
+    __tablename__ = "order_items"
+    item_id: Mapped[UUID] = mapped_column(primary_key=True)
+    order_id: Mapped[UUID] = mapped_column(ForeignKey("orders.order_id"))
+    product_id: Mapped[UUID]
+    quantity: Mapped[int]
+    order: Mapped["Order"] = relationship(back_populates="items")
 ```
 
 ### DynamoDB — PynamoDB
@@ -56,13 +65,19 @@ PynamoDB model definitions also live in `models/{domain}.py`:
 
 ```python
 # models/orders.py
-class OrderModel(Model):
+class OrderItem(MapAttribute):
+    item_id = UnicodeAttribute()
+    product_id = UnicodeAttribute()
+    quantity = NumberAttribute()
+
+class Order(Model):
     class Meta:
         table_name = "orders"
 
     order_id = UnicodeAttribute(hash_key=True)
     state = UnicodeAttribute()
     total = NumberAttribute()
+    items = ListAttribute(of=OrderItem)
 ```
 
 ## Error Catalog Pattern
