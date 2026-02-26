@@ -31,6 +31,11 @@ git tag v3.1 && git push origin v3.1
 git push origin --delete release/v3.1
 ```
 
+## AI Agent Behavior
+
+- **Do not auto-commit** — only commit when explicitly asked
+- **No co-authored-by** — do not add `Co-Authored-By` trailers for AI agents
+
 ## Commit Messages
 
 ```
