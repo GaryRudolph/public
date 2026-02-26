@@ -11,6 +11,24 @@ Follows [architecture.md](../architecture.md).
 | ORM — PostgreSQL | SQLAlchemy 2.x (async) |
 | ORM — DynamoDB | PynamoDB |
 
+## Settings
+
+App configuration lives in `app/core/config.py` using `pydantic-settings`. All env vars are declared here and accessed via a single `settings` instance:
+
+```python
+# app/core/config.py
+from pydantic_settings import BaseSettings, SettingsConfigDict
+
+class Settings(BaseSettings):
+    database_url: str
+    jwt_secret: str
+    environment: str = "development"
+
+    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")
+
+settings = Settings()
+```
+
 ## Module Structure
 
 Follows the FastAPI `app/` convention. Routes, Pydantic schemas, and service logic live under `app/api/{domain}/`. SQLAlchemy ORM models and database setup live under `app/models/`.
@@ -18,6 +36,8 @@ Follows the FastAPI `app/` convention. Routes, Pydantic schemas, and service log
 ```
 app/
 ├── main.py              # FastAPI app entry point, route registration
+├── core/
+│   └── config.py        # Pydantic-settings Settings class
 ├── api/
 │   ├── schemas.py       # Shared/base Pydantic schemas (pagination, errors, etc.)
 │   └── orders/
@@ -25,6 +45,7 @@ app/
 │       ├── schemas.py   # Pydantic request/response models
 │       └── services.py  # Business logic
 └── models/
+    ├── base.py          # SQLAlchemy DeclarativeBase
     ├── database.py      # SQLAlchemy engine and session factory
     └── orders.py        # ORM models for the orders domain
 alembic/
@@ -41,9 +62,15 @@ docker/
 
 ### PostgreSQL — SQLAlchemy
 
-ORM table definitions live in `app/models/{domain}.py`. Database session setup lives in `app/models/database.py`:
+ORM table definitions live in `app/models/{domain}.py`. `DeclarativeBase` lives in `app/models/base.py` and is imported by all model files. Database session setup lives in `app/models/database.py`:
 
 ```python
+# app/models/base.py
+from sqlalchemy.orm import DeclarativeBase
+
+class Base(DeclarativeBase):
+    pass
+
 # app/models/database.py
 engine = create_async_engine(settings.database_url)
 AsyncSessionLocal = async_sessionmaker(engine, expire_on_commit=False)
