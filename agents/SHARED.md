@@ -1,5 +1,9 @@
 # AI Agent Instructions
 
+<!-- SYNC: This is the source of truth. After editing, copy the full contents
+     to AGENTS.md (adjusting ../standards/ paths to standards/). AGENTS.md is
+     a flat copy because Codex cannot follow @-includes. -->
+
 Guidelines for AI coding agents working with me.
 
 ## Core Preferences
@@ -27,6 +31,15 @@ Guidelines for AI coding agents working with me.
 - **Commits**: imperative mood, optional ticket prefix, 72-char subject, no period
   - `add login endpoint` or `PROJ-123 add login endpoint`
 - **PRs**: squash-and-merge preferred; one feature/fix per PR
+
+## Workflow
+
+When executing a multi-step plan:
+
+1. **Pause after each step** — stop and show me what changed before moving on
+2. **Verify git email** — before any commit, run `git config user.email` and confirm it matches the expected email for this repo's organization; flag a mismatch and wait for me to fix it
+3. **Ask to commit** — after I've reviewed, ask if I want to commit before continuing to the next step
+4. **Wait for approval** — do not proceed to the next step until I confirm
 
 ## Standards Reference
 
