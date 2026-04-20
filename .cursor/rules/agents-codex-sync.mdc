@@ -1,0 +1,17 @@
+---
+description: Keep Codex AGENTS.md in sync with SHARED.md
+globs: agents/SHARED.md
+alwaysApply: false
+---
+
+`agents/SHARED.md` is the source of truth. `agents/AGENTS.md` is a generated,
+inlined copy for Codex CLI (which does not support `@` imports).
+
+After editing `agents/SHARED.md`, regenerate `agents/AGENTS.md`:
+
+```bash
+cd agents && make sync
+```
+
+`make install` runs `sync` automatically, and `make test` runs `sync-check`
+which fails if the two files are out of sync — so CI will catch any drift.
