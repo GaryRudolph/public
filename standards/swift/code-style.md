@@ -149,6 +149,13 @@ func mapError(_ error: Error) -> Error {
 }
 ```
 
+## Dependency injection
+
+- Managers and ViewModels: constructor injection only.
+- Views: `EnvironmentValues` for cross-cutting dependencies; constructor argument for their own ViewModel.
+
+See [architecture.md](./architecture.md) for the full rules and an `EnvironmentKey` example.
+
 ## Access Control
 
 Default to `private`, then `fileprivate`, then `internal`. Don't use `public extension` for blanket access — put modifiers on individual members unless providing default protocol implementations.

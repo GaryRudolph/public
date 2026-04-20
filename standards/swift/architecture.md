@@ -124,6 +124,18 @@ struct TicketsView: View {
 }
 ```
 
+### Dependency injection rules
+
+- **ViewModels and Managers use constructor injection only.** They must not read `EnvironmentValues`. A ViewModel should be constructible and fully functional outside of any view hierarchy so unit tests can exercise it without SwiftUI.
+- **Views use `EnvironmentValues` for cross-cutting view concerns** (presenters, theming, routers, system actions like `dismiss` and `openURL`). Constructor injection is reserved for the view's own ViewModel.
+- **The composition root (`AppFactory` / `ManagerFactory`) is the only place that wires values into the environment**, once, at the app root: `.environment(\.myPresenter, factory.myPresenter)`.
+
+| Layer       | Gets its dependencies via                                                                    |
+|-------------|----------------------------------------------------------------------------------------------|
+| Managers    | Constructor injection                                                                        |
+| ViewModels  | Constructor injection                                                                        |
+| Views       | `EnvironmentValues` for cross-cutting concerns; constructor argument for their own ViewModel |
+
 ## Router Pattern
 
 Navigation driven by router objects, not inline view state:
@@ -164,6 +176,45 @@ class ManagerFactoryImpl: ManagerFactory {
     lazy var accountManager: AccountManager = {
         AccountManagerImpl(storeManager: self.storeManager, networkManager: self.networkManager)
     }()
+}
+```
+
+## Environment Values (SwiftUI)
+
+`EnvironmentValues` is the idiomatic mechanism for injecting view-level cross-cutting dependencies. Use it for values that many unrelated views will consume and that the composition root constructs once.
+
+**Do use for:** notice/toast presenters, error presenters, routers, theming, feature flags that views read directly, and anything SwiftUI ships in the environment itself (`dismiss`, `openURL`, `colorScheme`, etc.).
+
+**Do not use for:** Managers, ViewModels, or anything a ViewModel or Manager needs. Those use constructor injection.
+
+### Defining a custom key
+
+```swift
+private struct NoticePresenterKey: EnvironmentKey {
+    @MainActor static var defaultValue: AnyNoticePresenter {
+        AnyNoticePresenter(NoOpNoticePresenter())
+    }
+}
+
+extension EnvironmentValues {
+    var noticePresenter: AnyNoticePresenter {
+        get { self[NoticePresenterKey.self] }
+        set { self[NoticePresenterKey.self] = newValue }
+    }
+}
+```
+
+- The `defaultValue` must always be safe to use. Prefer a no-op or a sensible production default so a missing injection degrades gracefully.
+- Inject from the composition root at the app root: `WindowGroup { ContentView().environment(\.noticePresenter, factory.noticePresenter) }`.
+- Read from a view with `@Environment(\.noticePresenter) private var presenter`.
+- Never read `@Environment` in a ViewModel (it won't compile in a plain class, and workarounds couple the VM to a view hierarchy).
+
+### Preview and test overrides
+
+```swift
+#Preview {
+    ContentView()
+        .environment(\.noticePresenter, AnyNoticePresenter(FakeNoticePresenter()))
 }
 ```
 
