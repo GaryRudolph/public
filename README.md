@@ -8,3 +8,4 @@ machines.
 3. [standards](standards/README.md) General AI coding agent standards
 4. [agents](agents/README.md) Specific AI agent coding standards
 5. [Mac Setup](setup/mac.md) for setting up a Fresh Mac
+6. [User Manual](user-manual.md) Working with Gary Rudolph
