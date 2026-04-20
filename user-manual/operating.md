@@ -37,4 +37,4 @@ gary operating [--intentional] [--reuse] [--sile] [--mvb]
 
 ## SEE ALSO
 
-[gary(1)](../user-manual.md), [gary-leadership(1)](leadership.md), [gary-communication(1)](communication.md), [gary-tools(1)](tools.md), [eng-levels.xlsx](eng-levels.xlsx)
+[gary(1)](README.md), [gary-leadership(1)](leadership.md), [gary-communication(1)](communication.md), [gary-tools(1)](tools.md), [eng-levels.xlsx](eng-levels.xlsx)

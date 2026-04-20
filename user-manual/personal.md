@@ -39,4 +39,4 @@ gary personal [--aviation] [--fdm] [--pinball] [--red-pill] [--skiing]
 
 ## SEE ALSO
 
-[gary(1)](../user-manual.md), [gary-leadership(1)](leadership.md), [gary-operating(1)](operating.md), [gary-communication(1)](communication.md), [gary-tools(1)](tools.md), [N78HR](https://github.com/GaryRudolph/N78HR), [N877RV](https://github.com/GaryRudolph/N877RV), [Star Wars](https://pinside.com/pinball/machine/star-wars), [Godzilla](https://pinside.com/pinball/machine/godzilla-limited-edition)
+[gary(1)](README.md), [gary-leadership(1)](leadership.md), [gary-operating(1)](operating.md), [gary-communication(1)](communication.md), [gary-tools(1)](tools.md), [N78HR](https://github.com/GaryRudolph/N78HR), [N877RV](https://github.com/GaryRudolph/N877RV), [Star Wars](https://pinside.com/pinball/machine/star-wars), [Godzilla](https://pinside.com/pinball/machine/godzilla-limited-edition)

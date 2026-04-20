@@ -39,4 +39,4 @@ gary leadership [--context] [--conviction] [--ownership] [--collaborative]
 
 ## SEE ALSO
 
-[gary(1)](../user-manual.md), [gary-operating(1)](operating.md), [gary-communication(1)](communication.md), [gary-tools(1)](tools.md)
+[gary(1)](README.md), [gary-operating(1)](operating.md), [gary-communication(1)](communication.md), [gary-tools(1)](tools.md)

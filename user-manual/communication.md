@@ -34,4 +34,4 @@ gary communication [--channels] [--written]
 
 ## SEE ALSO
 
-[gary(1)](../user-manual.md), [gary-leadership(1)](leadership.md), [gary-operating(1)](operating.md), [gary-tools(1)](tools.md)
+[gary(1)](README.md), [gary-leadership(1)](leadership.md), [gary-operating(1)](operating.md), [gary-tools(1)](tools.md)

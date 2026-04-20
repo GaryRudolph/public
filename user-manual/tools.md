@@ -31,4 +31,4 @@ gary tools [--blanchard] [--pugh]
 
 ## SEE ALSO
 
-[gary(1)](../user-manual.md), [gary-leadership(1)](leadership.md), [gary-operating(1)](operating.md), [gary-communication(1)](communication.md), [sample-pugh.xlsx](sample-pugh.xlsx)
+[gary(1)](README.md), [gary-leadership(1)](leadership.md), [gary-operating(1)](operating.md), [gary-communication(1)](communication.md), [sample-pugh.xlsx](sample-pugh.xlsx)

@@ -27,19 +27,19 @@ Systems built under **gary** have scaled to 6,000 TPS with 300ms response times 
 
 ## COMMANDS
 
-[gary-leadership(1)](user-manual/leadership.md)
+[gary-leadership(1)](leadership.md)
 : Leadership philosophy and how I work with people
 
-[gary-operating(1)](user-manual/operating.md)
+[gary-operating(1)](operating.md)
 : How I think about building things
 
-[gary-communication(1)](user-manual/communication.md)
+[gary-communication(1)](communication.md)
 : How to reach me and preferred formats
 
-[gary-tools(1)](user-manual/tools.md)
+[gary-tools(1)](tools.md)
 : Frameworks and decision-making tools
 
-[gary-personal(1)](user-manual/personal.md)
+[gary-personal(1)](personal.md)
 : Color and background
 
 ## HISTORY
@@ -66,4 +66,4 @@ Themes distilled from peer recommendations:
 
 ## SEE ALSO
 
-[gary-leadership(1)](user-manual/leadership.md), [gary-operating(1)](user-manual/operating.md), [gary-communication(1)](user-manual/communication.md), [gary-tools(1)](user-manual/tools.md), [gary-personal(1)](user-manual/personal.md), [LinkedIn](https://www.linkedin.com/in/garyrudolph/), [Resume](resume/Gary-Rudolph-Resume-v7.pdf)
+[gary-leadership(1)](leadership.md), [gary-operating(1)](operating.md), [gary-communication(1)](communication.md), [gary-tools(1)](tools.md), [gary-personal(1)](personal.md), [LinkedIn](https://www.linkedin.com/in/garyrudolph/), [Resume](../resume/Gary-Rudolph-Resume-v7.pdf)
