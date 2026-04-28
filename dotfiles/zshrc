@@ -191,6 +191,11 @@ fi
 
 eval "$(/opt/homebrew/bin/brew shellenv)"
 
+DOT_LOCAL_BIN=${HOME}/.local/bin
+if [[ -d "${DOT_LOCAL_BIN}" ]]; then
+	path=("${DOT_LOCAL_BIN}" ${path})
+fi
+
 # My bin
 export PATH="${HOME}/bin:${PATH}"
 
