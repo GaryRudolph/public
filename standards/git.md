@@ -9,6 +9,25 @@ We follow **GitHub Flow** — short-lived feature branches merged frequently to 
 - **Bugfix**: `fix/issue-description` or `fix/TICKET-123-description`
 - **Release**: `release/v2` (short-lived, for hotfixes only; ideally not needed)
 
+## Worktrees
+
+Worktrees live as **siblings** of the main checkout, not nested inside it. The main checkout keeps the bare repo name (e.g. `public/`).
+
+- **Naming**: `<repo>-<branch-slug>`
+- **`<branch-slug>`**: the branch name with any leading type prefix stripped (`feature/`, `feat/`, `fix/`, `bugfix/`, `release/`, `hotfix/`, `chore/`). If no recognized prefix, use the branch name verbatim with `/` replaced by `-`.
+- One worktree per branch — reuse rather than re-create.
+
+Example: in `public/` on `main`, branch `feat/all-your-base` lives at `../public-all-your-base`.
+
+```bash
+# Create
+git worktree add ../public-all-your-base -b feat/all-your-base
+
+# Remove when done
+git worktree remove ../public-all-your-base
+git branch -d feat/all-your-base
+```
+
 ## Versioning
 
 Simplified scheme with always-incrementing major versions:
