@@ -20,11 +20,25 @@
   * `chmod 600 ~/.ssh/id_ed25519`
   * `chmod 644 ~/.ssh/id_ed25519.pub`
 
+- [ ] Install Homebrew and fish (prereq for the symlinks and chsh tasks below)
+  * Install Homebrew if not already present: see https://brew.sh
+  * `brew install fish`
+
 - [ ] Checkout this repo to `Projects/personal/public` and create Symbolic Links
   * `git clone git@github.com:GaryRudolph/public.git`
   * `ln -s Projects/personal/public/bin bin`
   * `ln -s Projects/personal/public/dotfiles/zshrc .zshrc`
   * `ln -s Projects/personal/public/dotfiles/zshrc-gMacBook .zshrc-local`
+  * `mkdir -p ~/.config`
+  * `[ -e ~/.config/fish ] && mv ~/.config/fish ~/.config/fish.bak`
+  * `ln -s ~/Projects/personal/public/dotfiles/fish ~/.config/fish`
+  * See `dotfiles/fish/README.md` for prompt/config details.
+
+- [ ] Make fish the default login shell
+  * `which fish` → confirm path (typically `/opt/homebrew/bin/fish`)
+  * `grep -q "$(which fish)" /etc/shells || echo "$(which fish)" | sudo tee -a /etc/shells`
+  * `chsh -s "$(which fish)"`
+  * Open a new terminal; verify with `echo $SHELL`
 
 - [ ] Configure AI agent tools (see [agents/README.md](agents/README.md))
   * `cd ~/Projects/personal/public/agents && make install`
