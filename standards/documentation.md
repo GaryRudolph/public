@@ -70,6 +70,7 @@ Large projects are broken into ordered milestones, each producing a user- or dev
 - **Section heading in specs:** `### m{N} - {Short Title}` (e.g. `### m3 - Search UI (Noop Models)`)
 - **Cross-references:** write `m7` inline (not "Step 7", not "milestone 7")
 - **Commits and branches:** may reference the milestone tag, e.g. `m3 add floating search panel` or `feature/m3-search-ui`
+- **Marking complete:** when a milestone ships, wrap the name and title of its spec heading in `~~…~~` so the whole `m{N} - {Title}` reads as struck through; leave the `###` outside the strikethrough so the heading still renders. Example: `### ~~m3 - Search UI (Noop Models)~~`. Apply the same treatment to any tracking lists or tables of contents that enumerate milestones (e.g. a `specs/README.md` checklist). Don't strike through inline `m{N}` cross-references in prose — only the milestone's own heading and list entries.
 
 ### Handoffs between milestones
 
