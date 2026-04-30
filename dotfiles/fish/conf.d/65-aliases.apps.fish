@@ -13,9 +13,9 @@ function cursor-agerpoint --description 'Launch Cursor (Agerpoint, via Cursor AP
     open -a "Cursor AP" $argv
 end
 
-function claude-agerpoint --description 'Claude Code CLI (Agerpoint account; green theme cue)'
+function claude-agerpoint --description 'Claude Code CLI (Agerpoint account)'
     set -lx CLAUDE_CONFIG_DIR "$HOME/.claude-agerpoint"
-    command claude -e "/color green" $argv
+    command claude $argv
 end
 
 function code-agerpoint --description 'Launch VS Code (Agerpoint, via Visual Studio Code AP.app)'

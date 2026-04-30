@@ -78,22 +78,20 @@ For the Claude Code CLI (`claude`), set `CLAUDE_CONFIG_DIR` to a per-profile dir
 Add to `~/.zshrc`:
 
 ```sh
-alias claude-company1='CLAUDE_CONFIG_DIR="$HOME/.claude-company1" claude -e "/color green"'
+alias claude-company1='CLAUDE_CONFIG_DIR="$HOME/.claude-company1" claude'
 ```
 
 Then `exec zsh` (or open a new tab) and `claude-company1` runs Claude Code against `~/.claude-company1/`. First time you'll be prompted to sign in to that profile's account; after that it's automatic.
 
-The trailing `-e "/color green"` is optional — it sends a one-shot `/color` slash-command at startup that tints the Claude Code TUI. Pick a different color per profile (`green`, `blue`, `magenta`, `cyan`, etc.) so a glance at the terminal tells you which account you're in.
-
 For a second profile, copy the line and swap both occurrences of the slug:
 
 ```sh
-alias claude-company2='CLAUDE_CONFIG_DIR="$HOME/.claude-company2" claude -e "/color blue"'
+alias claude-company2='CLAUDE_CONFIG_DIR="$HOME/.claude-company2" claude'
 ```
 
 #### fish
 
-If you use fish, the equivalent function lives at `dotfiles/fish/conf.d/65-aliases.apps.fish` (same pattern: a `set -lx CLAUDE_CONFIG_DIR ...` followed by `command claude -e "/color <theme>"`).
+If you use fish, the equivalent function lives at `dotfiles/fish/conf.d/65-aliases.apps.fish` (same pattern: a `set -lx CLAUDE_CONFIG_DIR ...` followed by `command claude`).
 
 #### Other CLIs
 
@@ -140,7 +138,7 @@ Example: `company2` (a second work account alongside the primary `company1`).
    make install PROFILE=company2   # or just `make install` to rebuild all
    ```
 
-4. Add the matching shell aliases to `dotfiles/fish/conf.d/65-aliases.apps.fish` and `dotfiles/zshrc`, following the company1 pattern (one `cursor-<slug>`, one `claude-<slug>`, one `code-<slug>`). Optionally append `-e "/color <theme>"` to the `claude-<slug>` alias for a glanceable Claude Code terminal cue (company1 uses `green`; pick something else like `blue`/`magenta`/`cyan` for the next profile so they're visually distinct).
+4. Add the matching shell aliases to `dotfiles/fish/conf.d/65-aliases.apps.fish` and `dotfiles/zshrc`, following the company1 pattern (one `cursor-<slug>`, one `claude-<slug>`, one `code-<slug>`).
 
 ### Removing a profile
 
@@ -187,7 +185,7 @@ Both Cursor and Claude Desktop are Electron apps. Electron honors `--user-data-d
 
 ### Profile config schema
 
-Each profile is two files in `profiles/`: `<slug>.env` and `<slug>.png`. The env file only holds what `make install` consumes; alias-only details (e.g. Claude Code `/color` theme) live in the shell alias, not the env file.
+Each profile is two files in `profiles/`: `<slug>.env` and `<slug>.png`. The env file only holds what `make install` consumes; alias-only details live in the shell alias, not the env file.
 
 | Key | Source | Description |
 |---|---|---|

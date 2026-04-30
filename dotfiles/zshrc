@@ -217,5 +217,5 @@ esac
 # cursor-agerpoint / code-agerpoint require the matching <App> AP.app — built by
 # `cd macos-launchers && make install`.
 alias cursor-agerpoint='open -a "Cursor AP"'
-alias claude-agerpoint='CLAUDE_CONFIG_DIR="$HOME/.claude-agerpoint" claude -e "/color green"'
+alias claude-agerpoint='CLAUDE_CONFIG_DIR="$HOME/.claude-agerpoint" claude'
 alias code-agerpoint='open -a "Visual Studio Code AP"'
