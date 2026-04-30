@@ -72,6 +72,14 @@
   * [ ] Signal
   * [ ] WhatsApp
 
+- [ ] (Optional) Build branded multi-account launchers
+      (see [macos-launchers/README.md](../macos-launchers/README.md))
+  * Prereqs: Cursor.app and Claude.app (Standard Software above) plus
+    `brew install imagemagick` (Brew section below)
+  * Add your profile: `macos-launchers/profiles/<slug>.env` and `<slug>.png`
+  * `cd ~/Projects/personal/public/macos-launchers && make install`
+  * Wrappers (e.g. `Cursor AP.app`, `Claude AP.app`) land in `~/Applications/`
+
 - [ ] Install Xcode
   * [ ] Install App & SDKs
   * [ ] `sudo xcode-select --install`
@@ -90,8 +98,8 @@
   * `brew install jq`
   * `brew install mdless`
   * `brew install awscli`
+  * `brew install imagemagick` (also a prereq for `macos-launchers`)
   * Animate Gifs and Video
-      * `brew install imagemagick`
       * `brew install ffmpeg`
   * Protobuf
       * `brew install protobuf`

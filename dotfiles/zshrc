@@ -211,3 +211,11 @@ case ":$PATH:" in
   *) export PATH="$PNPM_HOME:$PATH" ;;
 esac
 # pnpm end
+
+# Multi-account launchers (per-profile).
+# Each profile = one alias per app. See macos-launchers/README.md to add more.
+# cursor-agerpoint / code-agerpoint require the matching <App> AP.app — built by
+# `cd macos-launchers && make install`.
+alias cursor-agerpoint='open -a "Cursor AP"'
+alias claude-agerpoint='CLAUDE_CONFIG_DIR="$HOME/.claude-agerpoint" claude -e "/color green"'
+alias code-agerpoint='open -a "Visual Studio Code AP"'
