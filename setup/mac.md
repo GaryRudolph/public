@@ -1,150 +1,139 @@
 # Mac Setup
 
-- [ ] See hidden files as greyed out in Finder
-   * `defaults write com.apple.finder AppleShowAllFiles TRUE; killall Finder`
-
-- [ ] Set Hostname
-   * Settings -> General -> Sharing
-   * Settings -> About -> Set Local Hostname
-   * `sudo scutil --set HostName gMacBook`
-   * `sudo scutil --set LocalHostName gMacBook.local`
-   * `sudo scutil --set ComputerName gMacBook gMacBook`
-
-- [ ] Make sure Documents are set to iCloud
-
-- [ ] Setup SSH Keys
-  * Note, these have to be copied and not symlink because SSH requirements
-  * `mkdir ~/.ssh`
-  * `chmod 700 ~/.ssh`
-  * Download keys from [keys](keys) and place in `~/.ssh`
-  * `chmod 600 ~/.ssh/id_ed25519`
-  * `chmod 644 ~/.ssh/id_ed25519.pub`
-
-- [ ] Install Homebrew and fish (prereq for the symlinks and chsh tasks below)
-  * Install Homebrew if not already present: see https://brew.sh
-  * `brew install fish`
-
-- [ ] Checkout this repo to `Projects/personal/public` and create Symbolic Links
-  * `git clone git@github.com:GaryRudolph/public.git`
-  * `ln -s Projects/personal/public/bin bin`
-  * `ln -s Projects/personal/public/dotfiles/zshrc .zshrc`
-  * `ln -s Projects/personal/public/dotfiles/zshrc-gMacBook .zshrc-local`
-  * `mkdir -p ~/.config`
-  * `[ -e ~/.config/fish ] && mv ~/.config/fish ~/.config/fish.bak`
-  * `ln -s ~/Projects/personal/public/dotfiles/fish ~/.config/fish`
-  * See `dotfiles/fish/README.md` for prompt/config details.
-
-- [ ] Make fish the default login shell
-  * `which fish` → confirm path (typically `/opt/homebrew/bin/fish`)
-  * `grep -q "$(which fish)" /etc/shells || echo "$(which fish)" | sudo tee -a /etc/shells`
-  * `chsh -s "$(which fish)"`
-  * Open a new terminal; verify with `echo $SHELL`
-
-- [ ] Configure AI agent tools (see [agents/README.md](agents/README.md))
-  * `cd ~/Projects/personal/public/agents && make install`
-
-- [ ] Checkout the private repo to `Projects/personal/private` and
-      create Symbolic Links
-  * `git clone git@github.com:GaryRudolph/private.git`
-
+- See hidden files as greyed out in Finder
+  - `defaults write com.apple.finder AppleShowAllFiles TRUE; killall Finder`
+- Set Hostname
+  - Settings -> General -> Sharing
+  - Settings -> About -> Set Local Hostname
+  - `sudo scutil --set HostName gMacBook`
+  - `sudo scutil --set LocalHostName gMacBook.local`
+  - `sudo scutil --set ComputerName gMacBook gMacBook`
+- Make sure Documents are set to iCloud
+- Setup SSH Keys
+  - Note, these have to be copied and not symlink because SSH requirements
+  - `mkdir ~/.ssh`
+  - `chmod 700 ~/.ssh`
+  - Download keys from [keys](keys) and place in `~/.ssh`
+  - `chmod 600 ~/.ssh/id_ed25519`
+  - `chmod 644 ~/.ssh/id_ed25519.pub`
+- Install Homebrew and fish (prereq for the symlinks and chsh tasks below)
+  - Install Homebrew if not already present: see [https://brew.sh](https://brew.sh)
+  - `brew install fish`
+- Checkout this repo to `Projects/personal/public` and create Symbolic Links
+  - `git clone git@github.com:GaryRudolph/public.git`
+  - `ln -s Projects/personal/public/bin bin`
+  - `ln -s Projects/personal/public/dotfiles/zshrc .zshrc`
+  - `ln -s Projects/personal/public/dotfiles/zshrc-gMacBook .zshrc-local`
+  - `mkdir -p ~/.config`
+  - `[ -e ~/.config/fish ] && mv ~/.config/fish ~/.config/fish.bak`
+  - `ln -s ~/Projects/personal/public/dotfiles/fish ~/.config/fish`
+  - See `dotfiles/fish/README.md` for prompt/config details.
+- Make fish the default login shell
+  - `which fish` → confirm path (typically `/opt/homebrew/bin/fish`)
+  - `grep -q "$(which fish)" /etc/shells || echo "$(which fish)" | sudo tee -a /etc/shells`
+  - `chsh -s "$(which fish)"`
+  - Open a new terminal; verify with `echo $SHELL`
+- Configure AI agent tools (see [agents/README.md](agents/README.md))
+  - `cd ~/Projects/personal/public/agents && make install`
+- Checkout the private repo to `Projects/personal/private` and
+create Symbolic Links
+  - `git clone git@github.com:GaryRudolph/private.git`
 - Standard Software
-  * [ ] Dropbox
-  * [ ] Google Drive
-  * [ ] Chrome
-  * [ ] Slack
-  * [ ] Zoom
-  * [ ] Claude
-  * [ ] ChatGPT
-  * [ ] Cursor
-  * [ ] Jabra Direct
-  * [ ] Parallels
-  * [ ] Adobe Reader, Illustrator, Photoshop
-  * [ ] Docker for Mac
-  * [ ] Microsoft Office
-  * [ ] [SF Symbols App](https://developer.apple.com/sf-symbols/)
-  * [ ] Bambu Studio
-  * [ ] Autodesk Fusion
-  * [ ] KiCad
-  * [ ] Garmin Aviation Database Manager
-  * [ ] LG Screen Manager?
-  * [ ] Omnigraffle
-  * [ ] Whispr Flow
-  * [ ] Signal
-  * [ ] WhatsApp
-
-- [ ] (Optional) Build branded multi-account launchers
-      (see [macos-launchers/README.md](../macos-launchers/README.md))
-  * Prereqs: Cursor.app and Claude.app (Standard Software above) plus
-    `brew install imagemagick` (Brew section below)
-  * Add your profile: `macos-launchers/profiles/<slug>.env` and `<slug>.png`
-  * `cd ~/Projects/personal/public/macos-launchers && make install`
-  * Wrappers (e.g. `Cursor AP.app`, `Claude AP.app`) land in `~/Applications/`
-
-- [ ] Install Xcode
-  * [ ] Install App & SDKs
-  * [ ] `sudo xcode-select --install`
-
-- [ ] Brew (/opt/homebrew) (Pick and choose)
-  * `brew install <package>`
-  * `brew install python3`
-  * `brew install virtualenv`
-  * `brew install uv`
-  * `brew install plantuml`
-  * `brew install graphviz`
-  * `brew install librsvg`
-  * `brew install node`
-  * `brew install s3cmd`
-  * `brew install fastlane`
-  * `brew install jq`
-  * `brew install mdless`
-  * `brew install awscli`
-  * `brew install imagemagick` (also a prereq for `macos-launchers`)
-  * Animate Gifs and Video
-      * `brew install ffmpeg`
-  * Protobuf
-      * `brew install protobuf`
-      * `brew install swift-protobuf`
-      * `brew install grpc-swift`
-  * `brew install rar`
-  * `brew install openjdk`
-  * `brew install gradle`
-  * `brew install timeout`? If GUI, just install from app store
-  * `brew install xprojectlint`
-  * Wireshark
-    * `brew install brew install --cask wireshark`
-    * `brew install --cask wireshark-chmodbpf`
-  * `brew install go`
-  * `brew install mactex-no-gui` (this is a cask)
-  * Terraform
-    * `brew tap hashicorp/tap`
-    * `brew install hashicorp/tap/terraform`
-
-- [ ] Gems
-  * `gem install <package>`
-  * `gem install xcperfect`
-  * `gem install xcpretty`
-
-- [ ] NPM
-  * `npm -g <package> install`
-  * `npm -g firebase-tools install`
-
-- [ ] VS Code
-  * joaompinto.vscode-graphviz
-  * jebbs.plantuml
-  * naumovs.color-highlight
-  * mhutchie.git-graph
-  * yzhang.markdown-all-in-one
-  * ms-python.python
-  * ms-python.vscode-pylance
-  * kasik96.swift
-  * redhat.vscode-xml
-  * redhat.vscode-yaml
-
-- [ ] Cursor
-
-- [ ] Rust
-
+  - Dropbox
+  - Google Drive
+  - Chrome
+  - Slack
+  - Zoom
+  - Claude
+  - ChatGPT
+  - Cursor
+  - Jabra Direct
+  - Parallels
+  - Adobe Reader, Illustrator, Photoshop
+  - Docker for Mac
+  - Microsoft Office
+  - [SF Symbols App](https://developer.apple.com/sf-symbols/)
+  - Bambu Studio
+  - Autodesk Fusion
+  - KiCad
+  - Garmin Aviation Database Manager
+  - LG Screen Manager?
+  - Omnigraffle
+  - Whispr Flow
+  - Signal
+  - WhatsApp
+- (Optional) Build branded multi-account launchers
+(see [macos-launchers/README.md](../macos-launchers/README.md))
+  - Prereqs: Cursor.app and Claude.app (Standard Software above) plus
+  `brew install imagemagick` (Brew section below)
+  - Add your profile: `macos-launchers/profiles/<slug>.env` and `<slug>.png`
+  - `cd ~/Projects/personal/public/macos-launchers && make install`
+  - Wrappers (e.g. `Cursor AP.app`, `Claude AP.app`) land in `~/Applications/`
+- Install Xcode
+  - Install App & SDKs
+  - `sudo xcode-select --install`
+- Brew (/opt/homebrew) (Pick and choose)
+  - `brew install <package>`
+  - `brew install python3`
+  - `brew install virtualenv`
+  - `brew install uv`
+  - `brew install plantuml`
+  - `brew install graphviz`
+  - `brew install librsvg`
+  - `brew install node`
+  - `brew install s3cmd`
+  - `brew install fastlane`
+  - `brew install jq`
+  - `brew install mdless`
+  - `brew install awscli`
+  - `brew install imagemagick` (also a prereq for `macos-launchers`)
+  - Animate Gifs and Video
+    - `brew install ffmpeg`
+  - Protobuf
+    - `brew install protobuf`
+    - `brew install swift-protobuf`
+    - `brew install grpc-swift`
+  - `brew install rar`
+  - `brew install openjdk`
+  - `brew install gradle`
+  - `brew install timeout`? If GUI, just install from app store
+  - `brew install xprojectlint`
+  - Wireshark
+    - `brew install brew install --cask wireshark`
+    - `brew install --cask wireshark-chmodbpf`
+  - `brew install go`
+  - `brew install mactex-no-gui` (this is a cask)
+  - Terraform
+    - `brew tap hashicorp/tap`
+    - `brew install hashicorp/tap/terraform`
+- Gems
+  - `gem install <package>`
+  - `gem install xcperfect`
+  - `gem install xcpretty`
+- NPM
+  - `npm -g <package> install`
+  - `npm -g firebase-tools install`
+- VS Code
+  - joaompinto.vscode-graphviz
+  - jebbs.plantuml
+  - naumovs.color-highlight
+  - mhutchie.git-graph
+  - yzhang.markdown-all-in-one
+  - ms-python.python
+  - ms-python.vscode-pylance
+  - kasik96.swift
+  - redhat.vscode-xml
+  - redhat.vscode-yaml
+- Cursor
+  - ⌘↩ submits, ↩ new line
+    - Open Cursor Settings (`⇧⌘J`) → Chat → enable  
+    "Submit message with ⌘↩"
+  - Optional keybindings overrides (User → `keybindings.json`):
+    - `cmd+i` (⌘I) → `composerMode.agent` (open agent composer)
+    - `alt+cmd+s` (⌥⌘S) → `workbench.action.toggleUnifiedSidebarFromKeyboard`
+- Rust
 - Windows Parallels
-  * Windows 11 ARM Build
-  * Garmin Checklist Editor
-  * VP-X
+  - Windows 11 ARM Build
+  - Garmin Checklist Editor
+  - VP-X
+
