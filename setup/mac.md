@@ -1,14 +1,16 @@
 # Mac Setup
 
-- See hidden files as greyed out in Finder
-  - `defaults write com.apple.finder AppleShowAllFiles TRUE; killall Finder`
 - Set Hostname
   - Settings -> General -> Sharing
   - Settings -> About -> Set Local Hostname
   - `sudo scutil --set HostName gMacBook`
-  - `sudo scutil --set LocalHostName gMacBook.local`
-  - `sudo scutil --set ComputerName gMacBook gMacBook`
-- Make sure Documents are set to iCloud
+  - `sudo scutil --set LocalHostName gMacBook`
+  - `sudo scutil --set ComputerName gMacBook`
+- Make sure Desktop & Documents are set to iCloud
+  - Settings -> Apple Account -> iCloud -> Drive -> turn on Desktop & Documents Folders
+  - Settings -> Apple Account -> iCloud -> Drive -> turn off Optimize Mac Storage (keep all files local)
+- See hidden files as greyed out in Finder
+  - `defaults write com.apple.finder AppleShowAllFiles TRUE; killall Finder`
 - Setup SSH Keys
   - Note, these have to be copied and not symlink because SSH requirements
   - `mkdir ~/.ssh`
