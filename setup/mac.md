@@ -100,6 +100,8 @@ create Symbolic Links
   - `brew install gradle`
   - `brew install timeout`? If GUI, just install from app store
   - `brew install xprojectlint`
+  - `brew install xcodegen`
+  - `brew install xcbeautify`
   - Wireshark
     - `brew install brew install --cask wireshark`
     - `brew install --cask wireshark-chmodbpf`
