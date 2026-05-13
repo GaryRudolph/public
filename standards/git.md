@@ -30,25 +30,13 @@ git branch -d feat/all-your-base
 
 ## Versioning
 
-Simplified scheme with always-incrementing major versions:
+See **[versioning.md](versioning.md)** for the full standard, including BNF grammars and per-platform surface tables. Headlines:
 
-- **Standard releases**: `v1`, `v2`, `v3`, `v4`, ...
-- **Hotfixes** (rare): `v2.1`, `v2.2` — next planned release is still `v3`
-
-Use minor versions **only** for critical security vulnerabilities, data loss bugs, or service outages. Regular bug fixes wait for the next major version.
-
-```bash
-# Standard release — tag main directly
-git tag v3 && git push origin v3
-
-# Hotfix — branch from prior tag, fix, tag, delete branch
-git checkout -b fix/critical-issue v3
-# ... fix and commit ...
-git checkout -b release/v3.1 v3
-git merge fix/critical-issue
-git tag v3.1 && git push origin v3.1
-git push origin --delete release/v3.1
-```
+- **Contracts** (URL paths, RPC/wire formats, file/serialization formats) → integer-major (`v1`, `v2`, `v3`; `vN.x` only for hotfixes).
+- **Artifacts** (service binaries, published packages, libraries, distributed apps) → SemVer 2.0 (`MAJOR.MINOR.PATCH`).
+- **Source of truth holds the *last released* version**, not the next planned one. The release pipeline is the only thing that bumps it, at tag time, with the bump level (`patch` / `minor` / `major`) chosen then.
+- **No pre-release suffixes.** We do not ship `-rc.N`/`-beta.N`/`-alpha.N`; every tag is stable. Dev builds iterate as `<release>+<sha>` (e.g. `2.4.0+abc1234`) until the release pipeline cuts a stable tag. Build metadata (`+`) is correct here because dev builds are *post*-release; the pre-release form `<release>-<sha>` would sort *before* the released version per SemVer §11, which is reversed.
+- **Store-bound `versionCode` / `CFBundleVersion`** = `git rev-list --count HEAD` — total commit count reachable from the build's `HEAD`. Content-addressed, monotonic per branch, and uncapped in practice (Play's 2.1B ceiling translates to 2.1B commits). Requires `fetch-depth: 0` in CI. Hotfix uploads to Play override `BUILD_CODE` to clear the current production `versionCode` (see [Android Play caveat](versioning.md#android-play-caveat-for-hotfixes)).
 
 ## AI Agent Behavior
 

@@ -9,7 +9,8 @@ This directory contains coding standards for consistent, maintainable, quality c
 - **[Platform Parity](platform-parity.md)** — Cross-platform Swift/Kotlin naming and layer conventions
 - **[Testing](testing.md)** — Coverage targets, test structure, mocking rules
 - **[Documentation](documentation.md)** — What to document, ADR format, TODO conventions
-- **[Git Workflow](git.md)** — Branching, versioning, commit format, PR workflow
+- **[Git Workflow](git.md)** — Branching, commit format, PR workflow
+- **[Versioning](versioning.md)** — SemVer for artifacts, integer-major for contracts, commit-count `versionCode`, per-platform surface map, release & hotfix flows
 - **[Security](security.md)** — Auth, encryption, input validation, checklists
 
 ## Language-Specific Standards
