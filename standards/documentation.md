@@ -72,6 +72,18 @@ Large projects are broken into ordered milestones, each producing a user- or dev
 - **Commits and branches:** may reference the milestone tag, e.g. `m3 add floating search panel` or `feature/m3-search-ui`
 - **Marking complete:** when a milestone ships, wrap the name and title of its spec heading in `~~…~~` so the whole `m{N} - {Title}` reads as struck through; leave the `###` outside the strikethrough so the heading still renders. Example: `### ~~m3 - Search UI (Noop Models)~~`. Apply the same treatment to any tracking lists or tables of contents that enumerate milestones (e.g. a `specs/README.md` checklist). Don't strike through inline `m{N}` cross-references in prose — only the milestone's own heading and list entries.
 
+### Steps within a milestone
+
+When a milestone's plan has ordered steps, prefix them `s{N}` (lowercase). Step numbering is **scoped to its parent milestone** and restarts at `s1` for each milestone — so an `m1` plan may have `s1, s2, s3` and an `m2` plan may also have `s1, s2, s3, s4`.
+
+- **Naming:** prefix `s{N}` (lowercase) — `s1`, `s2`, … Use for the ordered tasks an agent will execute to complete a milestone (e.g. inside a `.scratch/plan-{topic}-{word}.md` or a `### m{N}` spec subsection).
+- **Section heading:** `#### s{N} - {Short Title}` when steps live as subsections under an `### m{N}` heading
+- **Cross-references:** within the same milestone, write `s2` inline. To reference a step in a different milestone, qualify it as `m{N}.s{M}` (e.g. `m3.s2`). Don't write "Step 2" or "step two" for these.
+- **Commits and branches:** may reference the step alongside the milestone, e.g. `m3.s2 wire search results to view model` or `feature/m3-s2-search-results`
+- **Marking complete:** same convention as milestones — wrap the name and title in `~~…~~`, leaving the heading prefix outside. Example: `#### ~~s2 - Wire search results~~`. Apply to checklists and TOC entries that enumerate steps.
+
+Reserve plain "step" prose for procedural steps in user-facing docs (onboarding flows, tutorials, algorithm walk-throughs) — not for plan execution.
+
 ### Handoffs between milestones
 
 When work transitions from one milestone to the next (m{N} → m{N+1}), the agent finishing m{N} writes a handoff file to `{project-root}/specs/handoffs/handoff-m{N+1}-{topic}.md` describing:
