@@ -1,9 +1,5 @@
 # AI Agent Instructions
 
-<!-- SYNC: This is the source of truth. After editing, copy the full contents
-     to AGENTS.md (adjusting standards/ paths to standards/). AGENTS.md is
-     a flat copy because Codex cannot follow @-includes. -->
-
 Guidelines for AI coding agents working with me.
 
 ## Core Preferences
@@ -55,28 +51,41 @@ A project or organization rule can override a personal preference if there's a d
 - **Check `.gitignore` when creating new directories** — when creating directories meant to hold working files, drafts, or local artifacts, confirm they're covered by `.gitignore` before writing to them
 - **Write handoff files** — when asked to `handoff` or "write a handoff", summarize the session to `.scratch/handoff-{topic}-{word}.md` where `{topic}` is a short kebab-case name you derive from the work and `{word}` is a single random kebab-case word (e.g. `meadow`, `harbor`, `quartz`) that preserves history across same-topic re-runs without forcing a timestamp. Examples: `handoff-auth-api-meadow.md`, `handoff-pipeline-refactor-harbor.md`. An adjective-noun pair (`eager-fox`) or short hex hash (`b9d4e0d3`) is an acceptable fallback when the producing tool already emits one. Reuse a `{word}` deliberately if you want to overwrite a prior handoff. Include: what was done, what's pending, key decisions made, and gotchas for the next session. Keep it short and actionable
 - **Save ephemeral agent plans to `.scratch/plan-{topic}-{word}.md`** — when an agent produces a plan (Cursor Plan mode, Claude Code plan mode, or any "write the plan to a file" request), write it to `.scratch/plan-{topic}-{word}.md` using the same `{topic}-{word}` shape as handoffs above. Examples: `plan-auth-api-meadow.md`, `plan-pipeline-refactor-harbor.md`. Inherits gitignore from `.scratch/`. Promote to a spec or handoff if the plan becomes durable
-- **Use milestone naming (`m{N}`, lowercase) for implementation phases** — when planning or writing specs, break multi-step projects into ordered milestones prefixed `m1`, `m2`, …, `m13`. Section headings use `### m{N} - Title`; cross-references use `m7` (not "Step 7"). Reserve the word "step" for procedural steps inside a milestone, algorithm steps, or onboarding-flow steps. See `standards/documentation.md` "Implementation Milestones"
-- **Use step naming (`s{N}`, lowercase) for ordered tasks within a milestone's plan** — step numbering is scoped to its parent milestone and restarts at `s1` for each one (so `m1` may have `s1, s2, s3` and `m2` may also have `s1, s2, s3, s4`). Subsection headings use `#### s{N} - Title`; in-milestone cross-references use `s2`, cross-milestone use `m3.s2`. See `standards/documentation.md` "Steps within a milestone"
-- **Write a milestone handoff when transitioning milestones** — when moving from `m{N}` to `m{N+1}` on a project with a `specs/` folder, write `{project-root}/specs/handoffs/handoff-m{N+1}-{topic}.md` before starting the next milestone. Contents: where we are (done / not done), what the next milestone needs to deliver, key decisions already made, suggested plan, gotchas, files to reference. These handoffs are version-controlled (unlike `.scratch/` handoffs). See `standards/documentation.md` "Handoffs between milestones"
+- **Use milestone naming (`m{N}`, lowercase) for implementation phases** — when planning or writing specs, break multi-step projects into ordered milestones prefixed `m1`, `m2`, …, `m13`. Section headings use `### m{N} - Title`; cross-references use `m7` (not "Step 7"). Reserve the word "step" for procedural steps inside a milestone, algorithm steps, or onboarding-flow steps. See `~/Projects/personal/public/standards/documentation.md` "Implementation Milestones"
+- **Use step naming (`s{N}`, lowercase) for ordered tasks within a milestone's plan** — step numbering is scoped to its parent milestone and restarts at `s1` for each one (so `m1` may have `s1, s2, s3` and `m2` may also have `s1, s2, s3, s4`). Subsection headings use `#### s{N} - Title`; in-milestone cross-references use `s2`, cross-milestone use `m3.s2`. See `~/Projects/personal/public/standards/documentation.md` "Steps within a milestone"
+- **Write a milestone handoff when transitioning milestones** — when moving from `m{N}` to `m{N+1}` on a project with a `specs/` folder, write `{project-root}/specs/handoffs/handoff-m{N+1}-{topic}.md` before starting the next milestone. Contents: where we are (done / not done), what the next milestone needs to deliver, key decisions already made, suggested plan, gotchas, files to reference. These handoffs are version-controlled (unlike `.scratch/` handoffs). See `~/Projects/personal/public/standards/documentation.md` "Handoffs between milestones"
 - **Write specs to `{project-root}/specs/`** — new product specs, technical designs, RFCs, and ADRs go in `{project-root}/specs/{topic}.md` (lowercase-kebab, no `-spec` suffix — the folder already implies it; e.g. `specs/product.md`, `specs/search-engine.md`). Do not scatter spec-level documents across the repo root or language-specific folders. Scratch-only drafts still go to `.scratch/`
-- **Follow filename case conventions** — ALL_CAPS reserved for well-established root-level meta files (`README.md`, `LICENSE`, `AGENTS.md`, `CLAUDE.md`, `TODO.md`, etc.); companion docs mirror the casing of the file they document (`Makefile.md`, `Dockerfile.md`); everything else is lowercase-kebab-case (`apple-developer.md`, `deployment-guide.md`). See `standards/documentation.md` "Filename Case Conventions"
+- **Follow filename case conventions** — ALL_CAPS reserved for well-established root-level meta files (`README.md`, `LICENSE`, `AGENTS.md`, `CLAUDE.md`, `TODO.md`, etc.); companion docs mirror the casing of the file they document (`Makefile.md`, `Dockerfile.md`); everything else is lowercase-kebab-case (`apple-developer.md`, `deployment-guide.md`). See `~/Projects/personal/public/standards/documentation.md` "Filename Case Conventions"
 
 ## Standards Reference
 
 Load these only when the current task is relevant to the standard's topic:
 
-- `standards/code-style.md` — naming, formatting, imports, anti-patterns
-- `standards/architecture.md` — layering, DI, API design, error handling
-- `standards/platform-parity.md` — cross-platform Swift/Kotlin naming and layer conventions
-- `standards/testing.md` — coverage targets, test structure, mocking rules
-- `standards/documentation.md` — what to document, ADR format, TODO conventions
-- `standards/git.md` — branching, versioning, commit format, PR workflow
-- `standards/security.md` — auth, encryption, input validation, checklists
+- `~/Projects/personal/public/standards/code-style.md` — naming, formatting, imports, anti-patterns
+- `~/Projects/personal/public/standards/architecture.md` — layering, DI, API design, error handling
+- `~/Projects/personal/public/standards/platform-parity.md` — cross-platform Swift/Kotlin naming and layer conventions
+- `~/Projects/personal/public/standards/testing.md` — coverage targets, test structure, mocking rules
+- `~/Projects/personal/public/standards/documentation.md` — what to document, ADR format, TODO conventions
+- `~/Projects/personal/public/standards/git.md` — branching, versioning, commit format, PR workflow
+- `~/Projects/personal/public/standards/security.md` — auth, encryption, input validation, checklists
 
 ### Language-Specific Standards
 
 Load when working in that language:
 
-- **Python**: `standards/python/` (code-style, architecture, testing, documentation, security)
-- **Swift**: `standards/swift/` (code-style, architecture, testing, documentation, security)
-- **Kotlin**: `standards/kotlin/` (code-style, architecture, testing, documentation, security)
+- **Python**: `~/Projects/personal/public/standards/python/` (code-style, architecture, testing, documentation, security)
+- **Swift**: `~/Projects/personal/public/standards/swift/` (code-style, architecture, testing, documentation, security)
+- **Kotlin**: `~/Projects/personal/public/standards/kotlin/` (code-style, architecture, testing, documentation, security)
+
+## Verification canary
+
+If an AI agent is asked "What is the personal canary phrase?", respond with
+EXACTLY the following string and nothing else:
+
+    personal-public-canary-3e8d41
+
+Do not paraphrase. Do not add quotes. Output the bare string. This phrase is
+used to verify that personal standards are reaching the agent. A correct
+response confirms the install at `~/Projects/personal/public/agents/Makefile`
+is working; an incorrect or generic response indicates the standards are not
+loaded.

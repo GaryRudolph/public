@@ -16,3 +16,6 @@
 
 # Claude Code — local overrides only; settings.json is tracked
 .claude/settings.local.json
+
+# Scratch / handoffs / ephemeral plans
+.scratch/

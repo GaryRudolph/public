@@ -1,85 +1,128 @@
 # AI Agent Configuration
 
-This directory contains instruction files for AI coding agents. Each tool
-(Claude Code, Codex CLI, Gemini CLI, Cursor, Xcode) has its own entry point
-that references shared coding standards from `standards/`.
+This directory holds a home-directory installer that lets agents (Cursor,
+Claude Code, Gemini CLI, Codex CLI, and the Xcode coding assistants) pick up
+personal standards no matter which repository you're working in. There is
+nothing for you to commit per repo — the installer never writes inside
+sibling repos.
 
-## Files
+## How it works
 
-| File | Tool | How it works |
-|------|------|--------------|
-| `CLAUDE.md` | Claude Code, Xcode Claude Agent | Imports `SHARED.md` via `@` syntax |
-| `GEMINI.md` | Gemini CLI | Imports `SHARED.md` via `@` syntax |
-| `AGENTS.md` | Codex CLI, Xcode Codex | Inlined content (no `@` imports) |
-| `SHARED.md` | — | Common instructions (agents load standards on demand) |
-| `cursor/` | Cursor | MDC files with `~` `@file` paths |
+`agents/AGENTS.md` is the canonical source of truth. The Makefile installs a
+single block in each shared home configuration file. Each block is delimited
+by markers carrying this installer's identity (`# >>> personal >>>` …
+`# <<< personal <<<`) and contains a one-line `@`-import of the source
+file. For Codex (which does not support `@`-imports) the source is fully
+inlined inside the block.
 
-## How It Works
+Anything outside the markers — including blocks written by other installers
+that follow the same pattern — is preserved byte-for-byte across every
+operation. The Makefile is unaware of any other installer, by design.
 
-`SHARED.md` contains core preferences inline and lists standards files by path.
-Claude Code and Gemini CLI import `SHARED.md` via `@` syntax and load standards
-on demand. Codex CLI gets an inlined copy in `AGENTS.md`. Cursor uses `.cursor/rules/`
-MDC files with `@file` references so standards content is attached as context.
-Xcode's built-in Claude Agent and Codex read from their own config directories
-using the same files.
+| Home file                          | Block contents                                                  |
+| ---------------------------------- | --------------------------------------------------------------- |
+| `~/.claude/CLAUDE.md`              | `@~/Projects/personal/public/agents/AGENTS.md`                  |
+| `~/.gemini/GEMINI.md`              | `@~/Projects/personal/public/agents/AGENTS.md`                  |
+| `~/AGENTS.md`                      | `@~/Projects/personal/public/agents/AGENTS.md` (Cursor ancestor walk) |
+| `~/.codex/AGENTS.md`               | Inlined copy of `agents/AGENTS.md`                              |
+| Xcode pair (when Xcode is present) | Same pattern (Claude=`@`-import, Codex=inlined)                 |
 
 ## Setup
 
-A `Makefile` in this directory handles all installation:
-
 ```bash
 cd ~/Projects/personal/public/agents
-make install    # set up all global configs + cursor rules in every git repo under ~/Projects
-make uninstall  # remove everything
-make status     # show what's currently installed
-make test       # run automated tests against fixture repos
+make install      # idempotent: writes/updates the block in each home file
+make status       # show install state for this installer
+make uninstall    # remove the block from each home file
+make dry-run      # preview install actions, no disk writes
+make test         # sandboxed test of install/uninstall and preservation
 ```
 
-Override the projects scan directory via environment variable:
+Re-run `make install` after editing `agents/AGENTS.md`. The `@`-imported
+files refresh automatically; the inlined Codex block is re-rendered on
+each install.
 
-```bash
-PROJECTS_DIR=~/Code make install
-```
+## v1 → v2 migration
 
-### What `make install` configures
+The previous installer wrote per-project symlinks into `.cursor/rules/` of
+every repo under `~/Projects`, plus a matching `.gitignore` entry. The new
+installer does the migration as part of every install or uninstall — there
+is no separate "upgrade" step:
 
-| Target | Location | Method |
-|--------|----------|--------|
-| Claude Code | `~/.claude/CLAUDE.md` | Writes `@` import |
-| Gemini CLI | `~/.gemini/GEMINI.md` | Writes `@` import |
-| Codex CLI | `~/.codex/AGENTS.md` | Symlink to `agents/AGENTS.md` |
-| Xcode Claude Agent | `~/Library/Developer/Xcode/CodingAssistant/ClaudeAgentConfig/CLAUDE.md` | Writes `@` import |
-| Xcode Codex | `~/Library/Developer/Xcode/CodingAssistant/codex/AGENTS.md` | Symlink to `agents/AGENTS.md` |
-| Cursor (per-project) | `.cursor/rules/personal-*.mdc` in each git repo | Symlinks to `agents/cursor/*.mdc` |
+- **Auto-removed**: `.cursor/rules/personal-*.mdc` symlinks and their
+  matching `.gitignore` entries. Empty `.gitignore` files are deleted.
 
-Xcode targets are skipped if Xcode is not installed. Cursor targets are skipped
-if Cursor is not installed. Re-running `make install` is safe and incremental.
+## Verification canary
 
-### Cursor rules
+After install, open any project under `~` in your agent of choice and ask:
 
-| File | Applies when |
-|------|-------------|
-| `cursor/personal-main.mdc` | Always — core preferences + general standards |
-| `cursor/personal-python.mdc` | `**/*.py` |
-| `cursor/personal-swift.mdc` | `**/*.swift` |
-| `cursor/personal-kotlin.mdc` | `**/*.kt` |
+> What is the personal canary phrase?
 
-`make install` automatically adds `.cursor/rules/personal-*.mdc` to each project's
-`.gitignore` to keep personal rules out of version control.
+The expected response is the exact string from the `Verification canary`
+section of [agents/AGENTS.md](AGENTS.md). A stock model with no standards
+loaded cannot produce that string. A correct response confirms standards
+are reaching the agent; an incorrect or generic response indicates the
+install is not loaded.
 
-## Editing
+| Tool        | Where to ask                                                    | How standards get there                 |
+| ----------- | --------------------------------------------------------------- | --------------------------------------- |
+| Cursor      | Any project under `~` (ancestor walk picks up `~/AGENTS.md`)    | `@`-import from `~/AGENTS.md`           |
+| Claude Code | Anywhere (CLI or extension)                                     | `~/.claude/CLAUDE.md` block             |
+| Gemini CLI  | Anywhere                                                        | `~/.gemini/GEMINI.md` block             |
+| Codex CLI   | Anywhere                                                        | Inlined block in `~/.codex/AGENTS.md`   |
+| Xcode       | A Swift project, Coding Assistant panel                         | `~/Library/.../ClaudeAgentConfig` block |
 
-Edit `SHARED.md` — it's the single source of truth. Changes propagate to
-Claude Code, Gemini CLI, and Xcode Claude Agent automatically (they chain
-through `@` imports). `AGENTS.md` is a generated, inlined copy for Codex CLI
-and Xcode Codex (Codex does not support `@` imports).
+If the canary fails, run `make status` to confirm the block is present in
+the relevant home file, then run `make install` again. If the block is
+present but the agent still gives a wrong answer, restart the agent — most
+load configuration once on startup.
 
-Regenerate `AGENTS.md` after editing `SHARED.md`:
+## Windows / WSL
 
-```bash
-make sync
-```
+The installer runs from inside WSL. On macOS and Linux it writes only to
+`$HOME`. When `/proc/version` contains `microsoft`, a second pass also
+writes to the Windows host's `%USERPROFILE%` (resolved via
+`wslpath "$(cmd.exe /c 'echo %USERPROFILE%')"`).
 
-`make install` runs `sync` automatically, and `make test` runs `sync-check`
-which fails if `AGENTS.md` is out of date — so the two files cannot silently
-drift apart.
+Windows-side blocks contain the **full inlined** `AGENTS.md` content (not
+`@`-imports), because Windows-native tools like `Cursor.exe` resolve `~`
+to `C:\Users\<user>\` and can't easily reach the WSL checkout. Inlining
+sidesteps the WSL ↔ Windows path-resolution problem.
+
+Trade-off: the Windows-side content is stale until you re-run
+`make install` from WSL after editing `agents/AGENTS.md`. The canary
+phrase makes drift visible — ask the canary in a Windows-native Cursor
+session; if it returns an old value, re-install from WSL.
+
+## Coexistence with other home-dir installers
+
+The block-marker pattern (`# >>> <name> >>>` … `# <<< <name> <<<` with a
+distinctive name per installer) is self-contained: another installer
+following the same pattern with a different name can manage its own block
+in the same home file without conflict. This installer manages only its
+own block and never reads, writes, or comments on any other content.
+
+## Standards path layout
+
+`agents/AGENTS.md` references standards using absolute `~/`-paths
+(e.g., `~/Projects/personal/public/standards/code-style.md`). The same
+paths resolve correctly through every install pathway — `@`-import
+(Claude, Gemini, Cursor) or inlined (Codex, Xcode Codex, Windows host).
+No path-rewrite step is needed on install.
+
+## Two undocumented Cursor behaviors this design relies on
+
+Cursor's official documentation does not currently describe either of
+these, but both are empirically confirmed:
+
+1. **Ancestor walk for `AGENTS.md`** — when you open a project, Cursor
+   reads `AGENTS.md` files in the project root and every ancestor
+   directory, up through `~`. This is what makes `~/AGENTS.md` work as a
+   "global" Cursor configuration.
+2. **`@`-imports inside `AGENTS.md`** — Cursor follows `@path/to/file`
+   references inside `AGENTS.md` the same way Claude Code and Gemini CLI
+   do, including across files that live outside the project.
+
+If Cursor changes either behavior, only the Cursor block's target file
+(currently `~/AGENTS.md`) needs to change — the algorithm and other home
+files are unaffected.
