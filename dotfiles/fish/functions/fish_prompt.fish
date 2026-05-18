@@ -8,7 +8,7 @@ function fish_prompt --description 'Three-line prompt: spacer, [time user@host:p
     string repeat -n $w ' '
     set_color normal
 
-    # --- Line 2: [HH:MM:SS user@host:pwd]  (mirrors zsh PS1) ------------------
+    # --- Line 2: [HH:MM:SS user@host:pwd]  (mirrors zsh PS1) -----------------
     printf '[%s ' (date +%H:%M:%S)
     set_color blue
     printf '%s' $USER
@@ -17,9 +17,10 @@ function fish_prompt --description 'Three-line prompt: spacer, [time user@host:p
     set_color green
     printf '%s' (prompt_hostname)
     set_color normal
-    printf ':%s]\n' (prompt_pwd)
+    printf ':%s' (prompt_pwd)
+    printf ']\n'
 
-    # --- Line 3: input line ---------------------------------------------------
+    # --- Line 3: input line --------------------------------------------------
     # Per-context indicator as a venv-style left prefix. Personal (and unset)
     # renders nothing so the default shell looks unchanged; other contexts get
     # a bright magenta `(ctx)` tag before the history index.

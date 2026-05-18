@@ -6,6 +6,19 @@ Some apps (Cursor, Claude Desktop, VS Code) tie a single login to a single licen
 
 ## Part 1: Using it
 
+### Which profiles exist today
+
+Only `agerpoint` (the one work context with its own paid Cursor/Claude
+account). The other project contexts in this dotfiles setup — `lolay`,
+`nowline`, `deskhound` — deliberately share the personal Cursor/Claude and
+do not get a launcher profile here. The smart `cursor` / `code` / `claude`
+wrappers in [`dotfiles/fish/conf.d/65-aliases.apps.fish`](../dotfiles/fish/conf.d/65-aliases.apps.fish)
+route any of those to the default app/config.
+
+If `nowline` or `deskhound` ever gets its own paid account, follow
+[Adding a new profile](#adding-a-new-profile) below — that's the only thing
+that has to change.
+
 ### What this gives you
 
 Up to three extra apps per profile (declared in the profile's `APPS=` list):

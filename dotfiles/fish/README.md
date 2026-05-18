@@ -133,6 +133,21 @@ The function lives in `private/dotfiles/fish/functions/loadenv.fish`; tab
 completion in `completions/loadenv.fish`. Both are made discoverable by the
 private `config.fish` extending `fish_function_path` and `fish_complete_path`.
 
+### `unloadenv <name>` — undo a `loadenv`
+
+`loadenv` records the keys it set in a per-load tracking variable. `unloadenv`
+reads that tracking variable and `set -e`s each key, so you only ever unset
+the vars this particular load contributed (other env stays untouched):
+
+```sh
+loadenv optimal       # sets SKYBOX_*, FASTIFY_*, POSTGRES_*, AUTH0_*
+unloadenv optimal     # clears exactly the vars `loadenv optimal` set
+```
+
+The per-context auto-switcher uses this internally to flip env state on `cd`,
+but `unloadenv` is also useful by hand when you want a clean shell without
+opening a new one.
+
 ### Caveats
 
 - **`${VAR}` interpolation** in dotenv values (e.g.
@@ -141,37 +156,78 @@ private `config.fish` extending `fish_function_path` and `fish_complete_path`.
   `docker-compose --env-file`) handle their own interpolation.
 - `set -gx` is per-session: closing the shell drops the vars. Different
   shell windows are independent.
-- No `unloadenv` — open a fresh shell, or `set -e VAR` manually.
 
-### Future: shared `loadenv` registry pattern
+## Per-context auto-switching
 
-Currently `loadenv` lives only in the private repo and its registry is a
-`switch` statement inside the function. If the public layer ever needs to
-register dotenv files of its own, refactor to a shared registry contributed
-to by both layers:
+The five "worlds" you live in are derived from your `~/Projects/` layout:
 
-```fish
-# public dotfiles/fish/conf.d/00-loadenv-registry.fish
-set -g loadenv_registry  # alternating name path entries
-function loadenv_register --description 'Register a dotenv file by short name'
-    set -a loadenv_registry $argv[1] $argv[2]
-end
-function loadenv --description 'Source a registered dotenv into THIS shell only'
-    # ... look up $argv[1] in $loadenv_registry, parse, set -gx ...
-end
-```
+| Tree                       | Context     |
+| -------------------------- | ----------- |
+| anywhere else              | `personal`  |
+| `~/Projects/lolay/`        | `lolay`     |
+| `~/Projects/agerpoint/`    | `agerpoint` |
+| `~/Projects/nowline/`      | `nowline`   |
+| `~/Projects/deskhound/`    | `deskhound` |
 
-```fish
-# private/dotfiles/fish/conf.d/loadenv-private.fish
-loadenv_register optimal                "$HOME/Projects/personal/private/dotfiles/optimal-env"
-loadenv_register flipseats-ios          "$HOME/Projects/personal/private/dotfiles/flipseats/mobile-ios.env.default"
-loadenv_register flipseats-android      "$HOME/Projects/personal/private/dotfiles/flipseats/mobile-android.env.default"
-loadenv_register flipseats-certificates "$HOME/Projects/personal/private/dotfiles/flipseats/mobile-certificates.env.default"
-```
+Whenever `PWD` changes, a fish event handler computes the new context, undoes
+whatever the previous context applied (markers + loadenvs), then applies the
+new one. The active name lives in `$__active_context` and shows up in the
+prompt and window title for any non-personal context.
 
-Tab completion still reads `$loadenv_registry` from a single place. Refactor
-only when public actually needs to register entries; until then, the private
-repo's `switch`-based form is simpler.
+Mechanism (public side, [`conf.d/80-context.fish`](conf.d/80-context.fish)):
+
+- `_context_from_path <p>` — directory → context name
+- `context_register <name> --markers K=v ... --loadenv name1 ...` — registry helper
+- `_context_apply` / `_context_unapply` — flip env state for a context
+- `__context_on_pwd_changed` — `--on-variable PWD` handler that drives it all
+- `__context_init_active` — one-shot init called by the registry after declarations
+- [`functions/context.fish`](functions/context.fish) — `context` CLI:
+  `context [current|show <name>|reload|list]`
+- [`functions/_context_from_argv.fish`](functions/_context_from_argv.fish) —
+  shared helper used by the smart `cursor` / `code` / `claude` wrappers below
+
+Registry (private side, `fish-private/conf.d/context-registry.fish`) declares
+what each context wants. Each `context_register` call takes two kinds of values:
+
+- **`--markers`** — non-secret env vars that say "you're in `<ctx>`":
+  `CLOUDSDK_CONFIG`, `AWS_PROFILE`, `CLAUDE_CONFIG_DIR`, ... Set automatically
+  on cd; unset when you leave.
+- **`--loadenv`** — short names of private dotenv files to source (see the
+  `loadenv` registry above). Files live at
+  `~/Projects/personal/private/dotfiles/<ctx>/<thing>.env` and short names
+  follow `<thing>-<context>` (`firebase-nowline`, `gcp-agerpoint`, `aws-lolay`).
+
+### One-time per-context bootstrapping
+
+- **gcloud**: run once per context with the right `CLOUDSDK_CONFIG`:
+  ```sh
+  env CLOUDSDK_CONFIG=$HOME/.config/gcloud-agerpoint  gcloud auth login
+  env CLOUDSDK_CONFIG=$HOME/.config/gcloud-nowline    gcloud auth login
+  env CLOUDSDK_CONFIG=$HOME/.config/gcloud-deskhound  gcloud auth login
+  ```
+- **Firebase**: in each context's Firebase account, run `firebase login:ci`,
+  copy the printed token into `~/Projects/personal/private/dotfiles/<ctx>/firebase.env`
+  as `export FIREBASE_TOKEN=...`, then `context reload` (or open a new shell).
+- **AWS**: add one `[profile <ctx>]` stanza per context to `~/.aws/credentials`.
+
+## Smart `cursor` / `code` / `claude`
+
+Bare `cursor .` / `code .` / `claude .` are path-aware wrappers (see
+[`conf.d/65-aliases.apps.fish`](conf.d/65-aliases.apps.fish)). They derive a
+context from the first path-like argument — or pwd if none — via
+`_context_from_argv`, and route:
+
+- **agerpoint** → `Cursor AP.app` / `Visual Studio Code AP.app` / `~/.claude-agerpoint`
+- **everything else** → the bare `cursor` / `code` / `claude` (personal account)
+
+This means `cd ~/Projects/agerpoint/bok && cursor .` opens the agerpoint
+Cursor, and `cursor ~/Projects/agerpoint/bok` from anywhere does the same.
+Personal, lolay, nowline, and deskhound all share the personal Cursor/Claude
+because that's where you live most of the time.
+
+The explicit `cursor-agerpoint` / `code-agerpoint` / `claude-agerpoint`
+functions stay around for when you want to force agerpoint from outside its
+tree without typing the path.
 
 ## Notes on the port
 
