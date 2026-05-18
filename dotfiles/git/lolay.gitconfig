@@ -1,0 +1,9 @@
+# Loaded for repos under ~/Projects/lolay/ via includeIf in the base gitconfig.
+# Today: just stamps the right commit email. SSH still uses the shared key.
+#
+# To split lolay onto its own SSH key later, add here:
+#   [url "git@github.com-lolay:"]
+#       insteadOf = git@github.com:
+# ...and a matching `Host github.com-lolay` stanza in ~/.ssh/config.
+[user]
+	email = gary@lolay.com

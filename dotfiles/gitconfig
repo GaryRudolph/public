@@ -12,3 +12,15 @@
 	smudge = git-lfs smudge -- %f
 	process = git-lfs filter-process
 	required = true
+
+# Per-context identity overrides. Anything under one of these trees uses the
+# matching fragment in ~/.config/git/ (managed by `make link-git` in this repo).
+# Anything else keeps the personal identity set above.
+[includeIf "gitdir:~/Projects/lolay/"]
+	path = ~/.config/git/lolay.gitconfig
+[includeIf "gitdir:~/Projects/agerpoint/"]
+	path = ~/.config/git/agerpoint.gitconfig
+[includeIf "gitdir:~/Projects/nowline/"]
+	path = ~/.config/git/nowline.gitconfig
+[includeIf "gitdir:~/Projects/deskhound/"]
+	path = ~/.config/git/deskhound.gitconfig
