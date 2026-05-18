@@ -1,4 +1,4 @@
-function fish_prompt --description 'Three-line prompt: spacer, [time user@host:pwd], [hist]'
+function fish_prompt --description 'Three-line prompt: spacer, [time user@host:pwd], (ctx?) [hist]'
     # --- Line 1: full-width underlined spacer (separates output from prompt) ---
     set -l w $COLUMNS
     test -z "$w"; and set w (command tput cols 2>/dev/null)
@@ -20,5 +20,13 @@ function fish_prompt --description 'Three-line prompt: spacer, [time user@host:p
     printf ':%s]\n' (prompt_pwd)
 
     # --- Line 3: input line ---------------------------------------------------
+    # Per-context indicator as a venv-style left prefix. Personal (and unset)
+    # renders nothing so the default shell looks unchanged; other contexts get
+    # a bright magenta `(ctx)` tag before the history index.
+    if test -n "$__active_context"; and test "$__active_context" != personal
+        set_color --bold magenta
+        printf '(%s) ' $__active_context
+        set_color normal
+    end
     printf '[%s] ' (_fish_histnum)
 end

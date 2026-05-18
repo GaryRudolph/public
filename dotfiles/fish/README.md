@@ -19,8 +19,8 @@ dotfiles/fish/
     60-aliases.fish    # ls/dir/l (uname-aware), ssh wrapper, git, macOS shortcuts
     70-history.fish    # placeholder for HISTORY_IGNORE-style scrub
   functions/
-    fish_prompt.fish           # 3 lines: spacer → context → [hist] >
-    fish_title.fish            # window title: argv when running, context+[hist] when idle
+    fish_prompt.fish           # 3 lines: spacer → [time user@host:pwd] → (ctx?) [hist] >
+    fish_title.fish            # window title: argv when running, user@host:pwd (ctx?) [hist] when idle
     _fish_prompt_context.fish  # user@host:pwd, shared by prompt and title
     _fish_histnum.fish         # best-effort approximation of zsh %!
     xman.fish                  # `xman ls` → opens man page in macOS viewer
@@ -177,9 +177,11 @@ repo's `switch`-based form is simpler.
 
 This config is the fish translation of `dotfiles/zshrc`. Notable choices:
 
-- **Prompt** is three lines (spacer / context / `[n] >`) — same spirit as the
-  zsh `PS1` but built around `string repeat`, `set_color`, `prompt_pwd`, and
-  a best-effort `_fish_histnum` (fish has no exact `%!`).
+- **Prompt** is three lines (underlined spacer / `[HH:MM:SS user@host:pwd]` /
+  `(ctx?) [n] >`) — same spirit as the zsh `PS1` but built around
+  `string repeat`, `set_color`, `prompt_pwd`, and a best-effort
+  `_fish_histnum` (fish has no exact `%!`). The active project context (when
+  non-personal) renders as a venv-style `(ctx)` left prefix on the input line.
 - **Window title** is handled by `fish_title`, replacing the zsh
   `precmd`/`preexec` xterm escapes.
 - **PATH** uses `fish_add_path -gP …` (auto-dedupes; replaces
