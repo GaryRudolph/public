@@ -4,7 +4,7 @@
 [credential "https://source.developers.google.com"]
 	helper = gcloud.sh
 [http]
-	cookiefile = /Users/gary/.gitcookies
+	cookiefile = ~/.gitcookies
 [diff]
 	colorMoved = zebra
 [filter "lfs"]
