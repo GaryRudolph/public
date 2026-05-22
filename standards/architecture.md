@@ -7,6 +7,19 @@
 - **Separation of concerns** — business logic separate from presentation; data access separate from business logic; configuration separate from code
 - **Keep things consistent** - it's better to be consistent, even if it's less than ideal, than have 5 different variants
 
+## Starting New Projects
+
+When scaffolding a new project, repo, package, or service, start on current versions — not whatever your training data or muscle memory suggests.
+
+- **Check current versions before pinning** — for every language, runtime, framework, SDK, API, build tool, and library, look up the latest stable release. Use WebSearch, official release notes, and registry tools (`npm view <pkg> version`, `pip index versions <pkg>`, `gem outdated`, `cargo search`, GitHub releases, vendor changelogs). Agent training data is routinely 6–24 months stale; verify, don't guess.
+- **Pin to the latest stable** — not pre-release, beta, RC, or nightly. Use a pre-release only with a documented reason (e.g., a required feature, framework lifecycle, ecosystem maturity).
+- **"Boring" applies to the choice, not the version** — "prefer boring technology" means picking proven *stacks* (React, Django, FastAPI, Spring, Postgres, Rails), not stale *versions*. Pick the boring stack, then start it on its latest stable release.
+- **Record the version baseline** — capture the chosen versions in the obvious place (`package.json`, `pyproject.toml`, `Gemfile`, `go.mod`, `.tool-versions`, `Dockerfile` base image, `README` "Requirements" section). Future upgrades need a clear starting point.
+- **Re-check on every new repo** — versions move fast. Don't copy a stack snapshot from a six-month-old sibling project; re-verify each time.
+- **Check end-of-life dates** — avoid pinning to a runtime or framework version that's within ~6 months of EOL (e.g., Node LTS schedule, Python's status page, framework support matrices).
+
+Does not apply to existing repos — established projects follow their own upgrade cadence and version policy (see [versioning.md](versioning.md)).
+
 ## Layered Architecture
 
 ```
