@@ -190,8 +190,14 @@ Registry (private side, `fish-private/conf.d/context-registry.fish`) declares
 what each context wants. Each `context_register` call takes two kinds of values:
 
 - **`--markers`** — non-secret env vars that say "you're in `<ctx>`":
-  `CLOUDSDK_CONFIG`, `AWS_PROFILE`, `CLAUDE_CONFIG_DIR`, ... Set automatically
-  on cd; unset when you leave.
+  `CLOUDSDK_CONFIG`, `GOOGLE_APPLICATION_CREDENTIALS`, `AWS_PROFILE`,
+  `CLAUDE_CONFIG_DIR`, ... Set automatically on cd; unset when you leave.
+  `GOOGLE_APPLICATION_CREDENTIALS` is set alongside `CLOUDSDK_CONFIG` because
+  some Google SDK clients (notably the Terraform `google` / `google-beta`
+  providers) ignore the active `gcloud` config and only honor ADC at
+  `$GOOGLE_APPLICATION_CREDENTIALS`. Point it at
+  `<CLOUDSDK_CONFIG>/application_default_credentials.json` so per-tenant
+  `gcloud auth application-default login` keeps working with Terraform.
 - **`--loadenv`** — short names of private dotenv files to source (see the
   `loadenv` registry above). Files live at
   `~/Projects/personal/private/dotfiles/<ctx>/<thing>.env` and short names
@@ -199,11 +205,14 @@ what each context wants. Each `context_register` call takes two kinds of values:
 
 ### One-time per-context bootstrapping
 
-- **gcloud**: run once per context with the right `CLOUDSDK_CONFIG`:
+- **gcloud**: run once per context with the right `CLOUDSDK_CONFIG`. Do both
+  the regular login (for `gcloud` CLI) and the application-default login (for
+  SDK clients / Terraform, which read `GOOGLE_APPLICATION_CREDENTIALS`):
   ```sh
-  env CLOUDSDK_CONFIG=$HOME/.config/gcloud-agerpoint  gcloud auth login
-  env CLOUDSDK_CONFIG=$HOME/.config/gcloud-nowline    gcloud auth login
-  env CLOUDSDK_CONFIG=$HOME/.config/gcloud-deskhound  gcloud auth login
+  for ctx in agerpoint nowline deskhound
+      env CLOUDSDK_CONFIG=$HOME/.config/gcloud-$ctx gcloud auth login
+      env CLOUDSDK_CONFIG=$HOME/.config/gcloud-$ctx gcloud auth application-default login
+  end
   ```
 - **Firebase**: in each context's Firebase account, run `firebase login:ci`,
   copy the printed token into `~/Projects/personal/private/dotfiles/<ctx>/firebase.env`
