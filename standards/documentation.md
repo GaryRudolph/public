@@ -84,6 +84,34 @@ When a milestone's plan has ordered steps, prefix them `s{N}` (lowercase). Step 
 
 Reserve plain "step" prose for procedural steps in user-facing docs (onboarding flows, tutorials, algorithm walk-throughs) — not for plan execution.
 
+### Model-tier stop points
+
+Plans are executed by agents of different cost and capability. To make the most of both, tag every milestone and every step with one of two tiers:
+
+- `[deep]` — needs a top-tier reasoning model. Use for architecture and design decisions, ambiguous requirements, non-obvious debugging, security-sensitive review, library/stack trade-offs, and anywhere the cost of getting it wrong is high.
+- `[exec]` — well-specified, mechanical work. Use for applying a decided design across many files, refactors with a clear target, renames, scaffolding tests for already-designed behavior, formatting/lint, doc updates, and well-bounded ports.
+
+Tag the heading itself, after the title:
+
+    ### m3 - Search UI [deep]
+    #### s1 - Decide debounce strategy [deep]
+    #### s2 - Wire search results to view model [exec]
+    #### s3 - Add tests for search reducer [exec]
+
+Stop and hand control back to the user at every boundary where the tag changes (`[deep]` -> `[exec]` or vice versa). The user can then keep the same model, swap models, or delegate to a subagent before continuing.
+
+The tiers are intentionally model-agnostic; specific model names (Opus, GPT-5, Sonnet, Composer, Haiku, etc.) change too often to bake into the spec. Map tiers to whichever current model is the right capability/cost for that tier.
+
+### Delegating execution to subagents
+
+When a `[deep]` agent finishes a deep step and the next step is `[exec]`, prefer delegating the `[exec]` step to a subagent on a smaller model rather than burning the deep context on mechanical work.
+
+- Use the harness's subagent/Task tool (Cursor `Task` with `subagent_type` and optional `model`; Claude Code `Task`; other harnesses use the equivalent).
+- Pass the cheapest model that can plausibly complete the step. Only step up if the subagent fails or returns low-quality output.
+- Give the subagent: the spec section, the exact files to touch, acceptance criteria, and a hard scope limit. Subagents do not see the parent conversation, so be explicit.
+- The deep parent stays responsible for reviewing the subagent's output and deciding the next stop point.
+- If the harness does not support per-subagent model selection, stop at the boundary instead and let the user start a fresh session on a cheaper model.
+
 ### Handoffs between milestones
 
 When work transitions from one milestone to the next (m{N} → m{N+1}), the agent finishing m{N} writes a handoff file to `{project-root}/specs/handoffs/handoff-m{N+1}-{topic}.md` describing:
