@@ -80,3 +80,16 @@ end
 # --- pnpm ---------------------------------------------------------------------
 set -gx PNPM_HOME "$HOME/Library/pnpm"
 test -d "$PNPM_HOME"; and fish_add_path -gP "$PNPM_HOME"
+
+# --- OrbStack (Docker / Kubernetes / Linux VMs) -------------------------------
+# OrbStack ships its own `docker`, `kubectl`, `orbctl` binaries in ~/.orbstack
+# and fish completions inside the app bundle. We bypass OrbStack's installer
+# append (which sources a generated ~/.orbstack/shell/init2.fish with a
+# hardcoded /Users/<name> path) so this stays portable across machines.
+set -l _orbstack "$HOME/.orbstack"
+if test -d "$_orbstack"
+    fish_add_path -aP "$_orbstack/bin"
+end
+
+set -l _orbstack_completions "/Applications/OrbStack.app/Contents/Resources/completions/fish"
+test -d "$_orbstack_completions"; and set -p fish_complete_path "$_orbstack_completions"
