@@ -52,12 +52,10 @@ by other orgs (e.g., `agerpoint-*`).
 | Name                            | Kind    | Description                                                       |
 | ------------------------------- | ------- | ----------------------------------------------------------------- |
 | `personal-plan-model-tiers`     | skill   | Tag plan steps as `[deep]`/`[exec]` and insert STOP markers at tier boundaries |
-| `personal-plan-model-tiers`     | command | Claude Code `/personal-plan-model-tiers` typeahead handle to the skill |
 
 ### Adding or removing extensions
 
-- **Add**: create `agents/skills/personal-<name>/SKILL.md` (and optionally
-  `agents/commands/personal-<name>.md`), then run `make install`.
+- **Add**: create `agents/skills/personal-<name>/SKILL.md`, then run `make install`.
 - **Remove**: delete the source folder/file, then run `make install`. The
   orphan-cleanup pass removes the stale symlinks automatically.
 - **Full details**: see [skills/README.md](skills/README.md).

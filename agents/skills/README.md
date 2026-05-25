@@ -66,9 +66,7 @@ This assumption is analogous to the two undocumented Cursor behaviors noted in
 
 1. Create `agents/skills/personal-<name>/SKILL.md` with frontmatter `name` and
    `description`. Name must be `personal-` prefixed, lowercase, hyphens only.
-2. Optionally add `agents/commands/personal-<name>.md` for Claude Code `/`
-   typeahead.
-3. Run `make install` — symlinks appear automatically.
+2. Run `make install` — symlinks appear automatically.
 4. Run `make uninstall` then `make install` to test the round-trip.
 
 ## Removing a skill
@@ -81,4 +79,3 @@ cleanup pass removes the symlinks.
 | Name                          | Kind    | Description                                             |
 | ----------------------------- | ------- | ------------------------------------------------------- |
 | `personal-plan-model-tiers`   | skill   | Tag plan steps as [deep] or [exec] and insert STOP markers at tier boundaries |
-| `personal-plan-model-tiers`   | command | Claude Code `/personal-plan-model-tiers` typeahead handle to the skill |
