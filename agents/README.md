@@ -27,14 +27,57 @@ operation. The Makefile is unaware of any other installer, by design.
 | `~/.codex/AGENTS.md`               | Inlined copy of `agents/AGENTS.md`                              |
 | Xcode pair (when Xcode is present) | Same pattern (Claude=`@`-import, Codex=inlined)                 |
 
+## Extensions (skills and commands)
+
+`make install` also manages agent extensions — skills and slash commands — via
+symlinks from harness-specific home directories back to source files in this
+repo. Extensions are sourced from `agents/skills/` (one folder per skill) and
+`agents/commands/` (one `*.md` per command).
+
+| Source (this repo)                          | Home symlink                              | Harness                  |
+| ------------------------------------------- | ----------------------------------------- | ------------------------ |
+| `agents/skills/<name>/`                     | `~/.cursor/skills/<name>`                 | Cursor                   |
+| `agents/skills/<name>/`                     | `~/.claude/skills/<name>`                 | Claude Code              |
+| `agents/commands/<name>.md`                 | `~/.claude/commands/<name>.md`            | Claude Code (`/` typeahead) |
+
+Codex CLI and Gemini CLI have no skills/commands system; they are covered by
+the AGENTS.md bullet that references these extensions by name.
+
+All managed extensions are prefixed `personal-` to match the installer's
+`ORG=personal` identity and to stay visually distinct from extensions installed
+by other orgs (e.g., `agerpoint-*`).
+
+### Currently managed extensions
+
+| Name                            | Kind    | Description                                                       |
+| ------------------------------- | ------- | ----------------------------------------------------------------- |
+| `personal-plan-model-tiers`     | skill   | Tag plan steps as `[deep]`/`[exec]` and insert STOP markers at tier boundaries |
+| `personal-plan-model-tiers`     | command | Claude Code `/personal-plan-model-tiers` typeahead handle to the skill |
+
+### Adding or removing extensions
+
+- **Add**: create `agents/skills/personal-<name>/SKILL.md` (and optionally
+  `agents/commands/personal-<name>.md`), then run `make install`.
+- **Remove**: delete the source folder/file, then run `make install`. The
+  orphan-cleanup pass removes the stale symlinks automatically.
+- **Full details**: see [skills/README.md](skills/README.md).
+
+### Empirical assumption
+
+Both Cursor and Claude Code follow symlinks when scanning their skills and
+commands directories. This is not explicitly documented by either vendor but is
+empirically confirmed. The same posture applies here as for the two undocumented
+Cursor behaviors described below: if a vendor changes this, only the install
+mechanic changes — the source files in this repo are unaffected.
+
 ## Setup
 
 ```bash
 cd ~/Projects/personal/public/agents
-make install      # idempotent: writes/updates the block in each home file
-make status       # show install state for this installer
-make uninstall    # remove the block from each home file
-make dry-run      # preview install actions, no disk writes
+make install      # idempotent: writes/updates blocks + installs extension symlinks
+make status       # show install state for blocks and extensions
+make uninstall    # remove blocks and extension symlinks
+make dry-run      # preview all install actions, no disk writes
 make test         # sandboxed test of install/uninstall and preservation
 ```
 

@@ -4,10 +4,13 @@ SHELL := /bin/bash
 # ---------------------------------------------------------------------------
 # Identity
 # ---------------------------------------------------------------------------
-# This installer manages a single delimited block per shared home file. The
-# block is keyed by $(ORG). Anything outside the block — including blocks
-# written by other installers using their own $(ORG) values — is preserved
-# byte-for-byte through every operation.
+# This installer manages two things:
+#   1. A single delimited block per shared home file (lib/blocks.sh).
+#      The block is keyed by $(ORG). Anything outside the block — including
+#      blocks written by other installers using their own $(ORG) values — is
+#      preserved byte-for-byte through every operation.
+#   2. Symlinks for agent extensions (skills + slash commands) in the
+#      harness-specific home directories (lib/extensions.sh).
 
 ORG               ?= personal
 AGENTS_DIR        ?= $(CURDIR)
@@ -63,7 +66,28 @@ TEST_ENV = \
     LEGACY_GITIGNORE_CURSOR="$(LEGACY_GITIGNORE_CURSOR)" \
     LEGACY_CURSOR_GLOB="$(LEGACY_CURSOR_GLOB)"
 
-.PHONY: help install uninstall dry-run status test clean-test
+# ---------------------------------------------------------------------------
+# Env passed to lib/extensions.sh
+# ---------------------------------------------------------------------------
+
+SKILLS_SRC            ?= $(AGENTS_DIR)/skills
+COMMANDS_SRC          ?= $(AGENTS_DIR)/commands
+CURSOR_SKILLS_HOME    ?= $(HOME)/.cursor/skills
+CLAUDE_SKILLS_HOME    ?= $(CLAUDE_HOME)/skills
+CLAUDE_COMMANDS_HOME  ?= $(CLAUDE_HOME)/commands
+
+EXTENSIONS_ENV = \
+    ORG="$(ORG)" \
+    AGENTS_DIR="$(AGENTS_DIR)" \
+    SKILLS_SRC="$(SKILLS_SRC)" \
+    COMMANDS_SRC="$(COMMANDS_SRC)" \
+    CURSOR_SKILLS_HOME="$(CURSOR_SKILLS_HOME)" \
+    CLAUDE_SKILLS_HOME="$(CLAUDE_SKILLS_HOME)" \
+    CLAUDE_COMMANDS_HOME="$(CLAUDE_COMMANDS_HOME)"
+
+.PHONY: help install uninstall dry-run status test clean-test \
+        install-blocks uninstall-blocks dry-run-blocks status-blocks \
+        install-extensions uninstall-extensions dry-run-extensions status-extensions
 
 # ---------------------------------------------------------------------------
 # help (default target)
@@ -75,12 +99,15 @@ help:
 	@echo "Usage: make <target>"
 	@echo ""
 	@echo "Targets:"
-	@echo "  install      Write/update the $(ORG) block in each home file (also runs v1 cleanup)"
-	@echo "  uninstall    Remove the $(ORG) block from each home file (also runs v1 cleanup)"
-	@echo "  dry-run      Preview install actions (no disk writes)"
-	@echo "  status       Report install state for this installer only"
+	@echo "  install      Write/update blocks + install extension symlinks"
+	@echo "  uninstall    Remove blocks + remove extension symlinks"
+	@echo "  dry-run      Preview all install actions (no disk writes)"
+	@echo "  status       Report install state for blocks and extensions"
 	@echo "  test         Sandboxed test of install/uninstall + preservation property"
 	@echo "  clean-test   Remove build/ test scratch dir"
+	@echo ""
+	@echo "  install-blocks      Blocks only (AGENTS.md fan-out)"
+	@echo "  install-extensions  Extension symlinks only (skills + commands)"
 	@echo ""
 	@echo "Overridable variables (defaults shown):"
 	@echo "  PROJECTS_DIR=$(PROJECTS_DIR)"
@@ -88,6 +115,9 @@ help:
 	@echo "  GEMINI_HOME=$(GEMINI_HOME)"
 	@echo "  CODEX_HOME=$(CODEX_HOME)"
 	@echo "  CURSOR_GLOBAL_FILE=$(CURSOR_GLOBAL_FILE)"
+	@echo "  CURSOR_SKILLS_HOME=$(CURSOR_SKILLS_HOME)"
+	@echo "  CLAUDE_SKILLS_HOME=$(CLAUDE_SKILLS_HOME)"
+	@echo "  CLAUDE_COMMANDS_HOME=$(CLAUDE_COMMANDS_HOME)"
 	@echo "  WIN_HOME=$(WIN_HOME)   (auto-detected under WSL)"
 	@echo ""
 	@echo "After install, verify by asking any agent:"
@@ -97,20 +127,48 @@ help:
 	@echo "See agents/README.md for full documentation."
 
 # ---------------------------------------------------------------------------
-# install / uninstall / dry-run / status
+# Composed top-level targets
 # ---------------------------------------------------------------------------
 
-install:
+install: install-blocks install-extensions
+
+uninstall: uninstall-extensions uninstall-blocks
+
+dry-run: dry-run-blocks dry-run-extensions
+
+status: status-blocks status-extensions
+
+# ---------------------------------------------------------------------------
+# Blocks (AGENTS.md fan-out)
+# ---------------------------------------------------------------------------
+
+install-blocks:
 	@$(BLOCKS_ENV) bash "$(AGENTS_DIR)/lib/blocks.sh" install
 
-uninstall:
+uninstall-blocks:
 	@$(BLOCKS_ENV) bash "$(AGENTS_DIR)/lib/blocks.sh" uninstall
 
-dry-run:
+dry-run-blocks:
 	@$(BLOCKS_ENV) bash "$(AGENTS_DIR)/lib/blocks.sh" dry-run
 
-status:
+status-blocks:
 	@$(BLOCKS_ENV) bash "$(AGENTS_DIR)/lib/blocks.sh" status
+
+# ---------------------------------------------------------------------------
+# Extensions (skills + slash commands)
+# ---------------------------------------------------------------------------
+
+install-extensions:
+	@$(EXTENSIONS_ENV) bash "$(AGENTS_DIR)/lib/extensions.sh" install
+
+uninstall-extensions:
+	@$(EXTENSIONS_ENV) bash "$(AGENTS_DIR)/lib/extensions.sh" uninstall
+
+dry-run-extensions:
+	@$(EXTENSIONS_ENV) bash "$(AGENTS_DIR)/lib/extensions.sh" dry-run
+
+status-extensions:
+	@$(EXTENSIONS_ENV) bash "$(AGENTS_DIR)/lib/extensions.sh" status
 
 # ---------------------------------------------------------------------------
 # test
