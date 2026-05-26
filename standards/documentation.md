@@ -228,6 +228,81 @@ Rules for filling in the template:
 - Use `->` ASCII arrows rather than Unicode em-dash arrows so the marker is safe in terminals and grep.
 - If the next group is a `[deep]` block being delegated to a parent, the prompt should say "design only, do not implement"; if it's `[exec]` or `[fast]`, the prompt should say "implement <next group>, stop at next STOP marker."
 
+#### Kickoff template
+
+A Kickoff block tells the next agent how to **start** executing a tagged plan: which model to run on and what prompt to paste. Same shape as a STOP marker, but emitted once at the top of the plan file rather than at each tier transition. Every plan that has been processed by `personal-plan-model-tiers` or `personal-plan-orchestrate` should carry exactly one Kickoff block at the top.
+
+Placement and idempotence:
+
+- The skill writes the Kickoff block at the **top of the plan file**, above the first heading, inside a fenced code block so it pastes cleanly.
+- The block is idempotent: if a Kickoff block already exists at the top of the file (matching the marker line `--- KICKOFF: ... ---`), the skill **replaces** it with the appropriate variant rather than appending. A plan never carries more than one Kickoff block.
+- Skills must not modify any other content in the plan when writing the Kickoff. Tagging rules, STOP markers, and existing prose all stay where they are.
+
+Ask-user rule (after writing the Kickoff):
+
+> Continue execution in this chat, or hand off to a new chat for clean context? (default: new chat)
+
+Treat any non-affirmative answer (silence, dismissal, ambiguous reply) as **new chat**. On new chat, halt and let the user copy the Kickoff into a fresh session. On current chat, continue per the skill's procedure.
+
+Two variants. The **passive** variant (used by `personal-plan-model-tiers`) picks the model from the first tagged group's tier; the **active** variant (used by `personal-plan-orchestrate`) is always Opus xhigh because the orchestrator-parent always runs at `[deep]`.
+
+Passive variant — `[exec]` first wave (the most common shape):
+
+    --- KICKOFF: begin execution at [exec] ---
+
+      Next model
+        Cursor:      claude-4.6-sonnet-medium-thinking   (or gpt-5.5-medium)
+        Claude Code: /model sonnet                       (extended thinking: medium)
+
+      Prompt to paste into the next chat:
+        Read .scratch/plan-<topic>-<word>.md. Begin execution at the top
+        of the plan. Stop at the next STOP marker and report back what
+        you changed and any deviations from the plan.
+
+    ---
+
+Passive variant — `[fast]` first wave (prompt body adds the "no refactor" reminder):
+
+    --- KICKOFF: begin execution at [fast] ---
+
+      Next model
+        Cursor:      composer-2.5-fast
+        Claude Code: /model haiku                        (no extended thinking)
+
+      Prompt to paste into the next chat:
+        Read .scratch/plan-<topic>-<word>.md. Begin execution at the top
+        of the plan. These are mechanical edits -- apply exactly what the
+        plan specifies; do not refactor, rename, or generalize. Stop at
+        the next STOP marker and report back.
+
+    ---
+
+For a `[deep]` first wave, use the same body as the `[exec]` example with the `[deep]` model row from the [Model picker](#model-picker) above (`claude-opus-4-7-thinking-xhigh` / `/model opus` xhigh).
+
+Active variant — orchestrate (always `[deep]` / Opus xhigh):
+
+    --- KICKOFF: begin orchestration at [deep] ---
+
+      Next model
+        Cursor:      claude-opus-4-7-thinking-xhigh      (or gpt-5.3-codex)
+        Claude Code: /model opus                         (extended thinking: xhigh)
+
+      Prompt to paste into the next chat:
+        Read .scratch/plan-<topic>-<word>.md. The plan is already tagged.
+        Run the personal-plan-orchestrate skill from the top: walk to
+        each tier boundary, dispatch Task subagents per the skill's
+        procedure, and pause only at the mandatory STOP gates. Do not
+        execute plan work inline.
+
+    ---
+
+Rules for filling in the template:
+
+- Substitute the actual plan filename (resolved when the plan is identified).
+- For the passive variant, the `<tier>` is the **first executable tier** in the plan — the first heading carrying a `[deep]` / `[exec]` / `[fast]` tag, walking top-down. Higher-level grouping headings (milestones, phases) are untagged and ignored, per [Tag placement](#tag-placement). Use the tier value **after** the no-thrash promotion pass, so a `[fast]` step that gets promoted to `[exec]` is reflected as `[exec]` in the Kickoff.
+- For the active variant, the model is **always** `claude-opus-4-7-thinking-xhigh` / `/model opus` xhigh, regardless of what the first wave's tier is. The orchestrator-parent always runs at `[deep]`.
+- Use `->` ASCII arrows rather than Unicode em-dash arrows so the marker is safe in terminals and grep.
+
 ### Delegating execution to subagents
 
 When a `[deep]` agent finishes a deep step and the next step is `[exec]` or `[fast]`, prefer delegating the next group to a subagent on a smaller model rather than burning the deep context on mechanical work.

@@ -71,10 +71,49 @@ include:
 
 Use `->` ASCII arrows in the marker so it stays safe in terminals and grep.
 
-### 5. Output and halt
+### 5. Write the Kickoff block to the top of the plan file
 
-Print the full re-tagged plan with STOP markers in place. Do not begin
-executing any step. Stop at the first STOP marker and wait for the user.
+Use the **passive** variant of the Kickoff template from the standards
+section (`§"Model-tier stop points" → "Kickoff template"`). Fill it in:
+
+- `<tier>` is the **first executable tier** in the plan after the
+  no-thrash promotion pass — i.e. the tier on the first tagged heading,
+  walking top-down. Higher-level grouping headings (milestones, phases)
+  are untagged and ignored.
+- The "Next model" rows come from the model picker in the same standards
+  section. Include both Cursor and Claude Code rows.
+- The prompt body references the resolved plan filename from step 1 and
+  uses the matching body for the tier (the `[fast]` body adds the
+  "mechanical edits, do not refactor" reminder; `[deep]` and `[exec]`
+  use the standard body).
+
+Write the resulting block at the top of the plan file, above the first
+heading, inside a fenced code block. The Kickoff block is **idempotent**:
+if a Kickoff block already exists at the top of the file (any line
+matching `--- KICKOFF: ... ---`), replace it with the appropriate
+variant rather than appending. A plan never carries more than one
+Kickoff block. Do not modify any other content in the plan.
+
+### 6. Ask the user where to execute
+
+After writing the Kickoff block, ask the user:
+
+> Continue execution in this chat, or hand off to a new chat for clean
+> context? (default: new chat)
+
+Wait for the user's answer. Treat any non-affirmative reply (silence,
+dismissal, ambiguous answer, or failure to respond) as **new chat**.
+
+### 7. Branch on the answer
+
+- **New chat (default).** Print the full modified plan (with STOP
+  markers and the Kickoff block at the top) so the user can see the
+  result. Halt. Do **not** begin executing any step — the user will
+  start a fresh chat by copying the Kickoff prompt from the top of the
+  plan file.
+- **Current chat.** Print the full modified plan. Then begin executing
+  the first group. Stop at the first STOP marker and report back, just
+  as the prior version of this skill did.
 
 ## Delegating to subagents
 
