@@ -86,3 +86,12 @@ the exact steps to implement and instructing the subagent to stop and report
 back after completing them. The deep parent reviews the
 subagent output before moving to the next STOP marker. See the standards
 section "Delegating execution to subagents" for the full guidance.
+
+## See also
+
+- [`personal-plan-orchestrate`](../personal-plan-orchestrate/SKILL.md) —
+  active counterpart for Cursor. Same tagging and model picks, but the
+  parent delegates each `[exec]` or `[fast]` group via `Task(model=...)`
+  subagents and continues automatically, pausing only at a small set of
+  mandatory STOP gates. Use it when you want the cascade run for you
+  instead of stopping at every tier boundary.
