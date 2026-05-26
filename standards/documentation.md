@@ -86,31 +86,135 @@ Reserve plain "step" prose for procedural steps in user-facing docs (onboarding 
 
 ### Model-tier stop points
 
-Plans are executed by agents of different cost and capability. To make the most of both, tag every milestone and every step with one of two tiers:
+Plans are executed by agents of different cost and capability. To make the most of both, tag every milestone and every step with one of three tiers, group consecutive same-tier steps, and emit a STOP marker at every tier boundary so the model can be swapped (or the group delegated to a subagent) before continuing.
 
-- `[deep]` — needs a top-tier reasoning model. Use for architecture and design decisions, ambiguous requirements, non-obvious debugging, security-sensitive review, library/stack trade-offs, and anywhere the cost of getting it wrong is high.
-- `[exec]` — well-specified, mechanical work. Use for applying a decided design across many files, refactors with a clear target, renames, scaffolding tests for already-designed behavior, formatting/lint, doc updates, and well-bounded ports.
+This section is the canonical reference for the convention. The `personal-plan-model-tiers` skill (and the equivalent in any harness) is the operational layer that implements it.
 
-Tag the heading itself, after the title:
+#### Tiers
 
-    ### m3 - Search UI [deep]
-    #### s1 - Decide debounce strategy [deep]
-    #### s2 - Wire search results to view model [exec]
-    #### s3 - Add tests for search reducer [exec]
+- `[deep]` — top-tier reasoning. Architecture decisions, ambiguous requirements, non-obvious debugging, security-sensitive review, library/stack trade-offs, anywhere the cost of getting it wrong is high.
+- `[exec]` — standard implementation. Multi-file changes with cross-file reasoning, refactors with a clear target but real judgment, test writing where cases need thought, work that must read repo patterns first to extend them.
+- `[fast]` — mechanical, fully-specified, single-concern work. Renames, format changes, applying a decided design line-by-line, doc updates, well-bounded ports.
 
-Stop and hand control back to the user at every boundary where the tag changes (`[deep]` -> `[exec]` or vice versa). The user can then keep the same model, swap models, or delegate to a subagent before continuing.
+**Default-up bias**: when in doubt, tag `[deep]` > `[exec]` > `[fast]`. A misclassified `[fast]` produces bad output; a misclassified `[deep]` wastes a little money.
 
-The tiers are intentionally model-agnostic; specific model names (Opus, GPT-5, Sonnet, Composer, Haiku, etc.) change too often to bake into the spec. Map tiers to whichever current model is the right capability/cost for that tier.
+#### `[fast]` downgrade checklist
+
+A step only earns `[fast]` if **all** of these are true:
+
+- The step lists exact files and the change is fully spec'd at line-level.
+- No cross-file invariants — the change is scoped to a single concern.
+- An existing similar pattern in the repo can be copied from.
+- Tests cover the change (fast feedback if the model misses).
+- Reversal cost is low (small diff, easy revert).
+- A later `[deep]` or `[exec]` group will review this output before it ships.
+
+Any `no` → tag `[exec]`.
+
+#### Tag placement
+
+Place the tier tag **immediately after the ID**, before the dash and title:
+
+    ### m3 [deep] - Search UI
+    #### s1 [deep] - Decide debounce strategy
+    #### s2 [exec] - Wire search results to view model
+    #### s3 [fast] - Bump search-event version string
+
+This keeps the tag in a stable left-column position so tier transitions are scannable, gives the no-thrash rule (below) a clean regex (`^#{3,4}\s+[ms]\d+\s+\[(deep|exec|fast)\]\s+-`), and avoids the tag wrapping off-screen on long titles. The `m{N}` / `s{N}` ID stays leftmost — consistent with the milestone and step naming conventions in the sections above.
+
+This is a deliberate change from the older end-of-line placement (`### m3 - Search UI [deep]`); update existing plans the next time you touch them.
+
+#### No-thrash rule
+
+Walk the tagged steps in order and collect consecutive same-tier steps into groups. Then:
+
+1. Always insert a STOP at any `[deep]` ↔ `[exec]` boundary.
+2. Always insert a STOP at any `[deep]` ↔ `[fast]` boundary.
+3. **Conditionally** insert a STOP at an `[exec]` ↔ `[fast]` boundary:
+   - If the `[fast]` block has **≥ 3 contiguous fast steps**, emit the STOP.
+   - Otherwise, **promote those fast steps to `[exec]`** (no STOP) so you don't spend more time swapping models than working.
+4. After promotions, re-merge adjacent same-tier groups before deciding STOP placement.
+
+#### Model picker
+
+| Tier | Cursor | Claude Code | Thinking level |
+|---|---|---|---|
+| `[deep]` | `claude-opus-4-7-thinking-xhigh` (alt: `gpt-5.3-codex`) | `/model opus` | xhigh / max |
+| `[exec]` | `claude-4.6-sonnet-medium-thinking` (alt: `gpt-5.5-medium`) | `/model sonnet` | medium |
+| `[fast]` | `composer-2.5-fast` | `/model haiku` | off / none |
+
+Notes:
+- For Claude Code, toggle extended thinking with `/think` (or the equivalent in the version installed). Haiku doesn't meaningfully benefit from extended thinking on bounded mechanical tasks — it just adds latency.
+- Cursor's Auto mode tends to pick Composer for routine and Sonnet for ambiguous; Auto is fine inside an `[exec]` block but pin the model explicitly inside `[deep]` blocks.
+- This table will need periodic refresh as Cursor and Anthropic ship new versions; that maintenance cost is the price of having one source of truth for tier-to-model mapping.
+
+#### STOP marker template
+
+Each STOP marker carries three things, formatted so the user can paste them straight into a new chat: the tier transition direction, the next model + thinking level for **both** Cursor and Claude Code, and a copy-pasteable prompt that names the next group, references the plan file, and includes a hard scope limit so the next agent halts at the next STOP.
+
+Template (a `[deep] -> [exec]` transition):
+
+    --- STOP: tier change [deep] -> [exec] ---
+
+      Next model
+        Cursor:      claude-4.6-sonnet-medium-thinking   (or gpt-5.5-medium)
+        Claude Code: /model sonnet                       (extended thinking: medium)
+
+      Prompt to paste into the next chat:
+        Read .scratch/plan-<topic>-<word>.md. Execute m2 steps s1-s4
+        only. Do not start m3. Stop at the next STOP marker and report
+        back what you changed and any deviations from the plan.
+
+    ---
+
+For an `[exec] -> [fast]` transition, the prompt should also remind the model not to generalize:
+
+    --- STOP: tier change [exec] -> [fast] ---
+
+      Next model
+        Cursor:      composer-2.5-fast
+        Claude Code: /model haiku                        (no extended thinking)
+
+      Prompt to paste into the next chat:
+        Read .scratch/plan-<topic>-<word>.md. Execute m3 steps s1-s3.
+        These are mechanical edits -- apply exactly what the plan
+        specifies; do not refactor, rename, or generalize. Stop at the
+        next STOP marker and report back.
+
+    ---
+
+For an escalation back to `[deep]` (after `[exec]` or `[fast]`):
+
+    --- STOP: tier change [exec] -> [deep] ---
+
+      Next model
+        Cursor:      claude-opus-4-7-thinking-xhigh      (or gpt-5.3-codex)
+        Claude Code: /model opus                         (extended thinking: xhigh)
+
+      Prompt to paste into the next chat:
+        Read .scratch/plan-<topic>-<word>.md and review m2 output in
+        git status / diff. Then design m4 (do not implement). Stop
+        after the design is written and report back.
+
+    ---
+
+Rules for filling in the template:
+
+- Substitute the actual plan filename (resolved when the plan is identified).
+- Use the exact milestone / step IDs from the plan (e.g. `m2 s1-s4`, not "the next four steps").
+- Always include the "Stop at the next STOP marker" hard limit so the cascade is preserved.
+- Use `->` ASCII arrows rather than Unicode em-dash arrows so the marker is safe in terminals and grep.
+- If the next group is a `[deep]` block being delegated to a parent, the prompt should say "design only, do not implement"; if it's `[exec]` or `[fast]`, the prompt should say "implement steps X-Y, stop at next STOP marker."
 
 ### Delegating execution to subagents
 
-When a `[deep]` agent finishes a deep step and the next step is `[exec]`, prefer delegating the `[exec]` step to a subagent on a smaller model rather than burning the deep context on mechanical work.
+When a `[deep]` agent finishes a deep step and the next step is `[exec]` or `[fast]`, prefer delegating the next group to a subagent on a smaller model rather than burning the deep context on mechanical work.
 
 - Use the harness's subagent/Task tool (Cursor `Task` with `subagent_type` and optional `model`; Claude Code `Task`; other harnesses use the equivalent).
-- Pass the cheapest model that can plausibly complete the step. Only step up if the subagent fails or returns low-quality output.
+- Pass the cheapest model that can plausibly complete the step (see the model picker in "Model-tier stop points" above). Step up only if the subagent fails or returns low-quality output.
 - Give the subagent: the spec section, the exact files to touch, acceptance criteria, and a hard scope limit. Subagents do not see the parent conversation, so be explicit.
 - The deep parent stays responsible for reviewing the subagent's output and deciding the next stop point.
-- If the harness does not support per-subagent model selection, stop at the boundary instead and let the user start a fresh session on a cheaper model.
+- If the harness does not support per-subagent model selection, stop at the boundary instead and let the user start a fresh session on a cheaper model using the STOP marker's handoff prompt.
 
 ### Handoffs between milestones
 
