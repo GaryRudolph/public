@@ -8,7 +8,7 @@
 # the real $HOME, real PROJECTS_DIR, or any other system path.
 #
 # Required env (set by the calling Makefile):
-#   ORG                          - "agerpoint" or "personal"
+#   ORG                          - "personal" (or any installer identity)
 #   AGENTS_DIR                   - absolute path to the agents/ dir
 #   LEGACY_GITIGNORE_CURSOR      - gitignore line to clean up
 #   LEGACY_CURSOR_GLOB           - filename glob for cursor symlinks

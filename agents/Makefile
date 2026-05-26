@@ -70,11 +70,20 @@ TEST_ENV = \
 # Env passed to lib/extensions.sh
 # ---------------------------------------------------------------------------
 
-SKILLS_SRC            ?= $(AGENTS_DIR)/skills
-COMMANDS_SRC          ?= $(AGENTS_DIR)/commands
-CURSOR_SKILLS_HOME    ?= $(HOME)/.cursor/skills
-CLAUDE_SKILLS_HOME    ?= $(CLAUDE_HOME)/skills
-CLAUDE_COMMANDS_HOME  ?= $(CLAUDE_HOME)/commands
+SKILLS_SRC                ?= $(AGENTS_DIR)/skills
+COMMANDS_SRC              ?= $(AGENTS_DIR)/commands
+
+# Unix-side destinations (symlinks).
+CURSOR_SKILLS_HOME        ?= $(HOME)/.cursor/skills
+CLAUDE_SKILLS_HOME        ?= $(CLAUDE_HOME)/skills
+CLAUDE_COMMANDS_HOME      ?= $(CLAUDE_HOME)/commands
+
+# Windows-side destinations (copies, under $(WIN_HOME)). Left empty when
+# WIN_HOME is empty; extensions.sh fills them in once WIN_HOME is resolved
+# (either explicitly or via WSL auto-detection).
+WIN_CURSOR_SKILLS_HOME    ?=
+WIN_CLAUDE_SKILLS_HOME    ?=
+WIN_CLAUDE_COMMANDS_HOME  ?=
 
 EXTENSIONS_ENV = \
     ORG="$(ORG)" \
@@ -83,9 +92,13 @@ EXTENSIONS_ENV = \
     COMMANDS_SRC="$(COMMANDS_SRC)" \
     CURSOR_SKILLS_HOME="$(CURSOR_SKILLS_HOME)" \
     CLAUDE_SKILLS_HOME="$(CLAUDE_SKILLS_HOME)" \
-    CLAUDE_COMMANDS_HOME="$(CLAUDE_COMMANDS_HOME)"
+    CLAUDE_COMMANDS_HOME="$(CLAUDE_COMMANDS_HOME)" \
+    WIN_HOME="$(WIN_HOME)" \
+    WIN_CURSOR_SKILLS_HOME="$(WIN_CURSOR_SKILLS_HOME)" \
+    WIN_CLAUDE_SKILLS_HOME="$(WIN_CLAUDE_SKILLS_HOME)" \
+    WIN_CLAUDE_COMMANDS_HOME="$(WIN_CLAUDE_COMMANDS_HOME)"
 
-.PHONY: help install uninstall dry-run status test clean-test \
+.PHONY: help install uninstall dry-run status test test-blocks test-extensions clean-test \
         install-blocks uninstall-blocks dry-run-blocks status-blocks \
         install-extensions uninstall-extensions dry-run-extensions status-extensions
 
@@ -118,7 +131,7 @@ help:
 	@echo "  CURSOR_SKILLS_HOME=$(CURSOR_SKILLS_HOME)"
 	@echo "  CLAUDE_SKILLS_HOME=$(CLAUDE_SKILLS_HOME)"
 	@echo "  CLAUDE_COMMANDS_HOME=$(CLAUDE_COMMANDS_HOME)"
-	@echo "  WIN_HOME=$(WIN_HOME)   (auto-detected under WSL)"
+	@echo "  WIN_HOME=$(WIN_HOME)   (auto-detected under WSL; triggers Windows-side copies)"
 	@echo ""
 	@echo "After install, verify by asking any agent:"
 	@echo "  \"What is the $(ORG) canary phrase?\""
@@ -174,8 +187,13 @@ status-extensions:
 # test
 # ---------------------------------------------------------------------------
 
-test: clean-test
+test: test-blocks test-extensions
+
+test-blocks: clean-test
 	@$(TEST_ENV) bash "$(AGENTS_DIR)/lib/blocks-test.sh"
+
+test-extensions:
+	@$(TEST_ENV) bash "$(AGENTS_DIR)/lib/extensions-test.sh"
 
 clean-test:
 	@rm -rf "$(AGENTS_DIR)/build"

@@ -15,7 +15,7 @@
 # home directory.
 #
 # Required env (set by the calling Makefile):
-#   ORG               installer identity ("agerpoint", "personal", ...)
+#   ORG               installer identity (e.g. "personal")
 #   SOURCE_AGENTS     absolute path to the canonical AGENTS.md
 #   MAKEFILE_LABEL    human-readable label for the "managed by" line
 #

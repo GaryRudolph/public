@@ -29,23 +29,30 @@ operation. The Makefile is unaware of any other installer, by design.
 
 ## Extensions (skills and commands)
 
-`make install` also manages agent extensions — skills and slash commands — via
-symlinks from harness-specific home directories back to source files in this
-repo. Extensions are sourced from `agents/skills/` (one folder per skill) and
-`agents/commands/` (one `*.md` per command).
+`make install` also manages agent extensions — skills and slash commands —
+by maintaining symlinks (unix) and copies (Windows) from harness-specific
+home directories back to source files in this repo. Extensions are sourced
+from `agents/skills/` (one folder per skill) and `agents/commands/` (one
+`*.md` per command).
 
-| Source (this repo)                          | Home symlink                              | Harness                  |
-| ------------------------------------------- | ----------------------------------------- | ------------------------ |
-| `agents/skills/<name>/`                     | `~/.cursor/skills/<name>`                 | Cursor                   |
-| `agents/skills/<name>/`                     | `~/.claude/skills/<name>`                 | Claude Code              |
-| `agents/commands/<name>.md`                 | `~/.claude/commands/<name>.md`            | Claude Code (`/` typeahead) |
+| Source (this repo)                          | Home entry (unix-side, symlink)           | Home entry (windows-side, copy via WSL)                | Harness                  |
+| ------------------------------------------- | ----------------------------------------- | ------------------------------------------------------ | ------------------------ |
+| `agents/skills/<name>/`                     | `~/.cursor/skills/<name>`                 | `%USERPROFILE%\.cursor\skills\<name>`                  | Cursor                   |
+| `agents/skills/<name>/`                     | `~/.claude/skills/<name>`                 | `%USERPROFILE%\.claude\skills\<name>`                  | Claude Code              |
+| `agents/commands/<name>.md`                 | `~/.claude/commands/<name>.md`            | `%USERPROFILE%\.claude\commands\<name>.md`             | Claude Code (`/` typeahead) |
 
 Codex CLI and Gemini CLI have no skills/commands system; they are covered by
 the AGENTS.md bullet that references these extensions by name.
 
 All managed extensions are prefixed `personal-` to match the installer's
-`ORG=personal` identity and to stay visually distinct from extensions installed
-by other orgs (e.g., `agerpoint-*`).
+`ORG=personal` identity and to stay visually distinct from extensions
+installed by any other org-keyed installer sharing the same home directories.
+
+Ownership marker on the Windows-side copies is a hidden `.personal-managed`
+file inside each managed skill directory (and a `<name>.md.personal-managed`
+sidecar next to each managed command file). `make uninstall` only removes
+entries with the marker, so anything you drop into `%USERPROFILE%\.cursor\skills\`
+yourself survives untouched.
 
 ### Currently managed extensions
 
@@ -105,13 +112,15 @@ loaded cannot produce that string. A correct response confirms standards
 are reaching the agent; an incorrect or generic response indicates the
 install is not loaded.
 
-| Tool        | Where to ask                                                    | How standards get there                 |
-| ----------- | --------------------------------------------------------------- | --------------------------------------- |
-| Cursor      | Any project under `~` (ancestor walk picks up `~/AGENTS.md`)    | `@`-import from `~/AGENTS.md`           |
-| Claude Code | Anywhere (CLI or extension)                                     | `~/.claude/CLAUDE.md` block             |
-| Gemini CLI  | Anywhere                                                        | `~/.gemini/GEMINI.md` block             |
-| Codex CLI   | Anywhere                                                        | Inlined block in `~/.codex/AGENTS.md`   |
-| Xcode       | A Swift project, Coding Assistant panel                         | `~/Library/.../ClaudeAgentConfig` block |
+| Tool                       | Where to ask                                                    | How standards + skills get there                                                       |
+| -------------------------- | --------------------------------------------------------------- | -------------------------------------------------------------------------------------- |
+| Cursor (unix)              | Any project under `~` (ancestor walk picks up `~/AGENTS.md`)    | `@`-import from `~/AGENTS.md`; skills symlinked under `~/.cursor/skills/`              |
+| Cursor (Windows-native)    | Any project, after install from WSL                             | Inlined block in `%USERPROFILE%\AGENTS.md`; skills copied under `%USERPROFILE%\.cursor\skills\` |
+| Claude Code (unix)         | Anywhere (CLI or extension)                                     | `~/.claude/CLAUDE.md` block; skills symlinked under `~/.claude/skills/`                |
+| Claude Code (Windows)      | Anywhere, after install from WSL                                | Inlined block in `%USERPROFILE%\.claude\CLAUDE.md`; skills copied under `%USERPROFILE%\.claude\skills\` |
+| Gemini CLI                 | Anywhere                                                        | `~/.gemini/GEMINI.md` block (no skills system)                                          |
+| Codex CLI                  | Anywhere                                                        | Inlined block in `~/.codex/AGENTS.md` (no skills system)                                |
+| Xcode                      | A Swift project, Coding Assistant panel                         | `~/Library/.../ClaudeAgentConfig` block (no skills system)                              |
 
 If the canary fails, run `make status` to confirm the block is present in
 the relevant home file, then run `make install` again. If the block is
@@ -123,17 +132,36 @@ load configuration once on startup.
 The installer runs from inside WSL. On macOS and Linux it writes only to
 `$HOME`. When `/proc/version` contains `microsoft`, a second pass also
 writes to the Windows host's `%USERPROFILE%` (resolved via
-`wslpath "$(cmd.exe /c 'echo %USERPROFILE%')"`).
+`wslpath "$(cmd.exe /c 'echo %USERPROFILE%')"`). Both `blocks.sh` and
+`extensions.sh` participate in this dual-pass; one `make install` from
+inside WSL covers Windows-native tools too.
 
-Windows-side blocks contain the **full inlined** `AGENTS.md` content (not
-`@`-imports), because Windows-native tools like `Cursor.exe` resolve `~`
-to `C:\Users\<user>\` and can't easily reach the WSL checkout. Inlining
-sidesteps the WSL ↔ Windows path-resolution problem.
+What changes mode between the two passes:
 
-Trade-off: the Windows-side content is stale until you re-run
-`make install` from WSL after editing `agents/AGENTS.md`. The canary
-phrase makes drift visible — ask the canary in a Windows-native Cursor
-session; if it returns an old value, re-install from WSL.
+- **Blocks (unix-side, `$HOME`):** `@`-import lines that point at the WSL
+  checkout (Claude / Gemini / Cursor) or fully inlined content (Codex,
+  Xcode Codex).
+- **Blocks (windows-side, `%USERPROFILE%`):** **always inlined** — Windows-
+  native tools like `Cursor.exe` resolve `~` to `C:\Users\<user>\` and can't
+  easily reach the WSL checkout, so inlining sidesteps the WSL ↔ Windows
+  path-resolution problem.
+- **Extensions (unix-side, `$HOME/.cursor/skills`, `$HOME/.claude/skills`,
+  `$HOME/.claude/commands`):** symlinks back into this repo. Live.
+- **Extensions (windows-side, `%USERPROFILE%\.cursor\skills\`, etc.):**
+  full `cp -R` copies of each skill directory and command file, with a
+  hidden `.personal-managed` marker as the ownership tag. Same staleness
+  trade-off as the inlined blocks.
+
+Both the inlined Windows-side blocks and the copied Windows-side extensions
+are stale until you re-run `make install` from WSL. The canary phrase
+makes block drift visible — ask the canary in a Windows-native Cursor
+session; if it returns an old value, re-install from WSL. For extension
+drift, the symptom is the skill simply not picking up your edits on the
+Windows side; re-install resolves it.
+
+`make install` from WSL is the **only** supported install path. Running it
+from a native Windows shell (PowerShell, cmd) is not supported — there is
+no PowerShell port.
 
 ## Coexistence with other home-dir installers
 

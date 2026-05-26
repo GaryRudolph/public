@@ -32,25 +32,44 @@ covered by the AGENTS.md bullet that references these extensions.
 
 All extensions managed by this installer are prefixed `personal-`. This matches
 the installer's `ORG=personal` identity (same as the block markers and the repo
-path) and keeps our extensions visually distinct from those installed by other
-orgs (e.g., `agerpoint-*`).
+path) and keeps our extensions visually distinct from anything installed by
+another org-keyed installer sharing the same home directories.
 
 ## State model
 
-The installer uses **symlink targets as ownership markers** — no sidecar
-manifest. A symlink whose resolved target falls under this repo's `skills/` or
-`commands/` directory is "ours"; anything else is left untouched.
+The installer runs two install passes: a **unix-side pass** that always runs
+against `$HOME`, and a **windows-host pass** that runs against `$WIN_HOME`
+whenever WSL exposes a Windows user profile (auto-detected the same way
+`blocks.sh` does it).
 
-`make install` runs two passes per destination:
+**Unix-side pass — symlink targets as ownership markers.** A symlink whose
+resolved target falls under this repo's `skills/` or `commands/` directory is
+"ours"; anything else is left untouched.
 
-1. **Orphan cleanup** — remove any of our symlinks whose source folder/file no
+**Windows-host pass — `.personal-managed` marker files as ownership markers.**
+Windows-native Cursor / Claude Code can't read WSL paths, so on the Windows
+side we copy each skill directory into `%USERPROFILE%\.cursor\skills\` /
+`%USERPROFILE%\.claude\skills\` / `%USERPROFILE%\.claude\commands\` and drop a
+hidden `.personal-managed` file inside each managed skill directory. Managed
+commands get a `<name>.md.personal-managed` sidecar next to the `.md` file.
+Anything without the marker is foreign content and is left untouched.
+
+For each pass, `make install` runs:
+
+1. **Orphan cleanup** — remove any of our entries whose source folder/file no
    longer exists in the repo. This is how deleted skills clean themselves up
-   automatically.
-2. **Source reconcile** — for each current source, ensure the symlink exists
-   and points to the right place.
+   automatically. (Unix: by symlink target. Windows: by marker file.)
+2. **Source reconcile** — for each current source, ensure the destination
+   exists and matches the source. On Windows, the reconcile pass diffs source
+   vs. destination (excluding the marker) and only re-copies when content
+   actually changed, so repeated `make install` is a no-op.
 
-`make uninstall` removes every symlink owned by this installer regardless of
+`make uninstall` removes every entry owned by this installer regardless of
 whether the source still exists.
+
+Trade-off: the Windows-side copies are stale until the next `make install` from
+WSL. Same trade-off that `blocks.sh` already documents for its inlined Windows-
+side files.
 
 ## Empirical assumptions
 
