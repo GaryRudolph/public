@@ -86,7 +86,7 @@ Reserve plain "step" prose for procedural steps in user-facing docs (onboarding 
 
 ### Model-tier stop points
 
-Plans are executed by agents of different cost and capability. To make the most of both, tag every milestone and every step with one of three tiers, group consecutive same-tier steps, and emit a STOP marker at every tier boundary so the model can be swapped (or the group delegated to a subagent) before continuing.
+Plans are executed by agents of different cost and capability. To make the most of both, tag every executable step with one of three tiers, group consecutive same-tier steps, and emit a STOP marker at every tier boundary so the model can be swapped (or the group delegated to a subagent) before continuing.
 
 This section is the canonical reference for the convention. The `personal-plan-model-tiers` skill (and the equivalent in any harness) is the operational layer that implements it.
 
@@ -113,16 +113,36 @@ Any `no` → tag `[exec]`.
 
 #### Tag placement
 
-Place the tier tag **immediately after the ID**, before the dash and title:
+Tag **executable steps only** — not milestone, phase, or section headings.
+The executable level is typically the deepest heading level in the plan. If
+the plan uses only one heading level, tag every heading at that level.
 
-    ### m3 [deep] - Search UI
-    #### s1 [deep] - Decide debounce strategy
-    #### s2 [exec] - Wire search results to view model
-    #### s3 [fast] - Bump search-event version string
+**One rule:** the tag goes immediately after the title separator (the first
+`-`, `:`, or `.` followed by whitespace) and before the title text. If the
+heading has no separator, the tag goes immediately after the heading marker.
 
-This keeps the tag in a stable left-column position so tier transitions are scannable, gives the no-thrash rule (below) a clean regex (`^#{3,4}\s+[ms]\d+\s+\[(deep|exec|fast)\]\s+-`), and avoids the tag wrapping off-screen on long titles. The `m{N}` / `s{N}` ID stays leftmost — consistent with the milestone and step naming conventions in the sections above.
+Do not rewrite IDs, renumber, change casing, add separators, or coin new
+identifiers. This convention works with any plan structure — `m{N}`/`s{N}`
+is the recommended naming shape for new plans (see "Steps within a milestone"
+above), but the skill adapts to whatever structure already exists.
 
-This is a deliberate change from the older end-of-line placement (`### m3 - Search UI [deep]`); update existing plans the next time you touch them.
+    #### s1 - [deep] Decide debounce strategy
+    #### s2 - [exec] Wire search results to view model
+    #### s3 - [fast] Bump search-event version string
+    #### Phase 1: [exec] Auth
+    #### 3. [exec] Add tests
+    #### [exec] Wire Redis client
+
+Edge cases:
+
+- **Internal `.` inside a prefix** (`m3.s2 - Foo`): the `.` between `m3`
+  and `s2` has no whitespace after it, so it isn't the separator — the `-`
+  is. Result: `#### m3.s2 - [exec] Foo`.
+- **Multiple separators in one heading** (`#### m3 - Search UI: Detail`):
+  the first separator wins; the tag slots after the `-`.
+- **No prefix, no separator**: tag goes right after `####`.
+
+To find tagged headings use the regex: `^#+\s+.*\[(deep|exec|fast)\]`
 
 #### No-thrash rule
 
@@ -161,9 +181,9 @@ Template (a `[deep] -> [exec]` transition):
         Claude Code: /model sonnet                       (extended thinking: medium)
 
       Prompt to paste into the next chat:
-        Read .scratch/plan-<topic>-<word>.md. Execute m2 steps s1-s4
-        only. Do not start m3. Stop at the next STOP marker and report
-        back what you changed and any deviations from the plan.
+        Read .scratch/plan-<topic>-<word>.md. Execute <next group>.
+        Stop at the next STOP marker and report back what you changed
+        and any deviations from the plan.
 
     ---
 
@@ -176,7 +196,7 @@ For an `[exec] -> [fast]` transition, the prompt should also remind the model no
         Claude Code: /model haiku                        (no extended thinking)
 
       Prompt to paste into the next chat:
-        Read .scratch/plan-<topic>-<word>.md. Execute m3 steps s1-s3.
+        Read .scratch/plan-<topic>-<word>.md. Execute <next group>.
         These are mechanical edits -- apply exactly what the plan
         specifies; do not refactor, rename, or generalize. Stop at the
         next STOP marker and report back.
@@ -192,19 +212,21 @@ For an escalation back to `[deep]` (after `[exec]` or `[fast]`):
         Claude Code: /model opus                         (extended thinking: xhigh)
 
       Prompt to paste into the next chat:
-        Read .scratch/plan-<topic>-<word>.md and review m2 output in
-        git status / diff. Then design m4 (do not implement). Stop
-        after the design is written and report back.
+        Read .scratch/plan-<topic>-<word>.md and review the previous
+        output in git status / diff. Then design <next group> (do not
+        implement). Stop after the design is written and report back.
 
     ---
 
 Rules for filling in the template:
 
 - Substitute the actual plan filename (resolved when the plan is identified).
-- Use the exact milestone / step IDs from the plan (e.g. `m2 s1-s4`, not "the next four steps").
+- Name the next group using whatever identifiers the plan uses: if headings
+  carry IDs, use those (e.g. `m2 s1-s4`); if not, use exact title text
+  (e.g. `the "Wire Redis client" through "Write integration tests" steps`).
 - Always include the "Stop at the next STOP marker" hard limit so the cascade is preserved.
 - Use `->` ASCII arrows rather than Unicode em-dash arrows so the marker is safe in terminals and grep.
-- If the next group is a `[deep]` block being delegated to a parent, the prompt should say "design only, do not implement"; if it's `[exec]` or `[fast]`, the prompt should say "implement steps X-Y, stop at next STOP marker."
+- If the next group is a `[deep]` block being delegated to a parent, the prompt should say "design only, do not implement"; if it's `[exec]` or `[fast]`, the prompt should say "implement <next group>, stop at next STOP marker."
 
 ### Delegating execution to subagents
 

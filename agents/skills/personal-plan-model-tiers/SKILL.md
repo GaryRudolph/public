@@ -35,13 +35,15 @@ In priority order:
 Read it fully before tagging anything. Remember the resolved plan path —
 every STOP handoff prompt has to reference it.
 
-### 2. Tag every milestone and step
+### 2. Tag every executable step
 
-Following the standards section above, add `[deep]`, `[exec]`, or `[fast]`
-immediately after the ID on every milestone and step heading
-(`### m1 [deep] - Title`, `#### s1 [deep] - Title`). Apply the `[fast]`
-downgrade checklist before assigning `[fast]`. Default-up bias: when in
-doubt, `[deep]` > `[exec]` > `[fast]`. Do not change any other content.
+Following the tag placement rule in the standards section above, add
+`[deep]`, `[exec]`, or `[fast]` to each heading at the executable level
+(typically the deepest heading level). Leave higher-level grouping headings
+(milestones, phases, sections) untagged. Apply the `[fast]` downgrade
+checklist before assigning `[fast]`. Default-up bias: when in doubt,
+`[deep]` > `[exec]` > `[fast]`. Do not rename, renumber, or otherwise
+change any other content.
 
 ### 3. Apply the no-thrash rule
 
@@ -61,8 +63,9 @@ include:
 1. The tier transition direction.
 2. The next model + thinking level for **both** Cursor and Claude Code
    (look up from the model picker in standards).
-3. A copy-pasteable prompt that names the next group with explicit step IDs
-   (e.g. `m2 s1-s4`), references the resolved plan filename, and ends with
+3. A copy-pasteable prompt that names the next group using whatever
+   identifiers the plan uses (IDs like `m2 s1-s4` if present, or exact
+   title text if not), references the resolved plan filename, and ends with
    "Stop at the next STOP marker and report back" so the cascade is
    preserved.
 
@@ -78,7 +81,8 @@ executing any step. Stop at the first STOP marker and wait for the user.
 When a `[deep]` parent reaches an `[exec]` or `[fast]` group, prefer
 delegating to a subagent on the cheaper model from the picker rather than
 burning the deep context on mechanical work. Pass: the spec section, the
-exact files to touch, acceptance criteria, and a hard scope limit ("only
-implement steps s1-s3; stop and report back"). The deep parent reviews the
+exact files to touch, acceptance criteria, and a hard scope limit naming
+the exact steps to implement and instructing the subagent to stop and report
+back after completing them. The deep parent reviews the
 subagent output before moving to the next STOP marker. See the standards
 section "Delegating execution to subagents" for the full guidance.
