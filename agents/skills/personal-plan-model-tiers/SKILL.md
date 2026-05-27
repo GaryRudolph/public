@@ -115,6 +115,22 @@ dismissal, ambiguous answer, or failure to respond) as **new chat**.
   the first group. Stop at the first STOP marker and report back, just
   as the prior version of this skill did.
 
+## Token tally on report-back
+
+Before halting (new-chat branch of step 7) or after stopping at the first
+STOP marker (current-chat branch of step 7), append one line to your
+report-back:
+
+```
+tokens: input ~X / output ~Y / total ~Z / model <slug> (heuristic)
+```
+
+Use `~tokens ≈ chars / 4`. Count input chars as everything you read (user
+prompts, file reads, tool outputs); count output chars as everything you
+wrote (chat text, tool call arguments, file writes). Numbers are approximate
+(~±15%). This tally is per-chat — it covers only the work done in this
+session.
+
 ## Delegating to subagents
 
 When a `[deep]` parent reaches an `[exec]` or `[fast]` group, prefer

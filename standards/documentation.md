@@ -292,7 +292,9 @@ Active variant — orchestrate (always `[deep]` / Opus xhigh):
         Run the personal-plan-orchestrate skill from the top: walk to
         each tier boundary, dispatch Task subagents per the skill's
         procedure, and pause only at the mandatory STOP gates. Do not
-        execute plan work inline.
+        execute plan work inline. You are the kickoff destination chat;
+        skip the "continue here or new chat?" question and begin
+        dispatching immediately.
 
     ---
 

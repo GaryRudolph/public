@@ -257,6 +257,34 @@ parent is.
 6. **Output contract** — the disk-backed compaction sentence above plus
    the requirement that the returned summary cover: what changed, what was
    decided, surprises, and the artifact path.
+7. **Token reporting** — end your returned summary with one line:
+   `tokens: input ~X / output ~Y / total ~Z / model <slug> (heuristic)`,
+   where X and Y use `~tokens ≈ chars / 4`. Count input chars as
+   everything you read (prompts, file reads, tool outputs); count output
+   chars as everything you wrote (chat text, tool call arguments, file
+   writes). Flag the numbers as estimates.
+
+## Token tally
+
+The orchestrator-parent maintains a running token tally across the run using
+the same `~tokens ≈ chars / 4` heuristic. At every STOP gate, print a
+one-line running total:
+
+```
+tokens so far: input ~X / output ~Y / total ~Z (heuristic)
+```
+
+At plan completion, print a per-wave breakdown table:
+
+| wave | model | ~input | ~output | ~total |
+|------|-------|--------|---------|--------|
+| orchestrator | claude-opus-4-7-thinking-xhigh | … | … | … |
+| wave-1 (task-id) | <slug> | … | … | … |
+| … | | | | |
+| **GRAND TOTAL** | | | | |
+
+All numbers are heuristic estimates (~±15%). They are not authoritative
+usage data.
 
 ## Procedure
 
@@ -282,8 +310,21 @@ parent is.
    file (any line matching `--- KICKOFF: ... ---`), replace it;
    otherwise insert above the first heading inside a fenced code block.
    A plan never carries more than one Kickoff block. Do not modify any
-   other content.
-5. **Ask the user where to orchestrate from**:
+   other content. **Record whether step 4 replaced an existing matching
+   Kickoff block (`--- KICKOFF: begin orchestration at [deep] ---`) or
+   inserted a new one — this "kickoff-replaced" signal is used in
+   step 5.**
+5. **Ask the user where to orchestrate from** — but only when needed.
+
+   If step 4 **replaced** an existing matching Kickoff block
+   (`--- KICKOFF: begin orchestration at [deep] ---`), or the user
+   message that invoked this skill explicitly identifies this chat as the
+   kickoff destination, **skip this step and proceed directly to step 7.**
+   The user already chose "new chat" in a prior invocation; this chat is
+   that destination. The first-subagent canary STOP (gate 5) still
+   applies as a safety net.
+
+   Otherwise, ask:
 
    > Continue orchestrating in this chat, or hand off to a new Opus xhigh
    > chat for clean context? (default: new chat)
@@ -333,14 +374,18 @@ parent is.
 11. **First-subagent canary** — STOP after the first subagent of the run
     regardless of outcome (gate 5).
 12. **Collect summaries**. Update "state so far". Re-read artifacts only
-    when needed.
+    when needed. Parse the `tokens:` line from each subagent summary
+    into the rolling tally; include the running tally in the "state so
+    far" update.
 13. **Handle errors / low-quality output** — STOP (gate 1) and offer
     retry / step-up / re-plan. Stepping up tiers triggers gate 6, and
     the re-attempt itself is **dispatched** as a subagent on the higher
     tier's model — composer → sonnet, sonnet → opus — never executed
     inline.
 14. **Advance** to the next boundary. Repeat from step 7 until the plan
-    is complete, stopping at every gate.
+    is complete, stopping at every gate. When the plan is complete,
+    print the final per-wave + orchestrator + grand-total token table
+    from the "Token tally" section above.
 
 ## Out of scope
 
