@@ -95,7 +95,26 @@ edits feel instant; daily would feel slow.
 If hourly is too noisy for your taste, drop to every 2–4 hours. Don't go more
 frequent than every 15 minutes — the per-run overhead isn't worth it.
 
-## 6. Expected run summary
+## 6. Model
+
+**Default: Claude Sonnet 4.6.** This is `[exec]`-tier work per the personal
+model-tier rubric — cross-file, judgment-heavy on titles / summaries / action
+items / tag selection, but not architectural.
+
+| Use case | Model |
+|---|---|
+| Default scheduled runs and one-off invocations | **Sonnet** |
+| First-run schema confirmation + spot-check (one time) | **Opus** for the bootstrap, then drop to Sonnet |
+| Triage on throwaway voice memos | Sonnet (Haiku will pad tags and invent action items) |
+
+Hourly scheduling cost note: most hourly runs find no changes and exit cheaply
+regardless of model. Only the runs that actually generate or regenerate a note
+incur material cost. Typical 30-min meeting note: ~$0.03 on Sonnet, ~$0.15 on
+Opus, ~$0.005 on Haiku. Sonnet's premium over Haiku is worth it for
+materially better titles, less-padded tags, and accurate action items. Opus's
+premium over Sonnet is not justified for routine note generation.
+
+## 7. Expected run summary
 
 Per [SPEC.md "Reporting"](../personal-whisper-to-markdown/SPEC.md) plus the
 DB-skill-specific addition:
@@ -109,7 +128,7 @@ DB-skill-specific addition:
 - **DB connection:** path of the DB, total non-deleted sessions, how many were
   considered for processing
 
-## 7. Sanity bookmark
+## 8. Sanity bookmark
 
 Cross-source `content_hash` match was verified between the DB skill and the
 file skill for recording `d9393ef207004356bd779b90e2336a82`
@@ -123,7 +142,7 @@ This confirms that if you've run the file skill previously, switching to the DB
 skill will not create duplicate notes — it'll just update each existing note's
 `source:` / `source_type:` frontmatter and move on.
 
-## 8. Troubleshooting
+## 9. Troubleshooting
 
 | Symptom | Likely cause | Fix |
 |---|---|---|

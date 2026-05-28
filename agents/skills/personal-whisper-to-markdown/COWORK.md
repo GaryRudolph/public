@@ -68,7 +68,24 @@ hit Export in MacWhisper, so they don't accumulate fast. A daily cadence catches
 exports of yesterday's recordings without paying the per-run cost more than
 needed.
 
-## 6. Expected run summary
+## 6. Model
+
+**Default: Claude Sonnet 4.6.** This is `[exec]`-tier work per the personal
+model-tier rubric — cross-file, judgment-heavy on titles / summaries / action
+items / tag selection, but not architectural.
+
+| Use case | Model |
+|---|---|
+| Default scheduled runs and one-off invocations | **Sonnet** |
+| First-run schema confirmation + spot-check (one time) | **Opus** for the bootstrap, then drop to Sonnet |
+| Triage on throwaway voice memos | Sonnet (Haiku will pad tags and invent action items) |
+
+Per-run cost on a typical 30-min meeting: ~$0.03 on Sonnet vs ~$0.15 on Opus
+vs ~$0.005 on Haiku. The Sonnet premium over Haiku pays for noticeably
+better titles, fewer padded tags, and accurate action-item extraction. The
+Opus premium over Sonnet is not justified for routine note generation.
+
+## 7. Expected run summary
 
 Per [`SPEC.md`](./SPEC.md) "Reporting":
 
@@ -79,7 +96,7 @@ Per [`SPEC.md`](./SPEC.md) "Reporting":
 - Unparseable: N
 - Tag vocabulary changes: any tags appended to `tags.md`
 
-## 7. Sanity bookmark
+## 8. Sanity bookmark
 
 Smoke-tested on install:
 
@@ -90,7 +107,7 @@ Smoke-tested on install:
 same recording from either source produces an identical hash, so switching
 between skills does not duplicate notes.
 
-## 8. Troubleshooting
+## 9. Troubleshooting
 
 | Symptom | Likely cause | Fix |
 |---|---|---|
