@@ -250,6 +250,8 @@ Passive variant — `[exec]` first wave (the most common shape):
 
     --- KICKOFF: begin execution at [exec] ---
 
+      Status: 0/N groups done | current: <first group> [exec] | updated YYYY-MM-DD
+
       Next model
         Cursor:      claude-4.6-sonnet-medium-thinking   (or gpt-5.5-medium)
         Claude Code: /model sonnet                       (extended thinking: medium)
@@ -264,6 +266,8 @@ Passive variant — `[exec]` first wave (the most common shape):
 Passive variant — `[fast]` first wave (prompt body adds the "no refactor" reminder):
 
     --- KICKOFF: begin execution at [fast] ---
+
+      Status: 0/N groups done | current: <first group> [fast] | updated YYYY-MM-DD
 
       Next model
         Cursor:      composer-2.5-fast
@@ -282,6 +286,8 @@ For a `[deep]` first wave, use the same body as the `[exec]` example with the `[
 Active variant — orchestrate (always `[deep]` / Opus xhigh):
 
     --- KICKOFF: begin orchestration at [deep] ---
+
+      Status: 0/N groups done | current: <first group> [deep] | updated YYYY-MM-DD
 
       Next model
         Cursor:      claude-opus-4-8-thinking-xhigh      (or gpt-5.3-codex)
@@ -304,6 +310,65 @@ Rules for filling in the template:
 - For the passive variant, the `<tier>` is the **first executable tier** in the plan — the first heading carrying a `[deep]` / `[exec]` / `[fast]` tag, walking top-down. Higher-level grouping headings (milestones, phases) are untagged and ignored, per [Tag placement](#tag-placement). Use the tier value **after** the no-thrash promotion pass, so a `[fast]` step that gets promoted to `[exec]` is reflected as `[exec]` in the Kickoff.
 - For the active variant, the model is **always** `claude-opus-4-8-thinking-xhigh` / `/model opus` xhigh, regardless of what the first wave's tier is. The orchestrator-parent always runs at `[deep]`.
 - Use `->` ASCII arrows rather than Unicode em-dash arrows so the marker is safe in terminals and grep.
+- Fill in the `Status:` line with the total group count (`N`), the first group's identifier, and today's date. Update it as execution progresses (see [Progress tracking](#progress-tracking) below).
+
+### Progress tracking
+
+Plans span multiple chat sessions, which means native harness todos (Cursor Plan-mode checkboxes, `TodoWrite`) disappear on each handoff. The `.scratch/plan-*.md` file is the durable source of truth. The convention below keeps both surfaces in sync throughout execution.
+
+#### Two surfaces
+
+- **Harness todo list** (live, in-session): one todo per *group* (consecutive same-tier block after no-thrash). The current group is `in_progress`; it flips to `completed` the moment the group finishes. Seeded by the skill that writes the Kickoff block.
+- **Plan markdown file** (durable, cross-session): updated at every STOP boundary and at plan completion. Survives chat handoffs because the `.scratch/` file is on disk.
+
+#### Marking steps done
+
+When a group finishes, append ` (done)` to the end of every executable heading in that group:
+
+    #### s1 - [exec] Wire search results to view model  (done)
+
+Rules:
+- The marker goes at the **end of the heading line**, after all other content, so it never collides with the tier-tag regex `^#+\s+.*\[(deep|exec|fast)\]`.
+- Done-step regex: `\(done\)\s*$`
+- Incomplete steps: any tagged heading that does **not** match the done-step regex.
+- This is the **only** sanctioned heading mutation besides the tier tag itself. The "do not rename/renumber" rule has an explicit carve-out for appending ` (done)`.
+
+#### Updating the Status line
+
+After each group finishes, update the `Status:` line inside the Kickoff block:
+
+    Status: 2/5 groups done | current: m2 s1-s4 [exec] | updated 2026-05-28
+
+- `2/5` — groups completed so far out of the total group count.
+- `current:` — the identifier of the **next** group yet to start (or the just-finished group if this is the last one).
+- `updated` — date of the update (ISO date, no time).
+
+When re-entering a plan in a fresh chat, re-derive the native todo list from this Status line plus the ` (done)` markers on headings. Do not assume native todos exist.
+
+#### Final completion (all groups done)
+
+When the last group finishes:
+
+1. Flip all remaining native todos to `completed`.
+2. Ensure every executable heading carries ` (done)`.
+3. Replace the Kickoff marker line with the terminal form:
+
+       --- KICKOFF: plan complete ---
+
+   and update the Status line to:
+
+       Status: N/N groups done | completed YYYY-MM-DD
+
+4. Append a **Completion summary** at the bottom of the plan file (below all existing content):
+
+       ## Completion summary
+       
+       **Completed**: YYYY-MM-DD
+       **What shipped**: <one-paragraph summary>
+       **Deviations from plan**: <list, or "none">
+       **Follow-ups**: <list, or "none">
+
+   This summary dovetails with the handoff convention — promote it to a `.scratch/handoff-*.md` or `handoffs/` file if the work needs to be picked up by another engineer or session.
 
 ### Delegating execution to subagents
 

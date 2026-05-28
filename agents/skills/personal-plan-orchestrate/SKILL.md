@@ -309,11 +309,19 @@ usage data.
    **idempotent**: if a Kickoff block already exists at the top of the
    file (any line matching `--- KICKOFF: ... ---`), replace it;
    otherwise insert above the first heading inside a fenced code block.
-   A plan never carries more than one Kickoff block. Do not modify any
-   other content. **Record whether step 4 replaced an existing matching
-   Kickoff block (`--- KICKOFF: begin orchestration at [deep] ---`) or
-   inserted a new one — this "kickoff-replaced" signal is used in
-   step 5.**
+   A plan never carries more than one Kickoff block. Fill in the
+   `Status:` line with `0/N groups done | current: <first group>
+   [deep] | updated <today>` where `N` is the total group count. Do not
+   modify any other content. **Record whether step 4 replaced an existing
+   matching Kickoff block (`--- KICKOFF: begin orchestration at [deep]
+   ---`) or inserted a new one — this "kickoff-replaced" signal is used
+   in step 5.**
+
+   After writing the Kickoff block, **seed the native todo list**: one
+   todo per group (in order), first group `in_progress`, rest `pending`.
+   Use the group identifier (e.g. `m1 s1-s3 [exec]`) as the todo content.
+   See `§"Model-tier stop points" → "Progress tracking"` in the standards
+   for the full convention.
 5. **Ask the user where to orchestrate from** — but only when needed.
 
    If step 4 **replaced** an existing matching Kickoff block
@@ -377,6 +385,15 @@ usage data.
     when needed. Parse the `tokens:` line from each subagent summary
     into the rolling tally; include the running tally in the "state so
     far" update.
+
+    After each successful wave, **update plan state**:
+    - Append ` (done)` to every executable heading in the just-finished
+      group in the plan file.
+    - Flip that group's native todo to `completed`; mark the next group
+      `in_progress`.
+    - Update the `Status:` line in the Kickoff block: increment the done
+      count, set `current:` to the next group's identifier, and refresh
+      the date.
 13. **Handle errors / low-quality output** — STOP (gate 1) and offer
     retry / step-up / re-plan. Stepping up tiers triggers gate 6, and
     the re-attempt itself is **dispatched** as a subagent on the higher
@@ -386,6 +403,15 @@ usage data.
     is complete, stopping at every gate. When the plan is complete,
     print the final per-wave + orchestrator + grand-total token table
     from the "Token tally" section above.
+
+    When the **last group finishes**, perform the final-completion steps
+    from `§"Model-tier stop points" → "Progress tracking" → "Final
+    completion"` in the standards: flip all remaining todos to
+    `completed`, replace the Kickoff marker with
+    `--- KICKOFF: plan complete ---`, update the Status line to
+    `N/N groups done | completed <date>`, and append the Completion
+    summary at the bottom of the plan file. Print this summary
+    alongside the final token table.
 
 ## Out of scope
 

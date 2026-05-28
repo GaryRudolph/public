@@ -35,6 +35,13 @@ In priority order:
 Read it fully before tagging anything. Remember the resolved plan path —
 every STOP handoff prompt has to reference it.
 
+If the plan file already has a Kickoff block with a `Status:` line and
+` (done)` markers on some headings, this is a re-entry into a partially-
+executed plan. Re-derive the native todo list from those markers (one todo
+per group; groups that have all steps marked done → `completed`; the
+current group → `in_progress`; remaining groups → `pending`). Do not
+assume native todos from a prior session still exist.
+
 ### 2. Tag every executable step
 
 Following the tag placement rule in the standards section above, add
@@ -74,7 +81,10 @@ Use `->` ASCII arrows in the marker so it stays safe in terminals and grep.
 ### 5. Write the Kickoff block to the top of the plan file
 
 Use the **passive** variant of the Kickoff template from the standards
-section (`§"Model-tier stop points" → "Kickoff template"`). Fill it in:
+section (`§"Model-tier stop points" → "Kickoff template"`). Fill in the
+`Status:` line with `0/N groups done | current: <first group> <tier> |
+updated <today>` where `N` is the total number of groups after the
+no-thrash promotion pass. Then fill in the rest:
 
 - `<tier>` is the **first executable tier** in the plan after the
   no-thrash promotion pass — i.e. the tier on the first tagged heading,
@@ -94,9 +104,15 @@ matching `--- KICKOFF: ... ---`), replace it with the appropriate
 variant rather than appending. A plan never carries more than one
 Kickoff block. Do not modify any other content in the plan.
 
+After writing the Kickoff block, **seed the native todo list**: create
+one todo per group (in order), with the first group as `in_progress` and
+all others as `pending`. Use the group identifier (e.g. `m1 s1-s3 [exec]`)
+as the todo content. See `§"Model-tier stop points" → "Progress tracking"`
+in the standards for the full convention.
+
 ### 6. Ask the user where to execute
 
-After writing the Kickoff block, ask the user:
+After writing the Kickoff block and seeding todos, ask the user:
 
 > Continue execution in this chat, or hand off to a new chat for clean
 > context? (default: new chat)
@@ -114,6 +130,22 @@ dismissal, ambiguous answer, or failure to respond) as **new chat**.
 - **Current chat.** Print the full modified plan. Then begin executing
   the first group. Stop at the first STOP marker and report back, just
   as the prior version of this skill did.
+
+In whichever chat executes a group, **before halting at the STOP marker**:
+
+1. Append ` (done)` to every executable heading in the just-finished
+   group.
+2. Flip that group's native todo to `completed`; mark the next group
+   `in_progress`.
+3. Update the `Status:` line in the Kickoff block: increment the done
+   count, set `current:` to the next group's identifier, and refresh
+   the date.
+
+When the **last group finishes**, perform the final-completion steps from
+`§"Model-tier stop points" → "Progress tracking" → "Final completion"`
+in the standards: flip all todos to `completed`, replace the Kickoff
+marker with `--- KICKOFF: plan complete ---`, and append the Completion
+summary at the bottom of the plan file.
 
 ## Token tally on report-back
 
