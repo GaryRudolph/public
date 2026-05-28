@@ -51,21 +51,64 @@ historical comparison) is identical.
 the `source:` and `source_type:` frontmatter fields, not in the canonical
 structure.
 
-**Segment de-duplication for `meeting`-type recordings.** MacWhisper captures
-meetings via two parallel audio paths: the user's local microphone (which
-appears as a single `"Microphone"` speaker) and the diarized remote audio
-(`"Speaker 1"`, `"Speaker 2"`, etc.). When both are present, the same words are
-transcribed twice with nearly identical timings. **Drop all segments whose
-speaker name is exactly `"Microphone"`** before building the canonical
-structure — keep only the diarized speakers. If a recording has no diarized
-speakers (only the `"Microphone"` track), fall back to keeping the Microphone
-segments and treating them as a single anonymous speaker.
+**Self-mic segment de-duplication.** MacWhisper captures meetings via two
+parallel audio paths: the user's local microphone (which appears in MacWhisper
+as a single `"Microphone"` speaker, unless the user has renamed it) and the
+diarized remote audio (`"Speaker 1"`, `"Speaker 2"`, etc., or renamed). When
+both paths are present, the same utterance is transcribed twice with nearly
+identical timings — once on the local track, once on the diarized remote.
+
+The dedup rule:
+
+1. The set of *self-mic speakers* is configurable per workspace via
+   `<workspace>/.whisper-config.json` (key `self_mic_speakers`, default
+   `["Microphone", "Gary"]`). This generalization is necessary because users
+   commonly rename the local-mic track to their own name inside MacWhisper
+   (e.g. `"Microphone"` → `"Gary"`); without the rename, a literal `name ==
+   "Microphone"` rule misses every renamed self segment.
+2. For each segment whose speaker is in the self-mic list, drop it iff a
+   non-self speaker has a segment within +/- 2.5 seconds whose text similarity
+   (via `difflib.SequenceMatcher`) is >= 0.7.
+3. If a recording contains **only** self-mic speakers (e.g. a solo voice
+   memo where the local track is the only signal), the dedup is skipped
+   and all segments are kept. This covers the voice-memo case.
+
+The dedup happens before `content_hash` is computed, so user-driven changes
+to the self-mic list (or to MacWhisper speaker names) propagate through the
+hash → trigger regeneration as designed.
 
 **Stub speakers.** MacWhisper assigns generic `"Speaker N"` names until the
 user renames them. Treat these as valid speaker labels — they're stable
 identifiers for hashing purposes. Speaker renames in MacWhisper change the
 canonical structure and therefore change `content_hash`, triggering a
 regeneration as designed.
+
+## Manual truncation
+
+Some recordings end up much longer than the meeting they captured — a Zoom
+window left open after a 30-minute call may accumulate hours of ambient
+laptop audio. To trim them without editing inside MacWhisper, place a
+truncate rule in `<workspace>/.whisper-config.json`:
+
+```json
+{
+  "truncate": {
+    "6b8f97a8e5cd44238b61397a6c79c14e": { "after_ms": 2030000,
+      "note": "left recording running" }
+  }
+}
+```
+
+Keys may be either the MacWhisper session UUID (32 hex characters, no dashes
+— from the DB skill) or the `.whisper` filename (file skill). The runner
+checks both. Every segment whose `start_ms` is at or after `after_ms` is
+dropped, and the rendered note's `duration` is recomputed from the last
+surviving segment's `end_ms`. Truncation is applied **after** self-mic
+dedup, so `after_ms` values reflect timestamps you actually see in the
+rendered transcript.
+
+See `personal-whisper-to-markdown/scripts/whisper-config.example.json` for
+a documented template.
 
 ## Content hash
 
@@ -116,6 +159,47 @@ the source file's mtime so notes sort chronologically in Finder:
 touch -r "whisper/<source>.whisper" "YYYY/MM/YYYY-MM-DD-<slug>.md"
 ```
 
+## Pipeline (content-aware planner)
+
+Both skills implement the canonical-build and write logic in
+`skills/lib/whisper/` and expose it via a per-skill `scripts/run.py` with
+the following subcommands:
+
+```
+plan                  build/refresh per-session JSONs from source +
+                      overlay any content_*.json that already exists
+merge                 reconcile raw tags across content batches against
+                      the workspace vocabulary
+lookup-tags propose   emit lookup_queue.json for the agent's WebSearch +
+                      AskQuestion confirmation pass
+lookup-tags apply     write the agent's decisions back into per-session
+                      JSONs and append to tags.md
+write                 decision tree → render → write at the FINAL path
+report                print the run summary
+```
+
+`plan` is **content-aware and idempotent**. It is always run twice in the
+standard flow:
+
+1. First call: provisional title from the source (MacWhisper title / filename),
+   provisional slug, canonical structure, `content_hash`. Per-session JSON
+   written to `/tmp/whisper_plan/sessions/<key>.json`.
+2. Content generation step (inline for a single recording or via Sonnet
+   subagents for larger batches) writes `content_<batch>.json` files with
+   the final titles, summaries, action items, and proposed tags.
+3. Second call: re-reads source, **and** overlays the content_*.json files
+   on top, so the final slug — and therefore the final path — is computed
+   from the *final* title. Both calls write to the same per-session JSON,
+   so the path in `plan.json` and the path in each per-session JSON never
+   disagree. This eliminates the slug-then-reslug architecture and the
+   duplicate-file class of bugs that came with it.
+
+Subagents are pure content producers — they read per-session JSON files
+(including `canonical.segments` for the transcript and `historical.body`
+when a hand-written equivalent matched), emit one or more
+`content_<batch>.json` files, and never edit scripts or move files. The
+agent never needs to derive plan/write/merge logic from scratch.
+
 ## Historical equivalents
 
 Before generating a brand-new note (case 1 above), check whether a pre-existing
@@ -152,12 +236,25 @@ normalized candidate (tolerating minor whitespace drift).
 replacing unrelated notes that happen to share a date while still catching the
 same recording in any reasonable historical format.
 
-**On exactly one match:** write the canonical `YYYY/MM/YYYY-MM-DD-<slug>.md`
-with the full template, then delete the matched historical file (using `git rm`
-if the workspace is a git repo, otherwise `rm`). Skip the delete if the
-canonical path is already identical to the historical path (just overwrite in
-place). Apply `touch -r` to the source mtime. Include `old/path.md → new/path.md`
-in the run summary.
+**On exactly one match:** do *not* silently replace. Instead:
+
+1. Extract the hand-written body (strip leading `---` frontmatter if any).
+2. Pass it to the summary-generation step as **additional input** to the
+   subagent prompt — not as authoritative truth. The exact prompt language
+   is: *"The user wrote these notes around the time of the meeting. Treat
+   them as one more signal — they may flag decisions, side observations,
+   follow-ups they cared about, or just personal reactions. There are many
+   reasons something might have been written down. The transcript remains
+   the source of truth for what was said; let the notes inform what to
+   emphasize, not override the transcript."*
+3. In the rendered note, the hand-written body is preserved verbatim as a
+   blockquote under a new `## Original notes` section between Action Items
+   and Transcript (see the template below).
+4. Write the canonical `YYYY/MM/YYYY-MM-DD-<slug>.md` and delete the matched
+   historical file via `git rm` (in a git workspace) or `rm`. If the
+   canonical path is already identical to the historical path, just
+   overwrite in place. Apply `touch -r` to the source mtime. Include
+   `old/path.md → new/path.md` in the run summary.
 
 **On multiple matches:** do not overwrite anything. List all candidate paths in
 the run summary and skip this recording — let the user resolve manually.
@@ -216,6 +313,10 @@ content_hash: <SHA-256 of canonical recording structure>
 
 - <action item>
 
+## Original notes
+
+> <verbatim hand-written body from the matched historical file>
+
 ## Transcript
 
 [HH:MM:SS] <Speaker>: <line of transcript>
@@ -226,6 +327,9 @@ Section rules:
 - **Summary and Action Items** are generated from the transcript — write in
   your own words, do not copy transcript sentences verbatim.
 - **Omit Action Items** entirely if there are no concrete follow-ups.
+- **Original notes** appears *only* when a historical equivalent (≥ 70%
+  overlap) was matched. Render the candidate's body verbatim inside a
+  Markdown blockquote. Omit the section entirely when there is no match.
 - **tags** — propose **1–20** lowercase, kebab-case topical tags from content.
   Quality over quantity: one good tag beats six bad ones. Each tag should be a
   real, recognizable topic that someone might search or filter by. Prefer

@@ -27,11 +27,40 @@ the workspace here means prompts don't need to mention output paths.
 |---|---|---|
 | `~/Projects/personal/notes/` | Read + Write | Read existing notes and `tags.md`; write new notes; append to `tags.md` |
 | `~/Library/Application Support/MacWhisper/Database/` | **Read** | `main.sqlite` + `main.sqlite-shm` + `main.sqlite-wal` |
-| `~/.claude/skills/personal-whisper-to-markdown-db/` | Read | This skill (SKILL.md, COWORK.md) |
+| `~/.claude/skills/personal-whisper-to-markdown-db/` | Read | This skill (SKILL.md, COWORK.md, `scripts/run.py`) |
 | `~/.claude/skills/personal-whisper-to-markdown/` | Read | The shared `SPEC.md` (cross-referenced via `../personal-whisper-to-markdown/SPEC.md`) |
+| `~/.claude/skills/lib/whisper/` | Read | Shared library imported by `scripts/run.py` |
+| `/tmp/whisper_plan/` | Read + Write | Per-session JSONs, content batches, lookup queue/decisions, report |
 
 No `~/Projects/personal/notes/whisper/` access needed — that's the file
 skill's source folder, irrelevant for the DB skill.
+
+## 2a. Network permissions
+
+The `lookup-tags propose` / `apply` step uses `WebSearch` to confirm new
+person tags one at a time (e.g. is `nick` really `nick-holcomb` or
+`nick-smith`?). The harness needs **`full_network`** for that pass. The
+rest of the pipeline works offline; only flip on `full_network` for the
+short interactive confirmation window.
+
+## 2b. Workspace config
+
+The skill reads optional per-workspace configuration from
+`<workspace>/.whisper-config.json`. A documented template ships in the
+file skill at
+[`../personal-whisper-to-markdown/scripts/whisper-config.example.json`](../personal-whisper-to-markdown/scripts/whisper-config.example.json).
+Keys:
+
+- `self_mic_speakers` — speaker names treated as the local-mic track for
+  dedup against the diarized remote audio (default `["Microphone", "Gary"]`).
+- `truncate` — per-recording manual truncation. Keys are MacWhisper session
+  UUIDs (32 hex chars, no dashes) or `.whisper` filenames; value is
+  `{ "after_ms": ..., "note": "..." }`. Useful when a recording was left
+  running past the actual meeting.
+
+The file is optional; absence means "use defaults". See SPEC.md
+"Self-mic segment de-duplication" and "Manual truncation" for the
+exact semantics.
 
 ### macOS sandbox
 

@@ -1,0 +1,21 @@
+{
+  "_comment": "Drop this file at <workspace>/.whisper-config.json. Both the file and DB skills read it. All keys are optional.",
+
+  "self_mic_speakers": [
+    "Microphone",
+    "Gary"
+  ],
+  "_self_mic_comment": "Speaker names treated as the user's own local-mic track. Each segment whose speaker matches one of these is dropped during canonical building IF a non-self speaker has a near-duplicate segment (text similarity >= 0.7) within +/- 2.5 seconds. If a recording has ONLY self speakers (e.g. a solo voice memo), the dedup is skipped and all segments are kept.",
+
+  "truncate": {
+    "6b8f97a8e5cd44238b61397a6c79c14e": {
+      "after_ms": 2030000,
+      "note": "left recording running through the rest of the workday; the actual meeting was 33 minutes"
+    },
+    "Meeting - Zoom 2026-04-29 00_40_47.whisper": {
+      "after_ms": 2030000,
+      "note": "same recording, file-source key"
+    }
+  },
+  "_truncate_comment": "Per-recording manual truncation. Keys are either the MacWhisper session UUID (DB skill, 32 hex chars no dashes) OR the .whisper filename (file skill). Pick whichever maps unambiguously to the recording; the runner checks both. `after_ms` drops every segment that starts at or after this millisecond offset, then recomputes duration from the last surviving segment. Applied after self-mic dedup. The `note` field is just for your own reference."
+}

@@ -26,9 +26,36 @@ mention paths.
 |---|---|---|
 | `~/Projects/personal/notes/` | Read + Write | Read existing notes and `tags.md`; write new notes; append to `tags.md` |
 | `~/Projects/personal/notes/whisper/` | Read | `.whisper` ZIP exports (the source) |
-| `~/.claude/skills/personal-whisper-to-markdown/` | Read | This skill (SKILL.md, SPEC.md, COWORK.md) |
+| `~/.claude/skills/personal-whisper-to-markdown/` | Read | This skill (SKILL.md, SPEC.md, COWORK.md, `scripts/run.py`) |
+| `~/.claude/skills/lib/whisper/` | Read | Shared library imported by `scripts/run.py` |
+| `/tmp/whisper_plan/` | Read + Write | Per-session JSONs, content batches, lookup queue/decisions, report |
 
 No `~/Library/` access needed — that's the DB skill's concern.
+
+## 2a. Network permissions
+
+The `lookup-tags propose` / `apply` step uses `WebSearch` to confirm new
+person tags one at a time (e.g. is `nick` really `nick-holcomb` or
+`nick-smith`?). The harness needs **`full_network`** for that pass. The
+rest of the pipeline works offline; only flip on `full_network` for the
+short interactive confirmation window.
+
+## 2b. Workspace config
+
+The skill reads optional per-workspace configuration from
+`<workspace>/.whisper-config.json`. A documented template ships at
+[`scripts/whisper-config.example.json`](./scripts/whisper-config.example.json).
+Keys:
+
+- `self_mic_speakers` — speaker names treated as the local-mic track for
+  dedup against the diarized remote audio (default `["Microphone", "Gary"]`).
+- `truncate` — per-recording manual truncation (key = MacWhisper session
+  UUID or `.whisper` filename, value `{ "after_ms": ..., "note": "..." }`).
+  Useful when a recording was left running past the actual meeting.
+
+The file is optional; absence means "use defaults". See SPEC.md
+"Self-mic segment de-duplication" and "Manual truncation" for the
+exact semantics.
 
 ## 3. One-off prompts
 
