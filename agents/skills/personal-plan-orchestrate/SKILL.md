@@ -55,7 +55,7 @@ Read that section first when in doubt. This file does not duplicate it.
 ## Orchestrator-parent invariant
 
 The orchestrator-parent **always runs at `[deep]` /
-`claude-opus-4-7-thinking-xhigh`**. Tagging decisions, subagent-summary
+`claude-opus-4-8-thinking-xhigh`**. Tagging decisions, subagent-summary
 review, re-tagging on failure, and the gate-2/3 architectural review of
 cheaper-tier output are all `[deep]` work; weakening the orchestrator caps
 review quality at the level of the work being reviewed. The Kickoff block
@@ -71,13 +71,13 @@ written in step 4 hardcodes Opus xhigh for the same reason.
 This skill assumes **Cursor's `Task` tool with a per-invocation `model`
 parameter** and the documented Cursor model slugs:
 
-- `claude-opus-4-7-thinking-xhigh`
+- `claude-opus-4-8-thinking-xhigh`
 - `claude-4.6-sonnet-medium-thinking`
 - `composer-2.5-fast`
 
 **Default for Cursor: proceed.** Inspect your tool list. If you see a
 `Task` tool whose `model` parameter accepts the slugs above — a quick
-check is that the schema enumerates `claude-opus-4-7-thinking-xhigh`,
+check is that the schema enumerates `claude-opus-4-8-thinking-xhigh`,
 `claude-4.6-sonnet-medium-thinking`, and `composer-2.5-fast` — assume it
 works and continue. The schema is sufficient evidence; you do not need
 explicit user confirmation, and you do not need to verify the parameter
@@ -108,7 +108,7 @@ downgrade checklist, tag placement rule, no-thrash rule, and the Cursor /
 Claude Code model picker live in the standards section above. Cursor picks
 for orchestrator subagents, repeated here for reading clarity only:
 
-- `[deep]` subagent or parent: `claude-opus-4-7-thinking-xhigh`
+- `[deep]` subagent or parent: `claude-opus-4-8-thinking-xhigh`
 - `[exec]` subagent (default for delegated work): `claude-4.6-sonnet-medium-thinking`
 - `[fast]` subagent (only when no-thrash criterion met): `composer-2.5-fast`
 
@@ -166,7 +166,7 @@ decision in repo A and a sibling decision in repo B. The orchestrator-parent
 **does not** take either inline; both go out as opus subagents in parallel.
 
 Issue these as real `Task` tool calls in a single assistant message — two
-invocations of `Task`, both with `model="claude-opus-4-7-thinking-xhigh"`,
+invocations of `Task`, both with `model="claude-opus-4-8-thinking-xhigh"`,
 one scoped to each working directory. The subagent context contract still
 applies: quote the spec excerpt verbatim, pass the full standards-pointer
 set (architecture work, do not skimp), and include the disk-backed output
@@ -278,7 +278,7 @@ At plan completion, print a per-wave breakdown table:
 
 | wave | model | ~input | ~output | ~total |
 |------|-------|--------|---------|--------|
-| orchestrator | claude-opus-4-7-thinking-xhigh | … | … | … |
+| orchestrator | claude-opus-4-8-thinking-xhigh | … | … | … |
 | wave-1 (task-id) | <slug> | … | … | … |
 | … | | | | |
 | **GRAND TOTAL** | | | | |
@@ -301,7 +301,7 @@ usage data.
 4. **Write the Kickoff block to the top of the plan file** using the
    **active** variant of the Kickoff template from
    `~/Projects/personal/public/standards/documentation.md` §"Kickoff
-   template". The model row is **always** `claude-opus-4-7-thinking-xhigh`
+   template". The model row is **always** `claude-opus-4-8-thinking-xhigh`
    / `/model opus` xhigh because the orchestrator-parent always runs at
    `[deep]` (see "Orchestrator-parent invariant" above). The prompt body
    references the resolved plan filename from step 1 and names this
@@ -355,11 +355,11 @@ usage data.
    - `[exec] -> [fast]` → same no-thrash logic.
    - `[exec] -> [deep]` or `[fast] -> [deep]` → STOP (gate 2/3) for the
      user to review the just-finished cheaper-tier output. **Then
-     dispatch** `Task(model="claude-opus-4-7-thinking-xhigh", ...)`, one
+     dispatch** `Task(model="claude-opus-4-8-thinking-xhigh", ...)`, one
      per working directory. The parent does not execute the next group
      itself.
    - `[deep] -> [deep]` → dispatch
-     `Task(model="claude-opus-4-7-thinking-xhigh", ...)`, one per working
+     `Task(model="claude-opus-4-8-thinking-xhigh", ...)`, one per working
      directory. Always dispatch, even on a single working dir; the
      parent's context never holds the diffs or full reasoning of a deep
      wave.

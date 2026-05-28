@@ -159,7 +159,7 @@ Walk the tagged steps in order and collect consecutive same-tier steps into grou
 
 | Tier | Cursor | Claude Code | Thinking level |
 |---|---|---|---|
-| `[deep]` | `claude-opus-4-7-thinking-xhigh` (alt: `gpt-5.3-codex`) | `/model opus` | xhigh / max |
+| `[deep]` | `claude-opus-4-8-thinking-xhigh` (alt: `gpt-5.3-codex`) | `/model opus` | xhigh / max |
 | `[exec]` | `claude-4.6-sonnet-medium-thinking` (alt: `gpt-5.5-medium`) | `/model sonnet` | medium |
 | `[fast]` | `composer-2.5-fast` | `/model haiku` | off / none |
 
@@ -208,7 +208,7 @@ For an escalation back to `[deep]` (after `[exec]` or `[fast]`):
     --- STOP: tier change [exec] -> [deep] ---
 
       Next model
-        Cursor:      claude-opus-4-7-thinking-xhigh      (or gpt-5.3-codex)
+        Cursor:      claude-opus-4-8-thinking-xhigh      (or gpt-5.3-codex)
         Claude Code: /model opus                         (extended thinking: xhigh)
 
       Prompt to paste into the next chat:
@@ -277,14 +277,14 @@ Passive variant — `[fast]` first wave (prompt body adds the "no refactor" remi
 
     ---
 
-For a `[deep]` first wave, use the same body as the `[exec]` example with the `[deep]` model row from the [Model picker](#model-picker) above (`claude-opus-4-7-thinking-xhigh` / `/model opus` xhigh).
+For a `[deep]` first wave, use the same body as the `[exec]` example with the `[deep]` model row from the [Model picker](#model-picker) above (`claude-opus-4-8-thinking-xhigh` / `/model opus` xhigh).
 
 Active variant — orchestrate (always `[deep]` / Opus xhigh):
 
     --- KICKOFF: begin orchestration at [deep] ---
 
       Next model
-        Cursor:      claude-opus-4-7-thinking-xhigh      (or gpt-5.3-codex)
+        Cursor:      claude-opus-4-8-thinking-xhigh      (or gpt-5.3-codex)
         Claude Code: /model opus                         (extended thinking: xhigh)
 
       Prompt to paste into the next chat:
@@ -302,7 +302,7 @@ Rules for filling in the template:
 
 - Substitute the actual plan filename (resolved when the plan is identified).
 - For the passive variant, the `<tier>` is the **first executable tier** in the plan — the first heading carrying a `[deep]` / `[exec]` / `[fast]` tag, walking top-down. Higher-level grouping headings (milestones, phases) are untagged and ignored, per [Tag placement](#tag-placement). Use the tier value **after** the no-thrash promotion pass, so a `[fast]` step that gets promoted to `[exec]` is reflected as `[exec]` in the Kickoff.
-- For the active variant, the model is **always** `claude-opus-4-7-thinking-xhigh` / `/model opus` xhigh, regardless of what the first wave's tier is. The orchestrator-parent always runs at `[deep]`.
+- For the active variant, the model is **always** `claude-opus-4-8-thinking-xhigh` / `/model opus` xhigh, regardless of what the first wave's tier is. The orchestrator-parent always runs at `[deep]`.
 - Use `->` ASCII arrows rather than Unicode em-dash arrows so the marker is safe in terminals and grep.
 
 ### Delegating execution to subagents
