@@ -95,6 +95,8 @@ cleanup pass removes the symlinks.
 
 ## Current extensions
 
-| Name                          | Kind    | Description                                             |
-| ----------------------------- | ------- | ------------------------------------------------------- |
-| `personal-plan-model-tiers`   | skill   | Tag plan steps as [deep] or [exec] and insert STOP markers at tier boundaries |
+| Name                              | Kind    | Description                                             |
+| --------------------------------- | ------- | ------------------------------------------------------- |
+| `personal-plan-model-tiers`       | skill   | Tag plan steps as [deep] or [exec] and insert STOP markers at tier boundaries |
+| `personal-whisper-to-markdown`    | skill   | Convert MacWhisper `.whisper` exports into dated Markdown notes (incremental + idempotent; replaces historical equivalents) |
+| `personal-whisper-to-markdown-db` | skill   | Same output as `personal-whisper-to-markdown` but sourced from MacWhisper's live SQLite DB (picks up speaker renames without re-export) |
