@@ -17,7 +17,7 @@ definitions, the `[fast]` downgrade checklist, tag placement, the no-thrash
 rule, the model picker (Cursor + Claude Code + thinking levels), and the
 STOP marker template lives in:
 
-> `~/Projects/personal/public/standards/documentation.md` §"Model-tier stop
+> `~/Projects/personal/public/standards/plan-execution.md` §"Model-tier stop
 > points"
 
 Read that section first when in doubt. This file does not duplicate it.
@@ -122,7 +122,7 @@ dismissal, ambiguous answer, or failure to respond) as **new chat**.
 
 This question is fail-closed: a missed or ambiguous answer defaults to
 new chat (the safer path) and never authorizes continuing execution in
-this chat. See `standards/documentation.md` §"STOP gate semantics (fail
+this chat. See `standards/plan-execution.md` §"STOP gate semantics (fail
 closed)" for the canonical rules — approval is per-gate, a prior
 one-time "continue" in another context is not a standing waiver here,
 and the only way to authorize multiple unattended steps is an explicit
@@ -172,7 +172,7 @@ STOP marker (current-chat branch of step 7), append one line to your
 report-back:
 
 ```
-tokens: input ~X / output ~Y / total ~Z / model <slug> (heuristic)
+tokens: input ~X / output ~Y / total ~Z / model <slug> | cost ~$C (heuristic)
 ```
 
 Use `~tokens ≈ chars / 4`. Count input chars as everything you read (user
@@ -180,6 +180,13 @@ prompts, file reads, tool outputs); count output chars as everything you
 wrote (chat text, tool call arguments, file writes). Numbers are approximate
 (~±15%). This tally is per-chat — it covers only the work done in this
 session.
+
+Compute `C` from the Model price table in
+`~/Projects/personal/public/standards/plan-execution.md` §"Model price table": look up
+the input and output rates for `<slug>`, then apply
+`cost_usd ≈ (input_tokens / 1_000_000) × in_rate + (output_tokens / 1_000_000) × out_rate`.
+The cost estimate is heuristic (±15%) and uses Cursor usage-based pricing —
+it is not authoritative billing data.
 
 ## Delegating to subagents
 

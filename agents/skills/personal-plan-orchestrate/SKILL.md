@@ -55,7 +55,7 @@ Canonical reference for tier definitions, the `[fast]` downgrade checklist,
 tag placement, the no-thrash rule, the model picker (Cursor + Claude Code
 + thinking levels), and the Kickoff template lives in:
 
-> `~/Projects/personal/public/standards/documentation.md` §"Model-tier stop
+> `~/Projects/personal/public/standards/plan-execution.md` §"Model-tier stop
 > points"
 
 Read that section first when in doubt. This file does not duplicate it.
@@ -215,7 +215,7 @@ gate, summarize "state so far", surface the relevant decision, and wait for
 explicit confirmation before continuing.
 
 **These gates are fail-closed** — a non-answer is never approval. See
-`~/Projects/personal/public/standards/documentation.md` §"STOP gate
+`~/Projects/personal/public/standards/plan-execution.md` §"STOP gate
 semantics (fail closed)" for the canonical rules. Key points: a
 background-subagent completion notification does NOT advance a pending
 gate; approval is per-gate (a prior one-time "continue" is not a standing
@@ -275,11 +275,14 @@ parent is.
    the requirement that the returned summary cover: what changed, what was
    decided, surprises, and the artifact path.
 7. **Token reporting** — end your returned summary with one line:
-   `tokens: input ~X / output ~Y / total ~Z / model <slug> (heuristic)`,
+   `tokens: input ~X / output ~Y / total ~Z / model <slug> | cost ~$C (heuristic)`,
    where X and Y use `~tokens ≈ chars / 4`. Count input chars as
    everything you read (prompts, file reads, tool outputs); count output
    chars as everything you wrote (chat text, tool call arguments, file
-   writes). Flag the numbers as estimates.
+   writes). Compute `C` from the Model price table in
+   `~/Projects/personal/public/standards/plan-execution.md` §"Model price table" using
+   `cost_usd ≈ (input_tokens / 1_000_000) × in_rate + (output_tokens / 1_000_000) × out_rate`.
+   Flag all numbers as heuristic estimates (Cursor usage-based pricing, ±15%).
 
 ## Token tally
 
@@ -288,19 +291,25 @@ the same `~tokens ≈ chars / 4` heuristic. At every STOP gate, print a
 one-line running total:
 
 ```
-tokens so far: input ~X / output ~Y / total ~Z (heuristic)
+tokens so far: input ~X / output ~Y / total ~Z | cost ~$C (heuristic)
 ```
 
 At plan completion, print a per-wave breakdown table:
 
-| wave | model | ~input | ~output | ~total |
-|------|-------|--------|---------|--------|
-| orchestrator | claude-opus-4-8-thinking-xhigh | … | … | … |
-| wave-1 (task-id) | <slug> | … | … | … |
-| … | | | | |
-| **GRAND TOTAL** | | | | |
+| wave | model | ~input | ~output | ~total | ~cost |
+|------|-------|--------|---------|--------|-------|
+| orchestrator | claude-opus-4-8-thinking-xhigh | … | … | … | … |
+| wave-1 (task-id) | <slug> | … | … | … | … |
+| … | | | | | |
+| **GRAND TOTAL** | | | | | … |
 
-All numbers are heuristic estimates (~±15%). They are not authoritative
+Compute per-wave cost from the wave's model slug using the Model price table
+in `~/Projects/personal/public/standards/plan-execution.md` §"Model price table". Sum
+the per-wave costs for the GRAND TOTAL. The orchestrator-parent owns this
+computation — it can recompute from each wave's token counts even when a
+subagent omits the cost field.
+
+All numbers are heuristic estimates (~±15%, Cursor usage-based pricing). They are not authoritative
 usage data.
 
 ## Procedure
@@ -317,7 +326,7 @@ usage data.
    skill replaces all of those.
 4. **Write the Kickoff block to the top of the plan file** using the
    **active** variant of the Kickoff template from
-   `~/Projects/personal/public/standards/documentation.md` §"Kickoff
+   `~/Projects/personal/public/standards/plan-execution.md` §"Kickoff
    template". The model row is **always** `claude-opus-4-8-thinking-xhigh`
    / `/model opus` xhigh because the orchestrator-parent always runs at
    `[deep]` (see "Orchestrator-parent invariant" above). The prompt body
