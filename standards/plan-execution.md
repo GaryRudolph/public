@@ -78,13 +78,15 @@ Walk the tagged steps in order and collect consecutive same-tier steps into grou
 
 | Tier | Cursor | Claude Code | Thinking level |
 |---|---|---|---|
-| `[deep]` | `claude-opus-4-8-thinking-xhigh` (alt: `gpt-5.3-codex`) | `/model opus` | xhigh / max |
+| `[deep]` | `claude-opus-4-8-thinking-xhigh` (alt: `gpt-5.5`) | `/model opus` | xhigh / max |
 | `[exec]` | `claude-4.6-sonnet-medium-thinking` (alt: `gpt-5.5-medium`) | `/model sonnet` | medium |
-| `[fast]` | `composer-2.5-fast` | `/model haiku` | off / none |
+| `[fast]` | `composer-2.5` (standard) | `/model haiku` | off / none |
 
 Notes:
 - For Claude Code, toggle extended thinking with `/think` (or the equivalent in the version installed). Haiku doesn't meaningfully benefit from extended thinking on bounded mechanical tasks — it just adds latency.
 - Cursor's Auto mode tends to pick Composer for routine and Sonnet for ambiguous; Auto is fine inside an `[exec]` block but pin the model explicitly inside `[deep]` blocks.
+- `[fast]` uses **Composer 2.5 standard** ($0.50/$2.50): same intelligence as the Fast variant ($3/$15) at ~6× lower cost and tuned for unattended/background runs — prefer it for mechanical `[fast]` work, since Fast's premium only pays back when a human is watching tokens stream live. Caveat: `personal-plan-orchestrate` dispatches `[fast]` groups via `Task(model=...)`, whose enum currently exposes only `composer-2.5-fast`, so orchestrated `[fast]` subagents run on Fast until Cursor adds a standard Task slug; the manual `personal-plan-model-tiers` flow can pick standard directly in the model picker.
+- For `[deep]`, the ChatGPT alt is `gpt-5.5` (xhigh) — it leads terminal/agentic and computer-use work and emits far fewer output tokens than Opus on long loops; keep Opus as the primary for multi-file architecture and tool-heavy MCP orchestration.
 - This table will need periodic refresh as Cursor and Anthropic ship new versions; that maintenance cost is the price of having one source of truth for tier-to-model mapping.
 
 ### Model price table
@@ -95,9 +97,10 @@ Cursor usage-based rates for the three planning tiers. Refresh alongside the Mod
 |---|---|---|
 | `claude-opus-4-8-thinking-xhigh` | $5.00 | $25.00 |
 | `claude-4.6-sonnet-medium-thinking` | $3.00 | $15.00 |
-| `composer-2.5-fast` | $0.50 | $2.50 |
+| `composer-2.5` (standard) | $0.50 | $2.50 |
+| `composer-2.5-fast` | $3.00 | $15.00 |
 
-*As of 2026-05-28. Source: [cursor.com/docs/models-and-pricing](https://cursor.com/docs/models-and-pricing).*
+*As of 2026-05-29. Source: [cursor.com/docs/models-and-pricing](https://cursor.com/docs/models-and-pricing). `composer-2.5` (standard) and `composer-2.5-fast` are the same model at different inference throughput; `[fast]` uses standard, while orchestrate Task subagents are currently limited to fast (see the Model picker notes above).*
 
 Cost formula used by the `tokens:` tally:
 
@@ -129,7 +132,7 @@ For an `[exec] -> [fast]` transition, the prompt should also remind the model no
     --- STOP: tier change [exec] -> [fast] ---
 
       Next model
-        Cursor:      composer-2.5-fast
+        Cursor:      composer-2.5 (standard)
         Claude Code: /model haiku                        (no extended thinking)
 
       Prompt to paste into the next chat:
@@ -145,7 +148,7 @@ For an escalation back to `[deep]` (after `[exec]` or `[fast]`):
     --- STOP: tier change [exec] -> [deep] ---
 
       Next model
-        Cursor:      claude-opus-4-8-thinking-xhigh      (or gpt-5.3-codex)
+        Cursor:      claude-opus-4-8-thinking-xhigh      (or gpt-5.5)
         Claude Code: /model opus                         (extended thinking: xhigh)
 
       Prompt to paste into the next chat:
@@ -207,7 +210,7 @@ Passive variant — `[fast]` first wave (prompt body adds the "no refactor" remi
       Status: 0/N groups done | current: <first group> [fast] | updated YYYY-MM-DD
 
       Next model
-        Cursor:      composer-2.5-fast
+        Cursor:      composer-2.5 (standard)
         Claude Code: /model haiku                        (no extended thinking)
 
       Prompt to paste into the next chat:
@@ -227,7 +230,7 @@ Active variant — orchestrate (always `[deep]` / Opus xhigh):
       Status: 0/N groups done | current: <first group> [deep] | updated YYYY-MM-DD
 
       Next model
-        Cursor:      claude-opus-4-8-thinking-xhigh      (or gpt-5.3-codex)
+        Cursor:      claude-opus-4-8-thinking-xhigh      (or gpt-5.5)
         Claude Code: /model opus                         (extended thinking: xhigh)
 
       Prompt to paste into the next chat:
