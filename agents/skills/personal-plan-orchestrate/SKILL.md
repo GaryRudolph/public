@@ -43,6 +43,14 @@ printing STOP markers in chat output asking the user to swap models, or
 (b) executing plan work inline in this chat instead of dispatching a
 `Task` subagent at the boundary.
 
+The orchestrator's mandate is to keep moving and pause only at mandatory
+STOP gates — **and those gates are fail-closed.** Never rationalize
+proceeding on a missed answer, a dismissed prompt, or a prior one-time
+"continue". A background-subagent completion notification is not an
+answer; it does not advance a pending gate. See "Mandatory STOP gates"
+below and the standards §"STOP gate semantics (fail closed)" for the
+canonical rules.
+
 Canonical reference for tier definitions, the `[fast]` downgrade checklist,
 tag placement, the no-thrash rule, the model picker (Cursor + Claude Code
 + thinking levels), and the Kickoff template lives in:
@@ -206,6 +214,15 @@ Pause and hand control to the user at exactly these points. At every STOP
 gate, summarize "state so far", surface the relevant decision, and wait for
 explicit confirmation before continuing.
 
+**These gates are fail-closed** — a non-answer is never approval. See
+`~/Projects/personal/public/standards/documentation.md` §"STOP gate
+semantics (fail closed)" for the canonical rules. Key points: a
+background-subagent completion notification does NOT advance a pending
+gate; approval is per-gate (a prior one-time "continue" is not a standing
+waiver); if no explicit affirmative answer is received, re-post the exact
+gate question, write `BLOCKED at gate <N>` into the Kickoff `Status:`
+line, and end the turn. Never dispatch subagents while blocked.
+
 1. **Subagent error or self-reported low-quality output** — surface to the
    user; decide retry on same model, step up one tier, or re-plan.
 2. **`[exec] -> [deep]` boundary** — review gate. STOP so the user can
@@ -338,7 +355,10 @@ usage data.
    > chat for clean context? (default: new chat)
 
    Wait for the answer. Treat any non-affirmative reply (silence,
-   dismissal, ambiguous answer, no response) as **new chat**.
+   dismissal, ambiguous answer, no response) as **new chat**. This
+   question is itself a gate: if no explicit answer is received, write
+   `BLOCKED at gate (kickoff-destination)` to the `Status:` line and end
+   the turn. Do not dispatch subagents while blocked.
 6. **Branch on the answer.**
    - **New chat (default).** Print the modified plan (with the Kickoff
      block at the top) so the user can see it. Halt. Do **not** dispatch
@@ -362,8 +382,10 @@ usage data.
      treat as the `[deep] -> [exec]` row.
    - `[exec] -> [fast]` → same no-thrash logic.
    - `[exec] -> [deep]` or `[fast] -> [deep]` → STOP (gate 2/3) for the
-     user to review the just-finished cheaper-tier output. **Then
-     dispatch** `Task(model="claude-opus-4-8-thinking-xhigh", ...)`, one
+     user to review the just-finished cheaper-tier output. Fail-closed:
+     if no explicit answer is received, re-post the review question,
+     write `BLOCKED at gate 2` (or `3`) to the `Status:` line, and end
+     the turn. **Then dispatch** `Task(model="claude-opus-4-8-thinking-xhigh", ...)`, one
      per working directory. The parent does not execute the next group
      itself.
    - `[deep] -> [deep]` → dispatch
@@ -372,7 +394,9 @@ usage data.
      parent's context never holds the diffs or full reasoning of a deep
      wave.
    - **Milestone boundary** crossed mid-walk → STOP (gate 4) before the
-     next dispatch.
+     next dispatch. Fail-closed: if no explicit answer is received,
+     re-post the milestone review question, write `BLOCKED at gate 4` to
+     the `Status:` line, and end the turn.
 9. **Build each subagent prompt** per the "Subagent context contract"
    above.
 10. **Dispatch**. Issue actual `Task` tool calls — do not print them in
@@ -380,7 +404,12 @@ usage data.
     groups, batch all the `Task` calls into a single assistant message
     (one tool invocation per working directory).
 11. **First-subagent canary** — STOP after the first subagent of the run
-    regardless of outcome (gate 5).
+    regardless of outcome (gate 5). Fail-closed: if no explicit answer
+    is received, re-post the canary review question, write
+    `BLOCKED at gate 5` to the `Status:` line, and end the turn. Do not
+    dispatch the next subagent while blocked. A background-subagent
+    completion notification does NOT count as an answer to the canary
+    question.
 12. **Collect summaries**. Update "state so far". Re-read artifacts only
     when needed. Parse the `tokens:` line from each subagent summary
     into the rolling tally; include the running tally in the "state so
@@ -395,10 +424,12 @@ usage data.
       count, set `current:` to the next group's identifier, and refresh
       the date.
 13. **Handle errors / low-quality output** — STOP (gate 1) and offer
-    retry / step-up / re-plan. Stepping up tiers triggers gate 6, and
-    the re-attempt itself is **dispatched** as a subagent on the higher
-    tier's model — composer → sonnet, sonnet → opus — never executed
-    inline.
+    retry / step-up / re-plan. Fail-closed: if no explicit answer is
+    received, re-post the error gate question, write `BLOCKED at gate 1`
+    to the `Status:` line, and end the turn. Stepping up tiers triggers
+    gate 6, and the re-attempt itself is **dispatched** as a subagent on
+    the higher tier's model — composer → sonnet, sonnet → opus — never
+    executed inline.
 14. **Advance** to the next boundary. Repeat from step 7 until the plan
     is complete, stopping at every gate. When the plan is complete,
     print the final per-wave + orchestrator + grand-total token table

@@ -43,7 +43,7 @@ A project or organization rule can override a personal preference if there's a d
 - **Never commit unless asked** — do not create commits unless I explicitly ask you to; this applies even during multi-step plans
 - **Verify git email** — before any commit, run `git config user.email` and confirm it matches the expected email for this repo's organization; flag a mismatch and wait for me to fix it
 - **Pause after each step** — stop and show me what changed before moving on
-- **Wait for approval** — do not proceed to the next step until I confirm
+- **Wait for approval** — do not proceed to the next step until I confirm. A one-time "yes / continue / go ahead" approves only the single step or question it answers; it is NEVER a blanket approval for subsequent steps or future decisions — ask again at the next decision point. A missing, timed-out, dismissed, or ambiguous response is never approval (fail closed): hold and re-ask rather than assume. If you want me to run multiple steps unattended, say so explicitly (e.g. "run unattended" / "auto-approve the next N steps"). For tagged-plan execution, the per-gate mechanics live in `~/Projects/personal/public/standards/documentation.md` §"Model-tier stop points" -> "STOP gate semantics".
 - **Wait for answers** — if you ask a question, always wait for a response before proceeding; never assume an answer and continue
 - **Always use virtual environments** — when installing Python packages, use the project's existing venv (or create one with `python -m venv .venv`) from the start; never install with global or user-level pip
 - **Use project-local package management** — for Node, prefer `npx` over `npm install -g`; for Ruby, use `bundle exec` and never bare `gem install`

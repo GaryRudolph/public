@@ -120,6 +120,14 @@ After writing the Kickoff block and seeding todos, ask the user:
 Wait for the user's answer. Treat any non-affirmative reply (silence,
 dismissal, ambiguous answer, or failure to respond) as **new chat**.
 
+This question is fail-closed: a missed or ambiguous answer defaults to
+new chat (the safer path) and never authorizes continuing execution in
+this chat. See `standards/documentation.md` §"STOP gate semantics (fail
+closed)" for the canonical rules — approval is per-gate, a prior
+one-time "continue" in another context is not a standing waiver here,
+and the only way to authorize multiple unattended steps is an explicit
+"run unattended" / "auto-approve the next N steps" instruction.
+
 ### 7. Branch on the answer
 
 - **New chat (default).** Print the full modified plan (with STOP
@@ -140,6 +148,16 @@ In whichever chat executes a group, **before halting at the STOP marker**:
 3. Update the `Status:` line in the Kickoff block: increment the done
    count, set `current:` to the next group's identifier, and refresh
    the date.
+
+**At every STOP marker, these gates are fail-closed.** A missed,
+timed-out, dismissed, or ambiguous response to a STOP-marker question
+never authorizes continuing past that marker. If no explicit
+affirmative answer is received, record `BLOCKED at gate <identifier>`
+in the Kickoff `Status:` line (e.g.
+`Status: 2/5 groups done | BLOCKED at gate [exec]->[deep] | updated 2026-05-28`),
+re-post the STOP-marker question, and end the turn. The next session
+re-derives state from the `Status:` line and ` (done)` markers —
+a `BLOCKED at gate` status means re-post and wait, never assume approval.
 
 When the **last group finishes**, perform the final-completion steps from
 `§"Model-tier stop points" → "Progress tracking" → "Final completion"`

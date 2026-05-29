@@ -362,13 +362,28 @@ When the last group finishes:
 4. Append a **Completion summary** at the bottom of the plan file (below all existing content):
 
        ## Completion summary
-       
+
        **Completed**: YYYY-MM-DD
        **What shipped**: <one-paragraph summary>
        **Deviations from plan**: <list, or "none">
        **Follow-ups**: <list, or "none">
 
    This summary dovetails with the handoff convention — promote it to a `.scratch/handoff-*.md` or `handoffs/` file if the work needs to be picked up by another engineer or session.
+
+### STOP gate semantics (fail closed)
+
+- **Gates block on an explicit affirmative answer.** Mandatory gates exist for human oversight.
+- **A non-answer is never approval.** A timeout, empty reply, dismissed prompt, ambiguous reply, or regaining control via a background-subagent completion notification does NOT permit advancing past a pending gate. When in doubt, do not proceed.
+- **Approval is per-gate.** Each mandatory gate needs its own fresh explicit answer. A one-time "continue" / "proceed" / "use what you have" applies ONLY to the gate it answers; it is not a standing waiver for future gates. (This is the orchestration-specific application of the general "Wait for approval" workflow rule in AGENTS.md.)
+- **Unattended is opt-in only.** The sole way to disable gate blocking is an explicit user instruction such as "run unattended", "auto-approve all gates", or "auto-approve the next N gates". Absent that, every mandatory gate blocks.
+- **On a blocked gate, do both:**
+  1. Re-post the exact gate question, end the turn, and wait. Do not poll, do not dispatch.
+  2. Record durable pending state in the Kickoff `Status:` line, e.g.
+
+         Status: 2/5 groups done | BLOCKED at gate 2 ([exec]->[deep] review) | updated 2026-05-28
+
+     On re-entry, an agent that sees a `BLOCKED at gate` status re-posts that exact question and waits — it never assumes the gate was approved.
+- Cross-references: [Progress tracking](#progress-tracking) (the Status line) and the AGENTS.md "Wait for approval" workflow rule.
 
 ### Delegating execution to subagents
 
