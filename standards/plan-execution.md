@@ -110,7 +110,7 @@ All cost estimates inherit the `~tokens ≈ chars / 4` heuristic (±15%) and are
 
 ### STOP marker template
 
-Each STOP marker carries three things, formatted so the user can paste them straight into a new chat: the tier transition direction, the next model + thinking level for **both** Cursor and Claude Code, and a copy-pasteable prompt that names the next group, references the plan file, and includes a hard scope limit so the next agent halts at the next STOP.
+Each STOP marker carries three things, formatted so the user can paste them straight into a new chat: the tier transition direction, the next model + thinking level for **both** Cursor and Claude Code, and a copy-pasteable prompt that names the next group, references the plan file by its absolute path, and includes a hard scope limit so the next agent halts at the next STOP.
 
 Template (a `[deep] -> [exec]` transition):
 
@@ -121,7 +121,7 @@ Template (a `[deep] -> [exec]` transition):
         Claude Code: /model sonnet                       (extended thinking: medium)
 
       Prompt to paste into the next chat:
-        Read .scratch/plan-<topic>-<word>.md. Execute <next group>.
+        Read <absolute path to the plan file>. Execute <next group>.
         Stop at the next STOP marker and report back what you changed
         and any deviations from the plan.
 
@@ -136,7 +136,7 @@ For an `[exec] -> [fast]` transition, the prompt should also remind the model no
         Claude Code: /model haiku                        (no extended thinking)
 
       Prompt to paste into the next chat:
-        Read .scratch/plan-<topic>-<word>.md. Execute <next group>.
+        Read <absolute path to the plan file>. Execute <next group>.
         These are mechanical edits -- apply exactly what the plan
         specifies; do not refactor, rename, or generalize. Stop at the
         next STOP marker and report back.
@@ -152,7 +152,7 @@ For an escalation back to `[deep]` (after `[exec]` or `[fast]`):
         Claude Code: /model opus                         (extended thinking: xhigh)
 
       Prompt to paste into the next chat:
-        Read .scratch/plan-<topic>-<word>.md and review the previous
+        Read <absolute path to the plan file> and review the previous
         output in git status / diff. Then design <next group> (do not
         implement). Stop after the design is written and report back.
 
@@ -160,7 +160,7 @@ For an escalation back to `[deep]` (after `[exec]` or `[fast]`):
 
 Rules for filling in the template:
 
-- Substitute the actual plan filename (resolved when the plan is identified).
+- `<absolute path to the plan file>` is the **fully-qualified absolute path** to the plan file, resolved when the plan was identified — for example: `/Users/gary/Projects/personal/public/.scratch/plan-topic-word.md`. Never emit a bare filename or a repo-relative path — the next chat may start from a different working directory.
 - Name the next group using whatever identifiers the plan uses: if headings
   carry IDs, use those (e.g. `m2 s1-s4`); if not, use exact title text
   (e.g. `the "Wire Redis client" through "Write integration tests" steps`).
@@ -197,7 +197,7 @@ Passive variant — `[exec]` first wave (the most common shape):
         Claude Code: /model sonnet                       (extended thinking: medium)
 
       Prompt to paste into the next chat:
-        Read .scratch/plan-<topic>-<word>.md. Begin execution at the top
+        Read <absolute path to the plan file>. Begin execution at the top
         of the plan. Stop at the next STOP marker and report back what
         you changed and any deviations from the plan.
 
@@ -214,7 +214,7 @@ Passive variant — `[fast]` first wave (prompt body adds the "no refactor" remi
         Claude Code: /model haiku                        (no extended thinking)
 
       Prompt to paste into the next chat:
-        Read .scratch/plan-<topic>-<word>.md. Begin execution at the top
+        Read <absolute path to the plan file>. Begin execution at the top
         of the plan. These are mechanical edits -- apply exactly what the
         plan specifies; do not refactor, rename, or generalize. Stop at
         the next STOP marker and report back.
@@ -234,7 +234,7 @@ Active variant — orchestrate (always `[deep]` / Opus xhigh):
         Claude Code: /model opus                         (extended thinking: xhigh)
 
       Prompt to paste into the next chat:
-        Read .scratch/plan-<topic>-<word>.md. The plan is already tagged.
+        Read <absolute path to the plan file>. The plan is already tagged.
         Run the personal-plan-orchestrate skill from the top: walk to
         each tier boundary, dispatch Task subagents per the skill's
         procedure, and pause only at the mandatory STOP gates. Do not
@@ -246,7 +246,7 @@ Active variant — orchestrate (always `[deep]` / Opus xhigh):
 
 Rules for filling in the template:
 
-- Substitute the actual plan filename (resolved when the plan is identified).
+- `<absolute path to the plan file>` is the **fully-qualified absolute path** to the plan file, resolved when the plan was identified — for example: `/Users/gary/Projects/personal/public/.scratch/plan-topic-word.md`. Never emit a bare filename or a repo-relative path — the next chat may start from a different working directory.
 - For the passive variant, the `<tier>` is the **first executable tier** in the plan — the first heading carrying a `[deep]` / `[exec]` / `[fast]` tag, walking top-down. Higher-level grouping headings (milestones, phases) are untagged and ignored, per [Tag placement](#tag-placement). Use the tier value **after** the no-thrash promotion pass, so a `[fast]` step that gets promoted to `[exec]` is reflected as `[exec]` in the Kickoff.
 - For the active variant, the model is **always** `claude-opus-4-8-thinking-xhigh` / `/model opus` xhigh, regardless of what the first wave's tier is. The orchestrator-parent always runs at `[deep]`.
 - Use `->` ASCII arrows rather than Unicode em-dash arrows so the marker is safe in terminals and grep.

@@ -330,7 +330,7 @@ usage data.
    template". The model row is **always** `claude-opus-4-8-thinking-xhigh`
    / `/model opus` xhigh because the orchestrator-parent always runs at
    `[deep]` (see "Orchestrator-parent invariant" above). The prompt body
-   references the resolved plan filename from step 1 and names this
+   references the resolved absolute plan path from step 1 and names this
    skill (`personal-plan-orchestrate`). The Kickoff block is
    **idempotent**: if a Kickoff block already exists at the top of the
    file (any line matching `--- KICKOFF: ... ---`), replace it;
