@@ -136,6 +136,10 @@ Never read or decode `originalAudio` — MacWhisper has already done the
 transcription and re-running speech-to-text would risk producing different
 results than what the user sees in MacWhisper.
 
+> For how the same recordings are represented in MacWhisper's underlying
+> SQLite store (the DB-source skill's source of truth), see the database
+> reference at [`../../../specs/macwhisper-database.md`](../../../specs/macwhisper-database.md).
+
 The `source:` frontmatter value is the `.whisper` filename (e.g.
 `Meeting - Zoom 2026-04-27 07_32_47.whisper`). The `source_type:` value
 is `file`.

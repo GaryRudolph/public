@@ -155,6 +155,11 @@ the DB is read from the fixed Library path above regardless of cwd.
 
 ## Schema overview (reference)
 
+> The full MacWhisper database reference (every table, the FTS5 mirror +
+> triggers, BLOB-UUID/hex and time conventions, soft-delete, media-file
+> naming/`type` enums, schema-drift handling, and the read-only/write safety
+> contract) lives in [`../../../specs/macwhisper-database.md`](../../../specs/macwhisper-database.md).
+
 `scripts/run.py` handles the SQL internally. The relevant tables for
 debugging or schema-drift triage:
 
