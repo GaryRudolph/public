@@ -313,7 +313,7 @@ When the last group finishes:
 ## STOP gate semantics (fail closed)
 
 - **Gates block on an explicit affirmative answer.** Mandatory gates exist for human oversight.
-- **A non-answer is never approval.** A timeout, empty reply, dismissed prompt, ambiguous reply, or regaining control via a background-subagent completion notification does NOT permit advancing past a pending gate. When in doubt, do not proceed.
+- **A non-answer is never approval.** A timeout, empty reply, dismissed prompt, skipped prompt, ambiguous reply, or regaining control via a background-subagent completion notification does NOT permit advancing past a pending gate. When in doubt, do not proceed.
 - **Approval is per-gate.** Each mandatory gate needs its own fresh explicit answer. A one-time "continue" / "proceed" / "use what you have" applies ONLY to the gate it answers; it is not a standing waiver for future gates. (This is the orchestration-specific application of the general "Wait for approval" workflow rule in AGENTS.md.)
 - **Unattended is opt-in only.** The sole way to disable gate blocking is an explicit user instruction such as "run unattended", "auto-approve all gates", or "auto-approve the next N gates". Absent that, every mandatory gate blocks.
 - **On a blocked gate, do both:**

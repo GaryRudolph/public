@@ -9,6 +9,8 @@ We follow **GitHub Flow** — short-lived feature branches merged frequently to 
 - **Bugfix**: `fix/issue-description` or `fix/TICKET-123-description`
 - **Release**: `release/v2` (short-lived, for hotfixes only; ideally not needed)
 
+These naming conventions apply when a branch is intentionally created (by me or on request) — they are not license for an agent to auto-branch.
+
 ## Worktrees
 
 Worktrees live as **siblings** of the main checkout, not nested inside it. The main checkout keeps the bare repo name (e.g. `public/`).
@@ -42,6 +44,9 @@ See **[versioning.md](versioning.md)** for the full standard, including BNF gram
 
 - **Do not auto-commit** — only commit when explicitly asked
 - **No co-authored-by** — do not add `Co-Authored-By` trailers for AI agents
+- **Do not auto-branch** — never create or switch branches on your own. Default to the branch already checked out; if none was specified, that means `main`. Multi-agent work on one repo especially must not silently move branches.
+- **Worktrees only when asked** — create a worktree only on explicit request (see [Worktrees](#worktrees) for layout/naming). Do not spin one up proactively.
+- **Propose branch changes, then wait** — if you believe a new branch, branch switch, or worktree is warranted, propose it and wait for explicit confirmation before acting. Silence, a dismissed/skipped prompt, or an ambiguous reply is not confirmation (fail closed).
 
 ## Commit Messages
 

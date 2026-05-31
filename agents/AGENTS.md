@@ -32,7 +32,7 @@ A project or organization rule can override a personal preference if there's a d
 
 ## Git Conventions
 
-- **Branching**: GitHub Flow — `feature/name`, `fix/name`, `release/vN`
+- **Branching**: GitHub Flow — `feature/name`, `fix/name`, `release/vN`; agents default to the current branch (see `~/Projects/personal/public/standards/git.md` "AI Agent Behavior")
 - **Versioning**: simplified — `v1`, `v2`, `v3`; hotfixes only: `v2.1`
 - **Commits**: imperative mood, optional ticket prefix, 72-char subject, no period
   - `add login endpoint` or `PROJ-123 add login endpoint`
@@ -41,9 +41,10 @@ A project or organization rule can override a personal preference if there's a d
 ## Workflow
 
 - **Never commit unless asked** — do not create commits unless I explicitly ask you to; this applies even during multi-step plans
+- **Stay on the current branch** — never auto-create or switch branches; default to the current branch (or `main`). Worktrees only when I ask. If you think the branch should change, propose it and wait for explicit confirmation (skipping is not confirmation). See `~/Projects/personal/public/standards/git.md` "AI Agent Behavior"
 - **Verify git email** — before any commit, run `git config user.email` and confirm it matches the expected email for this repo's organization; flag a mismatch and wait for me to fix it
 - **Pause after each step** — stop and show me what changed before moving on
-- **Wait for approval** — do not proceed to the next step until I confirm. A one-time "yes / continue / go ahead" approves only the single step or question it answers; it is NEVER a blanket approval for subsequent steps or future decisions — ask again at the next decision point. A missing, timed-out, dismissed, or ambiguous response is never approval (fail closed): hold and re-ask rather than assume. If you want me to run multiple steps unattended, say so explicitly (e.g. "run unattended" / "auto-approve the next N steps"). For tagged-plan execution, the per-gate mechanics live in `~/Projects/personal/public/standards/plan-execution.md` §"Model-tier stop points" -> "STOP gate semantics".
+- **Wait for approval** — do not proceed to the next step until I confirm. A one-time "yes / continue / go ahead" approves only the single step or question it answers; it is NEVER a blanket approval for subsequent steps or future decisions — ask again at the next decision point. A missing, timed-out, dismissed, skipped, or ambiguous response is never approval (fail closed): hold and re-ask rather than assume. Skipping or dismissing a prompt is never a yes. If you want me to run multiple steps unattended, say so explicitly (e.g. "run unattended" / "auto-approve the next N steps"). For tagged-plan execution, the per-gate mechanics live in `~/Projects/personal/public/standards/plan-execution.md` §"Model-tier stop points" -> "STOP gate semantics".
 - **Wait for answers** — if you ask a question, always wait for a response before proceeding; never assume an answer and continue
 - **Always use virtual environments** — when installing Python packages, use the project's existing venv (or create one with `python -m venv .venv`) from the start; never install with global or user-level pip
 - **Use project-local package management** — for Node, prefer `npx` over `npm install -g`; for Ruby, use `bundle exec` and never bare `gem install`
