@@ -169,25 +169,48 @@ summary at the bottom of the plan file.
 ## Token tally on report-back
 
 Before halting (new-chat branch of step 7) or after stopping at the first
-STOP marker (current-chat branch of step 7), append one line to your
-report-back:
+STOP marker (current-chat branch of step 7), append a wave summary line to
+your report-back:
 
 ```
-tokens: input ~X / output ~Y / total ~Z / model <slug> | cost ~$C (heuristic)
+tokens wave-N <group-id> (model-slug): input ~X / output ~Y | cost ~$C (heuristic)
 ```
 
-Use `~tokens ≈ chars / 4`. Count input chars as everything you read (user
-prompts, file reads, tool outputs); count output chars as everything you
-wrote (chat text, tool call arguments, file writes). Numbers are approximate
-(~±15%). This tally is per-chat — it covers only the work done in this
-session.
+Where `wave-N` is the 1-based wave number (1 for the first group executed, 2
+for the second, etc.), `<group-id>` is the group identifier from the plan
+(e.g. `m1-s1-s3`), and `model-slug` is the model this chat ran on.
 
-Compute `C` from the Model price table in
-`~/Projects/personal/public/standards/plan-execution.md` §"Model price table": look up
-the input and output rates for `<slug>`, then apply
-`cost_usd ≈ (input_tokens / 1_000_000) × in_rate + (output_tokens / 1_000_000) × out_rate`.
-The cost estimate is heuristic (±15%) and uses Cursor usage-based pricing —
-it is not authoritative billing data.
+Derive `X` and `Y` using the **source precedence** in
+`~/Projects/personal/public/standards/plan-execution.md` §"Token accounting —
+source precedence": prefer real harness usage when available (on Claude Code,
+read `message.usage` — incl. cache tiers and reasoning tokens — from the
+session JSONL), and fall back to `~tokens ≈ chars / 4` only when it isn't
+(e.g. Cursor). Tag the line `(heuristic)` and treat it as ±40% when using the
+fallback; ±15% when using real usage.
+
+Compute `C` with the cache-aware formula and the input/output rates for the
+model slug from the same standards section (§"Model price table").
+
+**Also write the wave line to the plan file.** Append it to a `## Token log`
+section at the bottom of the plan file (create the section if it doesn't
+exist). This persists cross-wave data across separate chats so the final
+wave can assemble the full table.
+
+When the **last group finishes**, read all wave lines from the `## Token log`
+section and print the full per-wave breakdown table alongside the Completion
+summary:
+
+| wave | group | model | ~input | ~output | ~cost |
+|------|-------|-------|--------|---------|-------|
+| wave-1 | m1-s1-s3 | claude-opus-4-8-thinking-xhigh | … | … | … |
+| wave-2 | m2-s4-s6 | claude-4.6-sonnet-medium-thinking | … | … | … |
+| **GRAND TOTAL** | | | | | … |
+
+The GRAND TOTAL cost is the **sum of per-wave costs** (each priced at its own
+model's rates), not a blended rate applied to the total token count. Accuracy
+follows the source each wave used (±15% from real harness usage, ±40% from
+the `chars / 4` heuristic). These are rough estimates, not authoritative
+billing data.
 
 ## Delegating to subagents
 

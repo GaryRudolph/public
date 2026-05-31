@@ -263,6 +263,7 @@ def plan_clone(
 
     media_plans, voice_memo_media_hex = _build_media_plans(
         target, kind, new_session_hex, parent_hex, staged_audio, suffix_strategy,
+        uuid_factory,
     )
 
     lines = tuple(
@@ -396,6 +397,7 @@ def _build_media_plans(
     parent_hex: str | None,
     staged_audio: Sequence["media.StagedAudio"],
     suffix_strategy: media.HexSuffixStrategy,
+    uuid_factory: UuidFactory,
 ) -> tuple[tuple[MediaPlan, ...], str | None]:
     parent_fk_column = _PARENT_FK_COLUMN.get(kind, "sessionID")
     session_canonical = db.hex_to_canonical_uuid(session_hex)
@@ -404,7 +406,7 @@ def _build_media_plans(
     media_plans: list[MediaPlan] = []
     voice_memo_media_hex: str | None = None
     for target_audio, staged in zip(target.audio, staged_audio):
-        media_hex = db.to_hex(db.new_uuid_bytes())
+        media_hex = db.to_hex(uuid_factory())
         if target_audio.owner == OwnerKind.SESSION:
             owner_column = "sessionID"
             owner_hex = session_hex

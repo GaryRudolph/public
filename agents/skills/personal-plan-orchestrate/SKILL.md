@@ -275,24 +275,39 @@ parent is.
    the requirement that the returned summary cover: what changed, what was
    decided, surprises, and the artifact path.
 7. **Token reporting** — end your returned summary with one line:
-   `tokens: input ~X / output ~Y / total ~Z / model <slug> | cost ~$C (heuristic)`,
-   where X and Y use `~tokens ≈ chars / 4`. Count input chars as
-   everything you read (prompts, file reads, tool outputs); count output
-   chars as everything you wrote (chat text, tool call arguments, file
-   writes). Compute `C` from the Model price table in
-   `~/Projects/personal/public/standards/plan-execution.md` §"Model price table" using
-   `cost_usd ≈ (input_tokens / 1_000_000) × in_rate + (output_tokens / 1_000_000) × out_rate`.
-   Flag all numbers as heuristic estimates (Cursor usage-based pricing, ±15%).
+   `tokens: input ~X / output ~Y / total ~Z / model <slug> | cost ~$C`.
+   Derive X and Y via the **source precedence** in
+   `~/Projects/personal/public/standards/plan-execution.md` §"Token accounting
+   — source precedence" (real harness usage when available, else
+   `~tokens ≈ chars / 4` — input chars = everything read, output chars =
+   everything written). Compute `C` with the cache-aware formula and the
+   model's rates from the same standards section. Cursor Task subagent
+   transcripts expose no usage, so the heuristic normally applies here —
+   label the line `(heuristic)` and treat it as ±40%.
 
 ## Token tally
 
-The orchestrator-parent maintains a running token tally across the run using
-the same `~tokens ≈ chars / 4` heuristic. At every STOP gate, print a
-one-line running total:
+The orchestrator-parent maintains a running token tally across the run,
+deriving each row's tokens via the **source precedence** in
+`~/Projects/personal/public/standards/plan-execution.md` §"Token accounting —
+source precedence" (real harness usage when available, else
+`~tokens ≈ chars / 4`). Because the orchestrator and its subagents run on
+different models with different rates, **never blend their token counts into
+a single cost line** — always track per model slug.
+
+At every STOP gate, print a per-model running breakdown:
 
 ```
-tokens so far: input ~X / output ~Y / total ~Z | cost ~$C (heuristic)
+tokens so far:
+  orchestrator  (claude-opus-4-8-thinking-xhigh):     input ~Xo / output ~Yo | ~$Co
+  wave-1 <id>   (claude-4.6-sonnet-medium-thinking):  input ~Xs / output ~Ys | ~$Cs
+  …
+  RUNNING TOTAL:                                        input ~Xt / output ~Yt | ~$Ct (heuristic)
 ```
+
+Each row's cost uses **that row's model rates** from the Model price table.
+The RUNNING TOTAL cost is the **sum of per-row costs**, not a blended rate
+applied to the total token count.
 
 At plan completion, print a per-wave breakdown table:
 
@@ -309,8 +324,9 @@ the per-wave costs for the GRAND TOTAL. The orchestrator-parent owns this
 computation — it can recompute from each wave's token counts even when a
 subagent omits the cost field.
 
-All numbers are heuristic estimates (~±15%, Cursor usage-based pricing). They are not authoritative
-usage data.
+Accuracy follows the source each wave used (±15% from real harness usage,
+±40% from the `chars / 4` heuristic). These are rough estimates, not
+authoritative usage data.
 
 ## Procedure
 

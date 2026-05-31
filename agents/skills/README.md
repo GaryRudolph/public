@@ -97,6 +97,9 @@ cleanup pass removes the symlinks.
 
 | Name                              | Kind    | Description                                             |
 | --------------------------------- | ------- | ------------------------------------------------------- |
-| `personal-plan-model-tiers`       | skill   | Tag plan steps as [deep] or [exec] and insert STOP markers at tier boundaries |
-| `personal-whisper-to-markdown`    | skill   | Convert MacWhisper `.whisper` exports into dated Markdown notes (incremental + idempotent; replaces historical equivalents) |
-| `personal-whisper-to-markdown-db` | skill   | Same output as `personal-whisper-to-markdown` but sourced from MacWhisper's live SQLite DB (picks up speaker renames without re-export) |
+| `personal-plan-model-tiers`            | skill   | Tag plan steps as [deep] or [exec] and insert STOP markers at tier boundaries |
+| `personal-whisper-combine-db`          | skill   | Combine two MacWhisper recordings into one new session in `main.sqlite` (A then B; transcript offset; audio concatenated; sources untouched) |
+| `personal-whisper-split-combine-db`    | skill   | Orchestrate split-then-combine for the overlapping-recording scenario (recording1=meeting1+head, recording2=tail); prints retain-vs-delete summary; never deletes |
+| `personal-whisper-split-db`            | skill   | Split a MacWhisper recording into two sessions in `main.sqlite` (Split 1 / Split 2; transcript rebased; audio cut; original untouched) |
+| `personal-whisper-to-markdown`         | skill   | Convert MacWhisper `.whisper` exports into dated Markdown notes (incremental + idempotent; replaces historical equivalents) |
+| `personal-whisper-to-markdown-db`      | skill   | Same output as `personal-whisper-to-markdown` but sourced from MacWhisper's live SQLite DB (picks up speaker renames without re-export) |

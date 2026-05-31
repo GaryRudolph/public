@@ -102,11 +102,49 @@ Cursor usage-based rates for the three planning tiers. Refresh alongside the Mod
 
 *As of 2026-05-29. Source: [cursor.com/docs/models-and-pricing](https://cursor.com/docs/models-and-pricing). `composer-2.5` (standard) and `composer-2.5-fast` are the same model at different inference throughput; `[fast]` uses standard, while orchestrate Task subagents are currently limited to fast (see the Model picker notes above).*
 
-Cost formula used by the `tokens:` tally:
+Cache-aware cost formula used by the `tokens:` tally:
 
-    cost_usd ≈ (input_tokens / 1_000_000) × in_rate + (output_tokens / 1_000_000) × out_rate
+    cost_usd ≈ ( uncached_input      × in_rate
+               + cache_read_input    × in_rate × 0.10
+               + cache_write_5m      × in_rate × 1.25
+               + cache_write_1h      × in_rate × 2.00
+               + output_tokens       × out_rate ) / 1_000_000
 
-All cost estimates inherit the `~tokens ≈ chars / 4` heuristic (±15%) and are rough estimates, not authoritative billing data.
+`output_tokens` already includes extended-thinking/reasoning tokens. Cache
+multipliers are Anthropic API semantics (cache read = 0.10×, 5-min write =
+1.25×, 1-hour write = 2.00× the base input rate). When no cache split is
+available, set the cache terms to 0 and the formula collapses to
+`input × in_rate + output × out_rate`.
+
+### Token accounting — source precedence
+
+Tally token cost from the most accurate source available, in this order:
+
+1. **Real harness usage (preferred — captures reasoning + cache tiers).** On
+   **Claude Code**, read the active session transcript at
+   `~/.claude/projects/<project-slug>/<session-id>.jsonl` (if the session id
+   is unknown, use the most-recently-modified `.jsonl` in the project-slug
+   dir). Each assistant message carries `message.usage` with `input_tokens`,
+   `cache_read_input_tokens`, `cache_creation_input_tokens` (split into
+   `cache_creation.ephemeral_5m_input_tokens` / `ephemeral_1h_input_tokens`),
+   and `output_tokens` (already includes extended thinking). Sum these per
+   `message.model` across the wave and price with the cache-aware formula
+   above. The in-progress final turn isn't flushed yet — a small tail, ignore
+   it. Estimates from real usage are ±15%.
+
+2. **Heuristic fallback.** On **Cursor** and any harness that does not expose
+   per-turn usage to the agent (Cursor's `agent-transcripts/*.jsonl` carry
+   only `{role, message}` — no usage), fall back to `~tokens ≈ chars / 4`:
+   count input chars as everything read (prompts, file reads, tool outputs),
+   output chars as everything written (chat text, tool-call args, file
+   writes). This **cannot see** extended-thinking tokens or cache-read
+   discounts, so treat it as **±40%**, label it `(heuristic)`, and set the
+   cache terms to 0. If the user pastes real input/output/cache numbers from
+   the Cursor usage UI, prefer those and price with the cache-aware formula.
+
+When run outside Cursor you may substitute the provider's published per-model
+rates for `in_rate`/`out_rate`; the cache multipliers are unchanged. No
+estimate here is authoritative billing data.
 
 ### STOP marker template
 

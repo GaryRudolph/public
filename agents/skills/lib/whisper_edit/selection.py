@@ -156,8 +156,11 @@ def _title_ratio(query: str, candidate: str) -> float:
     c = " ".join(candidate.lower().split())
     if not q or not c:
         return 0.0
-    if q in c:
+    if q == c:
         return 1.0
+    if q in c:
+        # Substring hit scored by coverage so a tighter title outranks a longer one.
+        return len(q) / len(c)
     return SequenceMatcher(None, q, c).ratio()
 
 
