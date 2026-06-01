@@ -17,5 +17,9 @@
 # Claude Code — local overrides only; settings.json is tracked
 .claude/settings.local.json
 
+# Python
+__pycache__/
+*.pyc
+
 # Scratch / handoffs / ephemeral plans
 .scratch/
