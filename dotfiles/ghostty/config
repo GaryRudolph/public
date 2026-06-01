@@ -1,0 +1,4 @@
+# Ghostty configuration
+# Docs: https://ghostty.org/docs/config
+#
+# Symlinked to ~/.config/ghostty/config by `make link-ghostty`.
