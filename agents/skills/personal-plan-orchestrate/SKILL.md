@@ -16,11 +16,14 @@ description: >-
 # personal-plan-orchestrate
 
 Active counterpart to [`personal-plan-model-tiers`](../personal-plan-model-tiers/SKILL.md).
-The passive skill inserts STOP markers and waits for the human to swap
-models or paste handoff prompts at every tier boundary. This skill does the
-same tagging but, where the passive skill would emit a STOP, **delegates
-the next group to a Cursor `Task` subagent on the right model and
-continues** — pausing only at the mandatory STOP gates listed below.
+Both drivers tag via the shared
+[`personal-plan-tag-tiers`](../personal-plan-tag-tiers/SKILL.md) skill and
+group the tagged steps into waves with the same no-thrash rule. The passive
+skill inserts STOP markers and waits for the human to swap models or paste
+handoff prompts at every tier boundary. This skill, where the passive skill
+would emit a STOP, **delegates the next wave to a Cursor `Task` subagent on
+the right model and continues** — pausing only at the mandatory STOP gates
+listed below.
 
 If you want STOP-and-paste handoffs (e.g. you prefer to drive each tier
 change yourself, or you're not on Cursor), invoke `personal-plan-model-tiers`
@@ -50,6 +53,23 @@ proceeding on a missed answer, a dismissed prompt, or a prior one-time
 answer; it does not advance a pending gate. See "Mandatory STOP gates"
 below and the standards §"STOP gate semantics (fail closed)" for the
 canonical rules.
+
+Tagging is owned by the shared
+[`personal-plan-tag-tiers`](../personal-plan-tag-tiers/SKILL.md) skill. If a
+plan is not yet tagged, run that skill to tag every executable step, then come
+back. This skill owns everything downstream of tagging: it applies the
+no-thrash **wave-grouping** pass itself (grouping consecutive same-tier steps
+into waves and folding short `[fast]` runs into adjacent `[exec]` waves
+**without rewriting any tags**), writes the **active** Kickoff variant in its
+own step 4 below, runs its own ask-and-branch in steps 5–6, and dispatches
+`Task` subagents at wave boundaries instead of emitting STOP markers. The
+orchestrator never halts on a tier transition and never re-tags a step to
+avoid a model swap — folding changes the wave's execution tier, not the tag.
+
+(The passive [`personal-plan-model-tiers`](../personal-plan-model-tiers/SKILL.md)
+sibling does the same wave grouping but emits STOP markers for a human-driven
+model swap; use it instead when you're not on Cursor or want to drive each
+swap yourself.)
 
 Canonical reference for tier definitions, the `[fast]` downgrade checklist,
 tag placement, the no-thrash rule, the model picker (Cursor + Claude Code
@@ -334,12 +354,31 @@ authoritative usage data.
    skill (named path → most recent `.scratch/plan-*.md` → in-conversation
    plan). Remember the resolved path.
 2. **Run the harness gate** above. STOP and ask if not Cursor.
-3. **Tag the plan** by running **only steps 1–3** of
-   `personal-plan-model-tiers` if it is not already tagged: identify the
-   plan, tag every executable step, apply the `[fast]` downgrade checklist
-   and the no-thrash rule. **Do not** run that skill's steps 4–7 (insert
-   STOP markers, write the passive Kickoff, ask user, branch) — this
-   skill replaces all of those.
+3. **Tag the plan, group into waves, and write wave markers.** If the plan
+   is not already tagged, run
+   [`personal-plan-tag-tiers`](../personal-plan-tag-tiers/SKILL.md) to tag
+   every executable step (it applies the `[fast]` downgrade checklist and
+   default-up bias). Then apply the no-thrash **wave-grouping** pass: collect
+   consecutive same-tier steps into execution waves and fold short `[fast]`
+   runs (< 3 steps) into adjacent `[exec]` waves so they run on the `[exec]`
+   model — **without rewriting any tags**. The folded steps keep their
+   `[fast]` tags; only the wave's execution tier changes.
+
+   **Validate the ≤ constraint before writing wave markers.** For each wave,
+   verify that every step's tag is ≤ the wave's execution tier
+   (`[deep]` > `[exec]` > `[fast]`). If any step's tag is *greater* than its
+   wave's execution tier, that is a tagging error — do not write wave markers.
+   Surface the violation, halt (STOP gate 0, a pre-dispatch error), and ask
+   the user to re-tag the step or widen the wave.
+
+   Once the ≤ constraint is satisfied, **write wave markers into the plan
+   file**: insert `--- WAVE N [execution-tier] ---` immediately before the
+   first executable heading of each wave. Format and idempotence rules live in
+   `~/Projects/personal/public/standards/plan-execution.md` §"Wave annotation
+   format". Skip if wave markers already exist (re-entry).
+
+   Do not emit STOP markers or a passive Kickoff — this skill replaces those
+   with `Task` dispatch and the active Kickoff below.
 4. **Write the Kickoff block to the top of the plan file** using the
    **active** variant of the Kickoff template from
    `~/Projects/personal/public/standards/plan-execution.md` §"Kickoff
@@ -401,11 +440,14 @@ authoritative usage data.
      `Task(model="claude-4.6-sonnet-medium-thinking", ...)`.
    - `[deep] -> [exec]`, multiple working dirs → batched `Task(...)`,
      one invocation per working dir, all on sonnet-medium.
-   - `[deep] -> [fast]`, no-thrash satisfied →
+   - `[deep] -> [fast]`, no-thrash satisfied (≥ 3 contiguous fast) →
      `Task(model="composer-2.5-fast", ...)`, one per working dir.
-   - `[deep] -> [fast]`, no-thrash failed → already promoted to `[exec]`;
-     treat as the `[deep] -> [exec]` row.
-   - `[exec] -> [fast]` → same no-thrash logic.
+   - `[deep] -> [fast]`, no-thrash failed (< 3 fast) → the fast run was
+     folded into the adjacent `[exec]` wave (its `[fast]` tags stay in the
+     plan); treat as the `[deep] -> [exec]` row.
+   - `[exec] -> [fast]` → same no-thrash logic: ≥ 3 fast dispatches a
+     `composer-2.5-fast` wave; < 3 folds into the `[exec]` wave, tags
+     unchanged.
    - `[exec] -> [deep]` or `[fast] -> [deep]` → STOP (gate 2/3) for the
      user to review the just-finished cheaper-tier output. Fail-closed:
      if no explicit answer is received, re-post the review question,

@@ -12,10 +12,16 @@ description: >-
 
 # personal-plan-model-tiers
 
-Operational skill that runs the procedure. The canonical reference for tier
-definitions, the `[fast]` downgrade checklist, tag placement, the no-thrash
-rule, the model picker (Cursor + Claude Code + thinking levels), and the
-STOP marker template lives in:
+Passive execution driver. This skill owns the **execution** layer — grouping
+tagged steps into waves (the no-thrash rule), inserting STOP markers, writing
+the passive Kickoff block, and handing each model swap off to you. It does
+**not** own tagging: the honest `[deep]` / `[exec]` / `[fast]` tags come from
+the shared [`personal-plan-tag-tiers`](../personal-plan-tag-tiers/SKILL.md)
+skill, which this skill invokes automatically when a plan is not tagged yet.
+
+The canonical reference for tier definitions, the `[fast]` downgrade checklist,
+tag placement, the no-thrash rule, the model picker (Cursor + Claude Code +
+thinking levels), and the STOP marker template lives in:
 
 > `~/Projects/personal/public/standards/plan-execution.md` §"Model-tier stop
 > points"
@@ -43,25 +49,48 @@ per group; groups that have all steps marked done → `completed`; the
 current group → `in_progress`; remaining groups → `pending`). Do not
 assume native todos from a prior session still exist.
 
-### 2. Tag every executable step
+### 2. Ensure the plan is tagged
 
-Following the tag placement rule in the standards section above, add
-`[deep]`, `[exec]`, or `[fast]` to each heading at the executable level
-(typically the deepest heading level). Leave higher-level grouping headings
-(milestones, phases, sections) untagged. Apply the `[fast]` downgrade
-checklist before assigning `[fast]`. Default-up bias: when in doubt,
-`[deep]` > `[exec]` > `[fast]`. Do not rename, renumber, or otherwise
-change any other content.
+Check whether the plan's executable headings already carry tiers (regex
+`^#+\s+.*\[(deep|exec|fast)\]`).
 
-### 3. Apply the no-thrash rule
+- **Not tagged** → run [`personal-plan-tag-tiers`](../personal-plan-tag-tiers/SKILL.md)
+  (the shared tagging skill) to tag every executable step, then return here.
+- **Already tagged** → keep the existing tags. Do a light sanity pass against
+  the `[fast]` downgrade checklist and default-up bias, but do not churn tags.
 
-Walk the tagged steps and collect consecutive same-tier steps into groups.
-Always STOP at any boundary involving `[deep]`. STOP at `[exec]` ↔ `[fast]`
-boundaries only when the `[fast]` block has ≥ 3 contiguous fast steps;
-otherwise promote those `[fast]` steps to `[exec]` to avoid model-swap
-thrash. Re-merge adjacent same-tier groups after any promotion.
+Tags reflect honest complexity and stay as-is from here on. This skill never
+rewrites a tag for thrash reasons — that happens only at the wave-grouping
+step below, and it changes the *execution wave*, not the tag.
 
-See the standards section for the full rule.
+### 3. Group tagged steps into execution waves (no-thrash) and write wave markers
+
+Walk the tagged steps and collect consecutive same-tier steps into execution
+waves. Always STOP at any boundary involving `[deep]`. STOP at `[exec]` ↔
+`[fast]` boundaries only when the `[fast]` block has ≥ 3 contiguous fast
+steps; otherwise **fold those `[fast]` steps into the adjacent `[exec]` wave**
+so they execute on the `[exec]` model with no model swap — but leave their
+`[fast]` tags in the plan untouched. Re-merge adjacent waves of the same
+**execution tier** after any fold.
+
+**Validate the ≤ constraint before writing wave markers.** For each wave,
+check that every step's tag is ≤ the wave's execution tier
+(`[deep]` > `[exec]` > `[fast]`). If any step's tag is *greater* than its
+wave's execution tier, that is a tagging error — do not write wave markers.
+Surface the violation (e.g. "`[deep]` step s3 is inside an `[exec]` wave"),
+halt, and ask the user to re-tag the step or widen the wave before continuing.
+
+**Write wave markers into the plan file.** Once the ≤ constraint is satisfied,
+insert `--- WAVE N [execution-tier] ---` immediately before the first
+executable heading of each wave (1-based, using the wave's execution tier, not
+the step tag). Format and placement rules live in the standards section
+§"Wave annotation format". Skip this write if wave markers already exist
+(re-entry into a partially-executed plan).
+
+This is an execution-grouping decision only: a folded wave's execution tier
+(the model it runs on) can differ from a step's tag (its honest complexity).
+STOP markers and the Kickoff key off the execution tier. See the standards
+section §"Wave annotation format" and §"No-thrash rule" for the full rules.
 
 ### 4. Insert STOP markers with a handoff block
 
@@ -84,13 +113,15 @@ Use `->` ASCII arrows in the marker so it stays safe in terminals and grep.
 Use the **passive** variant of the Kickoff template from the standards
 section (`§"Model-tier stop points" → "Kickoff template"`). Fill in the
 `Status:` line with `0/N groups done | current: <first group> <tier> |
-updated <today>` where `N` is the total number of groups after the
-no-thrash promotion pass. Then fill in the rest:
+updated <today>` where `N` is the total number of waves after the
+no-thrash folding pass. Then fill in the rest:
 
-- `<tier>` is the **first executable tier** in the plan after the
-  no-thrash promotion pass — i.e. the tier on the first tagged heading,
-  walking top-down. Higher-level grouping headings (milestones, phases)
-  are untagged and ignored.
+- `<tier>` is the **execution tier of the first wave** after the no-thrash
+  folding pass — normally the tag on the first executable heading walking
+  top-down, except when a short leading `[fast]` run is folded into the
+  following `[exec]` wave, in which case the first wave executes at `[exec]`
+  even though those headings keep their `[fast]` tags. Higher-level grouping
+  headings (milestones, phases) are untagged and ignored.
 - The "Next model" rows come from the model picker in the same standards
   section. Include both Cursor and Claude Code rows.
 - The prompt body references the resolved absolute plan path from step 1 and
@@ -225,9 +256,13 @@ section "Delegating execution to subagents" for the full guidance.
 
 ## See also
 
+- [`personal-plan-tag-tiers`](../personal-plan-tag-tiers/SKILL.md) — the
+  shared tagging skill this one invokes when a plan isn't tagged. Run it
+  directly first when you only want to see a plan's complexity before
+  choosing a driver.
 - [`personal-plan-orchestrate`](../personal-plan-orchestrate/SKILL.md) —
   active counterpart for Cursor. Same tagging and model picks, but the
-  parent delegates each `[exec]` or `[fast]` group via `Task(model=...)`
+  parent delegates each `[exec]` or `[fast]` wave via `Task(model=...)`
   subagents and continues automatically, pausing only at a small set of
   mandatory STOP gates. Use it when you want the cascade run for you
   instead of stopping at every tier boundary.

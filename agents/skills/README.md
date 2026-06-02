@@ -97,7 +97,9 @@ cleanup pass removes the symlinks.
 
 | Name                              | Kind    | Description                                             |
 | --------------------------------- | ------- | ------------------------------------------------------- |
-| `personal-plan-model-tiers`            | skill   | Tag plan steps as [deep] or [exec] and insert STOP markers at tier boundaries |
+| `personal-plan-tag-tiers`              | skill   | Shared tagging layer: tag plan steps `[deep]` / `[exec]` / `[fast]` to reveal complexity. Tags only — no waves, STOP markers, or execution. The two drivers below call it automatically when a plan isn't tagged yet |
+| `personal-plan-model-tiers`            | skill   | Passive driver: group tagged steps into waves (no-thrash) and insert STOP markers with handoff blocks at tier boundaries |
+| `personal-plan-orchestrate`            | skill   | Cursor-only active driver: same tagging + wave grouping, but the `[deep]` parent delegates each wave via `Task(model=...)` subagents, pausing only at mandatory STOP gates |
 | `personal-whisper-combine-db`          | skill   | Combine two MacWhisper recordings into one new session in `main.sqlite` (A then B; transcript offset; audio concatenated; sources untouched) |
 | `personal-whisper-split-combine-db`    | skill   | Orchestrate split-then-combine for the overlapping-recording scenario (recording1=meeting1+head, recording2=tail); prints retain-vs-delete summary; never deletes |
 | `personal-whisper-split-db`            | skill   | Split a MacWhisper recording into two sessions in `main.sqlite` (Split 1 / Split 2; transcript rebased; audio cut; original untouched) |

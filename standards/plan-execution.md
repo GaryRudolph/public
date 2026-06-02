@@ -1,12 +1,17 @@
 # Plan Execution
 
-How multi-step plans are executed across models of different cost and capability: tagging steps by tier, grouping them, stopping (or delegating to a subagent) at tier boundaries, tracking progress across chat handoffs, and the STOP-gate semantics that keep human oversight intact. This file is the canonical reference; the operational skills (`personal-plan-model-tiers`, `personal-plan-orchestrate`) implement it.
+How multi-step plans are executed across models of different cost and capability: tagging steps by tier, grouping them into execution waves, stopping (or delegating to a subagent) at tier boundaries, tracking progress across chat handoffs, and the STOP-gate semantics that keep human oversight intact. This file is the canonical reference. The operational skills implement it in two layers: a shared **tagging** skill (`personal-plan-tag-tiers`) that only tags executable steps with honest complexity tiers, and two **execution drivers** (`personal-plan-model-tiers`, `personal-plan-orchestrate`) that group the tagged steps into waves, apply the no-thrash rule, and either emit STOP markers or dispatch subagents.
 
 ## Model-tier stop points
 
-Plans are executed by agents of different cost and capability. To make the most of both, tag every executable step with one of three tiers, group consecutive same-tier steps, and emit a STOP marker at every tier boundary so the model can be swapped (or the group delegated to a subagent) before continuing.
+Plans are executed by agents of different cost and capability. To make the most of both, tag every executable step with one of three tiers, group consecutive same-tier steps into execution waves, and emit a STOP marker at every tier boundary so the model can be swapped (or the wave delegated to a subagent) before continuing.
 
-This section is the canonical reference for the convention. The `personal-plan-model-tiers` skill (and the equivalent in any harness) is the operational layer that implements it.
+This section is the canonical reference for the convention. The work splits into two responsibilities:
+
+- **Tagging** — assigning each executable step its honest `[deep]` / `[exec]` / `[fast]` tier. This is owned by `personal-plan-tag-tiers`, a small shared skill. Tags reflect true complexity and are **never** rewritten for thrash reasons, so a tagged plan always shows how hard the work actually is. Run it first when you just want to see the complexity of a plan before deciding how to execute it.
+- **Execution** — grouping the tagged steps into waves (the no-thrash rule), then either emitting STOP markers for a human-driven model swap or dispatching subagents. This is owned by the two driver skills, which call `personal-plan-tag-tiers` automatically when a plan is not tagged yet.
+
+`personal-plan-model-tiers` is the passive driver (any harness that supports skills — Cursor, Claude Code — stopping at each tier boundary for a human model swap); `personal-plan-orchestrate` is the active Cursor counterpart where the `[deep]` parent delegates each wave via `Task(model=...)` subagents.
 
 ### Tiers
 
@@ -65,14 +70,55 @@ To find tagged headings use the regex: `^#+\s+.*\[(deep|exec|fast)\]`
 
 ### No-thrash rule
 
-Walk the tagged steps in order and collect consecutive same-tier steps into groups. Then:
+The no-thrash rule runs at the **execution-grouping layer**, not the tagging layer. Tagging (owned by `personal-plan-tag-tiers`) records the honest complexity of each step and is **never** rewritten for thrash reasons — a `[fast]` step stays `[fast]` in the plan so the true shape of the work stays visible. The no-thrash rule only decides how the tagged steps are grouped into **execution waves** and which model tier each wave runs on. The driver skills (`personal-plan-model-tiers`, `personal-plan-orchestrate`) apply it; the tagging skill does not.
 
-1. Always insert a STOP at any `[deep]` ↔ `[exec]` boundary.
-2. Always insert a STOP at any `[deep]` ↔ `[fast]` boundary.
-3. **Conditionally** insert a STOP at an `[exec]` ↔ `[fast]` boundary:
-   - If the `[fast]` block has **≥ 3 contiguous fast steps**, emit the STOP.
-   - Otherwise, **promote those fast steps to `[exec]`** (no STOP) so you don't spend more time swapping models than working.
-4. After promotions, re-merge adjacent same-tier groups before deciding STOP placement.
+Walk the tagged steps in order and collect consecutive same-tier steps into candidate waves. (A "wave" is the same unit the Status line and todo list call a *group*; the terms are interchangeable. "Wave" is used here to stress that a wave's execution tier can differ from a folded step's tag.) Then decide wave boundaries:
+
+1. Always split (insert a STOP / dispatch boundary) at any `[deep]` ↔ `[exec]` boundary.
+2. Always split at any `[deep]` ↔ `[fast]` boundary.
+3. **Conditionally** split at an `[exec]` ↔ `[fast]` boundary:
+   - If the `[fast]` block has **≥ 3 contiguous fast steps**, keep it as its own wave and split.
+   - Otherwise, **fold those fast steps into the adjacent `[exec]` wave** (no split): they execute on the `[exec]` model so you don't spend more time swapping models than working — but their `[fast]` tags stay in the plan untouched. Folding is an execution-grouping decision, never a re-tag.
+4. After folding, re-merge adjacent waves of the same **execution tier** before placing STOPs / dispatch boundaries.
+
+**Execution tier vs. tag.** A wave's *execution tier* is the model it runs on; a step's *tag* is its honest complexity. They usually match. They differ only when a short `[fast]` run is folded into a neighboring `[exec]` wave: those steps keep their `[fast]` tags but execute at `[exec]`. The Kickoff "first wave tier", STOP markers, and `Task(model=...)` dispatches all key off the **execution tier** — never off a tag that has been folded.
+
+### Wave annotation format
+
+After the no-thrash grouping pass, each driver skill writes a **wave marker** into the plan file immediately before the first executable heading of each wave. Wave markers are written by `personal-plan-model-tiers` and `personal-plan-orchestrate`; `personal-plan-tag-tiers` does not write them.
+
+Format (1-based wave counter, execution tier in brackets):
+
+    --- WAVE N [execution-tier] ---
+
+Example after grouping a plan with a folded `[fast]` run and a later `[deep]` wave:
+
+    --- WAVE 1 [exec] ---
+    #### s1 - [fast] Rename helper method
+    #### s2 - [exec] Wire search results to view model
+
+    --- STOP: tier change [exec] -> [deep] ---
+      …
+    ---
+
+    --- WAVE 2 [deep] ---
+    #### s3 - [deep] Decide cache invalidation strategy
+
+No closing marker is needed — the next `--- WAVE …` marker, `--- STOP: …` marker, or end-of-file delimits the wave.
+
+**The ≤ constraint.** For every executable step inside a wave, the step's tag must be **equal to or lesser than** the wave's execution tier. Tier ordering (most to least capable): `[deep]` > `[exec]` > `[fast]`.
+
+| Wave execution tier | Permitted step tags |
+|---|---|
+| `[deep]` | `[deep]`, `[exec]`, `[fast]` |
+| `[exec]` | `[exec]`, `[fast]` |
+| `[fast]` | `[fast]` |
+
+The folded-step case (`[fast]` steps inside an `[exec]` wave) always satisfies the constraint. If a step's tag is *greater* than the wave tier — for example, a `[deep]` step inside an `[exec]` wave — that is a tagging error. The driver must **flag the violation and refuse to write wave markers** until the tagging is corrected. The user must either re-tag the step downward or widen the wave to `[deep]` by re-running the no-thrash pass.
+
+**Idempotence.** If wave markers are already present in the plan (re-entry into a partially-executed plan), the driver skips the wave-marker-writing pass but still validates the ≤ constraint for any unmarked waves. Do not add duplicate markers.
+
+**Regex to find wave markers:** `^--- WAVE \d+ \[(deep|exec|fast)\] ---$`
 
 ### Model picker
 
@@ -285,7 +331,7 @@ Active variant — orchestrate (always `[deep]` / Opus xhigh):
 Rules for filling in the template:
 
 - `<absolute path to the plan file>` is the **fully-qualified absolute path** to the plan file, resolved when the plan was identified — for example: `/Users/gary/Projects/personal/public/.scratch/plan-topic-word.md`. Never emit a bare filename or a repo-relative path — the next chat may start from a different working directory.
-- For the passive variant, the `<tier>` is the **first executable tier** in the plan — the first heading carrying a `[deep]` / `[exec]` / `[fast]` tag, walking top-down. Higher-level grouping headings (milestones, phases) are untagged and ignored, per [Tag placement](#tag-placement). Use the tier value **after** the no-thrash promotion pass, so a `[fast]` step that gets promoted to `[exec]` is reflected as `[exec]` in the Kickoff.
+- For the passive variant, the `<tier>` is the **execution tier of the first wave** after the no-thrash folding pass (see [No-thrash rule](#no-thrash-rule)). This is normally the tag on the first executable heading, walking top-down — higher-level grouping headings (milestones, phases) are untagged and ignored, per [Tag placement](#tag-placement). The one exception: when a short leading `[fast]` run (< 3 steps) is folded into the following `[exec]` wave, the first wave executes at `[exec]`, so the Kickoff shows `[exec]` even though those headings keep their honest `[fast]` tags.
 - For the active variant, the model is **always** `claude-opus-4-8-thinking-xhigh` / `/model opus` xhigh, regardless of what the first wave's tier is. The orchestrator-parent always runs at `[deep]`.
 - Use `->` ASCII arrows rather than Unicode em-dash arrows so the marker is safe in terminals and grep.
 - Fill in the `Status:` line with the total group count (`N`), the first group's identifier, and today's date. Update it as execution progresses (see [Progress tracking](#progress-tracking) below).
@@ -296,7 +342,7 @@ Plans span multiple chat sessions, which means native harness todos (Cursor Plan
 
 ### Two surfaces
 
-- **Harness todo list** (live, in-session): one todo per *group* (consecutive same-tier block after no-thrash). The current group is `in_progress`; it flips to `completed` the moment the group finishes. Seeded by the skill that writes the Kickoff block.
+- **Harness todo list** (live, in-session): one todo per *execution wave* (consecutive same-tier block after the no-thrash folding pass; a short folded `[fast]` run rides inside its neighbor's wave). The current wave is `in_progress`; it flips to `completed` the moment the wave finishes. Seeded by the driver skill that writes the Kickoff block.
 - **Plan markdown file** (durable, cross-session): updated at every STOP boundary and at plan completion. Survives chat handoffs because the `.scratch/` file is on disk.
 
 ### Marking steps done

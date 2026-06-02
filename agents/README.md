@@ -58,7 +58,9 @@ yourself survives untouched.
 
 | Name                            | Kind    | Description                                                       |
 | ------------------------------- | ------- | ----------------------------------------------------------------- |
-| `personal-plan-model-tiers`     | skill   | Tag plan steps as `[deep]`/`[exec]` and insert STOP markers at tier boundaries |
+| `personal-plan-tag-tiers`       | skill   | Shared tagging layer: tag plan steps `[deep]`/`[exec]`/`[fast]` to reveal complexity (no waves, STOP markers, or execution) |
+| `personal-plan-model-tiers`     | skill   | Passive driver: group tagged steps into waves and insert STOP markers at tier boundaries |
+| `personal-plan-orchestrate`     | skill   | Cursor-only active driver: same tagging, but delegates each wave via `Task(model=...)` subagents, pausing only at mandatory STOP gates |
 
 ### Adding or removing extensions
 
