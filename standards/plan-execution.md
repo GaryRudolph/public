@@ -125,13 +125,14 @@ The folded-step case (`[fast]` steps inside an `[exec]` wave) always satisfies t
 | Tier | Cursor | Claude Code | Thinking level |
 |---|---|---|---|
 | `[deep]` | `claude-opus-4-8-thinking-xhigh` (alt: `gpt-5.5`) | `/model opus` | xhigh / max |
-| `[exec]` | `claude-4.6-sonnet-medium-thinking` (alt: `gpt-5.5-medium`) | `/model sonnet` | medium |
+| `[exec]` | `claude-4.6-sonnet-medium-thinking` (alt: `gpt-5.3-codex`) | `/model sonnet` | medium |
 | `[fast]` | `composer-2.5` (standard) | `/model haiku` | off / none |
 
 Notes:
 - For Claude Code, toggle extended thinking with `/think` (or the equivalent in the version installed). Haiku doesn't meaningfully benefit from extended thinking on bounded mechanical tasks — it just adds latency.
 - Cursor's Auto mode tends to pick Composer for routine and Sonnet for ambiguous; Auto is fine inside an `[exec]` block but pin the model explicitly inside `[deep]` blocks.
 - `[fast]` uses **Composer 2.5 standard** ($0.50/$2.50): same intelligence as the Fast variant ($3/$15) at ~6× lower cost and tuned for unattended/background runs — prefer it for mechanical `[fast]` work, since Fast's premium only pays back when a human is watching tokens stream live. Caveat: `personal-plan-orchestrate` dispatches `[fast]` groups via `Task(model=...)`, whose enum currently exposes only `composer-2.5-fast`, so orchestrated `[fast]` subagents run on Fast until Cursor adds a standard Task slug; the manual `personal-plan-model-tiers` flow can pick standard directly in the model picker.
+- For `[exec]` on OpenAI, use **`gpt-5.3-codex`** rather than `gpt-5.5-medium`. Codex is purpose-built for code execution tasks at substantially lower cost; gpt-5.5-medium is priced closer to the deep tier and doesn't justify the premium for standard cross-file implementation work.
 - For `[deep]`, the ChatGPT alt is `gpt-5.5` (xhigh) — it leads terminal/agentic and computer-use work and emits far fewer output tokens than Opus on long loops; keep Opus as the primary for multi-file architecture and tool-heavy MCP orchestration.
 - This table will need periodic refresh as Cursor and Anthropic ship new versions; that maintenance cost is the price of having one source of truth for tier-to-model mapping.
 
@@ -201,7 +202,7 @@ Template (a `[deep] -> [exec]` transition):
     --- STOP: tier change [deep] -> [exec] ---
 
       Next model
-        Cursor:      claude-4.6-sonnet-medium-thinking   (or gpt-5.5-medium)
+        Cursor:      claude-4.6-sonnet-medium-thinking   (or gpt-5.3-codex)
         Claude Code: /model sonnet                       (extended thinking: medium)
 
       Prompt to paste into the next chat:
@@ -277,7 +278,7 @@ Passive variant — `[exec]` first wave (the most common shape):
       Status: 0/N groups done | current: <first group> [exec] | updated YYYY-MM-DD
 
       Next model
-        Cursor:      claude-4.6-sonnet-medium-thinking   (or gpt-5.5-medium)
+        Cursor:      claude-4.6-sonnet-medium-thinking   (or gpt-5.3-codex)
         Claude Code: /model sonnet                       (extended thinking: medium)
 
       Prompt to paste into the next chat:
