@@ -126,13 +126,14 @@ The folded-step case (`[fast]` steps inside an `[exec]` wave) always satisfies t
 |---|---|---|---|
 | `[deep]` | `claude-opus-4-8-thinking-xhigh` (alt: `gpt-5.5`) | `/model opus` | xhigh / max |
 | `[exec]` | `claude-4.6-sonnet-medium-thinking` (alt: `gpt-5.3-codex`) | `/model sonnet` | medium |
-| `[fast]` | `composer-2.5` (standard) | `/model haiku` | off / none |
+| `[fast]` | `composer-2.5` (standard) (OpenAI alt: `gpt-5.3-codex`) | `/model haiku` | off / none |
 
 Notes:
 - For Claude Code, toggle extended thinking with `/think` (or the equivalent in the version installed). Haiku doesn't meaningfully benefit from extended thinking on bounded mechanical tasks — it just adds latency.
 - Cursor's Auto mode tends to pick Composer for routine and Sonnet for ambiguous; Auto is fine inside an `[exec]` block but pin the model explicitly inside `[deep]` blocks.
 - `[fast]` uses **Composer 2.5 standard** ($0.50/$2.50): same intelligence as the Fast variant ($3/$15) at ~6× lower cost and tuned for unattended/background runs — prefer it for mechanical `[fast]` work, since Fast's premium only pays back when a human is watching tokens stream live. Caveat: `personal-plan-orchestrate` dispatches `[fast]` groups via `Task(model=...)`, whose enum currently exposes only `composer-2.5-fast`, so orchestrated `[fast]` subagents run on Fast until Cursor adds a standard Task slug; the manual `personal-plan-model-tiers` flow can pick standard directly in the model picker.
-- For `[exec]` on OpenAI, use **`gpt-5.3-codex`** rather than `gpt-5.5-medium`. Codex is purpose-built for code execution tasks at substantially lower cost; gpt-5.5-medium is priced closer to the deep tier and doesn't justify the premium for standard cross-file implementation work.
+- **OpenAI in Cursor — Codex does double duty.** `gpt-5.3-codex` is the right OpenAI pick for both `[exec]` and `[fast]` in Cursor; there is no cheaper dedicated OpenAI model in Cursor's current lineup that would justify a separate `[fast]` slot. On Anthropic the Sonnet → Composer gap is a ~6× cost drop worth a model swap; on OpenAI today Codex is already the low end. Use it for both tiers and skip the swap. If a cheaper OpenAI model appears in Cursor's picker, add it to `[fast]` and revisit.
+- **Haiku vs Composer.** Haiku is Claude Code's `[fast]` model and Composer is Cursor's — they are platform-specific choices, not alternatives to each other. Do not substitute one for the other; each harness uses its own native fast model.
 - For `[deep]`, the ChatGPT alt is `gpt-5.5` (xhigh) — it leads terminal/agentic and computer-use work and emits far fewer output tokens than Opus on long loops; keep Opus as the primary for multi-file architecture and tool-heavy MCP orchestration.
 - This table will need periodic refresh as Cursor and Anthropic ship new versions; that maintenance cost is the price of having one source of truth for tier-to-model mapping.
 
