@@ -2,3 +2,27 @@
 # Docs: https://ghostty.org/docs/config
 #
 # Symlinked to ~/.config/ghostty/config by `make link-ghostty`.
+
+# Login Item Launch
+macos-hidden = always
+initial-window = false
+
+# Quick Terminal
+keybind = global:cmd+g=toggle_quick_terminal
+keybind = cmd+shift+g=toggle_fullscreen
+quick-terminal-position = center
+quick-terminal-size = 805px,525px
+quick-terminal-screen = mouse
+quick-terminal-autohide = true
+
+macos-dock-drop-behavior = new-window
+#macos-icon = retro
+
+auto-update = check
+
+# Directory Handling to match macos
+working-directory = home
+window-inherit-working-directory = false
+tab-inherit-working-directory = true
+split-inherit-working-directory = true
+shell-integration = fish
