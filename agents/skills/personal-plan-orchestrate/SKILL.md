@@ -396,7 +396,9 @@ authoritative usage data.
    modify any other content. **Record whether step 4 replaced an existing
    matching Kickoff block (`--- KICKOFF: begin orchestration at [deep]
    ---`) or inserted a new one — this "kickoff-replaced" signal is used
-   in step 5.**
+   in step 5.** Do not write any separate progress checklist block into
+   the plan; the orchestrator-parent applies the progress updates itself
+   in step 12, so no in-plan reminder is needed.
 
    After writing the Kickoff block, **seed the native todo list**: one
    todo per group (in order), first group `in_progress`, rest `pending`.

@@ -208,8 +208,10 @@ Template (a `[deep] -> [exec]` transition):
 
       Prompt to paste into the next chat:
         Read <absolute path to the plan file>. Execute <next group>.
-        Stop at the next STOP marker and report back what you changed
-        and any deviations from the plan.
+        Before you stop, update plan progress: append ` (done)` to the
+        headings you finished, update the Kickoff Status line, and flip the
+        matching todos. Then stop at the next STOP marker and report what
+        you changed and any deviations from the plan.
 
     ---
 
@@ -224,8 +226,10 @@ For an `[exec] -> [fast]` transition, the prompt should also remind the model no
       Prompt to paste into the next chat:
         Read <absolute path to the plan file>. Execute <next group>.
         These are mechanical edits -- apply exactly what the plan
-        specifies; do not refactor, rename, or generalize. Stop at the
-        next STOP marker and report back.
+        specifies; do not refactor, rename, or generalize. Before you
+        stop, update plan progress (mark the headings you finished
+        ` (done)`, update the Status line, flip the matching todos). Then
+        stop at the next STOP marker and report back.
 
     ---
 
@@ -240,7 +244,9 @@ For an escalation back to `[deep]` (after `[exec]` or `[fast]`):
       Prompt to paste into the next chat:
         Read <absolute path to the plan file> and review the previous
         output in git status / diff. Then design <next group> (do not
-        implement). Stop after the design is written and report back.
+        implement). Before you stop, update plan progress (mark the
+        headings you finished ` (done)`, update the Status line, flip the
+        matching todos). Stop after the design is written and report back.
 
     ---
 
@@ -251,6 +257,7 @@ Rules for filling in the template:
   carry IDs, use those (e.g. `m2 s1-s4`); if not, use exact title text
   (e.g. `the "Wire Redis client" through "Write integration tests" steps`).
 - Always include the "Stop at the next STOP marker" hard limit so the cascade is preserved.
+- Always include the **progress-update reminder** spelled out inline in the prompt body (append ` (done)` to finished headings, update the Kickoff Status line, flip the matching todos). The pasted chat usually does **not** re-load the driver skill, so this inline reminder is the only way the [Progress tracking](#progress-tracking) convention reaches it — never drop it. Do not factor it out into a separate checklist block in the plan; keep it in the prompt.
 - Use `->` ASCII arrows rather than Unicode em-dash arrows so the marker is safe in terminals and grep.
 - If the next group is a `[deep]` block being delegated to a parent, the prompt should say "design only, do not implement"; if it's `[exec]` or `[fast]`, the prompt should say "implement <next group>, stop at next STOP marker."
 
@@ -284,8 +291,11 @@ Passive variant — `[exec]` first wave (the most common shape):
 
       Prompt to paste into the next chat:
         Read <absolute path to the plan file>. Begin execution at the top
-        of the plan. Stop at the next STOP marker and report back what
-        you changed and any deviations from the plan.
+        of the plan. Before you stop, update plan progress: append
+        ` (done)` to the headings you finished, update the Kickoff Status
+        line, and flip the matching todos. Then stop at the next STOP
+        marker and report what you changed and any deviations from the
+        plan.
 
     ---
 
@@ -302,8 +312,10 @@ Passive variant — `[fast]` first wave (prompt body adds the "no refactor" remi
       Prompt to paste into the next chat:
         Read <absolute path to the plan file>. Begin execution at the top
         of the plan. These are mechanical edits -- apply exactly what the
-        plan specifies; do not refactor, rename, or generalize. Stop at
-        the next STOP marker and report back.
+        plan specifies; do not refactor, rename, or generalize. Before you
+        stop, update plan progress (mark the headings you finished
+        ` (done)`, update the Status line, flip the matching todos). Then
+        stop at the next STOP marker and report back.
 
     ---
 
@@ -324,8 +336,9 @@ Active variant — orchestrate (always `[deep]` / Opus xhigh):
         Run the personal-plan-orchestrate skill from the top: walk to
         each tier boundary, dispatch Task subagents per the skill's
         procedure, and pause only at the mandatory STOP gates. Do not
-        execute plan work inline. You are the kickoff destination chat;
-        skip the "continue here or new chat?" question and begin
+        execute plan work inline. Update plan progress after each wave
+        returns per the skill's procedure. You are the kickoff destination
+        chat; skip the "continue here or new chat?" question and begin
         dispatching immediately.
 
     ---
@@ -337,10 +350,18 @@ Rules for filling in the template:
 - For the active variant, the model is **always** `claude-opus-4-8-thinking-xhigh` / `/model opus` xhigh, regardless of what the first wave's tier is. The orchestrator-parent always runs at `[deep]`.
 - Use `->` ASCII arrows rather than Unicode em-dash arrows so the marker is safe in terminals and grep.
 - Fill in the `Status:` line with the total group count (`N`), the first group's identifier, and today's date. Update it as execution progresses (see [Progress tracking](#progress-tracking) below).
+- For the passive variants, always keep the **progress-update reminder** spelled out inline in the prompt body (append ` (done)` to finished headings, update the Status line, flip the matching todos). A fresh chat that pastes this prompt usually does **not** re-load the driver skill, so this line is the only way the [Progress tracking](#progress-tracking) convention reaches the worker — it is the single most common reason a wave finishes without being marked done, so never drop it. (The active orchestrate variant re-loads the skill, so its parent applies the updates per the skill procedure instead; see [Who updates progress, and how](#who-updates-progress-and-how).)
+
+## Who updates progress, and how
+
+The two tracking surfaces — the in-harness todo list and the durable plan markdown file (both defined under [Progress tracking](#progress-tracking) below) — are kept in sync differently by each driver, because only one flow has a coordinator:
+
+- `personal-plan-orchestrate` **has an orchestrator-parent**. After each wave's subagent returns, the parent applies the [Progress tracking](#progress-tracking) updates itself (mark ` (done)`, update the `Status:` line, flip todos). Subagents do mechanical work in their own working directory and never touch the plan file. This is handled by the skill procedure, so it does not need to ride in any prompt.
+- `personal-plan-model-tiers` **has no orchestrator**. Each wave runs in its own pasted chat, and that chat usually does **not** re-load the driver skill — it just reads the plan, executes, and stops. So the progress-update instruction is **baked inline into every Kickoff/STOP prompt body** (see the templates above). The pasted prompt is the only place the convention can reach a fresh chat, which is why the reminder is spelled out in full there rather than referenced. Do **not** add a separate checklist block to the plan file to carry this — it is noise for the human and burns context; the inline prompt reminder is the mechanism.
 
 ## Progress tracking
 
-Plans span multiple chat sessions, which means native harness todos (Cursor Plan-mode checkboxes, `TodoWrite`) disappear on each handoff. The `.scratch/plan-*.md` file is the durable source of truth. The convention below keeps both surfaces in sync throughout execution.
+Plans span multiple chat sessions, which means native harness todos (Cursor Plan-mode checkboxes, `TodoWrite`) disappear on each handoff. The `.scratch/plan-*.md` file is the durable source of truth. The convention below keeps both surfaces in sync throughout execution. Who applies it differs by driver — see [Who updates progress, and how](#who-updates-progress-and-how) above.
 
 ### Two surfaces
 

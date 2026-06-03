@@ -102,9 +102,14 @@ include:
    (look up from the model picker in standards).
 3. A copy-pasteable prompt that names the next group using whatever
    identifiers the plan uses (IDs like `m2 s1-s4` if present, or exact
-   title text if not), references the resolved absolute plan path, and ends with
-   "Stop at the next STOP marker and report back" so the cascade is
-   preserved.
+   title text if not), references the resolved absolute plan path, carries
+   the **progress-update reminder spelled out inline** (before stopping:
+   append ` (done)` to finished headings, update the Status line, flip
+   todos), and ends with "Stop at the next STOP marker and report back" so
+   the cascade is preserved. There is no orchestrator in this flow, and the
+   pasted chat usually does not re-load this skill, so that inline reminder
+   is the only thing that tells the wave to update plan state — never omit
+   it, and do not move it into a separate checklist block in the plan.
 
 Use `->` ASCII arrows in the marker so it stays safe in terminals and grep.
 
@@ -134,7 +139,10 @@ heading, inside a fenced code block. The Kickoff block is **idempotent**:
 if a Kickoff block already exists at the top of the file (any line
 matching `--- KICKOFF: ... ---`), replace it with the appropriate
 variant rather than appending. A plan never carries more than one
-Kickoff block. Do not modify any other content in the plan.
+Kickoff block. Do not modify any other content in the plan. Do **not**
+write any separate progress checklist block into the plan — the
+progress-update reminder lives inline in the Kickoff/STOP prompt bodies
+(see step 4), which is the only surface a fresh pasted chat reliably reads.
 
 After writing the Kickoff block, **seed the native todo list**: create
 one todo per group (in order), with the first group as `in_progress` and
