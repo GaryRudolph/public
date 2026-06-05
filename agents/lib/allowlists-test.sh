@@ -4,10 +4,14 @@
 # first-install (with and without prior file), idempotence, rotation across
 # gaps, unbounded growth, user-edit auto-promotion, two-installer coexistence,
 # uninstall semantics, diff/restore round-trip, clean, foreign-file detection,
-# flock serialization, CLI passthrough, Claude format translation, and Windows
-# dual-pass (via a sandboxed WIN_HOME — no real WSL required).
+# flock serialization, CLI passthrough, Claude format translation, Windows
+# dual-pass (via a sandboxed WIN_HOME — no real WSL required), and the Gemini
+# Policy Engine TOML render path (create, deny mapping, idempotence, rotation,
+# uninstall + peer coexistence, dual-pass, restore, WIN_HOME gating, clean).
 #
-# All assertions are local to the sandbox. Never touches the real $HOME.
+# All assertions are local to the sandbox. Every runner pins GEMINI_DATA_HOME
+# (and WIN_GEMINI_DATA_HOME) into the sandbox too, so the real ~/.gemini is
+# never touched. Never touches the real $HOME.
 #
 # Required env (set by the calling Makefile):
 #   ORG        - "agerpoint" or "personal"
@@ -61,10 +65,10 @@ cat > "$META2" <<'ENDJSON'
 }
 ENDJSON
 
-# Create a fresh home-like directory with .cursor/ and .claude/ subdirs.
+# Create a fresh home-like directory with .cursor/, .claude/, and .gemini/ subdirs.
 mk_home() {
     local d="$TEST_DIR/homes/$1"
-    mkdir -p "$d/.cursor" "$d/.claude"
+    mkdir -p "$d/.cursor" "$d/.claude" "$d/.gemini"
     printf '%s' "$d"
 }
 
@@ -77,6 +81,7 @@ run_al() {
     ALLOWLISTS_SRC="$meta" \
     CURSOR_DATA_HOME="$home/.cursor" \
     CLAUDE_DATA_HOME="$home/.claude" \
+    GEMINI_DATA_HOME="$home/.gemini" \
     REMOVE_HISTORY="${REMOVE_HISTORY:-no}" \
     bash "$ALLOWLISTS" "$@"
 }
@@ -88,6 +93,7 @@ run_al_org() {
     ALLOWLISTS_SRC="$meta" \
     CURSOR_DATA_HOME="$home/.cursor" \
     CLAUDE_DATA_HOME="$home/.claude" \
+    GEMINI_DATA_HOME="$home/.gemini" \
     REMOVE_HISTORY="${REMOVE_HISTORY:-no}" \
     bash "$ALLOWLISTS" "$@"
 }
@@ -101,17 +107,27 @@ run_al_win() {
     ALLOWLISTS_SRC="$meta" \
     CURSOR_DATA_HOME="$home/.cursor" \
     CLAUDE_DATA_HOME="$home/.claude" \
+    GEMINI_DATA_HOME="$home/.gemini" \
     WIN_HOME="$win_home" \
     WIN_CURSOR_DATA_HOME="$win_home/.cursor" \
     WIN_CLAUDE_DATA_HOME="$win_home/.claude" \
+    WIN_GEMINI_DATA_HOME="$win_home/.gemini" \
     REMOVE_HISTORY="${REMOVE_HISTORY:-no}" \
     bash "$ALLOWLISTS" "$@"
 }
 
-# Count .N backup files for a stem+parent combination.
+# Count .N backup files for a stem+parent combination (JSON targets).
 count_hist() {
     local stem="$1" parent="$2"
     find "$parent/.history" -maxdepth 1 -name "${stem}.json.[0-9]*" -type f 2>/dev/null \
+        | wc -l | tr -d ' '
+}
+
+# Count .N backup files for an arbitrary base filename (e.g. the Gemini
+# <org>-managed.toml) under $parent/.history.
+count_hist_ext() {
+    local base="$1" parent="$2"
+    find "$parent/.history" -maxdepth 1 -name "${base}.[0-9]*" -type f 2>/dev/null \
         | wc -l | tr -d ' '
 }
 
@@ -365,6 +381,7 @@ ORG="$ORG" \
 ALLOWLISTS_SRC="$META_ALT" \
 CURSOR_DATA_HOME="$H11/.cursor" \
 CLAUDE_DATA_HOME="$H11/.claude" \
+GEMINI_DATA_HOME="$H11/.gemini" \
 RESTORE_N=1 \
 bash "$ALLOWLISTS" restore >/dev/null
 
@@ -614,6 +631,130 @@ run_al "$H22" "$META" install >/dev/null
 [ -f  "$H22/.cursor/permissions.json" ] || fail "T22: unix permissions.json not created"
 [ ! -f "$W22/.cursor/permissions.json" ] || fail "T22: win permissions.json must not be created when WIN_HOME unset"
 [ ! -f "$W22/.claude/settings.json"   ] || fail "T22: win settings.json must not be created when WIN_HOME unset"
+
+# ---------------------------------------------------------------------------
+# Gemini Policy Engine TOML render path
+# ---------------------------------------------------------------------------
+
+# ---------------------------------------------------------------------------
+# T23: Gemini first-install → <org>-managed.toml created, no .history/
+# ---------------------------------------------------------------------------
+printf '[T23] gemini first-install: managed .toml created, no .history\n'
+H23=$(mk_home t23)
+run_al "$H23" "$META" install >/dev/null
+GTOML23="$H23/.gemini/policies/${ORG}-managed.toml"
+[ -f "$GTOML23" ] || fail "T23: gemini managed .toml not created"
+[ ! -d "$H23/.gemini/policies/.history" ] || fail "T23: gemini .history must not be created on first install"
+grep -q '^\[\[rule\]\]' "$GTOML23" || fail "T23: no [[rule]] blocks in managed .toml"
+grep -qF 'commandPrefix = "git status"' "$GTOML23" || fail "T23: allow entry 'git status' missing"
+grep -qF 'commandPrefix = "make test"'  "$GTOML23" || fail "T23: allow entry 'make test' missing"
+grep -qF 'toolName = "run_shell_command"' "$GTOML23" || fail "T23: toolName line missing"
+
+# ---------------------------------------------------------------------------
+# T24: Gemini deny mapping + idempotence
+# ---------------------------------------------------------------------------
+printf '[T24] gemini deny mapping + idempotence\n'
+H24=$(mk_home t24)
+run_al "$H24" "$META" install >/dev/null
+GTOML24="$H24/.gemini/policies/${ORG}-managed.toml"
+grep -qF 'commandPrefix = "rm -rf /"' "$GTOML24" || fail "T24: deny entry 'rm -rf /' missing"
+grep -qF 'decision = "deny"'  "$GTOML24" || fail "T24: no deny decision rule"
+grep -qF 'priority = 900'     "$GTOML24" || fail "T24: deny priority 900 missing"
+grep -qF 'decision = "allow"' "$GTOML24" || fail "T24: no allow decision rule"
+grep -qF 'priority = 100'     "$GTOML24" || fail "T24: allow priority 100 missing"
+snap_g=$(cat "$GTOML24")
+run_al "$H24" "$META" install >/dev/null
+[ "$(cat "$GTOML24")" = "$snap_g" ] || fail "T24: gemini .toml changed on idempotent re-install"
+[ ! -d "$H24/.gemini/policies/.history" ] || fail "T24: gemini .history created by idempotent install"
+
+# ---------------------------------------------------------------------------
+# T25: Gemini rotation on content change
+# ---------------------------------------------------------------------------
+printf '[T25] gemini rotation on change\n'
+H25=$(mk_home t25)
+run_al "$H25" "$TEST_DIR/meta/v1.json" install >/dev/null
+[ ! -d "$H25/.gemini/policies/.history" ] || fail "T25: gemini .history should not exist after v1"
+run_al "$H25" "$TEST_DIR/meta/v2.json" install >/dev/null
+[ "$(count_hist_ext "${ORG}-managed.toml" "$H25/.gemini/policies")" = "1" ] \
+    || fail "T25: expected 1 gemini backup after v2"
+run_al "$H25" "$TEST_DIR/meta/v3.json" install >/dev/null
+[ "$(count_hist_ext "${ORG}-managed.toml" "$H25/.gemini/policies")" = "2" ] \
+    || fail "T25: expected 2 gemini backups after v3"
+
+# ---------------------------------------------------------------------------
+# T26: Gemini uninstall removes our managed file; peer/hand-authored .toml
+#      files are left untouched; removed file is recoverable from .history/.
+# ---------------------------------------------------------------------------
+printf '[T26] gemini uninstall removes managed file; peers untouched\n'
+H26=$(mk_home t26)
+run_al "$H26" "$META" install >/dev/null
+GTOML26="$H26/.gemini/policies/${ORG}-managed.toml"
+[ -f "$GTOML26" ] || fail "T26: setup - managed .toml missing"
+peer26="$H26/.gemini/policies/testpeer-managed.toml"
+hand26="$H26/.gemini/policies/my-own.toml"
+printf 'peer\n' > "$peer26"
+printf 'hand\n' > "$hand26"
+run_al "$H26" "$META" uninstall >/dev/null
+[ ! -f "$GTOML26" ] || fail "T26: managed .toml not removed on uninstall"
+[ -f "$peer26" ] || fail "T26: peer .toml wrongly removed by uninstall"
+[ -f "$hand26" ] || fail "T26: hand-authored .toml wrongly removed by uninstall"
+[ -f "$H26/.gemini/policies/.history/${ORG}-managed.toml.1" ] \
+    || fail "T26: uninstall did not rotate managed file into .history"
+
+# ---------------------------------------------------------------------------
+# T27: Gemini dual-pass — unix and Windows .toml byte-identical.
+# ---------------------------------------------------------------------------
+printf '[T27] gemini dual-pass: unix and win .toml byte-identical\n'
+H27=$(mk_home t27)
+W27=$(mk_win_home t27w)
+run_al_win "$H27" "$W27" "$META" install >/dev/null
+UG27="$H27/.gemini/policies/${ORG}-managed.toml"
+WG27="$W27/.gemini/policies/${ORG}-managed.toml"
+[ -f "$UG27" ] || fail "T27: unix gemini .toml not created"
+[ -f "$WG27" ] || fail "T27: win gemini .toml not created"
+cmp -s "$UG27" "$WG27" || fail "T27: unix and win gemini .toml differ"
+
+# ---------------------------------------------------------------------------
+# T28: Gemini restore round-trip — restore N=1 brings back a backup.
+# ---------------------------------------------------------------------------
+printf '[T28] gemini restore round-trip\n'
+H28=$(mk_home t28)
+run_al "$H28" "$META" install >/dev/null
+GTOML28="$H28/.gemini/policies/${ORG}-managed.toml"
+original_g=$(cat "$GTOML28")
+run_al "$H28" "$META_ALT" install >/dev/null
+[ -f "$H28/.gemini/policies/.history/${ORG}-managed.toml.1" ] || fail "T28: no gemini backup before restore"
+ORG="$ORG" \
+ALLOWLISTS_SRC="$META_ALT" \
+CURSOR_DATA_HOME="$H28/.cursor" \
+CLAUDE_DATA_HOME="$H28/.claude" \
+GEMINI_DATA_HOME="$H28/.gemini" \
+RESTORE_N=1 \
+bash "$ALLOWLISTS" restore >/dev/null
+[ "$(cat "$GTOML28")" = "$original_g" ] || fail "T28: restored gemini .toml does not match original"
+
+# ---------------------------------------------------------------------------
+# T29: WIN_HOME unset → only the unix .toml is written (regression guard).
+# ---------------------------------------------------------------------------
+printf '[T29] gemini: WIN_HOME unset → only unix .toml written\n'
+H29=$(mk_home t29)
+W29=$(mk_win_home t29w)
+run_al "$H29" "$META" install >/dev/null
+[ -f  "$H29/.gemini/policies/${ORG}-managed.toml" ] || fail "T29: unix gemini .toml not created"
+[ ! -f "$W29/.gemini/policies/${ORG}-managed.toml" ] \
+    || fail "T29: win gemini .toml must not be created when WIN_HOME unset"
+
+# ---------------------------------------------------------------------------
+# T30: clean removes the Gemini .history/ but keeps the live managed .toml.
+# ---------------------------------------------------------------------------
+printf '[T30] gemini clean removes .history/, keeps live .toml\n'
+H30=$(mk_home t30)
+run_al "$H30" "$TEST_DIR/meta/v1.json" install >/dev/null
+run_al "$H30" "$TEST_DIR/meta/v2.json" install >/dev/null
+[ -d "$H30/.gemini/policies/.history" ] || fail "T30: gemini .history setup failed"
+run_al "$H30" "$META" clean >/dev/null
+[ ! -d "$H30/.gemini/policies/.history" ] || fail "T30: gemini .history not removed by clean"
+[ -f "$H30/.gemini/policies/${ORG}-managed.toml" ] || fail "T30: clean removed the live managed .toml (must not)"
 
 # ---------------------------------------------------------------------------
 # Final report

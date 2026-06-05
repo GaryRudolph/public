@@ -1,16 +1,28 @@
 #!/usr/bin/env bash
 # Installer for agent allowlists: renders one tool-agnostic meta-source JSON
-# into three tool-specific config files:
+# into tool-specific config files for four harnesses:
 #
-#   ~/.cursor/permissions.json     (Cursor IDE)
-#   ~/.cursor/cli-config.json      (Cursor CLI)
-#   ~/.claude/settings.json        (Claude Code / VS Code + Cursor extension)
+#   ~/.cursor/permissions.json             (Cursor IDE)
+#   ~/.cursor/cli-config.json              (Cursor CLI)
+#   ~/.claude/settings.json                (Claude Code / VS Code + Cursor ext)
+#   ~/.gemini/policies/<org>-managed.toml  (Gemini CLI Policy Engine)
 #
-# When running under WSL, the same three files are also rendered into the
-# Windows host home (%USERPROFILE%) so that native (non-WSL) Cursor and
-# Claude Code can read them. Each Windows-side target gets its own sidecars,
-# .history/ backups, user-edit promotion, and guardrail — identical to the
-# Unix-side targets and completely independent.
+# The first three are JSON and share the sidecar / union / passthrough
+# machinery below: multiple installers (agerpoint, personal, ...) co-manage one
+# shared file. Gemini is different. Its Policy Engine natively loads and
+# combines every *.toml in ~/.gemini/policies/, so each installer simply owns
+# its own <org>-managed.toml — no sidecars, no user-edit promotion, no
+# passthrough. Shell allow entries become `decision = "allow"` rules and shell
+# deny entries become higher-priority `decision = "deny"` rules; any other
+# *.toml in that directory is never read or touched. Gemini still gets atomic
+# writes, .history/ rotation, the WSL dual-pass, and full subcommand parity
+# (mcp / webfetch are out of scope for the Gemini policy in v1).
+#
+# When running under WSL, the same files are also rendered into the Windows
+# host home (%USERPROFILE%) so that native (non-WSL) Cursor and Claude Code
+# can read them. Each Windows-side target gets its own sidecars, .history/
+# backups, user-edit promotion, and guardrail — identical to the Unix-side
+# targets and completely independent.
 #
 # Coexistence is handled by per-org sidecars (.<stem>.<org>-managed.json):
 # each installer (agerpoint, personal, ...) writes its own sidecar, the
@@ -29,14 +41,17 @@
 # Optional env (defaults shown):
 #   CURSOR_DATA_HOME      ~/.cursor
 #   CLAUDE_DATA_HOME      ~/.claude
+#   GEMINI_DATA_HOME      ~/.gemini   (managed file lives in $GEMINI_DATA_HOME/policies)
 #   WIN_HOME              (empty; auto-detected when /proc/version contains
 #                         "microsoft" — the WSL Windows host home directory)
 #   WIN_CURSOR_DATA_HOME  $WIN_HOME/.cursor   (derived from WIN_HOME)
 #   WIN_CLAUDE_DATA_HOME  $WIN_HOME/.claude   (derived from WIN_HOME)
+#   WIN_GEMINI_DATA_HOME  $WIN_HOME/.gemini   (derived from WIN_HOME)
 #   MAKEFILE_LABEL        parent-of-ALLOWLISTS_SRC/Makefile
 #   RESTORE_N             (restore subcommand) which .history/<file>.<N> to restore
 #   RESTORE_FILE          (restore subcommand) restrict to one of:
-#                         permissions.json | cli-config.json | settings.json
+#                         permissions.json | cli-config.json | settings.json |
+#                         <org>-managed.toml
 #                         (default: restore every target that has a matching .N)
 #   REMOVE_HISTORY        (uninstall subcommand) skip the interactive prompt:
 #                         yes/1 -> remove .history/, no/0 -> keep it. Unset ->
@@ -48,9 +63,10 @@
 #   install      Render all targets atomically (Unix + Windows if WSL).
 #                Rotates .history/<file>.N only when bytes change.
 #                Idempotent: a second run is a no-op.
-#   uninstall    Remove this $ORG's sidecar from each target and re-render
+#   uninstall    Remove this $ORG's sidecar from each JSON target and re-render
 #                (which removes our entries while preserving other orgs',
-#                user-managed entries, and passthrough keys). On success,
+#                user-managed entries, and passthrough keys), and rotate +
+#                delete this $ORG's Gemini <org>-managed.toml. On success,
 #                offers to remove .history/ (inline prompt on /dev/tty,
 #                default KEEP). Honors $REMOVE_HISTORY to skip the prompt;
 #                with no usable terminal the prompt is skipped and .history/
@@ -58,9 +74,10 @@
 #   dry-run      Same as install but no disk writes.
 #   status       Per-target report; flags foreign files inside .history/.
 #   diff         Show diff between expected (re-render) and live for each target.
-#   restore      Copy .history/<stem>.json.<RESTORE_N> back over the live file
-#                for all targets (Unix + Windows) whose .N exists. RESTORE_FILE
-#                restricts to one stem, keeping both sides consistent.
+#   restore      Copy .history/<file>.<RESTORE_N> back over the live file for
+#                all targets (Unix + Windows) whose .N exists -- the three JSON
+#                files plus the Gemini <org>-managed.toml. RESTORE_FILE
+#                restricts to one file, keeping both sides consistent.
 #   clean        Remove .history/ subdirectories entirely (explicit nuke knob).
 
 set -euo pipefail
@@ -73,12 +90,14 @@ set -euo pipefail
 : "${ALLOWLISTS_SRC:?ALLOWLISTS_SRC must be set}"
 : "${CURSOR_DATA_HOME:=$HOME/.cursor}"
 : "${CLAUDE_DATA_HOME:=$HOME/.claude}"
+: "${GEMINI_DATA_HOME:=$HOME/.gemini}"
 : "${MAKEFILE_LABEL:=${ALLOWLISTS_SRC%/*}/Makefile}"
 
 # Windows-host vars (populated by init_win_home / init_win_dests at runtime)
 : "${WIN_HOME:=}"
 : "${WIN_CURSOR_DATA_HOME:=}"
 : "${WIN_CLAUDE_DATA_HOME:=}"
+: "${WIN_GEMINI_DATA_HOME:=}"
 
 : "${RESTORE_N:=}"
 : "${RESTORE_FILE:=}"
@@ -139,12 +158,13 @@ init_win_home() {
     fi
 }
 
-# Derive WIN_CURSOR_DATA_HOME / WIN_CLAUDE_DATA_HOME from WIN_HOME.
-# Safe to call repeatedly; only sets vars that are empty.
+# Derive WIN_CURSOR_DATA_HOME / WIN_CLAUDE_DATA_HOME / WIN_GEMINI_DATA_HOME
+# from WIN_HOME. Safe to call repeatedly; only sets vars that are empty.
 init_win_dests() {
     [ -n "$WIN_HOME" ] || return 0
     : "${WIN_CURSOR_DATA_HOME:=$WIN_HOME/.cursor}"
     : "${WIN_CLAUDE_DATA_HOME:=$WIN_HOME/.claude}"
+    : "${WIN_GEMINI_DATA_HOME:=$WIN_HOME/.gemini}"
 }
 
 # ---------------------------------------------------------------------------
@@ -176,6 +196,15 @@ stems_in_dir() {
         [ "$dir" = "$target_dir" ] || continue
         printf '%s\n' "$stem"
     done < <(all_targets)
+}
+
+# Gemini policy directories (one per side). Unlike the JSON targets there is no
+# stem/kind table: each installer owns a single <org>-managed.toml inside the
+# policies dir, and the Gemini Policy Engine combines every *.toml it finds
+# there. Emits the Unix policies dir, plus the Windows one under WSL.
+gemini_dirs() {
+    printf '%s\n' "$GEMINI_DATA_HOME/policies"
+    [ -n "$WIN_HOME" ] && printf '%s\n' "$WIN_GEMINI_DATA_HOME/policies"
 }
 
 # ---------------------------------------------------------------------------
@@ -245,6 +274,10 @@ user_sidecar()    { printf '%s/.%s.user-managed.json'  "$2" "$1"; }
 passthrough_path(){ printf '%s/.%s.passthrough.json'   "$2" "$1"; }
 history_dir_of()  { printf '%s/.history'               "$1"; }
 history_file()    { printf '%s/.history/%s.json.%s'    "$2" "$1" "$3"; } # stem dir n
+
+# Gemini lives in its own .toml file (no stem/kind, no sidecars).
+gemini_file()         { printf '%s/%s-managed.toml'             "$1" "$ORG"; }      # dir
+gemini_history_file() { printf '%s/.history/%s-managed.toml.%s' "$1" "$ORG" "$2"; } # dir n
 
 # ---------------------------------------------------------------------------
 # Schema translation: meta-source JSON -> tool-specific shape
@@ -910,13 +943,19 @@ dir_has_other_org_sidecars() {
 # recipe's streams). With no usable terminal (CI, pipes) the prompt is skipped
 # and .history/ is kept.
 maybe_remove_history_on_uninstall() {
-    local dirs=() seen="" stem dir kind hist
+    local dirs=() seen="" stem dir kind hist gdir
     while IFS='|' read -r stem dir kind; do
         case "$seen" in *"|$dir|"*) continue ;; esac
         seen="$seen|$dir|"
         hist=$(history_dir_of "$dir")
         [ -d "$hist" ] && dirs+=("$dir")
     done < <(all_targets)
+    while IFS= read -r gdir; do
+        case "$seen" in *"|$gdir|"*) continue ;; esac
+        seen="$seen|$gdir|"
+        hist=$(history_dir_of "$gdir")
+        [ -d "$hist" ] && dirs+=("$gdir")
+    done < <(gemini_dirs)
 
     [ "${#dirs[@]}" -gt 0 ] || return 0
 
@@ -960,6 +999,214 @@ maybe_remove_history_on_uninstall() {
     else
         printf '%-50s = kept .history/ (backups preserved)\n' "(uninstall)"
     fi
+}
+
+# ---------------------------------------------------------------------------
+# Gemini Policy Engine (TOML) render path
+# ---------------------------------------------------------------------------
+# Separate, simpler pipeline from the JSON targets: no sidecars, no union, no
+# user-edit promotion, no passthrough. Each installer owns one
+# <org>-managed.toml; the Policy Engine combines every *.toml in the dir, so
+# coexistence is free. Reuses the format-agnostic primitives (atomic_write,
+# WSL detect/dual-pass, pretty_path, side_label, history rotation).
+
+# Render the canonical managed .toml from the meta-source. Output is sorted +
+# deduped (via jq `unique`) so re-renders are byte-identical and idempotent.
+# shell.allow -> `decision = "allow"` (low priority); shell.deny -> higher
+# priority `decision = "deny"` so deny wins, mirroring the JSON harnesses.
+# commandPrefix values are emitted via jq `tojson`, which produces a properly
+# escaped string literal compatible with TOML basic strings.
+render_gemini_toml() {
+    local meta="$1"
+    printf '# Gemini CLI Policy Engine rules managed by the %s allowlists installer.\n' "$ORG"
+    printf '# Generated from %s; edits here are overwritten on re-render.\n' "$(pretty_path "$ALLOWLISTS_SRC")"
+    printf '# Regenerate with the agents Makefile: make install-allowlists\n'
+    printf '# Other *.toml files in this directory are never read or modified.\n'
+    jq -r '
+        (.shell.allow // []) | unique | .[] |
+        "\n[[rule]]\ntoolName = \"run_shell_command\"\ncommandPrefix = " + tojson +
+        "\ndecision = \"allow\"\npriority = 100"
+    ' "$meta"
+    jq -r '
+        (.shell.deny // []) | unique | .[] |
+        "\n[[rule]]\ntoolName = \"run_shell_command\"\ncommandPrefix = " + tojson +
+        "\ndecision = \"deny\"\npriority = 900"
+    ' "$meta"
+}
+
+# Rotate $dir/.history/<org>-managed.toml.N (N -> N+1, unbounded), mirroring
+# rotate_history but for the .toml managed file.
+rotate_gemini_history() {
+    local dir="$1"
+    local live
+    live=$(gemini_file "$dir")
+    [ -f "$live" ] || return 0
+
+    local hist base
+    hist=$(history_dir_of "$dir")
+    base="${ORG}-managed.toml"
+    mkdir -p "$hist"
+
+    local max=0 entry n
+    while IFS= read -r entry; do
+        n="${entry##*.}"
+        case "$n" in
+            ''|*[!0-9]*) continue ;;
+        esac
+        [ "$n" -gt "$max" ] && max="$n"
+    done < <(find "$hist" -maxdepth 1 -name "$base.[0-9]*" -type f 2>/dev/null)
+
+    local i src dst
+    i="$max"
+    while [ "$i" -ge 1 ]; do
+        src="$hist/$base.$i"
+        dst="$hist/$base.$((i+1))"
+        [ -f "$src" ] && mv -- "$src" "$dst"
+        i=$((i - 1))
+    done
+
+    cp -- "$live" "$hist/$base.1"
+}
+
+apply_gemini_target() {
+    local dir="$1"
+    local live pretty label
+    live=$(gemini_file "$dir")
+    pretty=$(pretty_path "$live")
+    label=$(side_label "$dir")
+
+    local proposed
+    proposed=$(mktemp)
+    render_gemini_toml "$ALLOWLISTS_SRC" > "$proposed"
+
+    if [ -f "$live" ] && cmp -s "$proposed" "$live"; then
+        printf '%-50s = no change (idempotent)%s\n' "$pretty" "$label"
+        rm -f "$proposed"
+        return 0
+    fi
+
+    if [ "$DRY_RUN" = "1" ]; then
+        if [ -f "$live" ]; then
+            printf '%-50s ~ would re-render (%d bytes)%s\n' "$pretty" "$(wc -c < "$proposed" | tr -d ' ')" "$label"
+        else
+            printf '%-50s + would create (%d bytes)%s\n'    "$pretty" "$(wc -c < "$proposed" | tr -d ' ')" "$label"
+        fi
+        rm -f "$proposed"
+        return 0
+    fi
+
+    [ -f "$live" ] && rotate_gemini_history "$dir"
+    atomic_write "$live" "$proposed"
+    rm -f "$proposed"
+    printf '%-50s + wrote (%d bytes)%s\n' "$pretty" "$(wc -c < "$live" | tr -d ' ')" "$label"
+}
+
+# Uninstall: rotate the current managed file into .history/ then remove it.
+# Nothing to re-render — other installers' *.toml files are independent.
+remove_gemini_target() {
+    local dir="$1"
+    local live pretty label
+    live=$(gemini_file "$dir")
+    pretty=$(pretty_path "$live")
+    label=$(side_label "$dir")
+
+    if [ ! -f "$live" ]; then
+        printf '%-50s = nothing to remove%s\n' "$pretty" "$label"
+        return 0
+    fi
+
+    if [ "$DRY_RUN" = "1" ]; then
+        printf '%-50s - would remove managed policy%s\n' "$pretty" "$label"
+        return 0
+    fi
+
+    rotate_gemini_history "$dir"
+    rm -f -- "$live"
+    printf '%-50s - removed managed policy%s\n' "$pretty" "$label"
+}
+
+status_gemini_target() {
+    local dir="$1"
+    local live pretty label
+    live=$(gemini_file "$dir")
+    pretty=$(pretty_path "$live")
+    label=$(side_label "$dir")
+
+    if [ ! -f "$live" ]; then
+        printf '%-50s -- not installed%s\n' "$pretty" "$label"
+        return 0
+    fi
+
+    local proposed bytes rules marker
+    proposed=$(mktemp)
+    render_gemini_toml "$ALLOWLISTS_SRC" > "$proposed"
+    bytes=$(wc -c < "$live" | tr -d ' ')
+    rules=$(awk '/^\[\[rule\]\]/ { c++ } END { print c + 0 }' "$live")
+    if cmp -s "$proposed" "$live"; then
+        marker="OK current"
+    else
+        marker="~ drift"
+    fi
+    printf '%-50s %s (%s bytes, %s rules)%s\n' "$pretty" "$marker" "$bytes" "$rules" "$label"
+    rm -f "$proposed"
+}
+
+diff_gemini_target() {
+    local dir="$1"
+    local live pretty label
+    live=$(gemini_file "$dir")
+    pretty=$(pretty_path "$live")
+    label=$(side_label "$dir")
+
+    local proposed
+    proposed=$(mktemp)
+    render_gemini_toml "$ALLOWLISTS_SRC" > "$proposed"
+
+    if [ ! -f "$live" ]; then
+        printf '%-50s + would create (%s bytes)%s\n' "$pretty" "$(wc -c < "$proposed" | tr -d ' ')" "$label"
+        rm -f "$proposed"
+        return 0
+    fi
+    if cmp -s "$proposed" "$live"; then
+        printf '%-50s = match%s\n' "$pretty" "$label"
+        rm -f "$proposed"
+        return 0
+    fi
+
+    printf '%s ~ differs:%s\n' "$pretty" "$label"
+    diff -u "$live" "$proposed" || true
+    rm -f "$proposed"
+}
+
+restore_gemini_target() {
+    local dir="$1" n="$2"
+    local live pretty src label base
+    live=$(gemini_file "$dir")
+    pretty=$(pretty_path "$live")
+    base="${ORG}-managed.toml"
+    src=$(gemini_history_file "$dir" "$n")
+    label=$(side_label "$dir")
+
+    if [ ! -f "$src" ]; then
+        printf '%-50s ! .history/%s.%s not found; skipping%s\n' \
+            "$pretty" "$base" "$n" "$label"
+        return 0
+    fi
+
+    if [ "$DRY_RUN" = "1" ]; then
+        printf '%-50s ~ would restore from %s%s\n' "$pretty" "$(pretty_path "$src")" "$label"
+        return 0
+    fi
+
+    # Snapshot before rotating (rotate shifts .N->.N+1, moving $src).
+    local snap
+    snap=$(mktemp)
+    cp -- "$src" "$snap"
+
+    [ -f "$live" ] && rotate_gemini_history "$dir"
+    atomic_write "$live" "$snap"
+    rm -f "$snap"
+    printf '%-50s + restored from %s%s\n' "$pretty" "$(pretty_path "$src")" "$label"
 }
 
 # ---------------------------------------------------------------------------
@@ -1018,11 +1265,16 @@ cmd_install() {
     init_win_dests
     acquire_lock
     print_header "install-allowlists"
-    local stem dir kind
+    local stem dir kind gdir
     while IFS='|' read -r stem dir kind; do
         apply_one_target "$stem" "$dir" "$kind" || true
         [ "$ABORTED" = "1" ] && break
     done < <(all_targets)
+    if [ "$ABORTED" != "1" ]; then
+        while IFS= read -r gdir; do
+            apply_gemini_target "$gdir"
+        done < <(gemini_dirs)
+    fi
     collect_foreign_notes
     print_notes
     print_conflicts
@@ -1035,10 +1287,13 @@ cmd_uninstall() {
     init_win_dests
     acquire_lock
     print_header "uninstall-allowlists"
-    local stem dir kind
+    local stem dir kind gdir
     while IFS='|' read -r stem dir kind; do
         remove_one_target "$stem" "$dir" "$kind"
     done < <(all_targets)
+    while IFS= read -r gdir; do
+        remove_gemini_target "$gdir"
+    done < <(gemini_dirs)
     maybe_remove_history_on_uninstall
     print_notes
     print_conflicts
@@ -1050,11 +1305,16 @@ cmd_dry_run() {
     init_win_dests
     acquire_lock
     print_header "dry-run-allowlists"
-    local stem dir kind
+    local stem dir kind gdir
     while IFS='|' read -r stem dir kind; do
         apply_one_target "$stem" "$dir" "$kind" || true
         [ "$ABORTED" = "1" ] && break
     done < <(all_targets)
+    if [ "$ABORTED" != "1" ]; then
+        while IFS= read -r gdir; do
+            apply_gemini_target "$gdir"
+        done < <(gemini_dirs)
+    fi
     collect_foreign_notes
     print_notes
     print_conflicts
@@ -1066,10 +1326,13 @@ cmd_status() {
     init_win_home
     init_win_dests
     print_header "status-allowlists"
-    local stem dir kind
+    local stem dir kind gdir
     while IFS='|' read -r stem dir kind; do
         status_one_target "$stem" "$dir" "$kind"
     done < <(all_targets)
+    while IFS= read -r gdir; do
+        status_gemini_target "$gdir"
+    done < <(gemini_dirs)
     collect_foreign_notes
     print_notes
     print_conflicts
@@ -1080,10 +1343,13 @@ cmd_diff() {
     init_win_home
     init_win_dests
     print_header "diff-allowlists"
-    local stem dir kind
+    local stem dir kind gdir
     while IFS='|' read -r stem dir kind; do
         diff_one_target "$stem" "$dir" "$kind"
     done < <(all_targets)
+    while IFS= read -r gdir; do
+        diff_gemini_target "$gdir"
+    done < <(gemini_dirs)
 }
 
 cmd_restore() {
@@ -1102,26 +1368,37 @@ cmd_restore() {
     acquire_lock
     print_header "restore-allowlists"
 
-    local restrict_stem=""
+    local restrict_stem="" do_json=1 do_gemini=1
     if [ -n "$RESTORE_FILE" ]; then
         case "$RESTORE_FILE" in
             permissions.json|cli-config.json|settings.json)
                 restrict_stem="${RESTORE_FILE%.json}"
+                do_gemini=0
+                ;;
+            "${ORG}-managed.toml")
+                do_json=0
                 ;;
             *)
-                printf 'error: RESTORE_FILE must be one of permissions.json, cli-config.json, settings.json\n' >&2
+                printf 'error: RESTORE_FILE must be one of permissions.json, cli-config.json, settings.json, %s-managed.toml\n' "$ORG" >&2
                 exit 2
                 ;;
         esac
     fi
 
-    local stem dir kind
-    while IFS='|' read -r stem dir kind; do
-        if [ -n "$restrict_stem" ] && [ "$stem" != "$restrict_stem" ]; then
-            continue
-        fi
-        restore_one_target "$stem" "$dir" "$kind" "$RESTORE_N"
-    done < <(all_targets)
+    local stem dir kind gdir
+    if [ "$do_json" = "1" ]; then
+        while IFS='|' read -r stem dir kind; do
+            if [ -n "$restrict_stem" ] && [ "$stem" != "$restrict_stem" ]; then
+                continue
+            fi
+            restore_one_target "$stem" "$dir" "$kind" "$RESTORE_N"
+        done < <(all_targets)
+    fi
+    if [ "$do_gemini" = "1" ]; then
+        while IFS= read -r gdir; do
+            restore_gemini_target "$gdir" "$RESTORE_N"
+        done < <(gemini_dirs)
+    fi
 }
 
 cmd_clean() {
@@ -1130,7 +1407,7 @@ cmd_clean() {
     init_win_dests
     acquire_lock
     print_header "clean-allowlists"
-    local seen="" stem dir kind
+    local seen="" stem dir kind gdir
     while IFS='|' read -r stem dir kind; do
         case "$seen" in
             *"|$dir|"*) continue ;;
@@ -1138,6 +1415,13 @@ cmd_clean() {
         seen="$seen|$dir|"
         clean_one_dir "$dir"
     done < <(all_targets)
+    while IFS= read -r gdir; do
+        case "$seen" in
+            *"|$gdir|"*) continue ;;
+        esac
+        seen="$seen|$gdir|"
+        clean_one_dir "$gdir"
+    done < <(gemini_dirs)
 }
 
 # ---------------------------------------------------------------------------
@@ -1152,10 +1436,12 @@ This script is invoked by the agents Makefile with the appropriate environment.
 Run \`make help\` from the Makefile directory for user-facing entry points.
 
 Required env: ORG, ALLOWLISTS_SRC
-Optional env: CURSOR_DATA_HOME, CLAUDE_DATA_HOME, MAKEFILE_LABEL
+Optional env: CURSOR_DATA_HOME, CLAUDE_DATA_HOME, GEMINI_DATA_HOME, MAKEFILE_LABEL
               WIN_HOME (auto-detected under WSL; set to "" to disable dual pass)
-              WIN_CURSOR_DATA_HOME, WIN_CLAUDE_DATA_HOME (derived from WIN_HOME)
-              RESTORE_N (for restore), RESTORE_FILE (for restore, optional)
+              WIN_CURSOR_DATA_HOME, WIN_CLAUDE_DATA_HOME, WIN_GEMINI_DATA_HOME
+              (derived from WIN_HOME)
+              RESTORE_N (for restore), RESTORE_FILE (for restore, optional:
+              permissions.json | cli-config.json | settings.json | <org>-managed.toml)
               REMOVE_HISTORY (for uninstall: yes/no to skip the prompt)
 EOF
 }

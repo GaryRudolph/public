@@ -45,6 +45,7 @@ WIN_HOME ?=
 # empty; override to write to a non-standard location under the Windows home).
 WIN_CURSOR_DATA_HOME ?=
 WIN_CLAUDE_DATA_HOME ?=
+WIN_GEMINI_DATA_HOME ?=
 
 # ---------------------------------------------------------------------------
 # Env passed to lib/blocks.sh
@@ -73,20 +74,24 @@ TEST_ENV = \
 
 # ---------------------------------------------------------------------------
 # Allowlists pass — tool-agnostic meta-source → Cursor IDE/CLI + Claude Code
+#                   + Gemini CLI Policy Engine
 # ---------------------------------------------------------------------------
 
 ALLOWLISTS_SRC    ?= $(AGENTS_DIR)/allowlists/personal.json
 CURSOR_DATA_HOME  ?= $(HOME)/.cursor
 CLAUDE_DATA_HOME  ?= $(HOME)/.claude
+GEMINI_DATA_HOME  ?= $(GEMINI_HOME)
 
 ALLOWLISTS_ENV = \
     ORG="$(ORG)" \
     ALLOWLISTS_SRC="$(ALLOWLISTS_SRC)" \
     CURSOR_DATA_HOME="$(CURSOR_DATA_HOME)" \
     CLAUDE_DATA_HOME="$(CLAUDE_DATA_HOME)" \
+    GEMINI_DATA_HOME="$(GEMINI_DATA_HOME)" \
     WIN_HOME="$(WIN_HOME)" \
     WIN_CURSOR_DATA_HOME="$(WIN_CURSOR_DATA_HOME)" \
     WIN_CLAUDE_DATA_HOME="$(WIN_CLAUDE_DATA_HOME)" \
+    WIN_GEMINI_DATA_HOME="$(WIN_GEMINI_DATA_HOME)" \
     MAKEFILE_LABEL="$(MAKEFILE_LABEL)"
 
 # ---------------------------------------------------------------------------
@@ -147,7 +152,8 @@ help:
 	@echo "  install-blocks      Blocks only (AGENTS.md fan-out)"
 	@echo "  install-extensions  Extension symlinks only (skills + commands)"
 	@echo "  install-allowlists  Render allowlists into ~/.cursor/permissions.json,"
-	@echo "                      ~/.cursor/cli-config.json, and ~/.claude/settings.json"
+	@echo "                      ~/.cursor/cli-config.json, ~/.claude/settings.json,"
+	@echo "                      and ~/.gemini/policies/$(ORG)-managed.toml"
 	@echo ""
 	@echo "  diff-allowlists           Show expected vs actual for each rendered target"
 	@echo "  restore-allowlists N=<n>  Restore .history/<file>.<n> back into place"
