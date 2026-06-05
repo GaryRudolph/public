@@ -194,13 +194,33 @@ When run outside Cursor you may substitute the provider's published per-model
 rates for `in_rate`/`out_rate`; the cache multipliers are unchanged. No
 estimate here is authoritative billing data.
 
+### Wave title format
+
+Both drivers label each wave with the same human-scannable title so a wave is identifiable wherever it surfaces:
+
+    Wave {n} of {t} [{tier}] {group-id}
+
+For example, `Wave 2 of 3 [exec] repo-A m2 s1-s3`. Fill it in as:
+
+- `{n}` — the 1-based wave number the title refers to (the wave a STOP marker is launching is the *next* wave; a Kickoff always refers to wave 1).
+- `{t}` — the total wave count after the no-thrash folding pass (the same `N` as the Kickoff `Status:` line).
+- `{tier}` — that wave's execution tier (`[deep]` / `[exec]` / `[fast]`).
+- `{group-id}` — the group identifier: heading IDs when the plan has them (e.g. `m2 s1-s3`), otherwise exact title text. For a parallel orchestrate wave, prefix each subagent's title with its working directory (repo or worktree name), e.g. `repo-B m2 s4-s6`.
+
+Where the title surfaces:
+
+- `personal-plan-orchestrate` passes it as the `Task` subagent `description`, so it becomes the subagent's name in the Cursor agents list. It is fixed at spawn — Cursor exposes no supported way to update it later.
+- `personal-plan-model-tiers` emits it as a `Suggested chat title:` line in every STOP marker and the Kickoff block, so the user can paste it as the new chat's name. There is no API for a foreground chat to set its own title, so this is **advisory** — emit it even though there is no guarantee the harness will use it.
+
 ### STOP marker template
 
-Each STOP marker carries three things, formatted so the user can paste them straight into a new chat: the tier transition direction, the next model + thinking level for **both** Cursor and Claude Code, and a copy-pasteable prompt that names the next group, references the plan file by its absolute path, and includes a hard scope limit so the next agent halts at the next STOP.
+Each STOP marker carries four things, formatted so the user can paste them straight into a new chat: a `Suggested chat title:` line ([Wave title format](#wave-title-format)), the tier transition direction, the next model + thinking level for **both** Cursor and Claude Code, and a copy-pasteable prompt that names the next group, references the plan file by its absolute path, and includes a hard scope limit so the next agent halts at the next STOP.
 
 Template (a `[deep] -> [exec]` transition):
 
     --- STOP: tier change [deep] -> [exec] ---
+
+      Suggested chat title: Wave <n> of <t> [exec] <next group>
 
       Next model
         Cursor:      claude-4.6-sonnet-medium-thinking   (or gpt-5.3-codex)
@@ -219,6 +239,8 @@ For an `[exec] -> [fast]` transition, the prompt should also remind the model no
 
     --- STOP: tier change [exec] -> [fast] ---
 
+      Suggested chat title: Wave <n> of <t> [fast] <next group>
+
       Next model
         Cursor:      composer-2.5 (standard)
         Claude Code: /model haiku                        (no extended thinking)
@@ -236,6 +258,8 @@ For an `[exec] -> [fast]` transition, the prompt should also remind the model no
 For an escalation back to `[deep]` (after `[exec]` or `[fast]`):
 
     --- STOP: tier change [exec] -> [deep] ---
+
+      Suggested chat title: Wave <n> of <t> [deep] <next group>
 
       Next model
         Cursor:      claude-opus-4-8-thinking-xhigh      (or gpt-5.5)
@@ -256,6 +280,7 @@ Rules for filling in the template:
 - Name the next group using whatever identifiers the plan uses: if headings
   carry IDs, use those (e.g. `m2 s1-s4`); if not, use exact title text
   (e.g. `the "Wire Redis client" through "Write integration tests" steps`).
+- Always include the `Suggested chat title:` line in the [Wave title format](#wave-title-format). `{n}` is the **next** wave (the one this STOP launches), `{t}` the total wave count, and `{group-id}` the same identifier used to name the next group above. It is advisory — a foreground chat cannot set its own title, so emit it for the user to paste even though there is no guarantee the harness will use it.
 - Always include the "Stop at the next STOP marker" hard limit so the cascade is preserved.
 - Always include the **progress-update reminder** spelled out inline in the prompt body (append ` (done)` to finished headings, update the Kickoff Status line, flip the matching todos). The pasted chat usually does **not** re-load the driver skill, so this inline reminder is the only way the [Progress tracking](#progress-tracking) convention reaches it — never drop it. Do not factor it out into a separate checklist block in the plan; keep it in the prompt.
 - Use `->` ASCII arrows rather than Unicode em-dash arrows so the marker is safe in terminals and grep.
@@ -285,6 +310,8 @@ Passive variant — `[exec]` first wave (the most common shape):
 
       Status: 0/N groups done | current: <first group> [exec] | updated YYYY-MM-DD
 
+      Suggested chat title: Wave 1 of N [exec] <first group>
+
       Next model
         Cursor:      claude-4.6-sonnet-medium-thinking   (or gpt-5.3-codex)
         Claude Code: /model sonnet                       (extended thinking: medium)
@@ -304,6 +331,8 @@ Passive variant — `[fast]` first wave (prompt body adds the "no refactor" remi
     --- KICKOFF: begin execution at [fast] ---
 
       Status: 0/N groups done | current: <first group> [fast] | updated YYYY-MM-DD
+
+      Suggested chat title: Wave 1 of N [fast] <first group>
 
       Next model
         Cursor:      composer-2.5 (standard)
@@ -350,6 +379,7 @@ Rules for filling in the template:
 - For the active variant, the model is **always** `claude-opus-4-8-thinking-xhigh` / `/model opus` xhigh, regardless of what the first wave's tier is. The orchestrator-parent always runs at `[deep]`.
 - Use `->` ASCII arrows rather than Unicode em-dash arrows so the marker is safe in terminals and grep.
 - Fill in the `Status:` line with the total group count (`N`), the first group's identifier, and today's date. Update it as execution progresses (see [Progress tracking](#progress-tracking) below).
+- For the passive variants, include the `Suggested chat title:` line in the [Wave title format](#wave-title-format) for the first wave (`Wave 1 of N [<tier>] <first group>`). It is advisory — a foreground chat cannot set its own title, so emit it for the user to paste even though the harness may ignore it. The active orchestrate variant has no such line: its per-wave titles are the `Task` subagent descriptions.
 - For the passive variants, always keep the **progress-update reminder** spelled out inline in the prompt body (append ` (done)` to finished headings, update the Status line, flip the matching todos). A fresh chat that pastes this prompt usually does **not** re-load the driver skill, so this line is the only way the [Progress tracking](#progress-tracking) convention reaches the worker — it is the single most common reason a wave finishes without being marked done, so never drop it. (The active orchestrate variant re-loads the skill, so its parent applies the updates per the skill procedure instead; see [Who updates progress, and how](#who-updates-progress-and-how).)
 
 ## Who updates progress, and how

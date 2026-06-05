@@ -98,9 +98,17 @@ Use the STOP-marker template from the standards section. Each STOP must
 include:
 
 1. The tier transition direction.
-2. The next model + thinking level for **both** Cursor and Claude Code
+2. A `Suggested chat title:` line in the canonical Wave title format
+   (`Wave {n} of {t} [{tier}] {group-id}`, e.g. `Wave 2 of 3 [exec] m2 s1-s3`)
+   — the same title `personal-plan-orchestrate` uses for its `Task`
+   subagents. `{n}` is the wave this STOP launches (the next wave), `{t}`
+   the total wave count from the Status line. This is advisory: a foreground
+   chat cannot set its own title, so the user pastes it as the new chat's
+   name if their harness supports it. Emit it even though there is no
+   guarantee it will be used. See the standards §"Wave title format".
+3. The next model + thinking level for **both** Cursor and Claude Code
    (look up from the model picker in standards).
-3. A copy-pasteable prompt that names the next group using whatever
+4. A copy-pasteable prompt that names the next group using whatever
    identifiers the plan uses (IDs like `m2 s1-s4` if present, or exact
    title text if not), references the resolved absolute plan path, carries
    the **progress-update reminder spelled out inline** (before stopping:
@@ -133,6 +141,11 @@ no-thrash folding pass. Then fill in the rest:
   uses the matching body for the tier (the `[fast]` body adds the
   "mechanical edits, do not refactor" reminder; `[deep]` and `[exec]`
   use the standard body).
+- Include a `Suggested chat title:` line in the Wave title format for the
+  first wave (`Wave 1 of N [<tier>] <first group>`) — the same advisory
+  title as the STOP markers (step 4). Emit it even though a foreground chat
+  cannot set its own title; the user pastes it as the new chat's name if
+  their harness supports it.
 
 Write the resulting block at the top of the plan file, above the first
 heading, inside a fenced code block. The Kickoff block is **idempotent**:

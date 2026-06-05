@@ -173,7 +173,17 @@ working directory). Do not paste the calls into the chat as a code block
 for the user to run; do not ask the user to dispatch them. Each call
 takes:
 
-- `description` — short title (e.g. `"repo-A m2 s1-s3"`).
+- `description` — the subagent's **title** in the Cursor agents list. Use
+  the canonical [Wave title format](../../../standards/plan-execution.md)
+  `Wave {n} of {t} [{tier}] {group-id}` (e.g.
+  `Wave 2 of 3 [exec] repo-A m2 s1-s3`) so each wave is scannable at a glance.
+  `{n}` is the 1-based wave number (the same `{wave-n}` used in the
+  compaction policy above), `{t}` is the total wave count (the `N` from the
+  Kickoff `Status:` line), `{tier}` is the wave's execution tier, and
+  `{group-id}` is the working-directory-scoped group identifier (repo or
+  worktree name + step IDs, e.g. `repo-B m2 s4-s6` for the sibling
+  parallel call). This title is fixed at spawn — Cursor exposes no
+  supported way to update a subagent's title after dispatch.
 - `subagent_type` — `"generalPurpose"` for these waves.
 - `model` — the slug from the model picker
   (`"claude-4.6-sonnet-medium-thinking"` for `[exec]`).
