@@ -96,12 +96,14 @@ removing `OPENCODE_APPNAME` from the agerpoint registry.
 
 | Repo | Commit | Message |
 | ---- | ------ | ------- |
-| `~/Projects/personal/public` | [`63cc521`](https://github.com/GaryRudolph/public/commit/63cc521) | `feat(dotfiles): add OpenCode multi-profile setup` |
+| `~/Projects/personal/public` | [`c2e78ff`](https://github.com/GaryRudolph/public/commit/c2e78ff) | `feat(dotfiles): add OpenCode multi-profile setup` |
 | `~/Projects/personal/private` | [`837956a`](https://github.com/GaryRudolph/private/commit/837956a) | `feat(fish): set OPENCODE_APPNAME for agerpoint context` |
 
 Parent before OpenCode (if you need pre-change baselines): public `3c97e60`, private `24c727b`.
 
-#### Public repo — `~/Projects/personal/public` (`63cc521`)
+If later commits only touch this README, revert those first (newest first), then `c2e78ff`.
+
+#### Public repo — `~/Projects/personal/public` (`c2e78ff`)
 
 | Path | Status | Notes |
 | ---- | ------ | ----- |
@@ -135,8 +137,8 @@ Parent before OpenCode (if you need pre-change baselines): public `3c97e60`, pri
 ```text
 Roll back the OpenCode dotfiles integration.
 
-Repos (one revert each):
-  cd ~/Projects/personal/public && git revert 63cc521
+Repos (one revert each; revert any later README-only commits on public first):
+  cd ~/Projects/personal/public && git revert c2e78ff
   cd ~/Projects/personal/private && git revert 837956a
 
 Machine:
@@ -148,13 +150,13 @@ Do NOT touch cursor/claude/code wrappers or other context markers (AWS, gcloud, 
 Optional: remove ~/.local/share/opencode*, ~/.cache/opencode*, OpenCode.app.
 
 Full instructions: ~/Projects/personal/public/dotfiles/opencode/README.md#rollback
-Commits: public 63cc521, private 837956a
+Commits: public c2e78ff, private 837956a
 ```
 
 Or inspect what those commits changed:
 
 ```sh
-git -C ~/Projects/personal/public show 63cc521 --stat
+git -C ~/Projects/personal/public show c2e78ff --stat
 git -C ~/Projects/personal/private show 837956a --stat
 ```
 
@@ -216,7 +218,7 @@ Do Option A first, then revert repo changes (see [Change inventory](#change-inve
 
 ```sh
 cd ~/Projects/personal/public
-git revert 63cc521
+git revert c2e78ff
 ```
 
 **Private repo** (`~/Projects/personal/private`):
