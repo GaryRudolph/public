@@ -227,6 +227,7 @@ Template (a `[deep] -> [exec]` transition):
         Claude Code: /model sonnet                       (extended thinking: medium)
 
       Prompt to paste into the next chat:
+        Wave <n> of <t> [exec] <next group>
         Read <absolute path to the plan file>. Execute <next group>.
         Before you stop, update plan progress: append ` (done)` to the
         headings you finished, update the Kickoff Status line, and flip the
@@ -246,6 +247,7 @@ For an `[exec] -> [fast]` transition, the prompt should also remind the model no
         Claude Code: /model haiku                        (no extended thinking)
 
       Prompt to paste into the next chat:
+        Wave <n> of <t> [fast] <next group>
         Read <absolute path to the plan file>. Execute <next group>.
         These are mechanical edits -- apply exactly what the plan
         specifies; do not refactor, rename, or generalize. Before you
@@ -266,6 +268,7 @@ For an escalation back to `[deep]` (after `[exec]` or `[fast]`):
         Claude Code: /model opus                         (extended thinking: xhigh)
 
       Prompt to paste into the next chat:
+        Wave <n> of <t> [deep] <next group>
         Read <absolute path to the plan file> and review the previous
         output in git status / diff. Then design <next group> (do not
         implement). Before you stop, update plan progress (mark the
