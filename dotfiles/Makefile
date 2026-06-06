@@ -8,14 +8,16 @@ DOTFILES_DIR := $(abspath $(dir $(lastword $(MAKEFILE_LIST))))
 GIT_CONFIG_DIR := $(HOME)/.config/git
 GIT_FRAGMENTS := $(wildcard $(DOTFILES_DIR)/git/*.gitconfig)
 GHOSTTY_CONFIG_DIR := $(HOME)/.config/ghostty
+OPENCODE_PERSONAL_DIR := $(HOME)/.config/opencode
+OPENCODE_AGERPOINT_DIR := $(HOME)/.config/opencode-agerpoint
 
 .DEFAULT_GOAL := help
-.PHONY: help install link-git link-ghostty
+.PHONY: help install link-git link-ghostty link-opencode
 
 help: ## Show this help.
 	@awk 'BEGIN {FS = ":.*?## "} /^[a-zA-Z_-]+:.*?## / {printf "  %-14s %s\n", $$1, $$2}' $(MAKEFILE_LIST)
 
-install: link-git link-ghostty ## Install all managed dotfile symlinks.
+install: link-git link-ghostty link-opencode ## Install all managed dotfile symlinks.
 
 link-git: ## Symlink dotfiles/git/*.gitconfig into ~/.config/git/ (idempotent).
 	@mkdir -p $(GIT_CONFIG_DIR)
@@ -38,3 +40,10 @@ link-ghostty: ## Symlink dotfiles/ghostty/config into ~/.config/ghostty/ (backs 
 	else \
 		ln -snf $$src $$dst && echo "linked $$dst -> $$src"; \
 	fi
+
+link-opencode: ## Symlink dotfiles/opencode/*.json into ~/.config/opencode*/opencode.json
+	@mkdir -p $(OPENCODE_PERSONAL_DIR) $(OPENCODE_AGERPOINT_DIR)
+	@ln -snf $(DOTFILES_DIR)/opencode/personal.json $(OPENCODE_PERSONAL_DIR)/opencode.json \
+		&& echo "linked $(OPENCODE_PERSONAL_DIR)/opencode.json -> $(DOTFILES_DIR)/opencode/personal.json"
+	@ln -snf $(DOTFILES_DIR)/opencode/agerpoint.json $(OPENCODE_AGERPOINT_DIR)/opencode.json \
+		&& echo "linked $(OPENCODE_AGERPOINT_DIR)/opencode.json -> $(DOTFILES_DIR)/opencode/agerpoint.json"

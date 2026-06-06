@@ -191,7 +191,7 @@ what each context wants. Each `context_register` call takes two kinds of values:
 
 - **`--markers`** — non-secret env vars that say "you're in `<ctx>`":
   `CLOUDSDK_CONFIG`, `GOOGLE_APPLICATION_CREDENTIALS`, `AWS_PROFILE`,
-  `CLAUDE_CONFIG_DIR`, ... Set automatically on cd; unset when you leave.
+  `CLAUDE_CONFIG_DIR`, `OPENCODE_APPNAME`, ... Set automatically on cd; unset when you leave.
   `GOOGLE_APPLICATION_CREDENTIALS` is set alongside `CLOUDSDK_CONFIG` because
   some Google SDK clients (notably the Terraform `google` / `google-beta`
   providers) ignore the active `gcloud` config and only honor ADC at
@@ -219,24 +219,35 @@ what each context wants. Each `context_register` call takes two kinds of values:
   as `export FIREBASE_TOKEN=...`, then `context reload` (or open a new shell).
 - **AWS**: add one `[profile <ctx>]` stanza per context to `~/.aws/credentials`.
 
-## Smart `cursor` / `code` / `claude`
+## Smart `cursor` / `code` / `claude` / `opencode`
 
-Bare `cursor .` / `code .` / `claude .` are path-aware wrappers (see
+Bare `cursor .` / `code .` / `claude .` / `opencode` are path-aware wrappers (see
 [`conf.d/65-aliases.apps.fish`](conf.d/65-aliases.apps.fish)). They derive a
 context from the first path-like argument — or pwd if none — via
 `_context_from_argv`, and route:
 
-- **agerpoint** → `Cursor AP.app` / `Visual Studio Code AP.app` / `~/.claude-agerpoint`
-- **everything else** → the bare `cursor` / `code` / `claude` (personal account)
+- **agerpoint** → `Cursor AP.app` / `Visual Studio Code AP.app` / `~/.claude-agerpoint` / `OPENCODE_APPNAME=opencode-agerpoint`
+- **everything else** → the bare `cursor` / `code` / `claude` / `opencode` (personal account)
 
 This means `cd ~/Projects/agerpoint/bok && cursor .` opens the agerpoint
 Cursor, and `cursor ~/Projects/agerpoint/bok` from anywhere does the same.
-Personal, lolay, nowline, and deskhound all share the personal Cursor/Claude
+Personal, lolay, nowline, and deskhound all share the personal Cursor/Claude/OpenCode
 because that's where you live most of the time.
+
+OpenCode config is symlinked from [`dotfiles/opencode/`](../opencode/README.md)
+(`personal.json` / `agerpoint.json` → `~/.config/opencode*/opencode.json`).
+Credentials stay machine-local under `~/.local/share/opencode*/auth.json`.
+
+Bare `opencode` uses the **CLI** when `opencode` is on PATH (`brew install
+anomalyco/tap/opencode`); otherwise it launches the **desktop app** via
+`open -a OpenCode` (never run `Contents/MacOS/OpenCode` directly — that can
+trigger EPIPE errors). Profile routing (personal vs agerpoint) follows the same
+path rules as `cursor` and `claude`.
 
 The explicit `cursor-agerpoint` / `code-agerpoint` / `claude-agerpoint`
 functions stay around for when you want to force agerpoint from outside its
-tree without typing the path.
+tree without typing the path. For OpenCode, `opencode ~/Projects/agerpoint/bok`
+does the same.
 
 ## Notes on the port
 

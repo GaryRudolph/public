@@ -37,6 +37,11 @@
   - Open a new terminal; verify with `echo $SHELL`
 - Configure AI agent tools (see [agents/README.md](agents/README.md))
   - `cd ~/Projects/personal/public/agents && make install`
+- Install OpenCode dotfiles (see [dotfiles/opencode/README.md](../dotfiles/opencode/README.md))
+  - Install OpenCode (`brew install opencode` or the official installer)
+  - `cd ~/Projects/personal/public/dotfiles && make link-opencode`
+  - One-time auth per profile: `opencode auth login` and
+    `OPENCODE_APPNAME=opencode-agerpoint opencode auth login`
 - Checkout the private repo to `Projects/personal/private` and
 create Symbolic Links
   - `git clone git@github.com:GaryRudolph/private.git`
