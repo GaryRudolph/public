@@ -46,3 +46,4 @@ Keep module dependencies unidirectional; extract shared code to separate modules
 - **[Python](python/code-style.md)**
 - **[Swift](swift/code-style.md)**
 - **[Kotlin](kotlin/code-style.md)**
+- **[Go](go/code-style.md)**

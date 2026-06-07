@@ -37,6 +37,13 @@ This directory contains coding standards for consistent, maintainable, quality c
 - **[Documentation](kotlin/documentation.md)** — KDoc, Dokka
 - **[Security](kotlin/security.md)** — EncryptedSharedPreferences, Keystore, ProGuard/R8
 
+### Go
+- **[Code Style](go/code-style.md)** — gofmt/gofumpt, naming, modern Go idioms, golangci-lint
+- **[Architecture](go/architecture.md)** — stdlib net/http, GORM, GCP clients, manual DI, repository pattern
+- **[Testing](go/testing.md)** — testify, table-driven, httptest, testcontainers, fuzzing
+- **[Documentation](go/documentation.md)** — doc comments, doc.go, testable examples, pkg.go.dev
+- **[Security](go/security.md)** — bcrypt/argon2, JWT v5, validator, gosec, govulncheck
+
 ## Principles
 
 - **Simplicity** — prefer simple solutions over complex ones

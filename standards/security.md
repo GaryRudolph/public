@@ -43,13 +43,13 @@
 
 ## Cross-Language Security Parallels
 
-| Concept | Python | Swift / iOS | Kotlin / Android |
-|---|---|---|---|
-| Secure storage | env vars, secrets manager | Keychain | EncryptedSharedPreferences, Keystore |
-| Cryptography | `cryptography` lib | CryptoKit | Android Keystore, javax.crypto |
-| Input validation | Pydantic | Codable + manual | kotlinx.serialization + manual |
-| Static analysis | Bandit, Ruff `S` rules | Xcode analyzer | detekt security rules |
-| Network security | HTTPS enforcement | App Transport Security | Network Security Configuration |
+| Concept | Python | Swift / iOS | Kotlin / Android | Go |
+|---|---|---|---|---|
+| Secure storage | env vars, secrets manager | Keychain | EncryptedSharedPreferences, Keystore | env vars, GCP Secret Manager |
+| Cryptography | `cryptography` lib | CryptoKit | Android Keystore, javax.crypto | `crypto/*`, `golang.org/x/crypto` |
+| Input validation | Pydantic | Codable + manual | kotlinx.serialization + manual | go-playground/validator |
+| Static analysis | Bandit, Ruff `S` rules | Xcode analyzer | detekt security rules | gosec, govulncheck |
+| Network security | HTTPS enforcement | App Transport Security | Network Security Configuration | security-headers middleware |
 
 ## Security Checklist — Before Deployment
 
@@ -78,3 +78,4 @@
 - **[Python](python/security.md)**
 - **[Swift / iOS](swift/security.md)**
 - **[Kotlin / Android](kotlin/security.md)**
+- **[Go](go/security.md)**

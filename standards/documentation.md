@@ -143,3 +143,4 @@ Include documentation changes in code reviews. Update docs in the same PR as cod
 - **[Python](python/documentation.md)**
 - **[Swift](swift/documentation.md)**
 - **[Kotlin](kotlin/documentation.md)**
+- **[Go](go/documentation.md)**

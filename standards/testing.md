@@ -53,16 +53,17 @@ Simple pure functions, the code under test, internal business logic
 
 ## Cross-Language Testing Parallels
 
-| Concept | Python | Swift | Kotlin |
-|---|---|---|---|
-| Framework | pytest | Swift Testing / XCTest | JUnit 5 / Kotest |
-| Mocking | unittest.mock, fakes | Protocol-based fakes | MockK, fakes |
-| Async | pytest-asyncio | `async throws` | kotlinx-coroutines-test |
-| UI testing | Playwright | XCUITest | Compose UI Testing |
-| Coverage | pytest-cov | Xcode coverage | JaCoCo / Kover |
+| Concept | Python | Swift | Kotlin | Go |
+|---|---|---|---|---|
+| Framework | pytest | Swift Testing / XCTest | JUnit 5 / Kotest | testify / stdlib testing |
+| Mocking | unittest.mock, fakes | Protocol-based fakes | MockK, fakes | fakes / mockery |
+| Async | pytest-asyncio | `async throws` | kotlinx-coroutines-test | synctest / goroutines |
+| UI testing | Playwright | XCUITest | Compose UI Testing | httptest |
+| Coverage | pytest-cov | Xcode coverage | JaCoCo / Kover | `go test -cover` |
 
 ## Language-Specific Testing
 
 - **[Python](python/testing.md)**
 - **[Swift](swift/testing.md)**
 - **[Kotlin](kotlin/testing.md)**
+- **[Go](go/testing.md)**

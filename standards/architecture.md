@@ -80,3 +80,4 @@ High-level modules depend on abstractions (interfaces/protocols), not concrete i
 - **[Python](python/architecture.md)**
 - **[Swift](swift/architecture.md)**
 - **[Kotlin](kotlin/architecture.md)**
+- **[Go](go/architecture.md)**
