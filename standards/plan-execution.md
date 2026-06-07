@@ -131,6 +131,8 @@ The folded-step case (`[fast]` steps inside an `[exec]` wave) always satisfies t
 Notes:
 - For Claude Code, toggle extended thinking with `/think` (or the equivalent in the version installed). Haiku doesn't meaningfully benefit from extended thinking on bounded mechanical tasks — it just adds latency.
 - Cursor's Auto mode tends to pick Composer for routine and Sonnet for ambiguous; Auto is fine inside an `[exec]` block but pin the model explicitly inside `[deep]` blocks.
+- **Cursor cost model — two pools, and it drives Auto-vs-pin.** Cursor bills from two separate monthly pools: an **Auto/Composer pool** that is included and effectively unmetered on paid plans, and a **frontier-credit pool** (the $20 Pro / ~$70 Pro+ / ~$400 Ultra allowance) that pinned frontier models — Opus, Sonnet, `gpt-5.5` — draw down before on-demand billing kicks in. Auto usage does **not** draw the frontier credit. So the cost-optimal default is: **let Auto own `[exec]` and `[fast]` execution waves** (Auto routes Sonnet-for-ambiguous / Composer-for-routine well, from the free pool), and **pin the model explicitly for `[deep]` waves and review beats** — Auto may silently downgrade a `[deep]` task to Sonnet/Composer, and review/architecture quality is capped by the model doing it. Rule of thumb: let Auto drive everything below `[deep]`; spend frontier credit only at `[deep]`.
+- **Review beats are a high-ROI place to pin Opus.** A [review beat](#review-beat) reads the prior wave's diff (input-heavy) and emits a short verdict (output-light). Because Opus output is the expensive half ($25/Mtok vs. $5 input), an input-heavy/output-light review is one of the cheapest ways to spend `[deep]` credit — pin Opus for it rather than letting Auto downgrade the review.
 - `[fast]` uses **Composer 2.5 standard** ($0.50/$2.50): same intelligence as the Fast variant ($3/$15) at ~6× lower cost and tuned for unattended/background runs — prefer it for mechanical `[fast]` work, since Fast's premium only pays back when a human is watching tokens stream live. Caveat: `personal-plan-orchestrate` dispatches `[fast]` groups via `Task(model=...)`, whose enum currently exposes only `composer-2.5-fast`, so orchestrated `[fast]` subagents run on Fast until Cursor adds a standard Task slug; the manual `personal-plan-model-tiers` flow can pick standard directly in the model picker.
 - **OpenAI in Cursor — Codex does double duty.** `gpt-5.3-codex` is the right OpenAI pick for both `[exec]` and `[fast]` in Cursor; there is no cheaper dedicated OpenAI model in Cursor's current lineup that would justify a separate `[fast]` slot. On Anthropic the Sonnet → Composer gap is a ~6× cost drop worth a model swap; on OpenAI today Codex is already the low end. Use it for both tiers and skip the swap. If a cheaper OpenAI model appears in Cursor's picker, add it to `[fast]` and revisit.
 - **Haiku vs Composer.** Haiku is Claude Code's `[fast]` model and Composer is Cursor's — they are platform-specific choices, not alternatives to each other. Do not substitute one for the other; each harness uses its own native fast model.
@@ -269,11 +271,12 @@ For an escalation back to `[deep]` (after `[exec]` or `[fast]`):
 
       Prompt to paste into the next chat:
         Wave <n> of <t> [deep] <next group>
-        Read <absolute path to the plan file> and review the previous
-        output in git status / diff. Then design <next group> (do not
-        implement). Before you stop, update plan progress (mark the
-        headings you finished ` (done)`, update the Status line, flip the
-        matching todos). Stop after the design is written and report back.
+        Read <absolute path to the plan file>. Design <next group> (do not
+        implement). The previous wave is reviewed in its own REVIEW beat
+        (see the Review beat section), so do not re-review it here. Before
+        you stop, update plan progress (mark the headings you finished
+        ` (done)`, update the Status line, flip the matching todos). Stop
+        after the design is written and report back.
 
     ---
 
@@ -288,6 +291,62 @@ Rules for filling in the template:
 - Always include the **progress-update reminder** spelled out inline in the prompt body (append ` (done)` to finished headings, update the Kickoff Status line, flip the matching todos). The pasted chat usually does **not** re-load the driver skill, so this inline reminder is the only way the [Progress tracking](#progress-tracking) convention reaches it — never drop it. Do not factor it out into a separate checklist block in the plan; keep it in the prompt.
 - Use `->` ASCII arrows rather than Unicode em-dash arrows so the marker is safe in terminals and grep.
 - If the next group is a `[deep]` block being delegated to a parent, the prompt should say "design only, do not implement"; if it's `[exec]` or `[fast]`, the prompt should say "implement <next group>, stop at next STOP marker."
+
+### Review beat
+
+A **review beat** is a dedicated, read-only `[deep]` pass over the work a wave just produced, run **after every wave** before the next one starts. It exists so cheaper-tier output (`[exec]`/`[fast]`) — and even `[deep]` output — is checked by a top-tier model against the spec before the plan builds further on it. Reviewing is `[deep]` work (catching architectural drift, broken contracts, security smells), so a review beat always pins the `[deep]` model regardless of the tier of the wave it reviews.
+
+Cadence is recorded in the Kickoff block as a `review:` line. The default is `review: every-wave` — a beat follows every wave, including same-tier `[exec] -> [exec]` boundaries. (Contrast `personal-plan-orchestrate`, whose Opus parent reviews every returned subagent summary inline and writes the same verdict to the [Review log](#review-log) — it participates **log-only** and adds no new human review gate; see [Who updates progress, and how](#who-updates-progress-and-how).)
+
+A review beat is **read-only and fail-closed**:
+
+- It **reports**, it does not fix. A concern becomes a follow-up wave (or folds into the next wave's prompt) so the reviewing model and the fixing model stay separate and intentional.
+- It does **not** start the next wave.
+- It records a verdict line to the [Review log](#review-log).
+- On `CONCERNS`, it blocks: set the Kickoff `Status:` line to `BLOCKED at gate review-wave-N`, re-post the concern, and end the turn. This is a fail-closed gate per [STOP gate semantics](#stop-gate-semantics-fail-closed) — the next wave does not start until a human resolves it.
+
+In the passive flow, the beat is emitted as a marker immediately **after** the just-finished wave's last heading and **before** the next `--- WAVE …` / `--- STOP …` marker. It is cheap to run despite pinning Opus — see the cost note under [Model picker](#model-picker).
+
+Template:
+
+    --- REVIEW: wave-N [deep] ---
+
+      Suggested chat title: Review wave <n> of <t> [deep] <just-finished group>
+
+      Next model
+        Cursor:      claude-opus-4-8-thinking-xhigh      (or gpt-5.5)
+        Claude Code: /model opus                         (extended thinking: xhigh)
+
+      Prompt to paste into the next chat:
+        Review wave <n> of <t> [deep] <just-finished group>
+        Read <absolute path to the plan file>. Review the work completed in
+        wave <n> (<group-id>) against its spec: read the diff in git status /
+        diff and check it against the plan steps and any acceptance criteria.
+        This is READ-ONLY -- do not fix anything yourself and do not start
+        the next wave. Append one line to the "## Review log" section of the
+        plan file (create the section if absent):
+          review wave-<n> (<group-id>): PASS|CONCERNS - <one-line note> - <YYYY-MM-DD>
+        If the verdict is CONCERNS, also set the Kickoff Status line to
+        `BLOCKED at gate review-wave-<n>`, re-post the concern, and stop.
+        On PASS, update the Status line `last review:` field and report back.
+
+    ---
+
+### Review log
+
+The **Review log** is a durable `## Review log` section at the bottom of the plan file (parallel to the `## Token log` the drivers maintain). It persists review verdicts across separate chats so a fresh session — or the final wave — can see the full review history. Both drivers write to it: the passive driver from each review beat, `personal-plan-orchestrate` from its parent after each wave.
+
+One line per reviewed wave:
+
+    review wave-<n> (<group-id>): PASS|CONCERNS - <one-line note> - <YYYY-MM-DD>
+
+For example:
+
+    review wave-1 (m1-s1-s5): PASS - standards wording is internally consistent - 2026-06-07
+    review wave-2 (m2-s1-s2): CONCERNS - s2 skips the orchestrate log-only note - 2026-06-07
+
+- `PASS` verdicts let the next wave proceed; `CONCERNS` is fail-closed (see [Review beat](#review-beat) above).
+- The verdict also surfaces in the Kickoff `Status:` line `last review:` field (see [Updating the Status line](#updating-the-status-line)) so re-entry sees the latest result without scanning the log.
 
 ### Kickoff template
 
@@ -311,7 +370,9 @@ Passive variant — `[exec]` first wave (the most common shape):
 
     --- KICKOFF: begin execution at [exec] ---
 
-      Status: 0/N groups done | current: <first group> [exec] | updated YYYY-MM-DD
+      Status: 0/N groups done | last review: — | current: <first group> [exec] | updated YYYY-MM-DD
+
+      review: every-wave
 
       Suggested chat title: Wave 1 of N [exec] <first group>
 
@@ -333,7 +394,9 @@ Passive variant — `[fast]` first wave (prompt body adds the "no refactor" remi
 
     --- KICKOFF: begin execution at [fast] ---
 
-      Status: 0/N groups done | current: <first group> [fast] | updated YYYY-MM-DD
+      Status: 0/N groups done | last review: — | current: <first group> [fast] | updated YYYY-MM-DD
+
+      review: every-wave
 
       Suggested chat title: Wave 1 of N [fast] <first group>
 
@@ -357,7 +420,9 @@ Active variant — orchestrate (always `[deep]` / Opus xhigh):
 
     --- KICKOFF: begin orchestration at [deep] ---
 
-      Status: 0/N groups done | current: <first group> [deep] | updated YYYY-MM-DD
+      Status: 0/N groups done | last review: — | current: <first group> [deep] | updated YYYY-MM-DD
+
+      review: every-wave (log-only — parent writes Review log; no human review gate)
 
       Next model
         Cursor:      claude-opus-4-8-thinking-xhigh      (or gpt-5.5)
@@ -389,7 +454,7 @@ Rules for filling in the template:
 
 The two tracking surfaces — the in-harness todo list and the durable plan markdown file (both defined under [Progress tracking](#progress-tracking) below) — are kept in sync differently by each driver, because only one flow has a coordinator:
 
-- `personal-plan-orchestrate` **has an orchestrator-parent**. After each wave's subagent returns, the parent applies the [Progress tracking](#progress-tracking) updates itself (mark ` (done)`, update the `Status:` line, flip todos). Subagents do mechanical work in their own working directory and never touch the plan file. This is handled by the skill procedure, so it does not need to ride in any prompt.
+- `personal-plan-orchestrate` **has an orchestrator-parent**. After each wave's subagent returns, the parent applies the [Progress tracking](#progress-tracking) updates itself (mark ` (done)`, update the `Status:` line, flip todos). Subagents do mechanical work in their own working directory and never touch the plan file. This is handled by the skill procedure, so it does not need to ride in any prompt. The parent also **reviews every returned summary** as part of that step and writes the verdict to the [Review log](#review-log) (`review wave-N (<group-id>): PASS|CONCERNS - … - <date>`) — this is the orchestrate **log-only** participation in the [review beat](#review-beat) convention. It adds **no new human review gate**: orchestrate's existing gates (the `[exec]/[fast] -> [deep]` review gate and the milestone gate) are unchanged, and the every-wave review beat that the passive driver runs as a separate human-driven chat is, in orchestrate, just the parent's inline review plus the log write.
 - `personal-plan-model-tiers` **has no orchestrator**. Each wave runs in its own pasted chat, and that chat usually does **not** re-load the driver skill — it just reads the plan, executes, and stops. So the progress-update instruction is **baked inline into every Kickoff/STOP prompt body** (see the templates above). The pasted prompt is the only place the convention can reach a fresh chat, which is why the reminder is spelled out in full there rather than referenced. Do **not** add a separate checklist block to the plan file to carry this — it is noise for the human and burns context; the inline prompt reminder is the mechanism.
 
 ## Progress tracking
@@ -417,9 +482,10 @@ Rules:
 
 After each group finishes, update the `Status:` line inside the Kickoff block:
 
-    Status: 2/5 groups done | current: m2 s1-s4 [exec] | updated 2026-05-28
+    Status: 2/5 groups done | last review: wave-2 PASS | current: m2 s1-s4 [exec] | updated 2026-05-28
 
 - `2/5` — groups completed so far out of the total group count.
+- `last review:` — the most recent [review beat](#review-beat) verdict as `wave-N PASS` or `wave-N CONCERNS`, or `—` when no wave has been reviewed yet. Omit the field entirely only on plans that run `review:` off. A `CONCERNS` value pairs with a `BLOCKED at gate review-wave-N` state (see [STOP gate semantics](#stop-gate-semantics-fail-closed)).
 - `current:` — the identifier of the **next** group yet to start (or the just-finished group if this is the last one).
 - `updated` — date of the update (ISO date, no time).
 
@@ -462,7 +528,11 @@ When the last group finishes:
 
          Status: 2/5 groups done | BLOCKED at gate 2 ([exec]->[deep] review) | updated 2026-05-28
 
-     On re-entry, an agent that sees a `BLOCKED at gate` status re-posts that exact question and waits — it never assumes the gate was approved.
+     or, when a [review beat](#review-beat) returns `CONCERNS`:
+
+         Status: 2/5 groups done | last review: wave-2 CONCERNS | BLOCKED at gate review-wave-2 | updated 2026-05-28
+
+     On re-entry, an agent that sees a `BLOCKED at gate` status re-posts that exact question and waits — it never assumes the gate was approved. A `BLOCKED at gate review-wave-N` means the wave-N review found a concern that a human must resolve (re-tag, add a fix-up wave, or waive) before the next wave starts.
 - Cross-references: [Progress tracking](#progress-tracking) (the Status line) and the AGENTS.md "Wait for approval" workflow rule.
 
 ## Delegating execution to subagents

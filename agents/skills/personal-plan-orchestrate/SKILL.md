@@ -335,6 +335,10 @@ tokens so far:
   RUNNING TOTAL:                                        input ~Xt / output ~Yt | ~$Ct (heuristic)
 ```
 
+Review work is parent-side — include its tokens in the orchestrator row,
+not as separate `review-wave-N` rows (contrast the passive driver's
+separate review-beat chats in `personal-plan-model-tiers`).
+
 Each row's cost uses **that row's model rates** from the Model price table.
 The RUNNING TOTAL cost is the **sum of per-row costs**, not a blended rate
 applied to the total token count.
@@ -401,9 +405,10 @@ authoritative usage data.
    file (any line matching `--- KICKOFF: ... ---`), replace it;
    otherwise insert above the first heading inside a fenced code block.
    A plan never carries more than one Kickoff block. Fill in the
-   `Status:` line with `0/N groups done | current: <first group>
-   [deep] | updated <today>` where `N` is the total group count. Do not
-   modify any other content. **Record whether step 4 replaced an existing
+   `Status:` line with `0/N groups done | last review: — | current:
+   <first group> [deep] | updated <today>` where `N` is the total group
+   count. Add `review: every-wave (log-only — parent writes Review log; no
+   human review gate)`. Do not modify any other content. **Record whether
    matching Kickoff block (`--- KICKOFF: begin orchestration at [deep]
    ---`) or inserted a new one — this "kickoff-replaced" signal is used
    in step 5.** Do not write any separate progress checklist block into
@@ -500,8 +505,19 @@ authoritative usage data.
     - Flip that group's native todo to `completed`; mark the next group
       `in_progress`.
     - Update the `Status:` line in the Kickoff block: increment the done
-      count, set `current:` to the next group's identifier, and refresh
-      the date.
+      count, set `current:` to the next group's identifier, refresh
+      `last review: wave-N PASS|CONCERNS` from the review below, and
+      refresh the date.
+    - **Review log (log-only).** As part of the same step, review each
+      returned subagent summary against the plan spec (read artifacts when
+      needed). Append one line to `## Review log` in the plan file (create
+      the section if absent) using the grammar from standards §"Review log":
+      `review wave-N (<group-id>): PASS|CONCERNS - <one-line note> -
+      <YYYY-MM-DD>`. This is orchestrate's **log-only** participation in
+      the [review beat](~/Projects/personal/public/standards/plan-execution.md) —
+      it adds **no new human STOP gate** (gates 1–6 unchanged). Review
+      tokens count toward the orchestrator-parent row in the token tally,
+      not a separate per-wave row.
 13. **Handle errors / low-quality output** — STOP (gate 1) and offer
     retry / step-up / re-plan. Fail-closed: if no explicit answer is
     received, re-post the error gate question, write `BLOCKED at gate 1`

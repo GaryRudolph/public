@@ -92,7 +92,27 @@ This is an execution-grouping decision only: a folded wave's execution tier
 STOP markers and the Kickoff key off the execution tier. See the standards
 section §"Wave annotation format" and §"No-thrash rule" for the full rules.
 
-### 4. Insert STOP markers with a handoff block
+**Compute a review point for every wave.** After grouping, each wave N
+(1-based, through the total wave count) gets a [review beat](~/Projects/personal/public/standards/plan-execution.md)
+when that wave finishes and before wave N+1 starts (including after the
+final wave, before plan completion). Record the `(wave-N, <group-id>)`
+pair for each wave — `<group-id>` is the same identifier used in the
+Wave title format (e.g. `m1-s1-s5`). Default cadence is `review:
+every-wave` (see step 5).
+
+### 4. Insert STOP and REVIEW markers with handoff blocks
+
+**REVIEW markers first, then STOP markers** at each inter-wave boundary.
+For each wave N, insert an inline-complete `--- REVIEW: wave-N [deep] ---`
+block immediately after that wave's last executable heading and **before**
+the next `--- STOP …` or `--- WAVE …` marker (for the final wave, after
+its last heading and before end-of-file or the Completion section). Use
+the REVIEW template from standards §"Review beat" — fill in wave number,
+total wave count, `<group-id>`, and the resolved absolute plan path so
+the prompt is self-contained. **Idempotent:** skip a REVIEW write when
+`--- REVIEW: wave-N` already exists for that wave (re-entry).
+
+Then insert STOP markers at tier transitions as before.
 
 Use the STOP-marker template from the standards section. Each STOP must
 include:
@@ -125,9 +145,10 @@ Use `->` ASCII arrows in the marker so it stays safe in terminals and grep.
 
 Use the **passive** variant of the Kickoff template from the standards
 section (`§"Model-tier stop points" → "Kickoff template"`). Fill in the
-`Status:` line with `0/N groups done | current: <first group> <tier> |
-updated <today>` where `N` is the total number of waves after the
-no-thrash folding pass. Then fill in the rest:
+`Status:` line with `0/N groups done | last review: — | current: <first
+group> <tier> | updated <today>` where `N` is the total number of waves
+after the no-thrash folding pass. Add a `review: every-wave` line
+(default cadence; see standards §"Review beat"). Then fill in the rest:
 
 - `<tier>` is the **execution tier of the first wave** after the no-thrash
   folding pass — normally the tag on the first executable heading walking
@@ -202,6 +223,23 @@ In whichever chat executes a group, **before halting at the STOP marker**:
    count, set `current:` to the next group's identifier, and refresh
    the date.
 
+**Review beat (separate chat).** After a wave finishes, the human runs
+the REVIEW marker for that wave before starting the next wave. When
+executing a review beat, follow the REVIEW prompt in the plan: read-only,
+append one line to `## Review log` per standards §"Review log", update
+`last review:` on the Kickoff `Status:` line (`wave-N PASS` or
+`wave-N CONCERNS`), and report back. Do **not** fix or start the next
+wave.
+
+**Review gate (fail-closed).** Before starting wave N+1 (via a STOP or
+Kickoff prompt), verify wave N's review verdict is `PASS` — either
+`last review: wave-N PASS` on the Status line or a matching `PASS` line
+in `## Review log`. If the verdict is `CONCERNS` or missing when
+required, set `Status:` to
+`BLOCKED at gate review-wave-N` (with `last review: wave-N CONCERNS` when
+applicable), re-post the concern, and end the turn. The next wave does
+not start until a human resolves the block.
+
 **At every STOP marker, these gates are fail-closed.** A missed,
 timed-out, dismissed, or ambiguous response to a STOP-marker question
 never authorizes continuing past that marker. If no explicit
@@ -222,10 +260,12 @@ summary at the bottom of the plan file.
 
 Before halting (new-chat branch of step 7) or after stopping at the first
 STOP marker (current-chat branch of step 7), append a wave summary line to
-your report-back:
+your report-back. After a **review beat** chat, use the same shape with
+`review-wave-N` instead of `wave-N`:
 
 ```
 tokens wave-N <group-id> (model-slug): input ~X / output ~Y | cost ~$C (heuristic)
+tokens review-wave-N <group-id> (model-slug): input ~X / output ~Y | cost ~$C (heuristic)
 ```
 
 Where `wave-N` is the 1-based wave number (1 for the first group executed, 2
@@ -248,13 +288,15 @@ section at the bottom of the plan file (create the section if it doesn't
 exist). This persists cross-wave data across separate chats so the final
 wave can assemble the full table.
 
-When the **last group finishes**, read all wave lines from the `## Token log`
-section and print the full per-wave breakdown table alongside the Completion
-summary:
+When the **last group finishes**, read all wave and review lines from the
+`## Token log` section and print the full per-wave breakdown table alongside
+the Completion summary (include `review-wave-N` rows interleaved after their
+wave):
 
 | wave | group | model | ~input | ~output | ~cost |
 |------|-------|-------|--------|---------|-------|
 | wave-1 | m1-s1-s3 | claude-opus-4-8-thinking-xhigh | … | … | … |
+| review-wave-1 | m1-s1-s3 | claude-opus-4-8-thinking-xhigh | … | … | … |
 | wave-2 | m2-s4-s6 | claude-4.6-sonnet-medium-thinking | … | … | … |
 | **GRAND TOTAL** | | | | | … |
 
