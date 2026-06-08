@@ -31,10 +31,11 @@
 
 ## Secrets Management
 
-- Store in environment variables or secrets manager — never in source code or version control
+- Never commit **plaintext** secrets to source repositories
+- Externalize secrets to environment variables, managed secret stores, or a dedicated encrypted secrets repository — not into application source trees
 - Validate required secrets at startup; never log secrets
 - Support multiple active keys during rotation (current + previous)
-- For an estate-wide approach (encrypted secrets version-controlled in a private GitHub repo via SOPS + age, with per-consumer access control), see **[Secrets Repository](secrets-repository.md)**
+- For a candidate estate-wide approach (SOPS + age in a private GitHub repo, per-consumer access control), see **[Secrets Management](secrets/README.md)**
 
 ## Dependency Security
 
@@ -54,7 +55,7 @@
 
 ## Security Checklist — Before Deployment
 
-- [ ] Secrets in env vars or secrets manager
+- [ ] Secrets externalized (env vars, secret store, or encrypted secrets repo — not plaintext in source)
 - [ ] HTTPS enforced
 - [ ] Security headers configured
 - [ ] Rate limiting implemented
