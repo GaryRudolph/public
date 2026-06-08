@@ -1,9 +1,9 @@
 # Secrets Repository — Makefile Targets
 
-Recommended Makefile contract for a `<workspace>-secrets` repo. Full architecture
+Recommended Makefile contract for an `<estate>-secrets` repo. Full architecture
 and script bodies: [repository.md](repository.md).
 
-Placeholders: `<org>`, `<workspace>`, `<repo>`.
+Placeholders: `<org>`, `<estate>`, `<repo>`.
 
 ## Maintainer-local targets
 

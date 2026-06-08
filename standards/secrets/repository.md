@@ -3,7 +3,7 @@
 > **Status:** candidate reference architecture / personal standard. Not a universal
 > default — see [README.md](README.md) for when to adopt and known tradeoffs.
 >
-> Placeholders: `<workspace>` (e.g. `nowline`), `<org>` (e.g. `lolay`).
+> Placeholders: `<estate>` (e.g. `nowline`), `<org>` (e.g. `lolay`).
 
 Candidate architecture for managing secrets across an estate through a single
 private GitHub repo, using SOPS + age. Portable across projects: it needs nothing
@@ -24,7 +24,7 @@ but GitHub (no cloud KMS, no 1Password, no external secret store).
 
 ```mermaid
 flowchart TD
-    subgraph repo ["&lt;workspace&gt;-secrets (private repo)"]
+    subgraph repo ["&lt;estate&gt;-secrets (private repo)"]
         src["src/ (.env + binary, encrypted to SOURCE recipients)"]
         dist["dist/ (re-encrypted to PUBLISH recipients, COMMITTED)"]
         src -->|"make build (local, maintainer key)"| dist
@@ -100,12 +100,12 @@ key can open. Prefer the [least-privilege hierarchy](makefile.md#least-privilege
     app-id: ${{ vars.SECRETS_APP_ID }}
     private-key: ${{ secrets.SECRETS_APP_PRIVATE_KEY }}
     owner: <org>
-    repositories: <workspace>-secrets
+    repositories: <estate>-secrets
     permission-contents: read
 
 - uses: actions/checkout@v4
   with:
-    repository: <org>/<workspace>-secrets
+    repository: <org>/<estate>-secrets
     token: ${{ steps.tok.outputs.token }}
     sparse-checkout: dist
     path: _secrets
@@ -166,7 +166,7 @@ Notes:
 ### Structure
 
 ```text
-<workspace>-secrets/                       private repo
+<estate>-secrets/                       private repo
 ├─ .sops.yaml                              SOURCE recipients (maintainer + break-glass pubs) for src/ and keys/
 ├─ .gitignore                              track only *.sops under src/ dist/ keys/ (plaintext can't be committed)
 ├─ Makefile                                see makefile.md
@@ -262,7 +262,7 @@ Each row is exactly the access list for that file — nothing is inferred:
   access to them: because groups do not inherit, "most sensitive" never implies
   "reads everything."
 
-> Multi-project repos: if one `<workspace>-secrets` repo serves several projects,
+> Multi-project repos: if one `<estate>-secrets` repo serves several projects,
 > prefix files with the project — `web-oss.env`, `mobile-commercial.env` — so the
 > topic stays the access unit while names stay unambiguous.
 
@@ -571,7 +571,7 @@ done
 
 ## Setup runbook (one-time)
 
-1. Create private repo `<org>/<workspace>-secrets`. Protect `main`; CODEOWNERS on
+1. Create private repo `<org>/<estate>-secrets`. Protect `main`; CODEOWNERS on
    `src/`, `access.map`, `keys/`, `.githooks/`.
 2. Generate break-glass key offline; put public key in `breakglass.pub` and
    `.sops.yaml`.
