@@ -34,6 +34,7 @@
 - Store in environment variables or secrets manager — never in source code or version control
 - Validate required secrets at startup; never log secrets
 - Support multiple active keys during rotation (current + previous)
+- For an estate-wide approach (encrypted secrets version-controlled in a private GitHub repo via SOPS + age, with per-consumer access control), see **[Secrets Repository](secrets-repository.md)**
 
 ## Dependency Security
 
