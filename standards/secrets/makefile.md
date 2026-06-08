@@ -102,11 +102,11 @@ and maintainer targets.
 ```make
 # Decrypt dotenv secrets to stdout (consumer-safe). See dist-decrypt-env.sh.
 dist-decrypt-env: ## SOPS_AGE_KEY=... make dist-decrypt-env [FILE=oss.env] [KEY=...] [FORMAT=dotenv]
-	@bash ./dist-decrypt-env.sh dist $(FILE) $(KEY) $(FORMAT)
+	@FILE="$(FILE)" KEY="$(KEY)" FORMAT="$(FORMAT)" bash ./dist-decrypt-env.sh dist
 
 # Decrypt dist/ files to disk (consumer-safe). See dist-decrypt.sh.
 dist-decrypt: ## SOPS_AGE_KEY=... make dist-decrypt [FILE=ios/AuthKey_BV7QPDLS45.p8]
-	@bash ./dist-decrypt.sh dist $(FILE)
+	@FILE="$(FILE)" bash ./dist-decrypt.sh dist
 ```
 
 ## GitHub secret stores by context
@@ -119,7 +119,7 @@ named `SOPS_AGE_KEY`; only the value differs per store:
 | `actions` | GitHub Actions | `gh secret set SOPS_AGE_KEY --app actions` |
 | `codespaces` | Codespaces | `gh secret set SOPS_AGE_KEY --app codespaces` |
 | `dependabot` | Dependabot | `gh secret set SOPS_AGE_KEY --app dependabot` |
-| `agents` | GitHub Agents (Copilot coding agent) | Separate store from Actions; may require GitHub UI or Agents-specific API — verify before automating |
+| `agents` | GitHub Agents (Copilot coding agent) | `gh secret set SOPS_AGE_KEY --app agents` |
 
 `make set-keys` maps `actions`, `codespaces`, `dependabot`, and `agents` to their
 native `--app` stores. Other context names are out of scope for this contract.

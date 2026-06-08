@@ -76,12 +76,10 @@ The secret is **always named `SOPS_AGE_KEY`**; only the value differs per store.
 This is how you give an agent *less* than actions: the `agents` key is a
 recipient of fewer files than the `actions` key in the same repo.
 
-> Provisioning note: `gh secret set SOPS_AGE_KEY --app actions|codespaces|dependabot|agents`
-> covers four native stores. The `agents` store may still need the GitHub UI or
-> an Agents-specific API endpoint on some setups — verify before relying on
-> automation. `dependabot` also cannot mint App tokens the normal way, so a
-> Dependabot job that needs secrets must have them pre-staged rather than fetched
-> live.
+> Provisioning note: `gh secret set SOPS_AGE_KEY --app actions|agents|codespaces|dependabot`
+> covers the four native stores. `dependabot` cannot mint App tokens the normal
+> way, so a Dependabot job that needs secrets must have them pre-staged rather
+> than fetched live.
 
 The identity is always `(repo, context)`. Provision the `actions` context for a
 repo first; add `agents` / `codespaces` / `dependabot` for that repo when a
@@ -419,15 +417,15 @@ done < access.map
 
 ```bash
 # dist-decrypt-env.sh — CONSUMER: dotenv secrets to stdout (never to disk)
-# usage: dist-decrypt-env.sh <root> [FILE] [KEY] [FORMAT]
+# usage: FILE=... KEY=... FORMAT=... dist-decrypt-env.sh <root>
 #   FORMAT=dotenv  -> KEY=VALUE lines (default when KEY unset; also when KEY set with FORMAT=dotenv)
 #   FORMAT unset + KEY set -> raw value only
-# env: SOPS_AGE_KEY (required)
+# env: SOPS_AGE_KEY (required), FILE / KEY / FORMAT (optional)
 set -euo pipefail
 root=${1:-dist}
-sel_file=${2:-}
-want_key=${3:-}
-format=${4:-}
+sel_file=${FILE:-}
+want_key=${KEY:-}
+format=${FORMAT:-}
 
 emit_file() {
   local f=$1 logical=${f%.sops}; logical=${logical#"$root"/}
@@ -440,7 +438,7 @@ if [ -n "$want_key" ]; then
   if [ -n "$sel_file" ]; then
     f="$root/$sel_file.sops"
     [ -f "$f" ] || { echo "missing $f" >&2; exit 1; }
-    content=$(emit_file "$f") || exit 0
+    content=$(emit_file "$f") || exit 1
     line=$(printf '%s\n' "$content" | sed -n "s/^\(${want_key}\)=//p" | head -1)
     [ -n "$line" ] || { echo "KEY $want_key not in $sel_file" >&2; exit 1; }
     if [ "$format" = dotenv ]; then echo "${want_key}=${line}"; else printf '%s' "$line"; fi
@@ -465,7 +463,8 @@ if [ -n "$want_key" ]; then
 fi
 
 if [ -n "$sel_file" ]; then
-  emit_file "$root/$sel_file.sops" || exit 0
+  [ -f "$root/$sel_file.sops" ] || { echo "missing $root/$sel_file.sops" >&2; exit 1; }
+  emit_file "$root/$sel_file.sops" || exit 1
   exit 0
 fi
 
@@ -478,26 +477,27 @@ done
 
 ```bash
 # dist-decrypt.sh — CONSUMER: decrypt SOPS files to plaintext siblings on disk
-# usage: dist-decrypt.sh <root> [FILE]
-# env: SOPS_AGE_KEY (required). Does NOT emit environment assignments.
+# usage: FILE=... dist-decrypt.sh <root>
+# env: SOPS_AGE_KEY (required), FILE (optional). Does NOT emit environment assignments.
 set -euo pipefail
 root=${1:-dist}
-sel=${2:-}
+sel=${FILE:-}
 
 decrypt_one() {
-  local f=$1 out=${f%.sops} rel=${out#"$root"/}
+  local f=$1 required=${2:-0} out=${f%.sops} rel=${out#"$root"/}
+  [ -f "$f" ] || { echo "missing $f" >&2; [ "$required" = 1 ] && return 1 || return 0; }
   case "$out" in
     *.env)
       sops -d --input-type dotenv --output-type dotenv "$f" > "$out" 2>/dev/null \
-        || { rm -f "$out"; echo "# skip $rel (key cannot decrypt — expected)" >&2; } ;;
+        || { rm -f "$out"; echo "# skip $rel (key cannot decrypt — expected)" >&2; [ "$required" = 1 ] && return 1 || return 0; } ;;
     *)
       sops -d --input-type binary --output-type binary "$f" > "$out" 2>/dev/null \
-        || { rm -f "$out"; echo "# skip $rel (key cannot decrypt — expected)" >&2; } ;;
+        || { rm -f "$out"; echo "# skip $rel (key cannot decrypt — expected)" >&2; [ "$required" = 1 ] && return 1 || return 0; } ;;
   esac
 }
 
 if [ -n "$sel" ]; then
-  decrypt_one "$root/$sel.sops"
+  decrypt_one "$root/$sel.sops" 1
   exit 0
 fi
 
@@ -553,7 +553,7 @@ done
 
 > The four native stores (`actions`, `agents`, `codespaces`, `dependabot`) each
 > hold a separate `SOPS_AGE_KEY`. The `agents` store is for GitHub Agents /
-> Copilot; verify the exact `gh` flag or UI path for your org before scripting.
+> Copilot and is provisioned with `gh secret set --app agents`.
 
 ---
 
