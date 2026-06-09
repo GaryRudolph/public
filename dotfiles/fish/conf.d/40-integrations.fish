@@ -81,6 +81,20 @@ end
 set -gx PNPM_HOME "$HOME/Library/pnpm"
 test -d "$PNPM_HOME"; and fish_add_path -gP "$PNPM_HOME"
 
+# --- nvm (Node Version Manager) -----------------------------------------------
+set -gx NVM_DIR "$HOME/.nvm"
+set -l _nvm_sh "/opt/homebrew/opt/nvm/nvm.sh"
+if test -s "$_nvm_sh"
+    function nvm --wraps nvm --description 'Node Version Manager'
+        # nvm is a bash function; run it in bash and sync the updated PATH back
+        set -l _tmp (mktemp)
+        bash -c "source /opt/homebrew/opt/nvm/nvm.sh --no-use; nvm $argv; printf '%s' \"\$PATH\" > $_tmp"
+        set -l _new_path (cat $_tmp)
+        rm -f $_tmp
+        test -n "$_new_path"; and set -gx PATH (string split : "$_new_path")
+    end
+end
+
 # --- OrbStack (Docker / Kubernetes / Linux VMs) -------------------------------
 # OrbStack ships its own `docker`, `kubectl`, `orbctl` binaries in ~/.orbstack
 # and fish completions inside the app bundle. We bypass OrbStack's installer

@@ -219,4 +219,10 @@ esac
 alias cursor-agerpoint='open -a "Cursor AP"'
 alias claude-agerpoint='CLAUDE_CONFIG_DIR="$HOME/.claude-agerpoint" claude'
 alias code-agerpoint='open -a "Visual Studio Code AP"'
+# nvm
+export NVM_DIR="$HOME/.nvm"
+[ -s "/opt/homebrew/opt/nvm/nvm.sh" ] && \. "/opt/homebrew/opt/nvm/nvm.sh"
+[ -s "/opt/homebrew/opt/nvm/etc/bash_completion.d/nvm" ] && \. "/opt/homebrew/opt/nvm/etc/bash_completion.d/nvm"
+# nvm end
+
 setopt interactive_comments
