@@ -48,6 +48,7 @@ A project or organization rule can override a personal preference if there's a d
 - **Wait for answers** — if you ask a question, always wait for a response before proceeding; never assume an answer and continue
 - **Always use virtual environments** — when installing Python packages, use the project's existing venv (or create one with `python -m venv .venv`) from the start; never install with global or user-level pip
 - **Use project-local package management** — for Node, prefer `npx` over `npm install -g`; for Ruby, use `bundle exec` and never bare `gem install`
+- **Facts in script, judgment in agent** — when authoring or running intelligent skills, scripts gather mechanical facts (inventories, parsing, layout detection, presence checks) and emit no verdicts, classifications, or findings; the agent applies the relevant standard to the facts and reasons about semantics (reading actual file contents where meaning matters). Script-emitted judgments get trusted un-reasoned, encode context-blind rules, and go stale
 - **Start new projects on the latest stable versions** — when scaffolding a new project, repo, package, or service, look up the current latest stable release of every language, runtime, framework, SDK, API, build tool, and library *before* pinning anything. Use WebSearch and official release notes / registries (`npm view <pkg> version`, `pip index versions <pkg>`, GitHub releases, vendor docs) — do not rely on your training-data knowledge of "current" versions, which is routinely months or years out of date. Pin to the latest stable release (not pre-release, beta, RC, or nightly) unless there's a documented reason. "Prefer boring technology" means picking proven *stacks* (React, Django, FastAPI, Spring, Postgres), not stale *versions* — pick the boring stack, then start it on the latest stable. Does not apply to existing repos, which follow their own upgrade cadence. See `~/Projects/personal/public/standards/architecture.md` "Starting New Projects"
 - **Use `.scratch/` for quick tasks** — when asked to draft, research, or spike on something that isn't ready to commit, write it to `.scratch/` (gitignored). If `.scratch/` doesn't exist, create it and verify it's in `.gitignore`
 - **Check `.gitignore` when creating new directories** — when creating directories meant to hold working files, drafts, or local artifacts, confirm they're covered by `.gitignore` before writing to them
@@ -71,6 +72,7 @@ Load these only when the current task is relevant to the standard's topic:
 - `~/Projects/personal/public/standards/documentation.md` — what to document, ADR format, TODO conventions
 - `~/Projects/personal/public/standards/plan-execution.md` — model-tier tagging, STOP gates, kickoff/progress tracking, subagent delegation
 - `~/Projects/personal/public/standards/git.md` — branching, versioning, commit format, PR workflow
+- `~/Projects/personal/public/standards/makefile.md` — Makefile target vocabulary, self-documenting help, workspace/polyrepo delegation, danger guards
 - `~/Projects/personal/public/standards/security.md` — auth, encryption, input validation, checklists
 
 ### Language-Specific Standards

@@ -13,6 +13,7 @@ This directory contains coding standards for consistent, maintainable, quality c
 - **[Git Workflow](git.md)** — Branching, commit format, PR workflow
 - **[Versioning](versioning.md)** — SemVer for artifacts, integer-major for contracts, commit-count `versionCode`, per-platform surface map, release & hotfix flows
 - **[Security](security.md)** — Auth, encryption, input validation, checklists
+- **[Makefile](makefile.md)** — Target vocabulary, self-documenting help, workspace/polyrepo delegation, danger guards
 
 ## Language-Specific Standards
 
