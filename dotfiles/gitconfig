@@ -24,3 +24,5 @@
 	path = ~/.config/git/nowline.gitconfig
 [includeIf "gitdir:~/Projects/deskhound/"]
 	path = ~/.config/git/deskhound.gitconfig
+[pull]
+	ff = only
