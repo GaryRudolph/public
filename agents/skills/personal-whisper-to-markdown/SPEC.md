@@ -322,6 +322,17 @@ content_hash: <SHA-256 of canonical recording structure>
 [HH:MM:SS] <Speaker>: <line of transcript>
 ```
 
+Notes produced by the `personal-whisper-consolidation-md` post-processing skill
+carry two additional frontmatter keys not present in directly-generated notes:
+
+- `split_part: N/M` — which part this is out of M total kept parts.
+- `split_range: HH:MM:SS-HH:MM:SS` — the original recording timeline range
+  this part covers.
+
+These keys signal to the upstream planner that the note is a split product.
+The `content_hash` value is preserved from the source recording so the planner
+still skips it on re-runs.
+
 Section rules:
 
 - **Summary and Action Items** are generated from the transcript — write in

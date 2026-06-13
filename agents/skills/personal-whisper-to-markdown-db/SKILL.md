@@ -124,6 +124,21 @@ When dispatching content-generation subagents:
   are pure content producers. Coordination races (two subagents both
   editing the planner) are impossible.
 
+## Post-processing: splitting multi-meeting notes
+
+When a recording captures two or more meetings (back-to-back calls, a
+recording left running, etc.) the note it produces can be split into separate
+files without touching the MacWhisper database.
+
+Use the [`personal-whisper-consolidation-md`](../personal-whisper-consolidation-md/SKILL.md)
+skill after this skill completes. It detects large transcript gaps, speaker
+membership changes, farewell/greeting cue pairs, and dead-air spans, then
+splits the note with rebased timestamps.
+
+Notes produced by that skill carry `split_part: N/M` frontmatter. The upstream
+planner recognises these via the original `content_hash` and correctly skips
+the source recording on re-runs — no configuration required.
+
 ## Source: MacWhisper SQLite
 
 MacWhisper stores all live state in a single SQLite database at:
