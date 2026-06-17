@@ -80,7 +80,7 @@ Load these only when the current task is relevant to the standard's topic:
 Load when working in that language:
 
 - **Python**: `~/Projects/personal/public/standards/python/` (code-style, architecture, testing, documentation, security)
-- **Swift**: `~/Projects/personal/public/standards/swift/` (code-style, architecture, testing, documentation, security)
+- **Swift**: `~/Projects/personal/public/standards/swift/` (code-style, architecture, state-observation, testing, documentation, security)
 - **Kotlin**: `~/Projects/personal/public/standards/kotlin/` (code-style, architecture, testing, documentation, security)
 
 ## Verification canary

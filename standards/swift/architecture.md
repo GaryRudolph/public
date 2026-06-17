@@ -99,14 +99,15 @@ public class CompositeTracker: BaseTracker {
 }
 ```
 
-## MVVM Pattern (SwiftUI)
+## View Model Pattern (SwiftUI)
 
-ViewModels are `@MainActor` + `ObservableObject` with `@Published`. Views own ViewModel via `@StateObject`. Static `make()` factory for production wiring, `init` for test injection:
+View models are `@MainActor @Observable`. Views own the view model via `@State` (use `@Bindable` for two-way bindings). Static `make()` factory for production wiring, `init` for test injection:
 
 ```swift
 @MainActor
-class TicketsViewModel: ObservableObject {
-    @Published var ticketSections: [TicketSection] = []
+@Observable
+final class TicketsViewModel {
+    var ticketSections: [TicketSection] = []
     private let inventoryManager: InventoryManager
 
     init(inventoryManager: InventoryManager, stateManager: StateManager) { ... }
@@ -115,7 +116,7 @@ class TicketsViewModel: ObservableObject {
 }
 
 struct TicketsView: View {
-    @StateObject var model: TicketsViewModel = .make()
+    @State private var model: TicketsViewModel = .make()
     var body: some View {
         List { }
             .task { await model.load() }
@@ -123,6 +124,8 @@ struct TicketsView: View {
     }
 }
 ```
+
+For cross-component state changes and observing one store from another (or from non-SwiftUI code), see [state-observation.md](./state-observation.md). Do not use `ObservableObject` / `@Published` for new state.
 
 ### Dependency injection rules
 
@@ -142,8 +145,9 @@ Navigation driven by router objects, not inline view state:
 
 ```swift
 @MainActor
+@Observable
 class StackRouterBase<D: Hashable>: StackRouting {
-    @Published var path = NavigationPath()
+    var path = NavigationPath()
     func navigate(to destination: D) { path.append(destination) }
     func navigateBack() { guard !path.isEmpty else { return }; path.removeLast() }
     func navigateToRoot() { guard !path.isEmpty else { return }; path.removeLast(path.count) }

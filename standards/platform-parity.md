@@ -18,7 +18,7 @@ Both platforms use the same logical layers with the same names:
 
 | Layer | Swift | Kotlin |
 |---|---|---|
-| Presentation | SwiftUI Views + `@ObservableObject` ViewModels | Compose screens + MVI ViewModels |
+| Presentation | SwiftUI Views + `@Observable` view models | Compose screens + MVI ViewModels |
 | Business Logic | Manager protocols + `Impl` classes | Use-case / service classes |
 | Data | Repositories, network clients | Repositories, network clients |
 | Navigation | Router pattern (`NavigationRouter`) | Navigation component / router |
@@ -29,7 +29,7 @@ Use the platform-native idiom, not a literal translation:
 
 | Concept | Swift | Kotlin |
 |---|---|---|
-| Reactive state | `@Published` / `ObservableObject` | `StateFlow` / `MutableStateFlow` |
+| Reactive state | `@Observable` / `Observations` | `StateFlow` / `MutableStateFlow` |
 | Main-thread binding | `@MainActor` | `Dispatchers.Main` / `viewModelScope` |
 | Structured concurrency | `async`/`await`, `TaskGroup` | Coroutines, `CoroutineScope` |
 | Sealed state types | `enum` with associated values | `sealed interface` / `sealed class` |

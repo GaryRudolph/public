@@ -67,8 +67,8 @@ struct K {
             }
         }
     }
-    struct NOTIFICATION {
-        static let AUTH_DID_CHANGE = Notification.Name("auth_did_change")
+    struct API {
+        static let DEFAULT_TIMEOUT_SECONDS = 30
     }
 }
 ```

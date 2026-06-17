@@ -27,6 +27,7 @@ This directory contains coding standards for consistent, maintainable, quality c
 ### Swift
 - **[Code Style](swift/code-style.md)** — Apple API Guidelines, SwiftLint, access control
 - **[Architecture](swift/architecture.md)** — Manager pattern, MVVM, Router, ManagerFactory
+- **[State & Observation](swift/state-observation.md)** — `@Observable` stores, `Observations` outside SwiftUI, change-only setters, the one `NotificationCenter` boundary
 - **[Testing](swift/testing.md)** — Swift Testing, XCTest, snapshot testing
 - **[Documentation](swift/documentation.md)** — `///` doc comments, DocC
 - **[Security](swift/security.md)** — Keychain, ATS, CryptoKit, OWASP MASVS
