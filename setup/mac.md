@@ -61,6 +61,21 @@
   ```
 
   - See `dotfiles/fish/README.md` for prompt/config details.
+- Git identity per directory tree (built-in `includeIf`; see
+[dotfiles/git/README.md](../dotfiles/git/README.md))
+  - `~/.gitconfig` sets the name and personal email (`GaryRudolph@mac.com`);
+  repos under `~/Projects/{lolay,agerpoint,nowline,deskhound}/` get that
+  company's email from fragments in `~/.config/git/`
+  - Link the base config (backs up any existing `~/.gitconfig`)
+
+  ```bash
+  cd ~
+  [ -e .gitconfig ] && [ ! -L .gitconfig ] && mv .gitconfig .gitconfig.bak
+  ln -snf Projects/personal/public/dotfiles/gitconfig .gitconfig
+  ```
+
+  - The company fragments are linked by `make install` in the dotfiles
+  step below
 - Make fish the default login shell
   - Confirm the path (typically `/opt/homebrew/bin/fish`)
 
@@ -91,6 +106,12 @@
 
   ```bash
   cd ~/Projects/personal/public/dotfiles && make install
+  ```
+
+  - Verify git identity from inside any repo (shows which file set it)
+
+  ```bash
+  git config --show-origin user.email
   ```
 
   - One-time auth per profile
