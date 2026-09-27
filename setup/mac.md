@@ -3,48 +3,118 @@
 - Set Hostname
   - Settings -> General -> Sharing
   - Settings -> About -> Set Local Hostname
-  - `sudo scutil --set HostName gMacBook`
-  - `sudo scutil --set LocalHostName gMacBook`
-  - `sudo scutil --set ComputerName gMacBook`
+
+  ```bash
+  sudo scutil --set HostName gMacBook
+  sudo scutil --set LocalHostName gMacBook
+  sudo scutil --set ComputerName gMacBook
+  ```
+
 - Make sure Desktop & Documents are set to iCloud
   - Settings -> Apple Account -> iCloud -> Drive -> turn on Desktop & Documents Folders
   - Settings -> Apple Account -> iCloud -> Drive -> turn off Optimize Mac Storage (keep all files local)
 - See hidden files as greyed out in Finder
-  - `defaults write com.apple.finder AppleShowAllFiles TRUE; killall Finder`
+
+  ```bash
+  defaults write com.apple.finder AppleShowAllFiles TRUE; killall Finder
+  ```
+
 - Setup SSH Keys
   - Note, these have to be copied and not symlink because SSH requirements
-  - `mkdir ~/.ssh`
-  - `chmod 700 ~/.ssh`
-  - Download keys from [keys](keys) and place in `~/.ssh`
-  - `chmod 600 ~/.ssh/id_ed25519`
-  - `chmod 644 ~/.ssh/id_ed25519.pub`
+
+  ```bash
+  mkdir ~/.ssh
+  chmod 700 ~/.ssh
+  ```
+
+  - Download `id_ed25519` and `id_ed25519.pub` from the private repo's
+  [keys](https://github.com/GaryRudolph/private/tree/main/keys) folder via the
+  GitHub website (no SSH yet) and place them in `~/.ssh`
+
+  ```bash
+  chmod 600 ~/.ssh/id_ed25519
+  chmod 644 ~/.ssh/id_ed25519.pub
+  ```
+
 - Install Homebrew and fish (prereq for the symlinks and chsh tasks below)
   - Install Homebrew if not already present: see [https://brew.sh](https://brew.sh)
-  - `brew install fish`
+
+  ```bash
+  brew install fish
+  ```
+
 - Checkout this repo to `Projects/personal/public` and create Symbolic Links
-  - `git clone git@github.com:GaryRudolph/public.git`
-  - `ln -s Projects/personal/public/bin bin`
-  - `ln -s Projects/personal/public/dotfiles/zshrc .zshrc`
-  - `ln -s Projects/personal/public/dotfiles/zshrc-gMacBook .zshrc-local`
-  - `mkdir -p ~/.config`
-  - `[ -e ~/.config/fish ] && mv ~/.config/fish ~/.config/fish.bak`
-  - `ln -s ~/Projects/personal/public/dotfiles/fish ~/.config/fish`
+
+  ```bash
+  mkdir -p ~/Projects/personal && cd ~/Projects/personal
+  git clone git@github.com:GaryRudolph/public.git
+  ```
+
+  ```bash
+  cd ~
+  ln -s Projects/personal/public/bin bin
+  ln -s Projects/personal/public/dotfiles/zshrc .zshrc
+  ln -s Projects/personal/public/dotfiles/zshrc-gMacBook .zshrc-local
+  mkdir -p ~/.config
+  [ -e ~/.config/fish ] && mv ~/.config/fish ~/.config/fish.bak
+  ln -s ~/Projects/personal/public/dotfiles/fish ~/.config/fish
+  ```
+
   - See `dotfiles/fish/README.md` for prompt/config details.
 - Make fish the default login shell
-  - `which fish` → confirm path (typically `/opt/homebrew/bin/fish`)
-  - `grep -q "$(which fish)" /etc/shells || echo "$(which fish)" | sudo tee -a /etc/shells`
-  - `chsh -s "$(which fish)"`
-  - Open a new terminal; verify with `echo $SHELL`
-- Configure AI agent tools (see [agents/README.md](agents/README.md))
-  - `cd ~/Projects/personal/public/agents && make install`
-- Install OpenCode dotfiles (see [dotfiles/opencode/README.md](../dotfiles/opencode/README.md))
+  - Confirm the path (typically `/opt/homebrew/bin/fish`)
+
+  ```bash
+  which fish
+  ```
+
+  ```bash
+  grep -q "$(which fish)" /etc/shells || echo "$(which fish)" | sudo tee -a /etc/shells
+  chsh -s "$(which fish)"
+  ```
+
+  - Open a new terminal and verify
+
+  ```bash
+  echo $SHELL
+  ```
+
+- Configure AI agent tools (see [agents/README.md](../agents/README.md))
+
+  ```bash
+  cd ~/Projects/personal/public/agents && make install
+  ```
+
+- Install dotfiles symlinks (git, Ghostty, OpenCode; see
+[dotfiles/opencode/README.md](../dotfiles/opencode/README.md))
   - Install OpenCode (`brew install opencode` or the official installer)
-  - `cd ~/Projects/personal/public/dotfiles && make link-opencode`
-  - One-time auth per profile: `opencode auth login` and
-    `OPENCODE_APPNAME=opencode-agerpoint opencode auth login`
+
+  ```bash
+  cd ~/Projects/personal/public/dotfiles && make install
+  ```
+
+  - One-time auth per profile
+
+  ```bash
+  opencode auth login
+  ```
+
+  ```bash
+  OPENCODE_APPNAME=opencode-agerpoint opencode auth login
+  ```
+
 - Checkout the private repo to `Projects/personal/private` and
 create Symbolic Links
-  - `git clone git@github.com:GaryRudolph/private.git`
+
+  ```bash
+  cd ~/Projects/personal
+  git clone git@github.com:GaryRudolph/private.git
+  ```
+
+  ```bash
+  ln -snf ~/Projects/personal/private/dotfiles/fish ~/.config/fish-private
+  ```
+
 - Standard Software
   - Dropbox
   - Google Drive
@@ -74,54 +144,160 @@ create Symbolic Links
   - Prereqs: Cursor.app and Claude.app (Standard Software above) plus
   `brew install imagemagick` (Brew section below)
   - Add your profile: `macos-launchers/profiles/<slug>.env` and `<slug>.png`
-  - `cd ~/Projects/personal/public/macos-launchers && make install`
+
+  ```bash
+  cd ~/Projects/personal/public/macos-launchers && make install
+  ```
+
   - Wrappers (e.g. `Cursor AP.app`, `Claude AP.app`) land in `~/Applications/`
 - Install Xcode
   - Install App & SDKs
-  - `sudo xcode-select --install`
-- Brew (/opt/homebrew) (Pick and choose)
-  - `brew install <package>`
-  - `brew install python3`
-  - `brew install virtualenv`
-  - `brew install uv`
-  - `brew install plantuml`
-  - `brew install graphviz`
-  - `brew install librsvg`
-  - `brew install node`
-  - `brew install s3cmd`
-  - `brew install fastlane`
-  - `brew install jq`
-  - `brew install mdless`
-  - `brew install awscli`
-  - `brew install imagemagick` (also a prereq for `macos-launchers`)
+
+  ```bash
+  xcode-select --install
+  ```
+
+- Brew (/opt/homebrew) (Pick and choose, `brew install <package>`)
+
+  ```bash
+  brew install python3
+  ```
+
+  ```bash
+  brew install virtualenv
+  ```
+
+  ```bash
+  brew install uv
+  ```
+
+  ```bash
+  brew install plantuml
+  ```
+
+  ```bash
+  brew install graphviz
+  ```
+
+  ```bash
+  brew install librsvg
+  ```
+
+  ```bash
+  brew install node
+  ```
+
+  ```bash
+  brew install s3cmd
+  ```
+
+  ```bash
+  brew install fastlane
+  ```
+
+  ```bash
+  brew install jq
+  ```
+
+  ```bash
+  brew install mdless
+  ```
+
+  ```bash
+  brew install awscli
+  ```
+
+  - imagemagick (also a prereq for `macos-launchers`)
+
+  ```bash
+  brew install imagemagick
+  ```
+
   - Animate Gifs and Video
-    - `brew install ffmpeg`
+
+  ```bash
+  brew install ffmpeg
+  ```
+
   - Protobuf
-    - `brew install protobuf`
-    - `brew install swift-protobuf`
-    - `brew install grpc-swift`
-  - `brew install rar`
-  - `brew install openjdk`
-  - `brew install gradle`
-  - `brew install timeout`? If GUI, just install from app store
-  - `brew install xprojectlint`
-  - `brew install xcodegen`
-  - `brew install xcbeautify`
+
+  ```bash
+  brew install protobuf swift-protobuf grpc-swift
+  ```
+
+  ```bash
+  brew install rar
+  ```
+
+  ```bash
+  brew install openjdk
+  ```
+
+  ```bash
+  brew install gradle
+  ```
+
+  - timeout (provided by coreutils as `gtimeout`)
+
+  ```bash
+  brew install coreutils
+  ```
+
+  ```bash
+  brew install xprojectlint
+  ```
+
+  ```bash
+  brew install xcodegen
+  ```
+
+  ```bash
+  brew install xcbeautify
+  ```
+
   - Wireshark
-    - `brew install brew install --cask wireshark`
-    - `brew install --cask wireshark-chmodbpf`
-  - `brew install go`
-  - `brew install mactex-no-gui` (this is a cask)
+
+  ```bash
+  brew install --cask wireshark wireshark-chmodbpf
+  ```
+
+  ```bash
+  brew install go
+  ```
+
+  - mactex-no-gui (this is a cask)
+
+  ```bash
+  brew install --cask mactex-no-gui
+  ```
+
   - Terraform
-    - `brew tap hashicorp/tap`
-    - `brew install hashicorp/tap/terraform`
-- Gems
-  - `gem install <package>`
-  - `gem install xcperfect`
-  - `gem install xcpretty`
-- NPM
-  - `npm -g install <package>`
-  - `npm -g install firebase-tools`
+
+  ```bash
+  brew tap hashicorp/tap
+  brew install hashicorp/tap/terraform
+  ```
+
+- Gems (`gem install <package>`)
+  - Intentional global exception to the `bundle exec` rule: these are
+  standalone CLI tools used outside any project Gemfile
+
+  ```bash
+  gem install xcperfect
+  ```
+
+  ```bash
+  gem install xcpretty
+  ```
+
+- NPM (`npm install -g <package>`)
+  - Intentional global exception to the `npx` rule: `firebase` is a
+  standalone CLI used across projects
+
+  ```bash
+  npm install -g firebase-tools
+  ```
+
 - VS Code
   - joaompinto.vscode-graphviz
   - jebbs.plantuml
@@ -145,4 +321,3 @@ create Symbolic Links
   - Windows 11 ARM Build
   - Garmin Checklist Editor
   - VP-X
-
