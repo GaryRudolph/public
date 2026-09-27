@@ -338,6 +338,15 @@ create Symbolic Links
   brew install hashicorp/tap/terraform
   ```
 
+  - triage (environment doctor) from the Lolay tap; trust the whole tap so
+  future formulae from it load without another prompt
+
+  ```bash
+  brew tap lolay/tap
+  brew trust --tap lolay/tap
+  brew install lolay/tap/triage
+  ```
+
 - Gems (`gem install <package>`)
   - Intentional global exception to the `bundle exec` rule: these are
   standalone CLI tools used outside any project Gemfile
