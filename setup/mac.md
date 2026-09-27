@@ -164,7 +164,10 @@ create Symbolic Links
   - Jabra Direct
   - Parallels
   - Adobe Reader, Illustrator, Photoshop
-  - Docker for Mac
+  - OrbStack (Docker runtime; fish config wires up its `docker` and
+  completions)
+  - Visual Studio Code
+  - Android Studio (fish uses its bundled JDK for `JAVA_HOME`)
   - Microsoft Office
   - [SF Symbols App](https://developer.apple.com/sf-symbols/)
   - Bambu Studio
@@ -222,6 +225,21 @@ create Symbolic Links
 
   ```bash
   brew install node
+  ```
+
+  - nvm (fish wraps it; needs `~/.nvm` to exist)
+
+  ```bash
+  brew install nvm
+  mkdir -p ~/.nvm
+  ```
+
+  - pnpm (fish sets `PNPM_HOME` to `~/Library/pnpm`; skip `pnpm setup`, which
+  would append to the symlinked shell configs in this repo)
+
+  ```bash
+  brew install pnpm
+  mkdir -p ~/Library/pnpm
   ```
 
   ```bash
@@ -353,7 +371,24 @@ create Symbolic Links
   - Optional keybindings overrides (User → `keybindings.json`):
     - `cmd+i` (⌘I) → `composerMode.agent` (open agent composer)
     - `alt+cmd+s` (⌥⌘S) → `workbench.action.toggleUnifiedSidebarFromKeyboard`
-- Rust
+- Google Cloud CLI (fish expects it in `~/Applications/google-cloud-sdk`;
+fish adds it to PATH, so skip the installer's PATH update)
+
+  ```bash
+  mkdir -p ~/Applications && cd ~/Applications
+  curl -O https://dl.google.com/dl/cloudsdk/channels/rapid/downloads/google-cloud-cli-darwin-arm.tar.gz
+  tar -xzf google-cloud-cli-darwin-arm.tar.gz && rm google-cloud-cli-darwin-arm.tar.gz
+  ./google-cloud-sdk/install.sh --quiet --path-update false \
+    --command-completion false
+  ```
+
+- Rust (official rustup installer; fish sources `~/.cargo/env.fish` itself, so
+`--no-modify-path` keeps rustup from writing into the symlinked shell configs)
+
+  ```bash
+  curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- --no-modify-path
+  ```
+
 - Windows Parallels
   - Windows 11 ARM Build
   - Garmin Checklist Editor
