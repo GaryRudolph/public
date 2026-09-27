@@ -120,8 +120,8 @@ create Symbolic Links
   - `gem install xcperfect`
   - `gem install xcpretty`
 - NPM
-  - `npm -g <package> install`
-  - `npm -g firebase-tools install`
+  - `npm -g install <package>`
+  - `npm -g install firebase-tools`
 - VS Code
   - joaompinto.vscode-graphviz
   - jebbs.plantuml
