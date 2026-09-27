@@ -1,6 +1,8 @@
 # Mac Setup
 
 - Set Hostname
+  - Replace `gMacBook` with this machine's name; the dotfiles pick per-machine
+  files by `hostname -s`
   - Settings -> General -> Sharing
   - Settings -> About -> Set Local Hostname
 
@@ -50,11 +52,24 @@
   git clone git@github.com:GaryRudolph/public.git
   ```
 
+  - Create this machine's per-host files if they don't exist yet (commit them
+  afterwards)
+
+  ```bash
+  cd ~/Projects/personal/public/dotfiles
+  [ -e "zshrc-$(hostname -s)" ] || printf '#!/bin/zsh\n\n' > "zshrc-$(hostname -s)"
+  [ -e "fish/host/$(hostname -s).fish" ] || \
+    sed "s/gMacBook/$(hostname -s)/" fish/host/gMacBook.fish \
+    > "fish/host/$(hostname -s).fish"
+  ```
+
   ```bash
   cd ~
   ln -s Projects/personal/public/bin bin
   ln -s Projects/personal/public/dotfiles/zshrc .zshrc
-  ln -s Projects/personal/public/dotfiles/zshrc-gMacBook .zshrc-local
+  ln -s "Projects/personal/public/dotfiles/zshrc-$(hostname -s)" .zshrc-local
+  [ -e .exrc ] && [ ! -L .exrc ] && mv .exrc .exrc.bak
+  ln -snf Projects/personal/public/dotfiles/exrc .exrc
   mkdir -p ~/.config
   [ -e ~/.config/fish ] && mv ~/.config/fish ~/.config/fish.bak
   ln -s ~/Projects/personal/public/dotfiles/fish ~/.config/fish
@@ -140,6 +155,7 @@ create Symbolic Links
   - Dropbox
   - Google Drive
   - Chrome
+  - Ghostty (config is linked by the dotfiles `make install` step)
   - Slack
   - Zoom
   - Claude
