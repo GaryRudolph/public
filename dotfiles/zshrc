@@ -126,34 +126,30 @@ if [[ -d "${JAVA_HOME}" ]]; then
 	path=("${JAVA_HOME}/bin" ${path})
 fi
 
-# Gradle
-GRADLE_HOME=${TOOLS_HOME}/gradle-3.0
-if [[ -d "${GRADLE_HOME}" ]]; then
-	export GRADLE_HOME
-	path=("${GRADLE_HOME}/bin" ${path})
+# Gradle / Maven (Homebrew puts the binaries on PATH; *_HOME is for IDEs)
+if [[ -d "${HOMEBREW_HOME}/opt/gradle/libexec" ]]; then
+	export GRADLE_HOME="${HOMEBREW_HOME}/opt/gradle/libexec"
 fi
-
-# Maven
-MAVEN_HOME="${TOOLS_HOME}/apache-maven-3.3.9"
-if [[ -d "${MAVEN_HOME}" ]]; then
-	export MAVEN_HOME
-	export MAVEN_OPTS="-server -Xmx2048m -XX:MaxPermSize=512m"
-	path=("${MAVEN_HOME}/bin" ${path})
+if [[ -d "${HOMEBREW_HOME}/opt/maven/libexec" ]]; then
+	export MAVEN_HOME="${HOMEBREW_HOME}/opt/maven/libexec"
+	export MAVEN_OPTS="-Xmx2048m"
 fi
 
 # Android
 ANDROID_SDK_ROOT="${HOME}/Library/Android/sdk"
 ANDROID_HOME="${ANDROID_SDK_ROOT}"
-ANDROID_NDK_HOME="${TOOLS_HOME}/android-ndk-r9"
 if [[ -d "${ANDROID_HOME}" ]]; then
 	export ANDROID_SDK_ROOT
 	export ANDROID_HOME
 	path=("${ANDROID_SDK_ROOT}/emulator" "${ANDROID_SDK_ROOT}/platform-tools" "${ANDROID_SDK_ROOT}/cmdline-tools/latest/bin" ${path})
 fi
-if [[ -d "${ANDROID_NDK_HOME}" ]]; then
-	export ANDROID_NDK_HOME
+# Newest NDK installed via Android Studio's SDK Manager (ndk/<version>/)
+android_ndks=(${ANDROID_SDK_ROOT}/ndk/*(N/nOn))
+if (( ${#android_ndks} )); then
+	export ANDROID_NDK_HOME="${android_ndks[1]}"
 	path=("${ANDROID_NDK_HOME}" ${path})
 fi
+unset android_ndks
 
 # Google
 GCLOUD_HOME="${TOOLS_HOME}/google-cloud-sdk"

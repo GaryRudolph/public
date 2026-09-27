@@ -14,7 +14,7 @@ dotfiles/fish/
     10-session.fish    # SESSION_TYPE, SSH_TUNNEL (used by ssh function in 60-aliases)
     20-env.fish        # EDITOR, VISUAL, TABSTOP, SHELL_INTERPRETER
     30-path-and-tools.fish
-    40-integrations.fish   # brew shellenv, java, gradle, maven, android, gcloud, vscode, rust, pnpm
+    40-integrations.fish   # brew shellenv, java, gradle, maven, android, gcloud, vscode, rust, pnpm, nvm, orbstack
     50-aliases.docker.fish
     60-aliases.fish    # ls/dir/l (uname-aware), ssh wrapper, git, macOS shortcuts
     70-history.fish    # placeholder for HISTORY_IGNORE-style scrub

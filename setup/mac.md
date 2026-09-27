@@ -167,7 +167,8 @@ create Symbolic Links
   - OrbStack (Docker runtime; fish config wires up its `docker` and
   completions)
   - Visual Studio Code
-  - Android Studio (fish uses its bundled JDK for `JAVA_HOME`)
+  - Android Studio (fish uses its bundled JDK for `JAVA_HOME`); install the NDK
+  from its SDK Manager and the shells pick up the newest one
   - Microsoft Office
   - [SF Symbols App](https://developer.apple.com/sf-symbols/)
   - Bambu Studio
@@ -290,6 +291,10 @@ create Symbolic Links
 
   ```bash
   brew install gradle
+  ```
+
+  ```bash
+  brew install maven
   ```
 
   - timeout (provided by coreutils as `gtimeout`)

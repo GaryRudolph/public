@@ -1,5 +1,5 @@
 # Tool integrations: Homebrew, Java, Gradle, Maven, Android, gcloud, VS Code,
-# Rust/Cargo, pnpm. Each block guards on the tool actually being installed.
+# Rust/Cargo, pnpm, nvm, OrbStack. Each block guards on the tool actually being installed.
 
 # --- Homebrew -----------------------------------------------------------------
 if test -x /opt/homebrew/bin/brew
@@ -18,19 +18,16 @@ for _j in $_java_candidates
     end
 end
 
-# --- Gradle -------------------------------------------------------------------
-set -l _gradle "$TOOLS_HOME/gradle-3.0"
-if test -d "$_gradle"
-    set -gx GRADLE_HOME "$_gradle"
-    fish_add_path -gP "$_gradle/bin"
-end
+# --- Gradle / Maven -----------------------------------------------------------
+# Homebrew already puts gradle/mvn on PATH; the *_HOME vars are for IDEs and
+# build tools that look for them. opt/<name> always points at the current version.
+set -l _gradle "$HOMEBREW_HOME/opt/gradle/libexec"
+test -d "$_gradle"; and set -gx GRADLE_HOME "$_gradle"
 
-# --- Maven --------------------------------------------------------------------
-set -l _maven "$TOOLS_HOME/apache-maven-3.3.9"
+set -l _maven "$HOMEBREW_HOME/opt/maven/libexec"
 if test -d "$_maven"
     set -gx MAVEN_HOME "$_maven"
-    set -gx MAVEN_OPTS "-server -Xmx2048m -XX:MaxPermSize=512m"
-    fish_add_path -gP "$_maven/bin"
+    set -gx MAVEN_OPTS "-Xmx2048m"
 end
 
 # --- Android SDK / NDK --------------------------------------------------------
@@ -44,8 +41,10 @@ if test -d "$_android_sdk"
         "$_android_sdk/cmdline-tools/latest/bin"
 end
 
-set -l _android_ndk "$TOOLS_HOME/android-ndk-r9"
-if test -d "$_android_ndk"
+# Newest NDK installed via Android Studio's SDK Manager (ndk/<version>/).
+set -l _android_ndks $_android_sdk/ndk/*/
+if set -q _android_ndks[1]
+    set -l _android_ndk (printf '%s\n' $_android_ndks | sort -V | tail -n 1 | string trim -r -c /)
     set -gx ANDROID_NDK_HOME "$_android_ndk"
     fish_add_path -gP "$_android_ndk"
 end
