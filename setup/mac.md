@@ -389,6 +389,49 @@ fish adds it to PATH, so skip the installer's PATH update)
   curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- --no-modify-path
   ```
 
+- Per-company logins (one-time; see "One-time per-context bootstrapping" in
+[dotfiles/fish/README.md](../dotfiles/fish/README.md))
+  - Needs the Google Cloud CLI, `awscli`, and `firebase-tools` from above
+  - Google Cloud: CLI login and application-default login (for Terraform) per
+  company, each in its own config dir
+
+  ```fish
+  for ctx in agerpoint nowline deskhound
+      env CLOUDSDK_CONFIG=$HOME/.config/gcloud-$ctx gcloud auth login
+      env CLOUDSDK_CONFIG=$HOME/.config/gcloud-$ctx \
+          gcloud auth application-default login
+  end
+  ```
+
+  - AWS: one named profile per company (the fish context sets `AWS_PROFILE`)
+
+  ```bash
+  aws configure --profile agerpoint
+  ```
+
+  ```bash
+  aws configure --profile lolay
+  ```
+
+  - Firebase: signed in to each company's Firebase account, generate a CI token
+  and paste it as `export FIREBASE_TOKEN=...` into
+  `~/Projects/personal/private/dotfiles/<ctx>/firebase.env` (nowline,
+  deskhound), then run `context reload`
+
+  ```bash
+  firebase login:ci
+  ```
+
+  - Claude Code for the Agerpoint account: sign in once in its own config dir
+
+  ```bash
+  claude-agerpoint
+  ```
+
+  - Claude Desktop for Agerpoint (first sign-in only): quit Claude Desktop,
+  temporarily set Safari as the default browser, open `Claude AP.app` and sign
+  in, then switch the default browser back (see the `claude://` sign-in note in
+  [macos-launchers/README.md](../macos-launchers/README.md))
 - Windows Parallels
   - Windows 11 ARM Build
   - Garmin Checklist Editor
