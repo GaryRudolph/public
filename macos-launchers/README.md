@@ -8,12 +8,17 @@ Some apps (Cursor, Claude Desktop, VS Code) tie a single login to a single licen
 
 ### Which profiles exist today
 
-Only `agerpoint` (the one work context with its own paid Cursor/Claude
-account). The other project contexts in this dotfiles setup — `lolay`,
-`nowline`, `deskhound` — deliberately share the personal Cursor/Claude and
-do not get a launcher profile here. The smart `cursor` / `code` / `claude`
-wrappers in [`dotfiles/fish/conf.d/65-aliases.apps.fish`](../dotfiles/fish/conf.d/65-aliases.apps.fish)
-route any of those to the default app/config.
+| Profile | Apps | Used for |
+|---|---|---|
+| `agerpoint` (`AP`) | Cursor, Claude, VS Code | `~/Projects/agerpoint/` — its own paid Cursor/Claude account. |
+| `lolay` (`LO`) | Claude only | Everything outside agerpoint, including personal paths. This is the Claude Team account, used for billing and the Claude runners beta. |
+
+The personal Claude login stays in the default locations (stock `Claude.app`,
+`~/.claude`) and you can still reach it on purpose with `claude-personal`, but
+the smart `claude` wrapper in
+[`dotfiles/fish/conf.d/65-aliases.apps.fish`](../dotfiles/fish/conf.d/65-aliases.apps.fish)
+no longer routes anything there. Cursor and VS Code have no lolay profile, so
+every context except agerpoint uses the personal default for those.
 
 If `nowline` or `deskhound` ever gets its own paid account, follow
 [Adding a new profile](#adding-a-new-profile) below — that's the only thing

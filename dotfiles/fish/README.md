@@ -227,12 +227,14 @@ context from the first path-like argument — or pwd if none — via
 `_context_from_argv`, and route:
 
 - **agerpoint** → `Cursor AP.app` / `Visual Studio Code AP.app` / `~/.claude-agerpoint` / `OPENCODE_APPNAME=opencode-agerpoint`
-- **everything else** → the bare `cursor` / `code` / `claude` / `opencode` (personal account)
+- **everything else** → the bare `cursor` / `code` / `opencode` (personal account),
+  and `claude` with `~/.claude-lolay` (lolay Claude Team account, used for billing and the Claude runners beta)
 
 This means `cd ~/Projects/agerpoint/bok && cursor .` opens the agerpoint
 Cursor, and `cursor ~/Projects/agerpoint/bok` from anywhere does the same.
-Personal, lolay, nowline, and deskhound all share the personal Cursor/Claude/OpenCode
-because that's where you live most of the time.
+Personal, lolay, nowline, and deskhound all share the personal Cursor/VS Code/OpenCode
+and the lolay Claude account. The personal Claude login in `~/.claude` is no
+longer routed; force it with `claude-personal`.
 
 OpenCode config is symlinked from [`dotfiles/opencode/`](../opencode/README.md)
 (`personal.json` / `agerpoint.json` → `~/.config/opencode*/opencode.json`).
@@ -247,7 +249,8 @@ path rules as `cursor` and `claude`.
 The explicit `cursor-agerpoint` / `code-agerpoint` / `claude-agerpoint`
 functions stay around for when you want to force agerpoint from outside its
 tree without typing the path. For OpenCode, `opencode ~/Projects/agerpoint/bok`
-does the same.
+does the same. `claude-lolay` forces the lolay account, and `claude-personal`
+clears `CLAUDE_CONFIG_DIR` so Claude Code uses the standard `~/.claude`.
 
 ## Notes on the port
 

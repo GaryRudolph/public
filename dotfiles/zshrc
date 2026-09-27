@@ -216,6 +216,11 @@ esac
 alias cursor-agerpoint='open -a "Cursor AP"'
 alias claude-agerpoint='CLAUDE_CONFIG_DIR="$HOME/.claude-agerpoint" claude'
 alias code-agerpoint='open -a "Visual Studio Code AP"'
+# lolay = Claude Team account (Claude only; desktop is Claude LO.app). Fish routes
+# bare `claude` to it outside agerpoint; zsh has no path routing, so bare
+# `claude` here stays on the personal ~/.claude.
+alias claude-lolay='CLAUDE_CONFIG_DIR="$HOME/.claude-lolay" claude'
+alias claude-personal='env -u CLAUDE_CONFIG_DIR claude'
 # nvm
 export NVM_DIR="$HOME/.nvm"
 [ -s "/opt/homebrew/opt/nvm/nvm.sh" ] && \. "/opt/homebrew/opt/nvm/nvm.sh"
