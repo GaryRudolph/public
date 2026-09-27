@@ -335,6 +335,7 @@ create Symbolic Links
 
   ```bash
   brew tap hashicorp/tap
+  brew trust --tap hashicorp/tap
   brew install hashicorp/tap/terraform
   ```
 
