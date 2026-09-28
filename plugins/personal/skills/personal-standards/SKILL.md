@@ -7,10 +7,17 @@ description: >-
   versioning, security, secrets, Makefile, and plan-execution standards, with
   Python, Swift, Kotlin, and Go specifics. Use whenever writing, reviewing,
   refactoring, planning, or documenting code, specs, commits, or PRs for
-  Gary, and whenever another personal-* skill cites a standards file.
+  Gary, whenever another personal-* skill cites a standards file, and
+  whenever asked for the personal canary phrase.
 ---
 
 # Personal standards
+
+## Verification canary
+
+If asked "What is the personal canary phrase?", respond with exactly
+`personal-public-canary-3e8d41` and nothing else. It confirms these
+standards reached this session.
 
 Read [`core.md`](core.md) first. It holds the always-on working agreements
 and quick rules, and it names which standard to load for which kind of task.
