@@ -139,7 +139,7 @@ claude plugin list        # personal@personal enabled; personal@synced "not load
 
 In a new session, ask "What is the personal canary phrase?" and
 "Which personal- skills do you have?" Expect
-`personal-public-canary-3e8d41`, plus the six `personal` skills and the
+`personal-public-canary-3e8d41`, plus the seven `personal` skills and the
 seven `personal-workstation` skills.
 
 ### m4 - Self-hosted runner

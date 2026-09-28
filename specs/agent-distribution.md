@@ -96,7 +96,7 @@ absolute `~/Projects/personal/public/standards/...` paths.
   allowlist-scout), so they stay out of cloud sessions' context.
 - **Always-on core.** In Claude Code and Cowork, the plugin's SessionStart
   hook prints `core.md`. Hook output is capped at 10,000 characters and
-  `core.md` is about 11,400 (14,300 before m5), so the hook runs in up to
+  `core.md` is about 11,000 (14,300 before m5), so the hook runs in up to
   three parts of 9,000 characters each, split on line boundaries. The hook
   stays silent in any tool whose home file still has the `personal` block,
   so nothing is injected twice while a machine is mid-migration. Chat
@@ -182,11 +182,14 @@ now take a per-agent model.
 ### m5 - Turn procedures into skills (in progress)
 
 See [Standards versus skills](#standards-versus-skills) below. Done so far:
-`personal-handoff`, plus trimming the plan-tier, handoff, and saved-plan
-bullets in `core.md` to short rules that point at the skills (14,300 to
-11,400 characters). The naming rules stay always-on, because plan mode
-won't reliably trigger a skill. Next: `personal-new-project`, which takes
-the core to about 10,600, then `personal-secrets` and `personal-release`.
+`personal-handoff` and `personal-new-project`, plus trimming the matching
+`core.md` bullets to short rules that point at the skills (14,300 to about
+11,000 characters). The naming and version rules stay always-on, because
+plan mode and scaffolding requests won't reliably trigger a skill.
+`personal-new-project` ships `latest_versions.py`, which asks npm, PyPI, the
+Go proxy, crates.io, RubyGems, Maven Central, GitHub releases, Homebrew, and
+endoflife.date and reports what they say. Next: `personal-secrets`, then
+`personal-release`.
 
 ### m6 - Retire the old way per tool (done on this branch)
 
@@ -239,7 +242,7 @@ gather facts ("facts in script, judgment in agent").
 | Candidate | Source today | Why a skill | Priority |
 | --- | --- | --- | --- |
 | `personal-handoff` | `core.md` bullets for handoff files, `.scratch/plan-*` files, milestone handoffs (about 1.8k characters always on) | "Write a handoff" is a direct trigger with a fixed file-name and contents recipe. Moving it out shrinks the always-on core, and a script can pick the `{word}` and list what changed | High |
-| `personal-plan-*` (existing) | The 2.6k-character "Plan around model-tier stop points" bullet in `core.md` repeats `plan-execution.md` and the three plan skills | Cut the bullet to a two-line pointer at the skills. With the handoff and new-project moves as well, `core.md` drops from about 14,300 to about 10,600 characters. The naming rules stay always-on, so it stays just over the 10,000 cap and the hook still splits it | High |
+| `personal-plan-*` (existing) | The 2.6k-character "Plan around model-tier stop points" bullet in `core.md` repeats `plan-execution.md` and the three plan skills | Cut the bullet to a two-line pointer at the skills. With the handoff and new-project moves as well, `core.md` drops from about 14,300 to about 11,000 characters (measured after both moves). The naming and version rules stay always-on, so it stays over the 10,000 cap and the hook still splits it | High |
 | `personal-secrets` | `standards/secrets/` (820 lines): consumer step, one-time setup runbook, rotation and offboarding, reference scripts | Longest and most procedural standard. Three clear triggers (set up, add a consumer repo, rotate). The reference scripts could ship in `scripts/` instead of as prose | High |
 | `personal-release` | `standards/versioning.md`: promote-to-release and hotfix flows, plus 12k characters of per-platform surfaces | "Cut a release" or "ship a hotfix" is a trigger. A script can detect which platform surfaces a repo has, so the agent loads only those sections | Medium |
 | `personal-new-project` | `core.md` "latest stable versions" bullet, plus `architecture.md` "Starting New Projects" | Scaffolding is a trigger, and the version lookups (`npm view`, `pip index versions`, GitHub releases) are exactly the facts a script should gather. Also takes about 1k characters out of the always-on core | Medium |
@@ -257,5 +260,5 @@ every language folder. They answer "what should this look like?", and the
 1. `personal-handoff`, plus trimming the plan-tier bullet (done). That's the
    biggest context saving, and it's mechanical.
 2. `personal-secrets`, moving the reference scripts into the skill.
-3. `personal-release` and `personal-new-project`, each with a small fact
-   script.
+3. `personal-new-project` (done) and `personal-release`, each with a small
+   fact script.

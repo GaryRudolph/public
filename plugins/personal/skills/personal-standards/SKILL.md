@@ -33,6 +33,7 @@ this skill's directory instead; the files are identical.
 | --- | --- |
 | Naming, formatting, imports | `standards/code-style.md` |
 | Layering, DI, APIs, errors | `standards/architecture.md` |
+| Starting a new project | the `personal-new-project` skill |
 | Swift/Kotlin parity | `standards/platform-parity.md` |
 | Tests | `standards/testing.md` |
 | Docs, ADRs, specs, milestones | `standards/documentation.md` |
