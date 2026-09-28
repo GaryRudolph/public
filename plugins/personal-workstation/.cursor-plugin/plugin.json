@@ -1,0 +1,13 @@
+{
+  "name": "personal-workstation",
+  "description": "Skills that need Gary's Mac: MacWhisper database and transcript tooling, and agent allowlist scouting across local repos.",
+  "author": {
+    "name": "Gary Rudolph"
+  },
+  "homepage": "https://github.com/GaryRudolph/public",
+  "repository": "https://github.com/GaryRudolph/public",
+  "keywords": [
+    "standards",
+    "skills"
+  ]
+}

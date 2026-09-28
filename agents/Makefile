@@ -14,6 +14,9 @@ SHELL := /bin/bash
 
 ORG               ?= personal
 AGENTS_DIR        ?= $(CURDIR)
+REPO_DIR          ?= $(abspath $(AGENTS_DIR)/..)
+PLUGINS_DIR       ?= $(REPO_DIR)/plugins
+# agents/AGENTS.md is a symlink to the core standards inside the plugin.
 SOURCE_AGENTS     ?= $(AGENTS_DIR)/AGENTS.md
 MAKEFILE_LABEL    ?= ~/Projects/personal/public/agents/Makefile
 
@@ -64,7 +67,10 @@ BLOCKS_ENV = \
     PROJECTS_DIR="$(PROJECTS_DIR)" \
     LEGACY_GITIGNORE_CURSOR="$(LEGACY_GITIGNORE_CURSOR)" \
     LEGACY_CURSOR_GLOB="$(LEGACY_CURSOR_GLOB)" \
-    WIN_HOME="$(WIN_HOME)"
+    WIN_HOME="$(WIN_HOME)" \
+    CLAUDE_BLOCK="$(CLAUDE_BLOCK)" \
+    CODEX_BLOCK="$(CODEX_BLOCK)" \
+    GEMINI_BLOCK="$(GEMINI_BLOCK)"
 
 TEST_ENV = \
     ORG="$(ORG)" \
@@ -98,11 +104,42 @@ ALLOWLISTS_ENV = \
 # Env passed to lib/extensions.sh
 # ---------------------------------------------------------------------------
 
-SKILLS_SRC                ?= $(AGENTS_DIR)/skills
+# Skills live inside the plugins so one tree serves Claude (plugin sync) and
+# every tool that scans a skills directory (symlinks below).
+SKILLS_SRC                ?= $(PLUGINS_DIR)/personal/skills:$(PLUGINS_DIR)/personal-workstation/skills
+LEGACY_SKILLS_SRC         ?= $(AGENTS_DIR)/skills
 COMMANDS_SRC              ?= $(AGENTS_DIR)/commands
+
+# Tool modes (home | plugin) -------------------------------------------------
+# home:   this installer writes the tool's home-file block and skill symlinks.
+# plugin: the tool gets standards and skills from its `personal` plugin, so
+#         install removes whatever this installer wrote for it before.
+# Switch a tool to plugin only after its plugin is installed (agents/runbook.md).
+# Put per-machine choices in agents/local.mk (gitignored), e.g. CODEX_MODE := plugin
+-include $(AGENTS_DIR)/local.mk
+CLAUDE_MODE               ?= plugin
+CODEX_MODE                ?= home
+GEMINI_MODE               ?= home
+# Cursor's plugin carries skills only, so ~/AGENTS.md stays either way.
+CURSOR_MODE               ?= home
+
+$(foreach v,CLAUDE_MODE CODEX_MODE GEMINI_MODE CURSOR_MODE,\
+  $(if $(filter home plugin,$($(v))),,$(error $(v) must be home or plugin, got '$($(v))')))
+
+block_for  = $(if $(filter plugin,$(1)),remove,keep)
+skills_for = $(if $(filter plugin,$(1)),plugin,symlink)
+
+CLAUDE_BLOCK              := $(call block_for,$(CLAUDE_MODE))
+CODEX_BLOCK               := $(call block_for,$(CODEX_MODE))
+GEMINI_BLOCK              := $(call block_for,$(GEMINI_MODE))
+CLAUDE_SKILLS_MODE        := $(call skills_for,$(CLAUDE_MODE))
+CURSOR_SKILLS_MODE        := $(call skills_for,$(CURSOR_MODE))
+# Codex and Gemini share ~/.agents/skills: keep it until both use plugins.
+AGENTS_SKILLS_MODE        := $(if $(and $(filter plugin,$(CODEX_MODE)),$(filter plugin,$(GEMINI_MODE))),plugin,symlink)
 
 # Unix-side destinations (symlinks).
 CURSOR_SKILLS_HOME        ?= $(HOME)/.cursor/skills
+AGENTS_SKILLS_HOME        ?= $(HOME)/.agents/skills
 CLAUDE_SKILLS_HOME        ?= $(CLAUDE_HOME)/skills
 CLAUDE_COMMANDS_HOME      ?= $(CLAUDE_HOME)/commands
 
@@ -110,6 +147,7 @@ CLAUDE_COMMANDS_HOME      ?= $(CLAUDE_HOME)/commands
 # WIN_HOME is empty; extensions.sh fills them in once WIN_HOME is resolved
 # (either explicitly or via WSL auto-detection).
 WIN_CURSOR_SKILLS_HOME    ?=
+WIN_AGENTS_SKILLS_HOME    ?=
 WIN_CLAUDE_SKILLS_HOME    ?=
 WIN_CLAUDE_COMMANDS_HOME  ?=
 
@@ -117,20 +155,27 @@ EXTENSIONS_ENV = \
     ORG="$(ORG)" \
     AGENTS_DIR="$(AGENTS_DIR)" \
     SKILLS_SRC="$(SKILLS_SRC)" \
+    LEGACY_SKILLS_SRC="$(LEGACY_SKILLS_SRC)" \
     COMMANDS_SRC="$(COMMANDS_SRC)" \
+    CLAUDE_SKILLS_MODE="$(CLAUDE_SKILLS_MODE)" \
+    CURSOR_SKILLS_MODE="$(CURSOR_SKILLS_MODE)" \
+    AGENTS_SKILLS_MODE="$(AGENTS_SKILLS_MODE)" \
     CURSOR_SKILLS_HOME="$(CURSOR_SKILLS_HOME)" \
+    AGENTS_SKILLS_HOME="$(AGENTS_SKILLS_HOME)" \
     CLAUDE_SKILLS_HOME="$(CLAUDE_SKILLS_HOME)" \
     CLAUDE_COMMANDS_HOME="$(CLAUDE_COMMANDS_HOME)" \
     WIN_HOME="$(WIN_HOME)" \
     WIN_CURSOR_SKILLS_HOME="$(WIN_CURSOR_SKILLS_HOME)" \
+    WIN_AGENTS_SKILLS_HOME="$(WIN_AGENTS_SKILLS_HOME)" \
     WIN_CLAUDE_SKILLS_HOME="$(WIN_CLAUDE_SKILLS_HOME)" \
     WIN_CLAUDE_COMMANDS_HOME="$(WIN_CLAUDE_COMMANDS_HOME)"
 
 .PHONY: help install uninstall dry-run status test test-blocks test-extensions test-allowlists clean-test \
         install-blocks uninstall-blocks dry-run-blocks status-blocks \
         install-extensions uninstall-extensions dry-run-extensions status-extensions \
-        install-allowlists uninstall-allowlists dry-run-allowlists status-allowlists \
-        diff-allowlists restore-allowlists clean-allowlists
+        install-allowlists uninstall-allowlists dry-run-allowlists status-allowlists test-manifests test-secrets test-release status-modes \
+        diff-allowlists restore-allowlists clean-allowlists \
+        validate package
 
 # ---------------------------------------------------------------------------
 # help (default target)
@@ -155,6 +200,10 @@ help:
 	@echo "                      ~/.cursor/cli-config.json, ~/.claude/settings.json,"
 	@echo "                      and ~/.gemini/policies/$(ORG)-managed.toml"
 	@echo ""
+	@echo "  validate     Validate the Claude marketplace and plugins (needs claude CLI)"
+	@echo "               and check the Codex/Cursor/Gemini manifests agree with them"
+	@echo "  package      Zip each plugin into build/plugins/ for Customize > Upload plugin"
+	@echo ""
 	@echo "  diff-allowlists           Show expected vs actual for each rendered target"
 	@echo "  restore-allowlists N=<n>  Restore .history/<file>.<n> back into place"
 	@echo "  clean-allowlists          Remove .history/ backup dirs (explicit nuke knob)"
@@ -166,6 +215,9 @@ help:
 	@echo "  CODEX_HOME=$(CODEX_HOME)"
 	@echo "  CURSOR_GLOBAL_FILE=$(CURSOR_GLOBAL_FILE)"
 	@echo "  CURSOR_SKILLS_HOME=$(CURSOR_SKILLS_HOME)"
+	@echo "  AGENTS_SKILLS_HOME=$(AGENTS_SKILLS_HOME)   (Codex, Gemini CLI)"
+	@echo "  CLAUDE_MODE=$(CLAUDE_MODE)   CODEX_MODE=$(CODEX_MODE)   GEMINI_MODE=$(GEMINI_MODE)   CURSOR_MODE=$(CURSOR_MODE)"
+	@echo "               (home | plugin; plugin removes what this installer wrote for that tool)"
 	@echo "  CLAUDE_SKILLS_HOME=$(CLAUDE_SKILLS_HOME)"
 	@echo "  CLAUDE_COMMANDS_HOME=$(CLAUDE_COMMANDS_HOME)"
 	@echo "  WIN_HOME=$(WIN_HOME)   (auto-detected under WSL; triggers Windows-side copies)"
@@ -183,10 +235,21 @@ help:
 install: install-blocks install-extensions install-allowlists
 
 uninstall: uninstall-allowlists uninstall-extensions uninstall-blocks
+	@echo ""
+	@echo "Plugins aren't managed by this Makefile. To remove them too:"
+	@echo "  Claude:  Customize > Plugins in claude.ai, and on this Mac"
+	@echo "           claude plugin uninstall personal@personal; claude plugin marketplace remove personal"
+	@echo "  Codex:   codex plugin marketplace remove personal (and uninstall in /plugins)"
+	@echo "  Cursor:  Customize > Plugins > personal > Uninstall"
+	@echo "  Gemini:  gemini extensions uninstall personal"
 
 dry-run: dry-run-blocks dry-run-extensions dry-run-allowlists
 
-status: status-blocks status-extensions status-allowlists
+status: status-modes status-blocks status-extensions status-allowlists
+
+status-modes:
+	@echo "modes: CLAUDE_MODE=$(CLAUDE_MODE) CODEX_MODE=$(CODEX_MODE) GEMINI_MODE=$(GEMINI_MODE) CURSOR_MODE=$(CURSOR_MODE)"
+	@echo ""
 
 # ---------------------------------------------------------------------------
 # Blocks (AGENTS.md fan-out)
@@ -224,7 +287,7 @@ status-extensions:
 # test
 # ---------------------------------------------------------------------------
 
-test: test-blocks test-extensions test-allowlists
+test: test-blocks test-extensions test-allowlists test-manifests test-secrets test-release
 
 test-blocks: clean-test
 	@$(TEST_ENV) bash "$(AGENTS_DIR)/lib/blocks-test.sh"
@@ -234,6 +297,16 @@ test-extensions:
 
 test-allowlists:
 	@$(TEST_ENV) bash "$(AGENTS_DIR)/lib/allowlists-test.sh"
+
+test-manifests:
+	@python3 "$(AGENTS_DIR)/lib/manifests-check.py"
+
+# Needs sops and age; prints SKIP and passes when they're missing.
+test-secrets:
+	@bash "$(PLUGINS_DIR)/personal/skills/personal-secrets/tests/test-kit.sh"
+
+test-release:
+	@bash "$(PLUGINS_DIR)/personal/skills/personal-release/tests/test-release.sh"
 
 clean-test:
 	@rm -rf "$(AGENTS_DIR)/build"
@@ -262,3 +335,23 @@ restore-allowlists:
 
 clean-allowlists:
 	@$(ALLOWLISTS_ENV) bash "$(AGENTS_DIR)/lib/allowlists.sh" clean
+
+# ---------------------------------------------------------------------------
+# Plugins (marketplace at the repo root, plugins under plugins/)
+# ---------------------------------------------------------------------------
+
+PLUGINS      ?= personal personal-workstation
+PACKAGE_DIR  ?= $(AGENTS_DIR)/build/plugins
+
+validate: test-manifests
+	@command -v claude >/dev/null || { echo "claude CLI not found"; exit 1; }
+	@claude plugin validate "$(REPO_DIR)"
+	@for p in $(PLUGINS); do claude plugin validate "$(PLUGINS_DIR)/$$p" || exit 1; done
+
+package:
+	@mkdir -p "$(PACKAGE_DIR)"
+	@for p in $(PLUGINS); do \
+		rm -f "$(PACKAGE_DIR)/$$p.zip"; \
+		(cd "$(PLUGINS_DIR)/$$p" && zip -qr "$(PACKAGE_DIR)/$$p.zip" . -x '*/__pycache__/*' '*.pyc' '.DS_Store'); \
+		echo "packaged $(PACKAGE_DIR)/$$p.zip"; \
+	done

@@ -24,6 +24,13 @@
 #   CURSOR_GLOBAL_FILE
 #   XCODE_CLAUDE_DIR, XCODE_CODEX_DIR
 #
+# Per-tool block mode (keep | remove, default keep):
+#   CLAUDE_BLOCK, CODEX_BLOCK, GEMINI_BLOCK
+#   remove means the tool gets the core standards from its plugin instead, so
+#   install strips any block left from before instead of writing one. The
+#   Cursor (~/AGENTS.md) and Xcode blocks are always kept: no plugin carries
+#   the core to them.
+#
 # Sibling-repo scan (legacy cleanup + copilot fan-out):
 #   PROJECTS_DIR                 sibling-repo scan root
 #   REPO_ROOT                    this installer's own repo (skipped during fan-out)
@@ -77,6 +84,16 @@ set -euo pipefail
 : "${LEGACY_JETBRAINS_GLOB:=}"
 
 : "${COPILOT_SRC:=}"
+
+: "${CLAUDE_BLOCK:=keep}"
+: "${CODEX_BLOCK:=keep}"
+: "${GEMINI_BLOCK:=keep}"
+for block_var in CLAUDE_BLOCK CODEX_BLOCK GEMINI_BLOCK; do
+    case "${!block_var}" in
+        keep|remove) ;;
+        *) printf '%s must be keep or remove (got %s)\n' "$block_var" "${!block_var}" >&2; exit 2 ;;
+    esac
+done
 
 : "${WIN_HOME:=}"
 
@@ -415,6 +432,28 @@ remove_block_from() {
 # Pass orchestration
 # ---------------------------------------------------------------------------
 
+# Write the block, or strip one left from before when the tool has moved to
+# its plugin. Args: $1 = keep | remove, then apply_block's arguments.
+keep_or_remove() {
+    local block_mode="$1"
+    shift
+    if [ "$block_mode" = "remove" ]; then
+        remove_block_from "$1"
+    else
+        apply_block "$@"
+    fi
+}
+
+# Block mode for a home file, for status output.
+block_mode_for() {
+    case "$1" in
+        */.claude/CLAUDE.md|"$CLAUDE_HOME/CLAUDE.md") printf '%s' "$CLAUDE_BLOCK" ;;
+        */.codex/AGENTS.md|"$CODEX_HOME/AGENTS.md")   printf '%s' "$CODEX_BLOCK" ;;
+        */.gemini/GEMINI.md|"$GEMINI_HOME/GEMINI.md") printf '%s' "$GEMINI_BLOCK" ;;
+        *) printf 'keep' ;;
+    esac
+}
+
 # Iterate all home files for one pass, applying or removing the block.
 # Args: $1 = "apply" or "remove"
 #       $2 = home directory base (HOME on native, WIN_HOME on Windows pass)
@@ -470,18 +509,18 @@ run_pass() {
 
     if [ "$mode" = "inline" ]; then
         # All home files inlined (Windows-host pass).
-        apply_block "$claude_file" "$inline_content" "$source_label"
-        apply_block "$gemini_file" "$inline_content" "$source_label"
+        keep_or_remove "$CLAUDE_BLOCK" "$claude_file" "$inline_content" "$source_label"
+        keep_or_remove "$GEMINI_BLOCK" "$gemini_file" "$inline_content" "$source_label"
         apply_block "$cursor_file" "$inline_content" "$source_label"
     else
         # @-imports for Claude/Gemini/Cursor (native pass).
-        apply_block "$claude_file" "$import_content"
-        apply_block "$gemini_file" "$import_content"
+        keep_or_remove "$CLAUDE_BLOCK" "$claude_file" "$import_content"
+        keep_or_remove "$GEMINI_BLOCK" "$gemini_file" "$import_content"
         apply_block "$cursor_file" "$import_content"
     fi
 
     # Codex never supports @-imports; always inline.
-    apply_block "$codex_file" "$inline_content" "$source_label"
+    keep_or_remove "$CODEX_BLOCK" "$codex_file" "$inline_content" "$source_label"
 
     if [ "$has_xcode" = "1" ]; then
         # Xcode Claude can use @-imports (Claude-like), Xcode Codex must inline.
@@ -943,13 +982,21 @@ cmd_status() {
     local f
     for f in "${files[@]}"; do
         pretty=$(pretty_path "$f")
-        if [ ! -f "$f" ]; then
+        if [ ! -f "$f" ] && [ "$(block_mode_for "$f")" = "remove" ]; then
+            printf '%-50s OK no %s block (plugin mode)\n' "$pretty" "$ORG"
+        elif [ ! -f "$f" ]; then
             printf '%-50s ! file missing\n' "$pretty"
         elif has_block "$f"; then
             local body
             body=$(mktemp); extract_block_body "$f" > "$body"
-            printf '%-50s OK %s block present (%s)\n' "$pretty" "$ORG" "$(content_stats "$body")"
+            if [ "$(block_mode_for "$f")" = "remove" ]; then
+                printf '%-50s ! %s block present; plugin mode removes it on install\n' "$pretty" "$ORG"
+            else
+                printf '%-50s OK %s block present (%s)\n' "$pretty" "$ORG" "$(content_stats "$body")"
+            fi
             rm -f "$body"
+        elif [ "$(block_mode_for "$f")" = "remove" ]; then
+            printf '%-50s OK no %s block (plugin mode)\n' "$pretty" "$ORG"
         else
             printf '%-50s -- no %s block\n' "$pretty" "$ORG"
         fi
@@ -960,13 +1007,21 @@ cmd_status() {
         for sub in .claude/CLAUDE.md .gemini/GEMINI.md AGENTS.md .codex/AGENTS.md; do
             f="$WIN_HOME/$sub"
             pretty=$(pretty_path "$f")
-            if [ ! -f "$f" ]; then
+            if [ ! -f "$f" ] && [ "$(block_mode_for "$f")" = "remove" ]; then
+                printf '%-50s OK no %s block (plugin mode)\n' "$pretty" "$ORG"
+            elif [ ! -f "$f" ]; then
                 printf '%-50s ! file missing\n' "$pretty"
             elif has_block "$f"; then
                 local body
                 body=$(mktemp); extract_block_body "$f" > "$body"
-                printf '%-50s OK %s block present (%s)\n' "$pretty" "$ORG" "$(content_stats "$body")"
+                if [ "$(block_mode_for "$f")" = "remove" ]; then
+                    printf '%-50s ! %s block present; plugin mode removes it on install\n' "$pretty" "$ORG"
+                else
+                    printf '%-50s OK %s block present (%s)\n' "$pretty" "$ORG" "$(content_stats "$body")"
+                fi
                 rm -f "$body"
+            elif [ "$(block_mode_for "$f")" = "remove" ]; then
+                printf '%-50s OK no %s block (plugin mode)\n' "$pretty" "$ORG"
             else
                 printf '%-50s -- no %s block\n' "$pretty" "$ORG"
             fi

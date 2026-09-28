@@ -1,0 +1,12 @@
+# SOURCE recipients: maintainer personal keys plus break-glass. Only these
+# keys can read src/ and keys/. dist/ is encrypted per file at `make build`
+# time to that file's consumer keys, so it has no rule here.
+#
+# Replace the placeholders with public keys (`age-keygen -y key.txt`). The
+# break-glass entry must match breakglass.pub. After changing this list:
+#   sops updatekeys src/**/*.sops keys/repos.env.sops
+creation_rules:
+  - path_regex: ^(src|keys)/.*
+    age: >-
+      <maintainer-age-public-key>,
+      <breakglass-age-public-key>

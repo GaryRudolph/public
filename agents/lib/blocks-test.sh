@@ -429,6 +429,61 @@ sed 's/^/  /' "$TEST_DIR/status.out"
 grep -q "no $ORG block" "$TEST_DIR/status.out" || fail "status should show 'no $ORG block' after uninstall"
 
 # ---------------------------------------------------------------------------
+# Test 8: plugin mode strips old blocks, keeps the rest
+# ---------------------------------------------------------------------------
+
+printf '=== test 8: plugin mode migrates away from blocks ===\n'
+PM_HOME="$TEST_DIR/plugin-mode-home"
+PM_WIN="$TEST_DIR/plugin-mode-win"
+mkdir -p "$PM_HOME/.claude" "$PM_WIN"
+
+# The old way: every block written, plus content the user owns.
+run_blocks install "$PM_HOME" "$PM_WIN" > /dev/null
+printf '\n# my own notes\n' >> "$PM_HOME/.claude/CLAUDE.md"
+for f in .claude/CLAUDE.md .codex/AGENTS.md .gemini/GEMINI.md AGENTS.md; do
+    grep -qF "# >>> $ORG >>>" "$PM_HOME/$f" || fail "setup: no block in $f"
+done
+
+CLAUDE_BLOCK=remove CODEX_BLOCK=remove \
+    run_blocks install "$PM_HOME" "$PM_WIN" > "$TEST_DIR/plugin-mode.out"
+
+for f in "$PM_HOME/.claude/CLAUDE.md" "$PM_WIN/.claude/CLAUDE.md"; do
+    if [ -f "$f" ] && grep -qF "# >>> $ORG >>>" "$f"; then
+        fail "CLAUDE_BLOCK=remove left a block in $f"
+    fi
+done
+grep -qF "# my own notes" "$PM_HOME/.claude/CLAUDE.md" \
+    || fail "CLAUDE_BLOCK=remove dropped content outside the block"
+[ ! -e "$PM_HOME/.codex/AGENTS.md" ] \
+    || fail "CODEX_BLOCK=remove should delete a file that only held the block"
+grep -qF "# >>> $ORG >>>" "$PM_HOME/.gemini/GEMINI.md" || fail "GEMINI_BLOCK=keep lost its block"
+grep -qF "# >>> $ORG >>>" "$PM_HOME/AGENTS.md" || fail "the Cursor block must always be kept"
+
+# Idempotent: a second plugin-mode install changes nothing.
+CLAUDE_BLOCK=remove CODEX_BLOCK=remove \
+    run_blocks install "$PM_HOME" "$PM_WIN" > "$TEST_DIR/plugin-mode-2.out"
+if grep -qE ' (\+|~|-) ' "$TEST_DIR/plugin-mode-2.out"; then
+    fail "second plugin-mode install was not a no-op"
+fi
+
+CLAUDE_BLOCK=remove CODEX_BLOCK=remove \
+    run_blocks status "$PM_HOME" > "$TEST_DIR/plugin-mode-status.out" || true
+grep -q "no $ORG block (plugin mode)" "$TEST_DIR/plugin-mode-status.out" \
+    || fail "status should report plugin mode for removed blocks"
+
+if CLAUDE_BLOCK=bogus run_blocks install "$PM_HOME" > /dev/null 2>&1; then
+    fail "an invalid CLAUDE_BLOCK was accepted"
+fi
+
+# Uninstall still removes every block, whatever the modes.
+run_blocks uninstall "$PM_HOME" "$PM_WIN" > /dev/null
+for f in .gemini/GEMINI.md AGENTS.md; do
+    if [ -f "$PM_HOME/$f" ] && grep -qF "# >>> $ORG >>>" "$PM_HOME/$f"; then
+        fail "uninstall left a block in $f"
+    fi
+done
+
+# ---------------------------------------------------------------------------
 # Summary
 # ---------------------------------------------------------------------------
 

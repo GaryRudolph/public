@@ -427,6 +427,88 @@ if grep -q '\[win\]' "$TEST_DIR2/install.out"; then
 fi
 
 # ---------------------------------------------------------------------------
+# Test 11: multi-source, ~/.agents/skills, plugin mode, legacy migration
+# ---------------------------------------------------------------------------
+
+printf '=== test 11: multi-source + plugin mode + legacy sweep ===\n'
+
+TEST_DIR3="$BUILD_DIR/test-extensions-plugin-mode"
+rm -rf "$TEST_DIR3"
+H3="$TEST_DIR3/home"
+W3="$TEST_DIR3/winhome"
+SRC_A="$TEST_DIR3/src/a/skills"
+SRC_B="$TEST_DIR3/src/b/skills"
+LEGACY="$TEST_DIR3/src/legacy/skills"
+mkdir -p "$H3" "$W3" "$SRC_A/${ORG}-alpha" "$SRC_B/${ORG}-beta" "$LEGACY"
+printf -- '---\nname: %s-alpha\ndescription: a\n---\n' "$ORG" > "$SRC_A/${ORG}-alpha/SKILL.md"
+printf -- '---\nname: %s-beta\ndescription: b\n---\n' "$ORG" > "$SRC_B/${ORG}-beta/SKILL.md"
+
+# Simulate a pre-move install: symlinks into a source dir that no longer exists.
+mkdir -p "$H3/.cursor/skills" "$H3/.claude/skills"
+ln -s "$LEGACY/${ORG}-alpha" "$H3/.cursor/skills/${ORG}-alpha"
+ln -s "$LEGACY/${ORG}-alpha" "$H3/.claude/skills/${ORG}-alpha"
+
+run_ext3() {
+    local mode="$1" cmd="$2"
+    HOME="$H3" \
+    ORG="$ORG" \
+    AGENTS_DIR="$AGENTS_DIR" \
+    SKILLS_SRC="$SRC_A:$SRC_B" \
+    COMMANDS_SRC="$TEST_DIR3/src/commands" \
+    LEGACY_SKILLS_SRC="$LEGACY" \
+    CLAUDE_SKILLS_MODE="$mode" \
+    WIN_HOME="$W3" \
+    bash "$EXTENSIONS" "$cmd"
+}
+
+# Symlink mode first, so the Claude dirs hold our entries.
+run_ext3 symlink install > "$TEST_DIR3/install-symlink.out"
+for dir in .cursor/skills .agents/skills .claude/skills; do
+    assert_symlink_to "$H3/$dir/${ORG}-alpha" "$SRC_A/${ORG}-alpha"
+    assert_symlink_to "$H3/$dir/${ORG}-beta"  "$SRC_B/${ORG}-beta"
+    assert_file_exists "$W3/$dir/${ORG}-alpha/$MARKER"
+    assert_file_exists "$W3/$dir/${ORG}-beta/$MARKER"
+done
+if grep -q 'conflict' "$TEST_DIR3/install-symlink.out"; then
+    fail "legacy symlinks were reported as conflicts instead of being swept"
+fi
+
+# Windows orphan cleanup must not remove a skill that lives in the other source.
+run_ext3 symlink install > "$TEST_DIR3/install-symlink-2.out"
+assert_dir_exists "$W3/.cursor/skills/${ORG}-alpha"
+assert_dir_exists "$W3/.cursor/skills/${ORG}-beta"
+
+# Plugin mode removes our Claude entries and keeps everything else.
+mkdir -p "$H3/.claude/skills/hand-rolled"
+printf 'mine\n' > "$H3/.claude/skills/hand-rolled/SKILL.md"
+run_ext3 plugin install > "$TEST_DIR3/install-plugin.out"
+[ ! -e "$H3/.claude/skills/${ORG}-alpha" ] || fail "plugin mode left a Claude skill symlink"
+[ ! -e "$H3/.claude/skills/${ORG}-beta" ]  || fail "plugin mode left a Claude skill symlink"
+assert_dir_missing "$W3/.claude/skills/${ORG}-alpha"
+assert_file_exists "$H3/.claude/skills/hand-rolled/SKILL.md"
+assert_symlink_to "$H3/.agents/skills/${ORG}-alpha" "$SRC_A/${ORG}-alpha"
+assert_symlink_to "$H3/.cursor/skills/${ORG}-beta"  "$SRC_B/${ORG}-beta"
+
+# Cursor and ~/.agents switch the same way, independently of Claude.
+CURSOR_SKILLS_MODE=plugin AGENTS_SKILLS_MODE=plugin \
+    run_ext3 symlink install > "$TEST_DIR3/install-all-plugin.out"
+[ ! -e "$H3/.cursor/skills/${ORG}-alpha" ] || fail "CURSOR_SKILLS_MODE=plugin left a Cursor symlink"
+[ ! -e "$H3/.agents/skills/${ORG}-beta" ]  || fail "AGENTS_SKILLS_MODE=plugin left an ~/.agents symlink"
+assert_dir_missing "$W3/.agents/skills/${ORG}-beta"
+assert_symlink_to "$H3/.claude/skills/${ORG}-alpha" "$SRC_A/${ORG}-alpha"
+if CURSOR_SKILLS_MODE=bogus run_ext3 symlink install > /dev/null 2>&1; then
+    fail "an invalid CURSOR_SKILLS_MODE was accepted"
+fi
+
+# Uninstall clears every destination, whichever mode installed it.
+run_ext3 plugin uninstall > "$TEST_DIR3/uninstall.out"
+for dir in .cursor/skills .agents/skills .claude/skills; do
+    [ ! -e "$H3/$dir/${ORG}-alpha" ] || fail "uninstall left $dir/${ORG}-alpha"
+    [ ! -e "$W3/$dir/${ORG}-beta" ]  || fail "uninstall left win $dir/${ORG}-beta"
+done
+assert_file_exists "$H3/.claude/skills/hand-rolled/SKILL.md"
+
+# ---------------------------------------------------------------------------
 # Done
 # ---------------------------------------------------------------------------
 

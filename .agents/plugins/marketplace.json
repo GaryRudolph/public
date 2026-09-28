@@ -1,0 +1,32 @@
+{
+  "name": "personal",
+  "interface": {
+    "displayName": "Gary Rudolph (personal)"
+  },
+  "plugins": [
+    {
+      "name": "personal",
+      "source": {
+        "source": "local",
+        "path": "./plugins/personal"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "Productivity"
+    },
+    {
+      "name": "personal-workstation",
+      "source": {
+        "source": "local",
+        "path": "./plugins/personal-workstation"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "Productivity"
+    }
+  ]
+}
