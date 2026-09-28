@@ -439,7 +439,9 @@ Notes: Display version (`DisplayVersion` registry key, About dialog) can differ 
 The `cut-release` flow:
 
 1. Maintainer dispatches the **Release** workflow with `level=patch|minor|major`.
-2. CI runs `scripts/bump-version.mjs <level>`:
+2. CI runs the bump script (the `personal-release` skill ships a tested
+   [`bump_version.py`](../../personal-release/templates/bump_version.py) and
+   [`release.yml`](../../personal-release/templates/release.yml)):
    - Reads `version.txt` (e.g. `2.4.0`).
    - Computes new value (`2.4.1` for patch).
    - Rewrites `version.txt` and every package's version field in lock-step.

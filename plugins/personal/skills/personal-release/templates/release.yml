@@ -1,0 +1,70 @@
+# Release workflow: copy to .github/workflows/release.yml.
+#
+# Dispatch from main for a normal release, or from release/vX.Y for a hotfix
+# ("Use workflow from"). Bumps version.txt and the managed version fields in
+# lock-step, moves CHANGELOG.md's Unreleased entries, commits
+# "release vX.Y.Z", tags vX.Y.Z, and pushes both. The tag push starts the
+# per-platform build and publish workflows.
+#
+# Needs secrets.RELEASE_TOKEN: a token that can push to this branch. The
+# default GITHUB_TOKEN can't trigger the downstream tag workflows.
+name: Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      level:
+        description: Bump level
+        type: choice
+        options: [patch, minor, major]
+        required: true
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0              # full history: buildCode = git rev-list --count HEAD
+          token: ${{ secrets.RELEASE_TOKEN }}
+
+      - name: Refuse unless on main or a release/vX.Y branch
+        run: |
+          case "$GITHUB_REF_NAME" in
+            main|release/v[0-9]*.[0-9]*) ;;
+            *) echo "Releases run from main or release/vX.Y, not $GITHUB_REF_NAME" >&2; exit 1 ;;
+          esac
+
+      - name: Bump
+        id: bump
+        env:
+          LEVEL: ${{ inputs.level }}
+        run: |
+          version=$(python3 scripts/bump_version.py "$LEVEL" | tail -1)
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+      - name: Refuse an existing tag
+        env:
+          VERSION: ${{ steps.bump.outputs.version }}
+        run: |
+          if git rev-parse -q --verify "refs/tags/v$VERSION" >/dev/null; then
+            echo "v$VERSION already exists" >&2
+            exit 1
+          fi
+
+      - name: Commit, tag, push
+        env:
+          VERSION: ${{ steps.bump.outputs.version }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -am "release v$VERSION"
+          git tag -a "v$VERSION" -m "v$VERSION"
+          git push origin "HEAD:$GITHUB_REF_NAME" "v$VERSION"

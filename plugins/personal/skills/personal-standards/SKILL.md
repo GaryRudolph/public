@@ -40,7 +40,7 @@ this skill's directory instead; the files are identical.
 | Tiered plans, STOP gates | `standards/plan-execution.md` |
 | Handoffs, saved plans | the `personal-handoff` skill |
 | Branches, commits, PRs | `standards/git.md` |
-| Versions, releases | `standards/versioning.md` |
+| Versions, releases | `standards/versioning.md`, and the `personal-release` skill for cutting releases and hotfixes |
 | Auth, crypto, input validation | `standards/security.md` |
 | Secrets repos and Makefiles | `standards/secrets/README.md`, and the `personal-secrets` skill for procedures |
 | Makefiles | `standards/makefile.md` |

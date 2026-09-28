@@ -5,9 +5,9 @@ How personal standards and skills reach every agent Gary uses: Claude Code
 Gemini CLI, and Muse Code. Setup steps live in
 [`../agents/runbook.md`](../agents/runbook.md).
 
-Status: m1, m3, and m6 implemented, and m5 started, on branch
-`claude/standards-skills-evaluation-0lf34z`; m2 is manual setup; m4 is a
-proposal.
+Status: m1, m3, m5, and m6 implemented on branch
+`claude/standards-skills-evaluation-0lf34z`; m2 is manual setup; m4 (model-tier
+refresh) is a proposal.
 
 ## Evaluation of the previous setup
 
@@ -179,7 +179,7 @@ Update the tier-to-model mapping in `core.md` and
 `personal-plan-orchestrate` should also drive Claude Code subagents, which
 now take a per-agent model.
 
-### m5 - Turn procedures into skills (in progress)
+### m5 - Turn procedures into skills (done)
 
 See [Standards versus skills](#standards-versus-skills) below. Done so far:
 `personal-handoff` and `personal-new-project`, plus trimming the matching
@@ -195,7 +195,14 @@ installed). Building it turned up two faults in the standard's script
 sketches: `build.sh` failed with "no matching creation rules" and left an
 empty `dist/` file behind, and it used bash 4 associative arrays that
 macOS's bash 3.2 lacks. The standard now points at the kit instead of
-carrying inline script bodies. Next: `personal-release`.
+carrying inline script bodies. `personal-release` covers the versioning
+standard's release and hotfix flows, with `release_facts.py` (facts only,
+including the build-version string and version-field drift),
+`templates/bump_version.py` (lock-step bump plus changelog move), and
+`templates/release.yml`, all tested by `tests/test-release.sh`. It also
+fixed `core.md`'s "simplified `v1`, `v2`, `v3`" versioning line, which
+described only the contract regime and contradicted the SemVer rule for
+artifacts.
 
 ### m6 - Retire the old way per tool (done on this branch)
 
@@ -266,5 +273,5 @@ every language folder. They answer "what should this look like?", and the
 1. `personal-handoff`, plus trimming the plan-tier bullet (done). That's the
    biggest context saving, and it's mechanical.
 2. `personal-secrets`, moving the reference scripts into the skill (done).
-3. `personal-new-project` (done) and `personal-release`, each with a small
-   fact script.
+3. `personal-new-project` and `personal-release`, each with a small fact
+   script (both done).
