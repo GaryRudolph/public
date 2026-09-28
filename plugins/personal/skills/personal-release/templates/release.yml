@@ -3,9 +3,11 @@
 # Dispatch from main for a normal release, or from a release line branch for
 # a hotfix ("Use workflow from"): release/vX for a major line (patch or minor
 # bumps within X.*), or release/vX.Y for a minor line (patch bumps within
-# X.Y.*). The bump refuses a level that would leave the branch's line. Bumps version.txt and the managed version fields in
-# lock-step, moves CHANGELOG.md's Unreleased entries, commits
-# "release vX.Y.Z", tags vX.Y.Z, and pushes both. The tag push starts the
+# X.Y.*). The bump refuses a level that would leave the branch's line.
+#
+# Bumps version.txt and the managed version fields in lock-step, moves
+# CHANGELOG.md's Unreleased entries, commits "release vX.Y.Z", tags vX.Y.Z,
+# and pushes both. The tag push starts the
 # per-platform build and publish workflows.
 #
 # Needs secrets.RELEASE_TOKEN: a token that can push to this branch. The
