@@ -77,7 +77,7 @@
 
   - See `dotfiles/fish/README.md` for prompt/config details.
 - Git identity per directory tree (built-in `includeIf`; see
-[dotfiles/git/README.md](../dotfiles/git/README.md))
+[dotfiles/git/README.md](../../dotfiles/git/README.md))
   - `~/.gitconfig` sets the name and personal email (`GaryRudolph@mac.com`);
   repos under `~/Projects/{lolay,agerpoint,nowline,deskhound}/` get that
   company's email from fragments in `~/.config/git/`
@@ -109,14 +109,14 @@
   echo $SHELL
   ```
 
-- Configure AI agent tools (see [agents/README.md](../agents/README.md))
+- Configure AI agent tools (see [agents/README.md](../../agents/README.md))
 
   ```bash
   cd ~/Projects/personal/public/agents && make install
   ```
 
 - Install dotfiles symlinks (git, Ghostty, OpenCode; see
-[dotfiles/opencode/README.md](../dotfiles/opencode/README.md))
+[dotfiles/opencode/README.md](../../dotfiles/opencode/README.md))
   - Install OpenCode (`brew install opencode` or the official installer)
 
   ```bash
@@ -181,7 +181,7 @@ create Symbolic Links
   - Signal
   - WhatsApp
 - (Optional) Build branded multi-account launchers
-(see [macos-launchers/README.md](../macos-launchers/README.md))
+(see [macos-launchers/README.md](../../macos-launchers/README.md))
   - Prereqs: Cursor.app and Claude.app (Standard Software above) plus
   `brew install imagemagick` (Brew section below)
   - Add your profile: `macos-launchers/profiles/<slug>.env` and `<slug>.png`
@@ -405,7 +405,7 @@ fish adds it to PATH, so skip the installer's PATH update)
   ```
 
 - Per-company logins (one-time; see "One-time per-context bootstrapping" in
-[dotfiles/fish/README.md](../dotfiles/fish/README.md))
+[dotfiles/fish/README.md](../../dotfiles/fish/README.md))
   - Needs the Google Cloud CLI, `awscli`, and `firebase-tools` from above
   - Google Cloud: CLI login and application-default login (for Terraform) per
   company, each in its own config dir
@@ -446,8 +446,18 @@ fish adds it to PATH, so skip the installer's PATH update)
   - Claude Desktop for Agerpoint (first sign-in only): quit Claude Desktop,
   temporarily set Safari as the default browser, open `Claude AP.app` and sign
   in, then switch the default browser back (see the `claude://` sign-in note in
-  [macos-launchers/README.md](../macos-launchers/README.md))
+  [macos-launchers/README.md](../../macos-launchers/README.md))
 - Windows Parallels
   - Windows 11 ARM Build
   - Garmin Checklist Editor
   - VP-X
+
+## Agent host (optional)
+
+To turn a Mac into an always-on host for Claude agents, with one isolated macOS
+user per org, follow [claude/README.md](claude/README.md). It covers:
+
+- [Self-hosted runner](claude/runner.md): cloud sessions from claude.ai/code
+  run on this Mac
+- [Remote Control](claude/remote-control.md): Claude Code sessions run on this
+  Mac and you steer them from your phone or a browser
