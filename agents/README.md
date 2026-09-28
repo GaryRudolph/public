@@ -20,7 +20,7 @@ Canonical sources:
 | Always-on core standards | `plugins/personal/skills/personal-standards/core.md` (`agents/AGENTS.md` is a symlink to it) |
 | Full standards | `plugins/personal/skills/personal-standards/standards/` (`standards/` at the repo root is a symlink to it) |
 | Portable skills | `plugins/personal/skills/` |
-| Mac-only skills | `plugins/personal-workstation/skills/` |
+| Mac-only skills | `plugins/workstation/skills/` |
 
 ## How it works
 
@@ -101,7 +101,7 @@ yourself survives untouched.
 ### Adding or removing skills
 
 - **Add**: create `plugins/personal/skills/personal-<name>/SKILL.md` (or under
-  `personal-workstation` if it needs this Mac), run `make install`, and push.
+  `workstation` if it needs this Mac), run `make install`, and push.
   The push reaches the Claude surfaces; the install reaches local tools.
 - **Remove**: delete the folder, run `make install`, and push. Orphaned
   symlinks are cleaned up automatically.
