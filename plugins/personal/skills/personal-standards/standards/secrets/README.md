@@ -76,3 +76,4 @@ Full detail: [repository.md](repository.md#threat-model).
 |------|---------|
 | [repository.md](repository.md) | Candidate reference architecture: repo layout, access matrix, scripts, runbook |
 | [makefile.md](makefile.md) | Makefile target contract for maintainers and consumers |
+| [`personal-secrets` skill](../../../personal-secrets/SKILL.md) | Procedures, plus the tested kit that implements this contract |

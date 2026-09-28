@@ -193,14 +193,17 @@ Notes:
 │  └─ repos.env.sops                       SOPS-enc to maintainers + break-glass:
 │                                          <repo>__<context>__public / __private for every consumer
 ├─ scripts/
+│  ├─ lib.sh                               shared helpers (access.map parsing, registry I/O)
 │  ├─ build.sh                             resolve publish recipients (transient) + re-encrypt src/ -> dist/
 │  ├─ crypt.sh                             src <-> .sops sibling (safe + idempotent)
+│  ├─ keys.sh                              mint (refuses to overwrite) / rotate / retire consumer keypairs
 │  ├─ set-consumer-keys.sh                 fan SOPS_AGE_KEY out to all (or one) repo__context
-│  ├─ mint-consumer.sh                     generate a NEW keypair (refuses to overwrite an existing one)
-│  ├─ rotate-consumer.sh                   replace an EXISTING keypair
-│  └─ verify.sh
-└─ .githooks/
-   └─ pre-commit                           keyless: refuse non-.sops + assert src/<f>.sops paired with dist/<f>.sops
+│  ├─ check.sh                             keyless checks for the hook and CI
+│  └─ verify.sh                            grants, denials, and freshness with every consumer key
+├─ .githooks/
+│  └─ pre-commit                           keyless: refuse non-.sops + assert src/<f>.sops paired with dist/<f>.sops
+└─ .github/workflows/
+   └─ freshness.yml                        keyless CI: the same checks over the pushed range
 ```
 
 **The `.sops` convention.** Every encrypted file on disk carries a trailing
@@ -212,13 +215,13 @@ cannot be committed — the suffix is the safety boundary, not just a hook. The
 `access.map` and the matrix below use the **logical** name (no `.sops`); the
 scripts add/strip the suffix.
 
-The tracked files are exactly `.sops.yaml`, `.gitignore`, `access.map`,
-`breakglass.pub`, `dist-decrypt-env.sh`, `dist-decrypt.sh`, and the `*.sops`
-files under `src/`, `dist/`, and `keys/`. **Publish recipient lists are never
+The tracked secrets-bearing files are exactly `.sops.yaml`, `access.map`,
+`breakglass.pub`, and the `*.sops` files under `src/`, `dist/`, and `keys/`;
+the rest is tooling (`Makefile`, `scripts/`, the consumer entrypoints, the
+hook, and the keyless workflow). **Publish recipient lists are never
 committed** — `build` computes them transiently from `access.map` +
 `keys/repos.env.sops` at encrypt time. There is intentionally **no
-`.github/workflows/` that holds a key**; an optional *keyless* freshness-check
-workflow is described later.
+workflow that holds a key**; the kit's `freshness.yml` is keyless.
 
 ```gitignore
 # .gitignore — only *.sops is tracked under src/ dist/ keys/; plaintext siblings are ignored
@@ -380,180 +383,35 @@ consumer's `SOPS_AGE_KEY`. Nothing requires a source key in CI.
 
 ---
 
-## Reference scripts
+## Reference implementation
 
-### `scripts/build.sh`
+The scripts live as a tested kit in the `personal-secrets` skill:
+[`templates/secrets-repo/`](../../../personal-secrets/templates/secrets-repo/),
+with an end-to-end test in
+[`tests/test-kit.sh`](../../../personal-secrets/tests/test-kit.sh). Copy the
+kit to start a new secrets repo.
 
-```bash
-set -euo pipefail
-reg=$(sops -d --input-type dotenv keys/repos.env.sops)   # maintainer key required
-bg=$(cat breakglass.pub)
+| File | Role |
+| --- | --- |
+| `dist-decrypt-env.sh` | Consumer: dotenv secrets to stdout, never to disk |
+| `dist-decrypt.sh` | Consumer: decrypt files to owner-only plaintext siblings; no env output |
+| `scripts/build.sh` | Resolve publish recipients (transient) and re-encrypt `src/` to `dist/`; delete `dist/` files no longer mapped |
+| `scripts/crypt.sh` | `src/` to and from `.sops` siblings, safe and idempotent |
+| `scripts/keys.sh` | `mint`, `rotate`, `retire` consumer keypairs in `keys/repos.env.sops`, with no plaintext registry on disk |
+| `scripts/set-consumer-keys.sh` | Push `SOPS_AGE_KEY` to each `(repo, context)` store; key goes to `gh` on stdin |
+| `scripts/check.sh` | Keyless checks shared by the pre-commit hook and CI |
+| `scripts/verify.sh` | With each consumer key: granted identities decrypt, others don't, and `dist/` matches `src/` |
 
-declare -A GROUP
-while IFS= read -r line; do
-  case "$line" in @*) name=${line%%=*}; GROUP[${name// /}]=${line#*=} ;; esac
-done < access.map
+Two constraints the implementation has to respect:
 
-while IFS=: read -r file rest; do
-  [ -z "${file:-}" ] && continue
-  case "$file" in \#*|@*) continue ;; esac
-  rcpts="$bg"
-  for tok in $rest; do
-    case "$tok" in @*) items=${GROUP[$tok]} ;; *) items=$tok ;; esac
-    for id in $items; do
-      pub=$(printf '%s\n' "$reg" | sed -n "s/^${id}__public=//p")
-      rcpts="$rcpts,$pub"
-    done
-  done
-  case "$file" in *.env) t=dotenv ;; *) t=binary ;; esac
-  mkdir -p "dist/$(dirname "$file")"
-  sops -d --input-type "$t" --output-type "$t" "src/$file.sops" \
-    | SOPS_AGE_RECIPIENTS="$rcpts" sops -e --input-type "$t" --output-type "$t" /dev/stdin \
-    > "dist/$file.sops"
-done < access.map
-```
-
-### `dist-decrypt-env.sh` — dotenv to stdout
-
-```bash
-# dist-decrypt-env.sh — CONSUMER: dotenv secrets to stdout (never to disk)
-# usage: FILE=... KEY=... FORMAT=... dist-decrypt-env.sh <root>
-#   FORMAT=dotenv  -> KEY=VALUE lines (default when KEY unset; also when KEY set with FORMAT=dotenv)
-#   FORMAT unset + KEY set -> raw value only
-# env: SOPS_AGE_KEY (required), FILE / KEY / FORMAT (optional)
-set -euo pipefail
-root=${1:-dist}
-sel_file=${FILE:-}
-want_key=${KEY:-}
-format=${FORMAT:-}
-
-emit_file() {
-  local f=$1 logical=${f%.sops}; logical=${logical#"$root"/}
-  sops -d --input-type dotenv --output-type dotenv "$f" 2>/dev/null \
-    || { echo "# skip $logical (key cannot decrypt — expected)" >&2; return 1; }
-}
-
-if [ -n "$want_key" ]; then
-  matches=()
-  if [ -n "$sel_file" ]; then
-    f="$root/$sel_file.sops"
-    [ -f "$f" ] || { echo "missing $f" >&2; exit 1; }
-    content=$(emit_file "$f") || exit 1
-    line=$(printf '%s\n' "$content" | sed -n "s/^\(${want_key}\)=//p" | head -1)
-    [ -n "$line" ] || { echo "KEY $want_key not in $sel_file" >&2; exit 1; }
-    if [ "$format" = dotenv ]; then echo "${want_key}=${line}"; else printf '%s' "$line"; fi
-    exit 0
-  fi
-  while read -r f; do
-    content=$(emit_file "$f" 2>/dev/null) || continue
-    line=$(printf '%s\n' "$content" | sed -n "s/^\(${want_key}\)=//p" | head -1)
-    [ -n "$line" ] && matches+=("${f%.sops}")
-  done < <(find "$root" -type f -name '*.env.sops')
-  [ ${#matches[@]} -gt 0 ] || { echo "KEY $want_key not found in any decryptable env file" >&2; exit 1; }
-  if [ ${#matches[@]} -gt 1 ]; then
-    echo "KEY $want_key appears in multiple files: ${matches[*]#"$root"/}" >&2
-    echo "Pass FILE=<logical-name> to disambiguate." >&2
-    exit 1
-  fi
-  f="${matches[0]}.sops"
-  content=$(emit_file "$f")
-  line=$(printf '%s\n' "$content" | sed -n "s/^\(${want_key}\)=//p" | head -1)
-  if [ "$format" = dotenv ]; then echo "${want_key}=${line}"; else printf '%s' "$line"; fi
-  exit 0
-fi
-
-if [ -n "$sel_file" ]; then
-  [ -f "$root/$sel_file.sops" ] || { echo "missing $root/$sel_file.sops" >&2; exit 1; }
-  emit_file "$root/$sel_file.sops" || exit 1
-  exit 0
-fi
-
-find "$root" -type f -name '*.env.sops' | while read -r f; do
-  emit_file "$f" || true
-done
-```
-
-### `dist-decrypt.sh` — files to disk
-
-```bash
-# dist-decrypt.sh — CONSUMER: decrypt SOPS files to plaintext siblings on disk
-# usage: FILE=... dist-decrypt.sh <root>
-# env: SOPS_AGE_KEY (required), FILE (optional). Does NOT emit environment assignments.
-set -euo pipefail
-root=${1:-dist}
-sel=${FILE:-}
-
-decrypt_one() {
-  local f=$1 required=${2:-0} out=${f%.sops} rel=${out#"$root"/}
-  [ -f "$f" ] || { echo "missing $f" >&2; [ "$required" = 1 ] && return 1 || return 0; }
-  case "$out" in
-    *.env)
-      sops -d --input-type dotenv --output-type dotenv "$f" > "$out" 2>/dev/null \
-        || { rm -f "$out"; echo "# skip $rel (key cannot decrypt — expected)" >&2; [ "$required" = 1 ] && return 1 || return 0; } ;;
-    *)
-      sops -d --input-type binary --output-type binary "$f" > "$out" 2>/dev/null \
-        || { rm -f "$out"; echo "# skip $rel (key cannot decrypt — expected)" >&2; [ "$required" = 1 ] && return 1 || return 0; } ;;
-  esac
-}
-
-if [ -n "$sel" ]; then
-  decrypt_one "$root/$sel.sops" 1
-  exit 0
-fi
-
-find "$root" -type f -name '*.sops' | while read -r f; do
-  decrypt_one "$f"
-done
-```
-
-### `scripts/crypt.sh`
-
-```bash
-# usage: crypt.sh <decrypt|encrypt> [logical-path-under-src]
-set -euo pipefail
-op=$1; sel=${2:-}
-ftype() { case "$1" in *.env) echo dotenv ;; *) echo binary ;; esac; }
-case "$op" in
-  decrypt)
-    list=$([ -n "$sel" ] && echo "src/$sel.sops" || find src -type f -name '*.sops')
-    for c in $list; do
-      p=${c%.sops}
-      [ -e "$p" ] && { echo "skip $p (plaintext exists — edit it, or 'make clean')"; continue; }
-      t=$(ftype "$p"); sops -d --input-type "$t" --output-type "$t" "$c" > "$p"
-    done ;;
-  encrypt)
-    list=$([ -n "$sel" ] && echo "src/$sel" || find src -type f ! -name '*.sops')
-    for p in $list; do
-      t=$(ftype "$p"); sops -e --input-type "$t" --output-type "$t" "$p" > "$p.sops" && rm -f "$p"
-    done ;;
-esac
-```
-
-### `scripts/set-consumer-keys.sh`
-
-```bash
-# usage: set-consumer-keys.sh [repo] [context]
-set -euo pipefail
-want_repo=${1:-}; want_ctx=${2:-}
-sops -d --input-type dotenv keys/repos.env.sops | while IFS='=' read -r k v; do
-  case "$k" in *__private) ;; *) continue ;; esac
-  base=${k%__private}; repo=${base%__*}; ctx=${base##*__}
-  [ -n "$want_repo" ] && [ "$repo" != "$want_repo" ] && continue
-  [ -n "$want_ctx"  ] && [ "$ctx"  != "$want_ctx"  ] && continue
-  case "$ctx" in
-    actions|agents|codespaces|dependabot)
-      gh secret set SOPS_AGE_KEY -R "<org>/$repo" --app "$ctx" -b "$v" ;;
-    *)
-      echo "unknown context $ctx — add native store mapping or set manually" >&2
-      exit 1 ;;
-  esac
-  echo "set SOPS_AGE_KEY  $repo  ($ctx)"
-done
-```
-
-> The four native stores (`actions`, `agents`, `codespaces`, `dependabot`) each
-> hold a separate `SOPS_AGE_KEY`. The `agents` store is for GitHub Agents /
-> Copilot and is provisioned with `gh secret set --app agents`.
+- **Encrypting `dist/` must bypass `.sops.yaml`.** Its only creation rule
+  covers `src/` and `keys/`, so `sops -e` on stdin fails with "no matching
+  creation rules found", even with `SOPS_AGE_RECIPIENTS` or `--age` set.
+  `build.sh` passes `--config /dev/null` with `--age <recipients>`, and
+  writes through a temp file so a failure never leaves an empty `dist/`
+  file to commit.
+- **macOS ships bash 3.2**, so the scripts avoid associative arrays and
+  other bash 4 features.
 
 ---
 
@@ -562,10 +420,14 @@ done
 `dist/` is committed, so it must stay in sync with `src/`. Two keyless guards:
 
 1. **Local pre-commit hook** — refuse non-`.sops` under `src/`, `dist/`, `keys/`;
-   require every changed `src/<file>.sops` to ship with matching `dist/<file>.sops`.
+   require every changed `src/<file>.sops` to ship with matching `dist/<file>.sops`,
+   and an `access.map` change to ship with a rebuilt `dist/`.
 
-2. **Optional keyless CI check** — fail if `src/*.sops` changed without matching
-   `dist/*.sops` in the same push.
+2. **Keyless CI check** (`freshness.yml`) — the same rules over the pushed range.
+
+A maintainer's `make verify` goes further: it decrypts every `dist/` file with
+every consumer key, so it catches a stale `dist/` and any over-sharing that
+the keyless checks can't see.
 
 ---
 
@@ -578,7 +440,7 @@ done
 3. Add maintainer public keys to `.sops.yaml`.
 4. Register read-only Secrets GitHub App (`contents: read`); install on secrets
    repo and consumers. Distribute `SECRETS_APP_ID` + `SECRETS_APP_PRIVATE_KEY`.
-5. `make init` locally.
+5. Copy the kit, then `make init` locally.
 6. `make mint REPO=<repo> CONTEXT=actions` (and `agents` etc. as needed); edit
    `access.map`.
 7. Drop plaintext into `src/`, `make src-encrypt`, `make build`, commit `*.sops`.
@@ -592,8 +454,8 @@ done
 - **Add consumer key:** `make mint REPO=.. CONTEXT=..` (refuses if exists).
 - **Rotate consumer key:** `make rotate` → `set-keys` → `build` → commit. Stops
   *future* decryption with the old key; does not erase git history.
-- **Remove consumer:** delete from `access.map` and `repos.env.sops`, `make build`,
-  delete repo's `SOPS_AGE_KEY`.
+- **Remove consumer:** delete from `access.map`, `make build`,
+  `make retire REPO=.. CONTEXT=..`, delete the repo's `SOPS_AGE_KEY`.
 - **Rotate maintainer:** update `.sops.yaml`, `sops updatekeys`.
 - **Leaked secret value:** revoke at the upstream provider; treat all committed
   ciphertext versions as compromised — not fixable by `git revert` alone.

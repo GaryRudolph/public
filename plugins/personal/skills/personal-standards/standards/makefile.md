@@ -2,7 +2,7 @@
 
 Recommended Makefile contract for single repos and multi-repo estates (workspace /
 polyrepo / submodule layouts). Full templates, audit workflow, and per-stack recipe
-expectations: `agents/skills/personal-makefile/` in the personal bok.
+expectations: the `personal-makefile` skill (`plugins/personal/skills/personal-makefile/` in the personal bok).
 
 Placeholders: `<estate>`, `<repo>`.
 

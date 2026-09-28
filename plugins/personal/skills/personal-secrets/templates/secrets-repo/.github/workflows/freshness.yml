@@ -1,0 +1,32 @@
+# Keyless freshness check: no age key and no secrets. Fails a push or PR
+# that changes src/ without matching dist/, commits plaintext, or leaves
+# access.map and dist/ out of step.
+name: freshness
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Keyless checks
+        run: |
+          if [ "${{ github.event_name }}" = pull_request ]; then
+            range="origin/${{ github.base_ref }}...HEAD"
+          else
+            range="${{ github.event.before }}..${{ github.sha }}"
+          fi
+          if git cat-file -e "${range%%.*}" 2>/dev/null; then
+            make ci RANGE="$range"
+          else
+            make ci
+          fi

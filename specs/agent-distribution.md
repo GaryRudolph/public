@@ -188,8 +188,14 @@ See [Standards versus skills](#standards-versus-skills) below. Done so far:
 plan mode and scaffolding requests won't reliably trigger a skill.
 `personal-new-project` ships `latest_versions.py`, which asks npm, PyPI, the
 Go proxy, crates.io, RubyGems, Maven Central, GitHub releases, Homebrew, and
-endoflife.date and reports what they say. Next: `personal-secrets`, then
-`personal-release`.
+endoflife.date and reports what they say. `personal-secrets` ships the secrets standard's
+Makefile contract as a tested kit (`templates/secrets-repo/`, exercised by
+`tests/test-kit.sh`, which `make test` runs when `sops` and `age` are
+installed). Building it turned up two faults in the standard's script
+sketches: `build.sh` failed with "no matching creation rules" and left an
+empty `dist/` file behind, and it used bash 4 associative arrays that
+macOS's bash 3.2 lacks. The standard now points at the kit instead of
+carrying inline script bodies. Next: `personal-release`.
 
 ### m6 - Retire the old way per tool (done on this branch)
 
@@ -259,6 +265,6 @@ every language folder. They answer "what should this look like?", and the
 
 1. `personal-handoff`, plus trimming the plan-tier bullet (done). That's the
    biggest context saving, and it's mechanical.
-2. `personal-secrets`, moving the reference scripts into the skill.
+2. `personal-secrets`, moving the reference scripts into the skill (done).
 3. `personal-new-project` (done) and `personal-release`, each with a small
    fact script.

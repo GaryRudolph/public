@@ -1,0 +1,15 @@
+# access.map: the source of truth for who can decrypt what.
+#
+# Groups first: @name = repo__context identities. Contexts are actions,
+# agents, codespaces, and dependabot. Then one line per file:
+#   <logical path under src/, no .sops>: <@groups and/or identities>
+# There is no inheritance. List every group or identity that should be able
+# to decrypt each file. After any change: make build, then commit.
+#
+# Example:
+#   @oss        = site__actions docs__actions
+#   @commercial = app__actions app__agents
+#
+#   oss.env:        @oss @commercial
+#   commercial.env: @commercial
+#   ios/AuthKey_ABC123.p8: app__actions

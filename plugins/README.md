@@ -32,6 +32,7 @@ plugins/
         standards/                  <- full standards (repo-root standards/ -> here)
       personal-handoff/             <- handoff and saved-plan files
       personal-new-project/         <- new repos on current stable versions
+      personal-secrets/             <- SOPS + age secrets repo: procedures + tested kit
       personal-plan-tag-tiers/ personal-plan-model-tiers/
       personal-plan-orchestrate/ personal-makefile/
   personal-workstation/             <- needs this Mac's files
@@ -117,6 +118,7 @@ cleaned up, then push.
 | `personal` | `personal-standards` | Index of the personal standards; loads core rules and topic standards on demand |
 | `personal` | `personal-handoff` | Write session handoffs and saved plans to `.scratch/`, and milestone handoffs to `specs/handoffs/`, with the right names and contents |
 | `personal` | `personal-new-project` | Start a new project on a boring stack at current stable versions (looked up from each registry, with EOL dates), laid out to the standards |
+| `personal` | `personal-secrets` | Run a SOPS + age secrets repo: set up from a tested kit, add secrets, grant access, mint and rotate consumer keys, wire consumer CI with least privilege |
 | `personal` | `personal-plan-tag-tiers` | Shared tagging layer: tag plan steps `[deep]` / `[exec]` / `[fast]` to show complexity. Tags only; the two drivers call it automatically |
 | `personal` | `personal-plan-model-tiers` | Passive driver: group tagged steps into waves (no-thrash) and insert STOP markers with handoff blocks at tier boundaries |
 | `personal` | `personal-plan-orchestrate` | Active driver: same tagging and waves, but delegates each wave to a subagent on the right model and pauses only at mandatory STOP gates. Cursor-only today |

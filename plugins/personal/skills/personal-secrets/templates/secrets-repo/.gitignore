@@ -1,0 +1,18 @@
+# Only *.sops is tracked under src/ dist/ keys/, so a decrypted plaintext
+# sibling can't be committed. The .sops suffix is the safety boundary.
+/src/**
+/dist/**
+/keys/**
+!/src/**/
+!/dist/**/
+!/keys/**/
+!/src/**/*.sops
+!/dist/**/*.sops
+!/keys/**/*.sops
+!/src/.gitkeep
+!/dist/.gitkeep
+!/keys/.gitkeep
+
+# Temp files from interrupted writes.
+*.tmp.*
+.DS_Store

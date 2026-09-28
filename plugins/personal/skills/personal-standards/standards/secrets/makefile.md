@@ -1,7 +1,9 @@
 # Secrets Repository — Makefile Targets
 
-Recommended Makefile contract for an `<estate>-secrets` repo. Full architecture
-and script bodies: [repository.md](repository.md).
+Recommended Makefile contract for an `<estate>-secrets` repo. Architecture:
+[repository.md](repository.md). A tested implementation of this contract is
+the `personal-secrets` skill's
+[`templates/secrets-repo/`](../../../personal-secrets/templates/secrets-repo/Makefile).
 
 Placeholders: `<org>`, `<estate>`, `<repo>`.
 
@@ -20,7 +22,20 @@ these in consumer CI.
 | `set-keys` | Push consumer `SOPS_AGE_KEY` values to GitHub | `REPO=`, `CONTEXT=` (optional scope) |
 | `mint` | Generate a new consumer keypair into `keys/repos.env.sops` | `REPO=`, `CONTEXT=` (required) |
 | `rotate` | Replace an existing consumer keypair | `REPO=`, `CONTEXT=` (required) |
-| `verify` | Lint access map, key registry, round-trips | — |
+| `retire` | Remove a consumer keypair; refuses while `access.map` still grants it | `REPO=`, `CONTEXT=` (required) |
+| `verify` | Decrypt every `dist/` file with every consumer key: grants work, denials hold, `dist/` matches `src/` | — |
+
+`set-keys` writes to GitHub, so it sits under `##@ Danger` and refuses without
+`CONFIRM_SET_KEYS=1`.
+
+## Keyless targets
+
+Need no age key; safe anywhere, including the secrets repo's own CI.
+
+| Target | Purpose | Arguments |
+|--------|---------|-----------|
+| `lint` | `access.map` parses, files pair up, no tracked plaintext, break-glass is a recipient | — |
+| `ci` | `lint`, plus `src/`↔`dist/` pairing over a commit range | `RANGE=<base>..<head>` (optional) |
 | `clean` | Delete plaintext siblings under `src/` and `dist/` | — |
 
 ## Consumer-safe targets

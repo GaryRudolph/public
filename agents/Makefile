@@ -173,7 +173,7 @@ EXTENSIONS_ENV = \
 .PHONY: help install uninstall dry-run status test test-blocks test-extensions test-allowlists clean-test \
         install-blocks uninstall-blocks dry-run-blocks status-blocks \
         install-extensions uninstall-extensions dry-run-extensions status-extensions \
-        install-allowlists uninstall-allowlists dry-run-allowlists status-allowlists test-manifests status-modes \
+        install-allowlists uninstall-allowlists dry-run-allowlists status-allowlists test-manifests test-secrets status-modes \
         diff-allowlists restore-allowlists clean-allowlists \
         validate package
 
@@ -287,7 +287,7 @@ status-extensions:
 # test
 # ---------------------------------------------------------------------------
 
-test: test-blocks test-extensions test-allowlists test-manifests
+test: test-blocks test-extensions test-allowlists test-manifests test-secrets
 
 test-blocks: clean-test
 	@$(TEST_ENV) bash "$(AGENTS_DIR)/lib/blocks-test.sh"
@@ -300,6 +300,10 @@ test-allowlists:
 
 test-manifests:
 	@python3 "$(AGENTS_DIR)/lib/manifests-check.py"
+
+# Needs sops and age; prints SKIP and passes when they're missing.
+test-secrets:
+	@bash "$(PLUGINS_DIR)/personal/skills/personal-secrets/tests/test-kit.sh"
 
 clean-test:
 	@rm -rf "$(AGENTS_DIR)/build"

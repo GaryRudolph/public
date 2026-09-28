@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+# Keyless pre-commit guard, wired by `make init` (core.hooksPath=.githooks).
+# Refuses plaintext under src/ dist/ keys/, src/ changes without matching
+# dist/ changes, and access.map changes without a rebuild.
+exec bash "$(git rev-parse --show-toplevel)/scripts/check.sh" --staged

@@ -42,7 +42,7 @@ this skill's directory instead; the files are identical.
 | Branches, commits, PRs | `standards/git.md` |
 | Versions, releases | `standards/versioning.md` |
 | Auth, crypto, input validation | `standards/security.md` |
-| Secrets repos and Makefiles | `standards/secrets/README.md` |
+| Secrets repos and Makefiles | `standards/secrets/README.md`, and the `personal-secrets` skill for procedures |
 | Makefiles | `standards/makefile.md` |
 | Python / Swift / Kotlin / Go | `standards/<language>/` (code-style, architecture, testing, documentation, security) |
 
