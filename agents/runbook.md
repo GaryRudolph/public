@@ -15,7 +15,7 @@ account.
 | Self-hosted runner | Nothing, or an optional fallback file | m4 |
 | Claude Code cloud sessions | Nothing | m5 |
 | Team organization (optional) | Org plugin sync or managed `claudeMd` | m6 |
-| Codex, Gemini CLI, Cursor, Muse Code | `make install`, plus one toggle per tool | m7 |
+| Codex, Cursor, Gemini CLI, Muse Code | Nothing on the Mac; their plugin or extension elsewhere | m7 |
 
 ### m1 - Merge the repo change
 
@@ -221,35 +221,70 @@ and would duplicate the hook. Not recommended while the plugin covers it.
 
 ### m7 - Other tools
 
-`make install` (m3.s5) already did the file work. What's left is one step
-per tool.
+Each tool has two routes. On the Mac, the `make install` symlinks from m3.s5
+already cover it. The plugin route is for other machines and each vendor's
+cloud agents. Use one route per tool on a given machine: Codex and Cursor
+show a skill twice if it arrives both ways.
 
-#### s1 - Codex CLI (and ChatGPT's Codex)
+None of these three CLIs was available where this was written, so the
+manifests were checked for agreement (`make -C agents test`) but not loaded
+by the tools. Treat the first install of each as the real validation.
 
-- Instructions: the `~/.codex/AGENTS.md` block, inlined by `make install`.
-- Skills: `~/.agents/skills/personal-*`. Check with `$` mention
-  autocomplete in Codex.
-- Codex cloud tasks only read the repo's own `AGENTS.md`. Personal skills
-  reach them only once there's a Codex plugin (spec m3).
+#### s1 - Codex CLI and ChatGPT
 
-#### s2 - Gemini CLI
+- **Mac:** the `~/.codex/AGENTS.md` block plus `~/.agents/skills`. Nothing
+  more to do. Check that the skills show up in `$`-mention autocomplete.
+- **Plugin (other machines, ChatGPT, Codex cloud):**
 
-- Instructions: the `~/.gemini/GEMINI.md` block.
-- Skills: `~/.agents/skills` (Gemini's alias for user skills). Check with
-  `/skills list` in Gemini.
+  ```bash
+  codex plugin marketplace add GaryRudolph/public
+  ```
 
-#### s3 - Cursor
+  Then install `personal` from Codex's plugin browser. Codex reads the
+  marketplace from `.agents/plugins/marketplace.json` and each plugin from
+  `.codex-plugin/plugin.json`. It runs the same SessionStart hook as Claude,
+  so the core comes with it. Plugins are shared between Codex and ChatGPT.
+  To use the plugin on the Mac too, set `AGENTS_SKILLS_MODE ?= plugin` so
+  the installer removes its `~/.agents/skills` links. Gemini then needs its
+  extension (s3), since it shares that directory.
+  Whether a Codex *cloud* task loads account plugins is unconfirmed; check
+  it with the canary.
 
-- Instructions: `~/AGENTS.md` (ancestor walk) and `~/.cursor/skills`.
-- For Cursor Cloud Agents, turn on **Sync Skills for Cloud Agents** in
-  Cursor settings. Cursor then copies `~/.cursor/skills` for cloud agents.
-  The symlinks point at the repo, so re-sync after edits.
+#### s2 - Cursor
+
+- **Mac:** `~/AGENTS.md` plus `~/.cursor/skills`.
+- **Plugin (Cursor Cloud Agents, other machines):** in Cursor, go to
+  **Customize > From GitHub Repository** and enter `GaryRudolph/public`.
+  Cursor reads `.cursor-plugin/marketplace.json`. Then install `personal`.
+  If you also want the plugin on the Mac, set
+  `CURSOR_SKILLS_MODE ?= plugin` in `agents/Makefile` (or pass it to every
+  `make install`) so the installer removes its `~/.cursor/skills` links. The plugin brings skills
+  only; the always-on core reaches Cursor through `~/AGENTS.md`.
+- **Without the plugin:** turning on **Sync Skills for Cloud Agents** copies
+  `~/.cursor/skills` to cloud agents. Re-sync after edits.
+
+#### s3 - Gemini CLI
+
+- **Mac:** the `~/.gemini/GEMINI.md` block plus `~/.agents/skills`.
+- **Extension (other machines with a checkout):**
+
+  ```bash
+  gemini extensions link ~/Projects/personal/public/plugins/personal
+  ```
+
+  Gemini only installs straight from GitHub when `gemini-extension.json`
+  sits at the repo root, so these subfolder extensions install from a local
+  path. The extension runs the SessionStart hook, which returns JSON for
+  Gemini, and its skills are overridden by same-named user skills, so
+  linking it on the Mac doesn't duplicate anything. Check with
+  `/skills list` and `/extensions list`.
 
 #### s4 - Muse Code
 
-This path isn't confirmed; check it on first use. Muse reads the project
-`AGENTS.md` (falling back to `CLAUDE.md`) and repo-local `.claude/skills`
-and `.codex/skills`. To bring in the personal skills:
+Muse has no plugin format that I found, and the steps below aren't
+confirmed; check them on first use. Muse reads the project `AGENTS.md`
+(falling back to `CLAUDE.md`) and repo-local `.claude/skills` and
+`.codex/skills`. To bring in the personal skills:
 
 ```bash
 muse skills import --from codex     # reads ~/.agents/skills
@@ -259,8 +294,7 @@ muse skills list
 If import only looks at `~/.claude/skills`, run
 `make install CLAUDE_SKILLS_MODE=symlink` first, import, then
 `make install` again. Muse's user-level config is reported to live in
-`~/.config/muse/`; where it reads global instructions is still to be
-confirmed (spec m3).
+`~/.config/muse/`; where it reads global instructions is still unconfirmed.
 
 ### m8 - Verification matrix
 
@@ -298,6 +332,11 @@ Ask "What is the personal canary phrase?" in each surface. Expect
   third hook entry is still in `hooks.json`.
 - **claude.ai rejects the plugin.** `make validate`; a top-level `bin/`
   inside a plugin folder is the usual cause.
+- **Gemini reports a failed SessionStart hook.** Something printed non-JSON
+  text. Run `GEMINI_PROJECT_DIR=. plugins/personal/scripts/session-start.sh 1`
+  and check that the output is exactly one JSON object.
+- **A skill shows up twice in Codex or Cursor.** Both the plugin and the
+  `make install` symlinks are active on that machine. Keep one (m7).
 
 ## Rollback
 

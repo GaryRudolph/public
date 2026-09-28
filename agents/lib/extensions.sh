@@ -34,9 +34,10 @@
 #   AGENTS_SKILLS_HOME       ~/.agents/skills   (Codex, Gemini CLI)
 #   CLAUDE_SKILLS_HOME       ~/.claude/skills
 #   CLAUDE_COMMANDS_HOME     ~/.claude/commands
-#   CLAUDE_SKILLS_MODE       symlink | plugin. In plugin mode Claude Code gets
-#                            skills from the synced plugin instead, so install
-#                            removes our entries from the Claude dirs.
+#   CLAUDE_SKILLS_MODE       symlink | plugin. In plugin mode the tool gets
+#   CURSOR_SKILLS_MODE       skills from its plugin instead, so install
+#   AGENTS_SKILLS_MODE       removes our entries from that tool's skills dir.
+#                            AGENTS_ covers ~/.agents/skills (Codex, Gemini).
 #   LEGACY_SKILLS_SRC        colon-separated former source dirs; symlinks that
 #                            still point into them are removed before reconcile
 #   WIN_HOME                 (empty; auto-detected when /proc/version contains "microsoft")
@@ -67,13 +68,17 @@ set -euo pipefail
 : "${CLAUDE_COMMANDS_HOME:=$HOME/.claude/commands}"
 : "${AGENTS_DIR:=$(dirname "${SKILLS_SRC%%:*}")}"
 : "${CLAUDE_SKILLS_MODE:=symlink}"
+: "${CURSOR_SKILLS_MODE:=symlink}"
+: "${AGENTS_SKILLS_MODE:=symlink}"
 : "${LEGACY_SKILLS_SRC:=}"
 : "${WIN_HOME:=}"
 
-case "$CLAUDE_SKILLS_MODE" in
-    symlink|plugin) ;;
-    *) printf 'CLAUDE_SKILLS_MODE must be symlink or plugin (got %s)\n' "$CLAUDE_SKILLS_MODE" >&2; exit 2 ;;
-esac
+for mode_var in CLAUDE_SKILLS_MODE CURSOR_SKILLS_MODE AGENTS_SKILLS_MODE; do
+    case "${!mode_var}" in
+        symlink|plugin) ;;
+        *) printf '%s must be symlink or plugin (got %s)\n' "$mode_var" "${!mode_var}" >&2; exit 2 ;;
+    esac
+done
 
 MARKER=".${ORG}-managed"
 
@@ -213,39 +218,46 @@ skill_tuples_for() {
     done < <(split_list "$SKILLS_SRC")
 }
 
-# Destinations we install into. In plugin mode the Claude skill dir moves to
-# the purge list instead: Claude Code reads the synced plugin there.
+# Skill destinations as "mode|unix_dest|win_dest". A destination in plugin
+# mode is purged instead of installed: that tool reads the plugin there.
+skill_dests() {
+    printf '%s|%s|%s\n' "$CURSOR_SKILLS_MODE" "$CURSOR_SKILLS_HOME" "${WIN_CURSOR_SKILLS_HOME:-}"
+    printf '%s|%s|%s\n' "$AGENTS_SKILLS_MODE" "$AGENTS_SKILLS_HOME" "${WIN_AGENTS_SKILLS_HOME:-}"
+    printf '%s|%s|%s\n' "$CLAUDE_SKILLS_MODE" "$CLAUDE_SKILLS_HOME" "${WIN_CLAUDE_SKILLS_HOME:-}"
+}
+
+# $1 = symlink (install) or plugin (purge); $2 = unix or win.
+skill_tuples_in_mode() {
+    local want="$1" side="$2" mode unix_dest win_dest
+    while IFS='|' read -r mode unix_dest win_dest; do
+        [ "$mode" = "$want" ] || continue
+        if [ "$side" = "unix" ]; then
+            skill_tuples_for "$unix_dest"
+        else
+            skill_tuples_for "$win_dest"
+        fi
+    done < <(skill_dests)
+}
+
 unix_tuples() {
-    skill_tuples_for "$CURSOR_SKILLS_HOME"
-    skill_tuples_for "$AGENTS_SKILLS_HOME"
-    if [ "$CLAUDE_SKILLS_MODE" = "symlink" ]; then
-        skill_tuples_for "$CLAUDE_SKILLS_HOME"
-    fi
+    skill_tuples_in_mode symlink unix
     printf '%s|%s|command\n' "$COMMANDS_SRC" "$CLAUDE_COMMANDS_HOME"
 }
 
 win_tuples() {
     [ -n "$WIN_HOME" ] || return 0
-    skill_tuples_for "$WIN_CURSOR_SKILLS_HOME"
-    skill_tuples_for "$WIN_AGENTS_SKILLS_HOME"
-    if [ "$CLAUDE_SKILLS_MODE" = "symlink" ]; then
-        skill_tuples_for "$WIN_CLAUDE_SKILLS_HOME"
-    fi
+    skill_tuples_in_mode symlink win
     printf '%s|%s|command\n' "$COMMANDS_SRC" "$WIN_CLAUDE_COMMANDS_HOME"
 }
 
 # Destinations we must keep clean of our entries during install.
 unix_purge_tuples() {
-    if [ "$CLAUDE_SKILLS_MODE" = "plugin" ]; then
-        skill_tuples_for "$CLAUDE_SKILLS_HOME"
-    fi
+    skill_tuples_in_mode plugin unix
 }
 
 win_purge_tuples() {
     [ -n "$WIN_HOME" ] || return 0
-    if [ "$CLAUDE_SKILLS_MODE" = "plugin" ]; then
-        skill_tuples_for "$WIN_CLAUDE_SKILLS_HOME"
-    fi
+    skill_tuples_in_mode plugin win
 }
 
 # Every skill destination the installer has ever managed, used by uninstall

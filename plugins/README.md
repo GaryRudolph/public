@@ -1,17 +1,29 @@
 # Plugins
 
-This repo is a Claude plugin marketplace
-([`../.claude-plugin/marketplace.json`](../.claude-plugin/marketplace.json))
-with two plugins. Every skill lives in exactly one of them, and every tool
-reads that one copy: Claude surfaces through plugin sync, local tools through
-the symlinks `make install` creates.
+This repo is a plugin marketplace for Claude, Codex, and Cursor, with two
+plugins that also work as Gemini CLI extensions. Every skill lives in exactly
+one of them, and every tool reads that one copy: through its plugin system,
+or through the symlinks `make install` creates.
+
+| Tool | Marketplace | Plugin manifest |
+| --- | --- | --- |
+| Claude (Code, Cowork, chat) | `.claude-plugin/marketplace.json` | `plugins/<name>/.claude-plugin/plugin.json` |
+| Codex / ChatGPT | `.agents/plugins/marketplace.json` | `plugins/<name>/.codex-plugin/plugin.json` |
+| Cursor | `.cursor-plugin/marketplace.json` | `plugins/<name>/.cursor-plugin/plugin.json` |
+| Gemini CLI | none (installed from a local path) | `plugins/<name>/gemini-extension.json` |
+
+All four use the same `skills/<name>/SKILL.md` layout, so the manifests are
+the only per-vendor files. `make -C agents test` fails if their names,
+descriptions, or marketplace listings drift apart.
 
 ```
 .claude-plugin/marketplace.json     <- marketplace "personal"
 plugins/
   personal/                         <- portable: works anywhere Claude runs
-    .claude-plugin/plugin.json
-    hooks/hooks.json                <- SessionStart: inject core.md
+    .claude-plugin/plugin.json  .codex-plugin/plugin.json
+    .cursor-plugin/plugin.json  gemini-extension.json
+    hooks/hooks.json                <- SessionStart for Claude, Codex, Gemini
+    hooks/cursor-hooks.json         <- empty; keeps Cursor off hooks.json
     scripts/session-start.sh
     skills/
       personal-standards/
@@ -21,7 +33,7 @@ plugins/
       personal-plan-tag-tiers/ personal-plan-model-tiers/
       personal-plan-orchestrate/ personal-makefile/
   personal-workstation/             <- needs this Mac's files
-    .claude-plugin/plugin.json
+    .claude-plugin/  .codex-plugin/  .cursor-plugin/  gemini-extension.json
     skills/
       personal-whisper-*/ personal-allowlist-scout/
       lib/                          <- shared Python for the whisper skills
@@ -49,7 +61,14 @@ quietly on some surfaces, so `make validate` runs before every push.
 - **Hook output is capped at 10,000 characters.** Past the cap, Claude sees
   a 2,000-character preview. `core.md` is longer, so `hooks.json` runs
   `session-start.sh` three times and each run prints one part.
-- **No `version` field.** Without one, the version is the commit SHA, so
+- **One hook file, three dialects.** Claude Code, Codex, and Gemini read
+  `hooks/hooks.json` in the same shape. The command uses
+  `${CLAUDE_PLUGIN_ROOT:-${extensionPath}}`: Claude and Codex export the
+  first, and Gemini substitutes the second. `session-start.sh` prints plain
+  text for Claude and Codex and a single JSON object for Gemini, which
+  rejects anything else. Cursor's hook format differs, so its manifest points
+  at the empty `hooks/cursor-hooks.json` instead.
+- **No `version` field** in the Claude, Codex, or Cursor manifests. Without one, the version is the commit SHA, so
   every push to `main` is an update. Pin a version only if you want to hold
   everyone on a release.
 - **Cite files relative to the skill.** Use `../personal-standards/standards/<file>`,
@@ -58,14 +77,20 @@ quietly on some surfaces, so `make validate` runs before every push.
 
 ## Surfaces and what they load
 
-| Surface | Skills | SessionStart hook (core.md) | How it gets the plugin |
+| Surface | Skills | Always-on core | How it gets the plugin |
 | --- | --- | --- | --- |
-| Claude Code, this Mac | Yes | Skipped when `~/.claude/CLAUDE.md` has the `personal` block | claude.ai sync, or the local marketplace for live edits |
-| Claude Code cloud and self-hosted runner | Yes | Yes | claude.ai sync |
-| Cowork | Yes | Yes | claude.ai account |
-| Claude chat | Yes | No (chat ignores hooks) | claude.ai account |
-| Codex, Gemini CLI | Yes, via `~/.agents/skills` | No; they read their own `AGENTS.md`/`GEMINI.md` block | `make install` |
-| Cursor | Yes, via `~/.cursor/skills` | No; reads `~/AGENTS.md` | `make install` |
+| Claude Code, this Mac | Yes | `~/.claude/CLAUDE.md` block (hook stays silent) | claude.ai sync, or the local marketplace for live edits |
+| Claude Code cloud and self-hosted runner | Yes | Hook | claude.ai sync |
+| Cowork | Yes | Hook | claude.ai account |
+| Claude chat | Yes | None (chat ignores hooks) | claude.ai account |
+| Codex CLI / ChatGPT | Yes | Hook, or the `~/.codex/AGENTS.md` block | `codex plugin marketplace add GaryRudolph/public`, or `~/.agents/skills` |
+| Cursor, including Cloud Agents | Yes | `~/AGENTS.md` on the Mac only | Customize > From GitHub Repository, or `~/.cursor/skills` |
+| Gemini CLI | Yes | Hook, or the `~/.gemini/GEMINI.md` block | `gemini extensions link <path>`, or `~/.agents/skills` |
+
+On the Mac, pick one route per tool. Codex and Cursor don't merge two copies
+of a skill with the same name, so installing their plugin on top of the
+`make install` symlinks shows each skill twice. Gemini does: user skills
+(the symlinks) override extension skills.
 
 ## Adding a skill
 
@@ -74,7 +99,8 @@ quietly on some surfaces, so `make validate` runs before every push.
    with `personal-`. Use `personal-workstation` instead if the skill needs
    local files.
 2. Keep everything the skill reads inside its own folder or its plugin.
-3. Run `make -C agents validate test install`.
+3. Run `make -C agents validate test install`. A new plugin also needs an
+   entry in all three marketplaces and all four manifests.
 4. Push to `main`. Claude surfaces pick it up at their next session start.
 
 ## Removing a skill

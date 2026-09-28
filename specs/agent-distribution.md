@@ -5,8 +5,9 @@ How personal standards and skills reach every agent Gary uses: Claude Code
 Gemini CLI, and Muse Code. Setup steps live in
 [`../agents/runbook.md`](../agents/runbook.md).
 
-Status: m1 implemented on branch `claude/standards-skills-evaluation-0lf34z`;
-m2 onward are manual or follow-up work.
+Status: m1 and m3 implemented on branch
+`claude/standards-skills-evaluation-0lf34z`; m2 is manual setup; m4 and m5
+are proposals.
 
 ## Evaluation of the previous setup
 
@@ -142,15 +143,34 @@ support, `~/.agents/skills`, plugin mode and legacy sweep (with tests),
 Follow the runbook, m2 to m5. Done when the canary answers correctly in
 chat, Cowork, Claude Code on the Mac, a cloud session, and a runner session.
 
-### m3 - Cross-vendor plugin manifests
+### m3 - Cross-vendor plugin manifests (done on this branch)
 
-Add `.cursor-plugin/plugin.json` (Cursor team marketplace and Cloud Agents),
-`.codex-plugin/plugin.json` (Codex and ChatGPT), and
-`gemini-extension.json` next to each `.claude-plugin/`. The folder layout
-already matches, since all of them use `skills/<name>/SKILL.md`. Check each
-vendor's current manifest schema before writing them; none were confirmed
-for this spec. Also confirm where Muse Code reads user-level skills and
-instructions (`~/.config/muse/`) and add an installer target if needed.
+Each plugin carries `.codex-plugin/plugin.json`,
+`.cursor-plugin/plugin.json`, and `gemini-extension.json` next to
+`.claude-plugin/`. Codex and Cursor marketplaces sit at
+`.agents/plugins/marketplace.json` and `.cursor-plugin/marketplace.json`.
+`agents/lib/manifests-check.py` (part of `make test`) fails when names,
+descriptions, or marketplace listings drift apart.
+
+- **One hook file for three tools.** Claude Code, Codex, and Gemini share
+  the `hooks/hooks.json` format. The command resolves the plugin root from
+  `CLAUDE_PLUGIN_ROOT`, which Claude and Codex export, or from Gemini's
+  `${extensionPath}` substitution. The script prints JSON for Gemini, which
+  rejects plain stdout, and plain text for the others. Each tool stays
+  silent when its own home file already has the `personal` block.
+- **Cursor stays off the Claude-format hook file.** Its manifest points at
+  an empty `hooks/cursor-hooks.json`.
+- **Per-tool route switches.** `CURSOR_SKILLS_MODE` and `AGENTS_SKILLS_MODE`
+  (`symlink` | `plugin`) let one machine use a tool's plugin without also
+  getting the `make install` symlinks, since Codex and Cursor don't merge
+  duplicate skills.
+- **Not verified in the tools themselves.** None of the Codex, Cursor, or
+  Gemini CLIs were available to load the manifests, so the first install of
+  each is the real test. The runbook (m7) says what to check.
+- **Gemini installs from a local path only.** It installs from GitHub only
+  when `gemini-extension.json` sits at the repo root, so these subfolder
+  extensions use `gemini extensions link <path>`.
+- **Muse Code has no plugin format** that I found; it imports skills.
 
 ### m4 - Refresh the model-tier table
 
@@ -158,3 +178,51 @@ Update the tier-to-model mapping in `core.md` and
 `standards/plan-execution.md` to the current models, and decide whether
 `personal-plan-orchestrate` should also drive Claude Code subagents, which
 now take a per-agent model.
+
+### m5 - Turn procedures into skills (proposed)
+
+See [Standards versus skills](#standards-versus-skills) below.
+
+## Standards versus skills
+
+### The test
+
+A **standard** says what good looks like. It's reference material, read
+when relevant, and cited by path. A **skill** runs a procedure that a
+request triggers ("set up secrets for this repo", "cut a release",
+"write a handoff"). It may bundle scripts and templates, and it applies the
+standards rather than repeating them. `personal-makefile` is the model: a
+workflow skill that loads `standards/makefile.md` and adds detection
+scripts and templates.
+
+So no standard should *become* a skill. The standards stay the single
+source. The question is which procedures buried in the standards, or in the
+always-on `core.md`, deserve a thin skill of their own. Three signals:
+there are ordered steps, a clear request triggers it, and a script could
+gather facts ("facts in script, judgment in agent").
+
+### Recommendations
+
+| Candidate | Source today | Why a skill | Priority |
+| --- | --- | --- | --- |
+| `personal-handoff` | `core.md` bullets for handoff files, `.scratch/plan-*` files, milestone handoffs (about 1.8k characters always on) | "Write a handoff" is a direct trigger with a fixed file-name and contents recipe. Moving it out shrinks the always-on core, and a script can pick the `{word}` and list what changed | High |
+| `personal-plan-*` (existing) | The 2.6k-character "Plan around model-tier stop points" bullet in `core.md` repeats `plan-execution.md` and the three plan skills | Cut the bullet to a two-line pointer at the skills. With the handoff and new-project moves as well, `core.md` drops from about 14,300 to about 9,500 characters. Keep the split hook anyway: that's too close to the 10,000 cap to rely on one part | High |
+| `personal-secrets` | `standards/secrets/` (820 lines): consumer step, one-time setup runbook, rotation and offboarding, reference scripts | Longest and most procedural standard. Three clear triggers (set up, add a consumer repo, rotate). The reference scripts could ship in `scripts/` instead of as prose | High |
+| `personal-release` | `standards/versioning.md`: promote-to-release and hotfix flows, plus 12k characters of per-platform surfaces | "Cut a release" or "ship a hotfix" is a trigger. A script can detect which platform surfaces a repo has, so the agent loads only those sections | Medium |
+| `personal-new-project` | `core.md` "latest stable versions" bullet, plus `architecture.md` "Starting New Projects" | Scaffolding is a trigger, and the version lookups (`npm view`, `pip index versions`, GitHub releases) are exactly the facts a script should gather. Also takes about 1k characters out of the always-on core | Medium |
+| `personal-spec` | `documentation.md`: spec structure, spec authoring workflow, milestones and steps | "Write a spec" is a trigger with a structure to follow. Lower value because the rules are short and already in `core.md` | Low |
+| `personal-pr` | `git.md`: commit rules, PR body template | Claude Code, Codex, and Cursor all have their own commit and PR flows. A skill adds little beyond the template, which the standard already holds | Low; skip |
+| `personal-security-review` | `security.md` pre-deployment checklist plus the language security files | A real trigger, but it overlaps with each tool's built-in security review. Worth it only if the built-in reviews miss your checklist | Low |
+
+Keep as reference only: `code-style`, `architecture` (apart from new
+projects), `testing`, `platform-parity`, `swift/state-observation`, and
+every language folder. They answer "what should this look like?", and the
+`personal-standards` index already loads them on demand.
+
+### Suggested order
+
+1. `personal-handoff`, plus trimming the plan-tier bullet. That's the
+   biggest context saving, and it's mechanical.
+2. `personal-secrets`, moving the reference scripts into the skill.
+3. `personal-release` and `personal-new-project`, each with a small fact
+   script.

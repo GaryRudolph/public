@@ -489,6 +489,17 @@ assert_file_exists "$H3/.claude/skills/hand-rolled/SKILL.md"
 assert_symlink_to "$H3/.agents/skills/${ORG}-alpha" "$SRC_A/${ORG}-alpha"
 assert_symlink_to "$H3/.cursor/skills/${ORG}-beta"  "$SRC_B/${ORG}-beta"
 
+# Cursor and ~/.agents switch the same way, independently of Claude.
+CURSOR_SKILLS_MODE=plugin AGENTS_SKILLS_MODE=plugin \
+    run_ext3 symlink install > "$TEST_DIR3/install-all-plugin.out"
+[ ! -e "$H3/.cursor/skills/${ORG}-alpha" ] || fail "CURSOR_SKILLS_MODE=plugin left a Cursor symlink"
+[ ! -e "$H3/.agents/skills/${ORG}-beta" ]  || fail "AGENTS_SKILLS_MODE=plugin left an ~/.agents symlink"
+assert_dir_missing "$W3/.agents/skills/${ORG}-beta"
+assert_symlink_to "$H3/.claude/skills/${ORG}-alpha" "$SRC_A/${ORG}-alpha"
+if CURSOR_SKILLS_MODE=bogus run_ext3 symlink install > /dev/null 2>&1; then
+    fail "an invalid CURSOR_SKILLS_MODE was accepted"
+fi
+
 # Uninstall clears every destination, whichever mode installed it.
 run_ext3 plugin uninstall > "$TEST_DIR3/uninstall.out"
 for dir in .cursor/skills .agents/skills .claude/skills; do

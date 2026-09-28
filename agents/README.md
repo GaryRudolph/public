@@ -56,10 +56,18 @@ the Windows side as well.
 | `~/.claude/skills/<name>` | `%USERPROFILE%\.claude\skills\<name>` | Claude Code, only when `CLAUDE_SKILLS_MODE=symlink` |
 | `~/.claude/commands/<name>.md` | `%USERPROFILE%\.claude\commands\<name>.md` | Claude Code; sourced from `agents/commands/` (none today) |
 
-`CLAUDE_SKILLS_MODE` defaults to `plugin`. In that mode Claude Code gets the
-skills from the synced `personal` plugins, and `make install` removes any
-`~/.claude/skills` symlinks this installer made earlier, so the same skill
-doesn't load twice. Set `CLAUDE_SKILLS_MODE=symlink` to go back.
+Each skills directory has a mode, `symlink` or `plugin`. In `plugin` mode
+that tool gets the skills from its own plugin, and `make install` removes
+the links this installer made there, so no skill loads twice.
+
+| Variable | Directory | Default |
+| --- | --- | --- |
+| `CLAUDE_SKILLS_MODE` | `~/.claude/skills` | `plugin` (synced from claude.ai) |
+| `CURSOR_SKILLS_MODE` | `~/.cursor/skills` | `symlink` |
+| `AGENTS_SKILLS_MODE` | `~/.agents/skills` (Codex, Gemini) | `symlink` |
+
+Switch a tool to `plugin` only after its plugin is installed; the runbook
+(m7) covers each one.
 
 Symlinks that still point at the old `agents/skills/` location are swept
 automatically (`LEGACY_SKILLS_SRC`) before new links are made.
