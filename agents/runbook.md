@@ -146,9 +146,13 @@ seven `personal-workstation` skills.
 
 #### s1 - Confirm the prerequisites
 
-No per-session setup is needed. Runner sessions sign in with your claude.ai
-account and download synced plugins into their per-session config
-(`CLAUDE_CODE_SYNC_PLUGINS=1` is already set). Two things to check:
+Host setup (the runner user, the LaunchAgent, the self-hosted environment)
+is in [`../setup/mac/claude/runner.md`](../setup/mac/claude/runner.md). For
+standards and skills, nothing more is needed: the runner user has no Claude
+login of its own, but each session runs as the claude.ai account that
+started it and downloads that account's synced plugins into its
+per-session config (`CLAUDE_CODE_SYNC_PLUGINS=1` is already set). Two things
+to check:
 
 - The runner's Claude Code is 2.1.273 or later. It had 2.1.283 when this
   was written: `claude --version` on the runner, or the `AI_AGENT`
@@ -156,12 +160,24 @@ account and download synced plugins into their per-session config
 - The runner can reach `api.anthropic.com` and `github.com`. It already
   does, for the checkout.
 
-#### s2 - Optional fallback for the runner only
+The runner is started with `--confine-repo-settings enforce`, which refuses
+repos whose committed settings reach outside the workspace. This repo's
+`.claude/settings.json` only allows a few `make -C agents` commands, so it
+passes.
 
-If you ever turn account sync off, the runner operator can pin the plugin
-with a managed settings file on the runner host. This file only applies
-while the Team has no server-managed settings, because Claude Code uses
-the first managed source that sets any key, checking server-managed first.
+#### s2 - Optional fallback, if account sync is off
+
+If you ever turn account sync off, the plugin can be pinned with a managed
+settings file on the runner host. Two cautions:
+
+- **It applies to every macOS user on the Mac.** The file lives under
+  `/Library`, so on a host with one runner user per org
+  ([`runner.md`](../setup/mac/claude/runner.md)) it would put your personal
+  plugin into every org's sessions. Don't use it on a shared host; keep
+  account sync on instead.
+- **It only applies while the Team has no server-managed settings.** Claude
+  Code uses the first managed source that sets any key, checking
+  server-managed first.
 
 `/Library/Application Support/ClaudeCode/managed-settings.json`:
 
