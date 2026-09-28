@@ -77,7 +77,7 @@ absolute `~/Projects/personal/public/standards/...` paths.
 ```
                  GaryRudolph/public (main)
                  .claude-plugin/marketplace.json
-                 plugins/personal/  plugins/personal-workstation/
+                 plugins/personal/  plugins/workstation/
                     |                                   |
         claude.ai account (Customize > Plugins)    make install (Mac)
                     |                                   |
@@ -92,7 +92,7 @@ absolute `~/Projects/personal/public/standards/...` paths.
 - **One tree, two plugins.** `personal` holds everything that works
   anywhere: the `personal-standards` skill (`core.md` plus the full
   `standards/`), the planning skills, and the Makefile skill.
-  `personal-workstation` holds the skills that need this Mac (MacWhisper,
+  `workstation` holds the skills that need this Mac (MacWhisper,
   allowlist-scout), so they stay out of cloud sessions' context.
 - **Always-on core.** In Claude Code and Cowork, the plugin's SessionStart
   hook prints `core.md`. Hook output is capped at 10,000 characters and
@@ -126,7 +126,7 @@ absolute `~/Projects/personal/public/standards/...` paths.
 - Unpushed edits don't reach cloud or the runner. On the Mac, the local
   marketplace loads the working tree directly (runbook m3.s4).
 - Chat gets skills but no always-on core.
-- `personal-workstation`'s whisper skills cite `specs/macwhisper-database.md`,
+- `workstation`'s whisper skills cite `specs/macwhisper-database.md`,
   which is outside the plugin. That works on the Mac (local marketplace or
   symlinks) and nowhere else, which is where they're meant to run anyway.
 

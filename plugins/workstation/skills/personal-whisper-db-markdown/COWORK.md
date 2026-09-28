@@ -27,9 +27,9 @@ the workspace here means prompts don't need to mention output paths.
 |---|---|---|
 | `~/Projects/personal/notes/` | Read + Write | Read existing notes and `tags.md`; write new notes; append to `tags.md` |
 | `~/Library/Application Support/MacWhisper/Database/` | **Read** | `main.sqlite` + `main.sqlite-shm` + `main.sqlite-wal` |
-| `~/Projects/personal/public/plugins/personal-workstation/skills/personal-whisper-db-markdown/` | Read | This skill (SKILL.md, COWORK.md, `scripts/run.py`) |
-| `~/Projects/personal/public/plugins/personal-workstation/skills/personal-whisper-to-markdown/` | Read | The shared `SPEC.md` (cross-referenced via `../personal-whisper-to-markdown/SPEC.md`) |
-| `~/Projects/personal/public/plugins/personal-workstation/skills/lib/whisper/` | Read | Shared library imported by `scripts/run.py` |
+| `~/Projects/personal/public/plugins/workstation/skills/personal-whisper-db-markdown/` | Read | This skill (SKILL.md, COWORK.md, `scripts/run.py`) |
+| `~/Projects/personal/public/plugins/workstation/skills/personal-whisper-to-markdown/` | Read | The shared `SPEC.md` (cross-referenced via `../personal-whisper-to-markdown/SPEC.md`) |
+| `~/Projects/personal/public/plugins/workstation/skills/lib/whisper/` | Read | Shared library imported by `scripts/run.py` |
 | `/tmp/whisper_plan/` | Read + Write | Per-session JSONs, content batches, lookup queue/decisions, report — wiped at the start of every run by `housekeep` |
 | `~/Projects/personal/notes/.whisper.json` | Read + Write | Persistent processed-sessions ledger (see SKILL.md "Processed-sessions ledger"); covered by the workspace read+write line above, called out here since it's the one piece of state that must NOT be wiped between runs |
 

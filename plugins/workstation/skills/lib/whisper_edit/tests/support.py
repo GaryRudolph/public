@@ -8,7 +8,7 @@ every injected boundary.
 
 Run the suite with:
 
-    python3 -m unittest discover -s plugins/personal-workstation/skills/lib/whisper_edit/tests -p '*_test.py'
+    python3 -m unittest discover -s plugins/workstation/skills/lib/whisper_edit/tests -p '*_test.py'
 """
 
 from __future__ import annotations

@@ -106,7 +106,7 @@ ALLOWLISTS_ENV = \
 
 # Skills live inside the plugins so one tree serves Claude (plugin sync) and
 # every tool that scans a skills directory (symlinks below).
-SKILLS_SRC                ?= $(PLUGINS_DIR)/personal/skills:$(PLUGINS_DIR)/personal-workstation/skills
+SKILLS_SRC                ?= $(PLUGINS_DIR)/personal/skills:$(PLUGINS_DIR)/workstation/skills
 LEGACY_SKILLS_SRC         ?= $(AGENTS_DIR)/skills
 COMMANDS_SRC              ?= $(AGENTS_DIR)/commands
 
@@ -340,7 +340,7 @@ clean-allowlists:
 # Plugins (marketplace at the repo root, plugins under plugins/)
 # ---------------------------------------------------------------------------
 
-PLUGINS      ?= personal personal-workstation
+PLUGINS      ?= personal workstation
 PACKAGE_DIR  ?= $(AGENTS_DIR)/build/plugins
 
 validate: test-manifests

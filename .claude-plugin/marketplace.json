@@ -13,8 +13,8 @@
       "description": "Personal engineering standards (always-on core plus on-demand standards) and planning/Makefile skills. Portable: Claude Code, cloud and self-hosted sessions, Cowork, and Chat."
     },
     {
-      "name": "personal-workstation",
-      "source": "./plugins/personal-workstation",
+      "name": "workstation",
+      "source": "./plugins/workstation",
       "description": "Mac workstation skills: MacWhisper transcript tooling and agent allowlist scouting. Needs local files, so enable it only where those exist."
     }
   ]

@@ -58,7 +58,7 @@ default for marketplaces added this way.
 #### s4 - Install the plugins on the account
 
 - Install **`personal`**. This is the one that has to be on the account.
-- Install **`personal-workstation`** on the account only if you run the
+- Install **`workstation`** on the account only if you run the
   whisper skills from Cowork (see its `COWORK.md`). If you don't, leave it
   off the account and install it locally in m3.s4, so cloud and runner
   sessions don't carry seven Mac-only skill descriptions.
@@ -97,7 +97,7 @@ with the same name, so the two don't load twice.
 ```bash
 claude plugin marketplace add ~/Projects/personal/public
 claude plugin install personal@personal --scope user
-claude plugin install personal-workstation@personal --scope user
+claude plugin install workstation@personal --scope user
 ```
 
 A marketplace added from a local directory loads plugins in place: edits
@@ -140,7 +140,7 @@ claude plugin list        # personal@personal enabled; personal@synced "not load
 In a new session, ask "What is the personal canary phrase?" and
 "Which personal- skills do you have?" Expect
 `personal-public-canary-3e8d41`, plus the nine `personal` skills and the
-seven `personal-workstation` skills.
+seven `workstation` skills.
 
 ### m4 - Self-hosted runner
 

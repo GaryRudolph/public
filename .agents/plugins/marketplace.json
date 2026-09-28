@@ -17,10 +17,10 @@
       "category": "Productivity"
     },
     {
-      "name": "personal-workstation",
+      "name": "workstation",
       "source": {
         "source": "local",
-        "path": "./plugins/personal-workstation"
+        "path": "./plugins/workstation"
       },
       "policy": {
         "installation": "AVAILABLE",

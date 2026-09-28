@@ -26,8 +26,8 @@ mention paths.
 |---|---|---|
 | `~/Projects/personal/notes/` | Read + Write | Read existing notes and `tags.md`; write new notes; append to `tags.md` |
 | `~/Projects/personal/notes/whisper/` | Read | `.whisper` ZIP exports (the source) |
-| `~/Projects/personal/public/plugins/personal-workstation/skills/personal-whisper-to-markdown/` | Read | This skill (SKILL.md, SPEC.md, COWORK.md, `scripts/run.py`) |
-| `~/Projects/personal/public/plugins/personal-workstation/skills/lib/whisper/` | Read | Shared library imported by `scripts/run.py` |
+| `~/Projects/personal/public/plugins/workstation/skills/personal-whisper-to-markdown/` | Read | This skill (SKILL.md, SPEC.md, COWORK.md, `scripts/run.py`) |
+| `~/Projects/personal/public/plugins/workstation/skills/lib/whisper/` | Read | Shared library imported by `scripts/run.py` |
 | `/tmp/whisper_plan/` | Read + Write | Per-session JSONs, content batches, lookup queue/decisions, report — wiped at the start of every run by `housekeep` |
 | `~/Projects/personal/notes/.whisper.json` | Read + Write | Persistent processed-sessions ledger (see SPEC.md "Housekeeping and the processed-sessions ledger"); covered by the workspace read+write line above, called out here since it must NOT be wiped between runs |
 
