@@ -19,7 +19,7 @@ Shared tagging layer for tiered plans. The canonical reference for tier
 definitions, the `[fast]` downgrade checklist, default-up bias, and tag
 placement lives in:
 
-> `~/Projects/personal/public/standards/plan-execution.md` §"Model-tier stop
+> `../personal-standards/standards/plan-execution.md` §"Model-tier stop
 > points"
 
 Read that section's "Tiers", "`[fast]` downgrade checklist", and "Tag
@@ -101,6 +101,6 @@ not already tagged.
   active Cursor driver. Same wave grouping, but the `[deep]` parent dispatches
   each wave via `Task(model=...)` subagents and pauses only at mandatory STOP
   gates.
-- `~/Projects/personal/public/standards/plan-execution.md` §"Model-tier stop
+- `../personal-standards/standards/plan-execution.md` §"Model-tier stop
   points" — canonical reference for tiers, the downgrade checklist, and tag
   placement.

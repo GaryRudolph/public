@@ -25,18 +25,26 @@
 #
 # Required env (set by the calling Makefile):
 #   ORG                      installer identity (e.g. "personal")
-#   SKILLS_SRC               source dir for skills   (folder per skill)
+#   SKILLS_SRC               colon-separated source dirs for skills (folder
+#                            per skill), e.g. one skills/ dir per plugin
 #   COMMANDS_SRC             source dir for commands (one *.md per command)
 #
 # Optional env (defaults shown):
 #   CURSOR_SKILLS_HOME       ~/.cursor/skills
+#   AGENTS_SKILLS_HOME       ~/.agents/skills   (Codex, Gemini CLI)
 #   CLAUDE_SKILLS_HOME       ~/.claude/skills
 #   CLAUDE_COMMANDS_HOME     ~/.claude/commands
+#   CLAUDE_SKILLS_MODE       symlink | plugin. In plugin mode Claude Code gets
+#                            skills from the synced plugin instead, so install
+#                            removes our entries from the Claude dirs.
+#   LEGACY_SKILLS_SRC        colon-separated former source dirs; symlinks that
+#                            still point into them are removed before reconcile
 #   WIN_HOME                 (empty; auto-detected when /proc/version contains "microsoft")
 #   WIN_CURSOR_SKILLS_HOME   $WIN_HOME/.cursor/skills
+#   WIN_AGENTS_SKILLS_HOME   $WIN_HOME/.agents/skills
 #   WIN_CLAUDE_SKILLS_HOME   $WIN_HOME/.claude/skills
 #   WIN_CLAUDE_COMMANDS_HOME $WIN_HOME/.claude/commands
-#   AGENTS_DIR               dirname(SKILLS_SRC)  (used only for the header line)
+#   AGENTS_DIR               dirname(first SKILLS_SRC)  (used only for the header line)
 #
 # Subcommands:
 #   install      Reconcile both passes (unix symlinks + windows copies).
@@ -54,10 +62,18 @@ set -euo pipefail
 : "${SKILLS_SRC:?SKILLS_SRC must be set}"
 : "${COMMANDS_SRC:?COMMANDS_SRC must be set}"
 : "${CURSOR_SKILLS_HOME:=$HOME/.cursor/skills}"
+: "${AGENTS_SKILLS_HOME:=$HOME/.agents/skills}"
 : "${CLAUDE_SKILLS_HOME:=$HOME/.claude/skills}"
 : "${CLAUDE_COMMANDS_HOME:=$HOME/.claude/commands}"
-: "${AGENTS_DIR:=$(dirname "$SKILLS_SRC")}"
+: "${AGENTS_DIR:=$(dirname "${SKILLS_SRC%%:*}")}"
+: "${CLAUDE_SKILLS_MODE:=symlink}"
+: "${LEGACY_SKILLS_SRC:=}"
 : "${WIN_HOME:=}"
+
+case "$CLAUDE_SKILLS_MODE" in
+    symlink|plugin) ;;
+    *) printf 'CLAUDE_SKILLS_MODE must be symlink or plugin (got %s)\n' "$CLAUDE_SKILLS_MODE" >&2; exit 2 ;;
+esac
 
 MARKER=".${ORG}-managed"
 
@@ -108,6 +124,7 @@ init_win_home() {
 init_win_dests() {
     [ -n "$WIN_HOME" ] || return 0
     : "${WIN_CURSOR_SKILLS_HOME:=$WIN_HOME/.cursor/skills}"
+    : "${WIN_AGENTS_SKILLS_HOME:=$WIN_HOME/.agents/skills}"
     : "${WIN_CLAUDE_SKILLS_HOME:=$WIN_HOME/.claude/skills}"
     : "${WIN_CLAUDE_COMMANDS_HOME:=$WIN_HOME/.claude/commands}"
 }
@@ -177,18 +194,74 @@ pretty_path() {
 # ---------------------------------------------------------------------------
 
 # Each tuple line: src_dir|dest_dir|kind  where kind is "skill" or "command".
+# There is one skill tuple per (source dir, destination) pair.
 
+# Print each entry of a colon-separated list on its own line.
+split_list() {
+    local list="$1" item
+    local IFS=':'
+    for item in $list; do
+        [ -n "$item" ] && printf '%s\n' "$item"
+    done
+}
+
+skill_tuples_for() {
+    local dest="$1" src
+    [ -n "$dest" ] || return 0
+    while IFS= read -r src; do
+        printf '%s|%s|skill\n' "$src" "$dest"
+    done < <(split_list "$SKILLS_SRC")
+}
+
+# Destinations we install into. In plugin mode the Claude skill dir moves to
+# the purge list instead: Claude Code reads the synced plugin there.
 unix_tuples() {
-    printf '%s|%s|skill\n'   "$SKILLS_SRC"   "$CURSOR_SKILLS_HOME"
-    printf '%s|%s|skill\n'   "$SKILLS_SRC"   "$CLAUDE_SKILLS_HOME"
+    skill_tuples_for "$CURSOR_SKILLS_HOME"
+    skill_tuples_for "$AGENTS_SKILLS_HOME"
+    if [ "$CLAUDE_SKILLS_MODE" = "symlink" ]; then
+        skill_tuples_for "$CLAUDE_SKILLS_HOME"
+    fi
     printf '%s|%s|command\n' "$COMMANDS_SRC" "$CLAUDE_COMMANDS_HOME"
 }
 
 win_tuples() {
     [ -n "$WIN_HOME" ] || return 0
-    printf '%s|%s|skill\n'   "$SKILLS_SRC"   "$WIN_CURSOR_SKILLS_HOME"
-    printf '%s|%s|skill\n'   "$SKILLS_SRC"   "$WIN_CLAUDE_SKILLS_HOME"
+    skill_tuples_for "$WIN_CURSOR_SKILLS_HOME"
+    skill_tuples_for "$WIN_AGENTS_SKILLS_HOME"
+    if [ "$CLAUDE_SKILLS_MODE" = "symlink" ]; then
+        skill_tuples_for "$WIN_CLAUDE_SKILLS_HOME"
+    fi
     printf '%s|%s|command\n' "$COMMANDS_SRC" "$WIN_CLAUDE_COMMANDS_HOME"
+}
+
+# Destinations we must keep clean of our entries during install.
+unix_purge_tuples() {
+    if [ "$CLAUDE_SKILLS_MODE" = "plugin" ]; then
+        skill_tuples_for "$CLAUDE_SKILLS_HOME"
+    fi
+}
+
+win_purge_tuples() {
+    [ -n "$WIN_HOME" ] || return 0
+    if [ "$CLAUDE_SKILLS_MODE" = "plugin" ]; then
+        skill_tuples_for "$WIN_CLAUDE_SKILLS_HOME"
+    fi
+}
+
+# Every skill destination the installer has ever managed, used by uninstall
+# and the legacy sweep regardless of mode.
+all_unix_skill_dests() {
+    split_list "$CURSOR_SKILLS_HOME:$AGENTS_SKILLS_HOME:$CLAUDE_SKILLS_HOME"
+}
+
+# True if a skill named $1 exists in any current skills source dir. Windows
+# copies carry no link target, so orphan detection must check every source.
+skill_source_exists() {
+    local name="$1" src
+    while IFS= read -r src; do
+        [ -d "$src/$name" ] && return 0
+    done < <(split_list "$SKILLS_SRC")
+    return 1
 }
 
 # Enumerate source items under $src_dir according to $kind. Prints absolute
@@ -468,8 +541,7 @@ win_orphan_cleanup() {
             while IFS= read -r -d '' entry; do
                 [ -d "$entry" ] || continue
                 [ -f "$entry/$MARKER" ] || continue
-                src_item="$src_dir/$(basename -- "$entry")"
-                [ -d "$src_item" ] && continue
+                skill_source_exists "$(basename -- "$entry")" && continue
 
                 pretty=$(pretty_path "$entry")
                 if [ "$DRY_RUN" = "1" ]; then
@@ -601,8 +673,25 @@ win_reconcile_sources() {
 # Pass orchestration
 # ---------------------------------------------------------------------------
 
+# Remove symlinks that still point into a former source dir (for example
+# agents/skills/ before skills moved into plugins/). Without this sweep the
+# stale links read as foreign and block the new ones.
+run_unix_legacy_sweep() {
+    local legacy dest
+    [ -n "$LEGACY_SKILLS_SRC" ] || return 0
+    while IFS= read -r legacy; do
+        while IFS= read -r dest; do
+            unix_purge_ours "$legacy" "$dest" "skill"
+        done < <(all_unix_skill_dests)
+    done < <(split_list "$LEGACY_SKILLS_SRC")
+}
+
 run_unix_install_passes() {
     local src dest kind
+    run_unix_legacy_sweep
+    while IFS='|' read -r src dest kind; do
+        unix_purge_ours "$src" "$dest" "$kind"
+    done < <(unix_purge_tuples)
     while IFS='|' read -r src dest kind; do
         unix_orphan_cleanup "$src" "$dest" "$kind"
         unix_reconcile_sources "$src" "$dest" "$kind"
@@ -611,14 +700,18 @@ run_unix_install_passes() {
 
 run_unix_uninstall_passes() {
     local src dest kind
+    run_unix_legacy_sweep
     while IFS='|' read -r src dest kind; do
         unix_purge_ours "$src" "$dest" "$kind"
-    done < <(unix_tuples)
+    done < <(unix_tuples; unix_purge_tuples)
 }
 
 run_win_install_passes() {
     [ -n "$WIN_HOME" ] || return 0
     local src dest kind
+    while IFS='|' read -r src dest kind; do
+        win_purge_ours "$src" "$dest" "$kind"
+    done < <(win_purge_tuples)
     while IFS='|' read -r src dest kind; do
         win_orphan_cleanup "$src" "$dest" "$kind"
         win_reconcile_sources "$src" "$dest" "$kind"
@@ -630,7 +723,7 @@ run_win_uninstall_passes() {
     local src dest kind
     while IFS='|' read -r src dest kind; do
         win_purge_ours "$src" "$dest" "$kind"
-    done < <(win_tuples)
+    done < <(win_tuples; win_purge_tuples)
 }
 
 # ---------------------------------------------------------------------------
@@ -760,8 +853,7 @@ cmd_status() {
                     while IFS= read -r -d '' entry; do
                         [ -d "$entry" ] || continue
                         [ -f "$entry/$MARKER" ] || continue
-                        src_item="$src/$(basename -- "$entry")"
-                        [ -d "$src_item" ] && continue
+                        skill_source_exists "$(basename -- "$entry")" && continue
                         printf '%-50s - orphan (%s, source deleted in repo) [win]\n' \
                             "$(pretty_path "$entry")" "$kind"
                     done < <(find "$dest" -mindepth 1 -maxdepth 1 -type d -print0 2>/dev/null)

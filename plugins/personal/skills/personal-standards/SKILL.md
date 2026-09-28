@@ -1,0 +1,47 @@
+---
+name: personal-standards
+description: >-
+  Gary Rudolph's personal engineering standards: core working agreements
+  (never commit unless asked, stay on the current branch, pause after each
+  step), plus code style, architecture, testing, documentation, git,
+  versioning, security, secrets, Makefile, and plan-execution standards, with
+  Python, Swift, Kotlin, and Go specifics. Use whenever writing, reviewing,
+  refactoring, planning, or documenting code, specs, commits, or PRs for
+  Gary, and whenever another personal-* skill cites a standards file.
+---
+
+# Personal standards
+
+Read [`core.md`](core.md) first. It holds the always-on working agreements
+and quick rules, and it names which standard to load for which kind of task.
+In Claude Code, the `personal` plugin's SessionStart hook already put
+`core.md` into context, so skip that read if you can see it.
+
+Then load only the standards the current task touches, from
+[`standards/`](standards/README.md) in this skill's directory.
+
+## Path mapping
+
+`core.md` and some standards cite files as
+`~/Projects/personal/public/standards/<file>`. That path exists only on
+Gary's workstation. When it doesn't resolve, read `standards/<file>` from
+this skill's directory instead; the files are identical.
+
+## Standards index
+
+| Task touches | Load |
+| --- | --- |
+| Naming, formatting, imports | `standards/code-style.md` |
+| Layering, DI, APIs, errors | `standards/architecture.md` |
+| Swift/Kotlin parity | `standards/platform-parity.md` |
+| Tests | `standards/testing.md` |
+| Docs, ADRs, specs, milestones | `standards/documentation.md` |
+| Tiered plans, STOP gates | `standards/plan-execution.md` |
+| Branches, commits, PRs | `standards/git.md` |
+| Versions, releases | `standards/versioning.md` |
+| Auth, crypto, input validation | `standards/security.md` |
+| Secrets repos and Makefiles | `standards/secrets/README.md` |
+| Makefiles | `standards/makefile.md` |
+| Python / Swift / Kotlin / Go | `standards/<language>/` (code-style, architecture, testing, documentation, security) |
+
+Precedence: project standards, then organization standards, then these.

@@ -1,6 +1,6 @@
 # Makefile Align — Reference
 
-Canonical vocabulary: `~/Projects/personal/public/standards/makefile.md`.
+Canonical vocabulary: `../personal-standards/standards/makefile.md`.
 
 ## repos.mk contract
 

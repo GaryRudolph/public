@@ -449,7 +449,7 @@ gotchas:
   `systemaudiorecording`, not `session`. Code that wants "the session duration"
   should prefer `playbackDuration` and fall back defensively.
 
-**Adaptation pattern** (as used by `agents/skills/.../scripts/run.py`): before
+**Adaptation pattern** (as used by `plugins/personal-workstation/skills/.../scripts/run.py`): before
 building SQL, read the live column set and pick column names by presence rather
 than assumption —
 
@@ -520,7 +520,7 @@ DB **backup** before the first real write run:
 
 ## Related
 
-- Read-only consumers: `agents/skills/personal-whisper-to-markdown/SKILL.md`,
-  `agents/skills/personal-whisper-to-markdown-db/SKILL.md`, and the shared
-  library `agents/skills/lib/whisper/`.
+- Read-only consumers: `plugins/personal-workstation/skills/personal-whisper-to-markdown/SKILL.md`,
+  `plugins/personal-workstation/skills/personal-whisper-to-markdown-db/SKILL.md`, and the shared
+  library `plugins/personal-workstation/skills/lib/whisper/`.
 - Documentation conventions: `standards/documentation.md`.

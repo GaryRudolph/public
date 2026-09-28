@@ -75,7 +75,7 @@ Canonical reference for tier definitions, the `[fast]` downgrade checklist,
 tag placement, the no-thrash rule, the model picker (Cursor + Claude Code
 + thinking levels), and the Kickoff template lives in:
 
-> `~/Projects/personal/public/standards/plan-execution.md` §"Model-tier stop
+> `../personal-standards/standards/plan-execution.md` §"Model-tier stop
 > points"
 
 Read that section first when in doubt. This file does not duplicate it.
@@ -245,7 +245,7 @@ gate, summarize "state so far", surface the relevant decision, and wait for
 explicit confirmation before continuing.
 
 **These gates are fail-closed** — a non-answer is never approval. See
-`~/Projects/personal/public/standards/plan-execution.md` §"STOP gate
+`../personal-standards/standards/plan-execution.md` §"STOP gate
 semantics (fail closed)" for the canonical rules. Key points: a
 background-subagent completion notification does NOT advance a pending
 gate; approval is per-gate (a prior one-time "continue" is not a standing
@@ -307,7 +307,7 @@ parent is.
 7. **Token reporting** — end your returned summary with one line:
    `tokens: input ~X / output ~Y / total ~Z / model <slug> | cost ~$C`.
    Derive X and Y via the **source precedence** in
-   `~/Projects/personal/public/standards/plan-execution.md` §"Token accounting
+   `../personal-standards/standards/plan-execution.md` §"Token accounting
    — source precedence" (real harness usage when available, else
    `~tokens ≈ chars / 4` — input chars = everything read, output chars =
    everything written). Compute `C` with the cache-aware formula and the
@@ -319,7 +319,7 @@ parent is.
 
 The orchestrator-parent maintains a running token tally across the run,
 deriving each row's tokens via the **source precedence** in
-`~/Projects/personal/public/standards/plan-execution.md` §"Token accounting —
+`../personal-standards/standards/plan-execution.md` §"Token accounting —
 source precedence" (real harness usage when available, else
 `~tokens ≈ chars / 4`). Because the orchestrator and its subagents run on
 different models with different rates, **never blend their token counts into
@@ -353,7 +353,7 @@ At plan completion, print a per-wave breakdown table:
 | **GRAND TOTAL** | | | | | … |
 
 Compute per-wave cost from the wave's model slug using the Model price table
-in `~/Projects/personal/public/standards/plan-execution.md` §"Model price table". Sum
+in `../personal-standards/standards/plan-execution.md` §"Model price table". Sum
 the per-wave costs for the GRAND TOTAL. The orchestrator-parent owns this
 computation — it can recompute from each wave's token counts even when a
 subagent omits the cost field.
@@ -388,14 +388,14 @@ authoritative usage data.
    Once the ≤ constraint is satisfied, **write wave markers into the plan
    file**: insert `--- WAVE N [execution-tier] ---` immediately before the
    first executable heading of each wave. Format and idempotence rules live in
-   `~/Projects/personal/public/standards/plan-execution.md` §"Wave annotation
+   `../personal-standards/standards/plan-execution.md` §"Wave annotation
    format". Skip if wave markers already exist (re-entry).
 
    Do not emit STOP markers or a passive Kickoff — this skill replaces those
    with `Task` dispatch and the active Kickoff below.
 4. **Write the Kickoff block to the top of the plan file** using the
    **active** variant of the Kickoff template from
-   `~/Projects/personal/public/standards/plan-execution.md` §"Kickoff
+   `../personal-standards/standards/plan-execution.md` §"Kickoff
    template". The model row is **always** `claude-opus-4-8-thinking-xhigh`
    / `/model opus` xhigh because the orchestrator-parent always runs at
    `[deep]` (see "Orchestrator-parent invariant" above). The prompt body
@@ -514,7 +514,7 @@ authoritative usage data.
       the section if absent) using the grammar from standards §"Review log":
       `review wave-N (<group-id>): PASS|CONCERNS - <one-line note> -
       <YYYY-MM-DD>`. This is orchestrate's **log-only** participation in
-      the [review beat](~/Projects/personal/public/standards/plan-execution.md) —
+      the [review beat](../personal-standards/standards/plan-execution.md) —
       it adds **no new human STOP gate** (gates 1–6 unchanged). Review
       tokens count toward the orchestrator-parent row in the token tally,
       not a separate per-wave row.

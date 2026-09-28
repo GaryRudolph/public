@@ -23,7 +23,7 @@ The canonical reference for tier definitions, the `[fast]` downgrade checklist,
 tag placement, the no-thrash rule, the model picker (Cursor + Claude Code +
 thinking levels), and the STOP marker template lives in:
 
-> `~/Projects/personal/public/standards/plan-execution.md` §"Model-tier stop
+> `../personal-standards/standards/plan-execution.md` §"Model-tier stop
 > points"
 
 Read that section first when in doubt. This file does not duplicate it.
@@ -93,7 +93,7 @@ STOP markers and the Kickoff key off the execution tier. See the standards
 section §"Wave annotation format" and §"No-thrash rule" for the full rules.
 
 **Compute a review point for every wave.** After grouping, each wave N
-(1-based, through the total wave count) gets a [review beat](~/Projects/personal/public/standards/plan-execution.md)
+(1-based, through the total wave count) gets a [review beat](../personal-standards/standards/plan-execution.md)
 when that wave finishes and before wave N+1 starts (including after the
 final wave, before plan completion). Record the `(wave-N, <group-id>)`
 pair for each wave — `<group-id>` is the same identifier used in the
@@ -273,7 +273,7 @@ for the second, etc.), `<group-id>` is the group identifier from the plan
 (e.g. `m1-s1-s3`), and `model-slug` is the model this chat ran on.
 
 Derive `X` and `Y` using the **source precedence** in
-`~/Projects/personal/public/standards/plan-execution.md` §"Token accounting —
+`../personal-standards/standards/plan-execution.md` §"Token accounting —
 source precedence": prefer real harness usage when available (on Claude Code,
 read `message.usage` — incl. cache tiers and reasoning tokens — from the
 session JSONL), and fall back to `~tokens ≈ chars / 4` only when it isn't

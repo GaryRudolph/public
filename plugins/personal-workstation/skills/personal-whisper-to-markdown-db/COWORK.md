@@ -27,9 +27,9 @@ the workspace here means prompts don't need to mention output paths.
 |---|---|---|
 | `~/Projects/personal/notes/` | Read + Write | Read existing notes and `tags.md`; write new notes; append to `tags.md` |
 | `~/Library/Application Support/MacWhisper/Database/` | **Read** | `main.sqlite` + `main.sqlite-shm` + `main.sqlite-wal` |
-| `~/.claude/skills/personal-whisper-to-markdown-db/` | Read | This skill (SKILL.md, COWORK.md, `scripts/run.py`) |
-| `~/.claude/skills/personal-whisper-to-markdown/` | Read | The shared `SPEC.md` (cross-referenced via `../personal-whisper-to-markdown/SPEC.md`) |
-| `~/.claude/skills/lib/whisper/` | Read | Shared library imported by `scripts/run.py` |
+| `~/Projects/personal/public/plugins/personal-workstation/skills/personal-whisper-to-markdown-db/` | Read | This skill (SKILL.md, COWORK.md, `scripts/run.py`) |
+| `~/Projects/personal/public/plugins/personal-workstation/skills/personal-whisper-to-markdown/` | Read | The shared `SPEC.md` (cross-referenced via `../personal-whisper-to-markdown/SPEC.md`) |
+| `~/Projects/personal/public/plugins/personal-workstation/skills/lib/whisper/` | Read | Shared library imported by `scripts/run.py` |
 | `/tmp/whisper_plan/` | Read + Write | Per-session JSONs, content batches, lookup queue/decisions, report |
 
 No `~/Projects/personal/notes/whisper/` access needed — that's the file

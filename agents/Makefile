@@ -14,6 +14,9 @@ SHELL := /bin/bash
 
 ORG               ?= personal
 AGENTS_DIR        ?= $(CURDIR)
+REPO_DIR          ?= $(abspath $(AGENTS_DIR)/..)
+PLUGINS_DIR       ?= $(REPO_DIR)/plugins
+# agents/AGENTS.md is a symlink to the core standards inside the plugin.
 SOURCE_AGENTS     ?= $(AGENTS_DIR)/AGENTS.md
 MAKEFILE_LABEL    ?= ~/Projects/personal/public/agents/Makefile
 
@@ -98,11 +101,19 @@ ALLOWLISTS_ENV = \
 # Env passed to lib/extensions.sh
 # ---------------------------------------------------------------------------
 
-SKILLS_SRC                ?= $(AGENTS_DIR)/skills
+# Skills live inside the plugins so one tree serves Claude (plugin sync) and
+# every tool that scans a skills directory (symlinks below).
+SKILLS_SRC                ?= $(PLUGINS_DIR)/personal/skills:$(PLUGINS_DIR)/personal-workstation/skills
+LEGACY_SKILLS_SRC         ?= $(AGENTS_DIR)/skills
 COMMANDS_SRC              ?= $(AGENTS_DIR)/commands
+
+# plugin: Claude Code reads skills from the synced `personal` plugins, so the
+# installer keeps ~/.claude/skills clear of our entries. symlink: the old way.
+CLAUDE_SKILLS_MODE        ?= plugin
 
 # Unix-side destinations (symlinks).
 CURSOR_SKILLS_HOME        ?= $(HOME)/.cursor/skills
+AGENTS_SKILLS_HOME        ?= $(HOME)/.agents/skills
 CLAUDE_SKILLS_HOME        ?= $(CLAUDE_HOME)/skills
 CLAUDE_COMMANDS_HOME      ?= $(CLAUDE_HOME)/commands
 
@@ -110,6 +121,7 @@ CLAUDE_COMMANDS_HOME      ?= $(CLAUDE_HOME)/commands
 # WIN_HOME is empty; extensions.sh fills them in once WIN_HOME is resolved
 # (either explicitly or via WSL auto-detection).
 WIN_CURSOR_SKILLS_HOME    ?=
+WIN_AGENTS_SKILLS_HOME    ?=
 WIN_CLAUDE_SKILLS_HOME    ?=
 WIN_CLAUDE_COMMANDS_HOME  ?=
 
@@ -117,12 +129,16 @@ EXTENSIONS_ENV = \
     ORG="$(ORG)" \
     AGENTS_DIR="$(AGENTS_DIR)" \
     SKILLS_SRC="$(SKILLS_SRC)" \
+    LEGACY_SKILLS_SRC="$(LEGACY_SKILLS_SRC)" \
     COMMANDS_SRC="$(COMMANDS_SRC)" \
+    CLAUDE_SKILLS_MODE="$(CLAUDE_SKILLS_MODE)" \
     CURSOR_SKILLS_HOME="$(CURSOR_SKILLS_HOME)" \
+    AGENTS_SKILLS_HOME="$(AGENTS_SKILLS_HOME)" \
     CLAUDE_SKILLS_HOME="$(CLAUDE_SKILLS_HOME)" \
     CLAUDE_COMMANDS_HOME="$(CLAUDE_COMMANDS_HOME)" \
     WIN_HOME="$(WIN_HOME)" \
     WIN_CURSOR_SKILLS_HOME="$(WIN_CURSOR_SKILLS_HOME)" \
+    WIN_AGENTS_SKILLS_HOME="$(WIN_AGENTS_SKILLS_HOME)" \
     WIN_CLAUDE_SKILLS_HOME="$(WIN_CLAUDE_SKILLS_HOME)" \
     WIN_CLAUDE_COMMANDS_HOME="$(WIN_CLAUDE_COMMANDS_HOME)"
 
@@ -130,7 +146,8 @@ EXTENSIONS_ENV = \
         install-blocks uninstall-blocks dry-run-blocks status-blocks \
         install-extensions uninstall-extensions dry-run-extensions status-extensions \
         install-allowlists uninstall-allowlists dry-run-allowlists status-allowlists \
-        diff-allowlists restore-allowlists clean-allowlists
+        diff-allowlists restore-allowlists clean-allowlists \
+        validate package
 
 # ---------------------------------------------------------------------------
 # help (default target)
@@ -155,6 +172,9 @@ help:
 	@echo "                      ~/.cursor/cli-config.json, ~/.claude/settings.json,"
 	@echo "                      and ~/.gemini/policies/$(ORG)-managed.toml"
 	@echo ""
+	@echo "  validate     Validate the marketplace and plugin manifests (needs claude CLI)"
+	@echo "  package      Zip each plugin into build/plugins/ for Customize > Upload plugin"
+	@echo ""
 	@echo "  diff-allowlists           Show expected vs actual for each rendered target"
 	@echo "  restore-allowlists N=<n>  Restore .history/<file>.<n> back into place"
 	@echo "  clean-allowlists          Remove .history/ backup dirs (explicit nuke knob)"
@@ -166,6 +186,8 @@ help:
 	@echo "  CODEX_HOME=$(CODEX_HOME)"
 	@echo "  CURSOR_GLOBAL_FILE=$(CURSOR_GLOBAL_FILE)"
 	@echo "  CURSOR_SKILLS_HOME=$(CURSOR_SKILLS_HOME)"
+	@echo "  AGENTS_SKILLS_HOME=$(AGENTS_SKILLS_HOME)   (Codex, Gemini CLI)"
+	@echo "  CLAUDE_SKILLS_MODE=$(CLAUDE_SKILLS_MODE)   (plugin | symlink)"
 	@echo "  CLAUDE_SKILLS_HOME=$(CLAUDE_SKILLS_HOME)"
 	@echo "  CLAUDE_COMMANDS_HOME=$(CLAUDE_COMMANDS_HOME)"
 	@echo "  WIN_HOME=$(WIN_HOME)   (auto-detected under WSL; triggers Windows-side copies)"
@@ -262,3 +284,23 @@ restore-allowlists:
 
 clean-allowlists:
 	@$(ALLOWLISTS_ENV) bash "$(AGENTS_DIR)/lib/allowlists.sh" clean
+
+# ---------------------------------------------------------------------------
+# Plugins (marketplace at the repo root, plugins under plugins/)
+# ---------------------------------------------------------------------------
+
+PLUGINS      ?= personal personal-workstation
+PACKAGE_DIR  ?= $(AGENTS_DIR)/build/plugins
+
+validate:
+	@command -v claude >/dev/null || { echo "claude CLI not found"; exit 1; }
+	@claude plugin validate "$(REPO_DIR)"
+	@for p in $(PLUGINS); do claude plugin validate "$(PLUGINS_DIR)/$$p" || exit 1; done
+
+package:
+	@mkdir -p "$(PACKAGE_DIR)"
+	@for p in $(PLUGINS); do \
+		rm -f "$(PACKAGE_DIR)/$$p.zip"; \
+		(cd "$(PLUGINS_DIR)/$$p" && zip -qr "$(PACKAGE_DIR)/$$p.zip" . -x '*/__pycache__/*' '*.pyc' '.DS_Store'); \
+		echo "packaged $(PACKAGE_DIR)/$$p.zip"; \
+	done

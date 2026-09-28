@@ -1,0 +1,8 @@
+{
+  "name": "personal",
+  "description": "Gary Rudolph's engineering standards: an always-on core injected at session start, on-demand standards, and planning/Makefile skills.",
+  "author": {
+    "name": "Gary Rudolph"
+  },
+  "homepage": "https://github.com/GaryRudolph/public"
+}

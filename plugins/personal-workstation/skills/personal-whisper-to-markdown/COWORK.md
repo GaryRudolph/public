@@ -26,8 +26,8 @@ mention paths.
 |---|---|---|
 | `~/Projects/personal/notes/` | Read + Write | Read existing notes and `tags.md`; write new notes; append to `tags.md` |
 | `~/Projects/personal/notes/whisper/` | Read | `.whisper` ZIP exports (the source) |
-| `~/.claude/skills/personal-whisper-to-markdown/` | Read | This skill (SKILL.md, SPEC.md, COWORK.md, `scripts/run.py`) |
-| `~/.claude/skills/lib/whisper/` | Read | Shared library imported by `scripts/run.py` |
+| `~/Projects/personal/public/plugins/personal-workstation/skills/personal-whisper-to-markdown/` | Read | This skill (SKILL.md, SPEC.md, COWORK.md, `scripts/run.py`) |
+| `~/Projects/personal/public/plugins/personal-workstation/skills/lib/whisper/` | Read | Shared library imported by `scripts/run.py` |
 | `/tmp/whisper_plan/` | Read + Write | Per-session JSONs, content batches, lookup queue/decisions, report |
 
 No `~/Library/` access needed — that's the DB skill's concern.

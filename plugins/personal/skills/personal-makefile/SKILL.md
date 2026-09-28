@@ -16,7 +16,7 @@ Read `reference.md` (in this skill's directory) before starting — it holds the
 `repos.mk` contract, per-stack recipe expectations, known-defect checks, rename
 guidance, and template usage notes referenced throughout this workflow.
 
-Load `~/Projects/personal/public/standards/makefile.md` for the canonical target
+Load `../personal-standards/standards/makefile.md` for the canonical target
 vocabulary and delegation rules.
 
 ## Workflow
