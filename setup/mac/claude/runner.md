@@ -14,7 +14,7 @@ Placeholders (`HOST`, `ADMIN`, `ORG`, `USER`, `ACCOUNT`, `ENV_NAME`) are defined
 
 ## 1. Prerequisites (Mac)
 
-- [ ] **Mac-wide setup** (name, power, display, network, remote access, reboots, Homebrew `claude-code`, Xcode): see [README.md §A](README.md#a-once-per-mac).
+- [ ] **Mac-wide setup** (name, power, display, network, remote access, reboots, Homebrew `claude-code@latest`, Xcode): see [README.md §A](README.md#a-once-per-mac).
 - [ ] **Per-user setup** for `USER` (Standard user, first login, verify tools, home isolation): see [README.md §B](README.md#b-once-per-macos-user-runner-or-agent).
 
 ---
@@ -168,7 +168,7 @@ tail -f ~/Library/Logs/claude-runner.log
 |---|---|
 | Diagnose | As `USER`: `claude self-hosted-runner doctor` (local health, metrics, log). For queue and environment status, check the admin page. |
 | Watch activity | `tail -f ~/Library/Logs/claude-runner.log` |
-| Restart or upgrade | As `ADMIN`: `brew upgrade claude-code` (upgrade only). Then as `USER`: `launchctl kickstart -k gui/$(id -u)/local.claude.runner` |
+| Restart or upgrade | As `ADMIN`: `brew upgrade claude-code@latest` (upgrade only). Then as `USER`: `launchctl kickstart -k gui/$(id -u)/local.claude.runner` |
 | Rotate key | Owner: environment → **Configuration** → new key. As `USER`: replace `~/.claude-runner/environment-secret`, kickstart the job. Owner: revoke the old key. |
 | Add parallelism | Create `ORG-runner-2` (repeat §1, §3, §4 with the new `USER`; same key, same plist, same `--base-dir` path shape) |
 | Remove the runner | `launchctl bootout gui/$(id -u)/local.claude.runner`, delete the plist and secret, then revoke the key |

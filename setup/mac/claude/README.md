@@ -89,13 +89,13 @@ pmset -g            # verify: sleep 0, womp 1 on AC
 ```bash
 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
 brew install tmux gh git
-brew install --cask claude-code
+brew install --cask claude-code@latest
 claude --version        # runners need v2.1.224+
 git --version           # git proxy needs 2.32+; --configure-git needs 2.34+
 ```
 - **One shared copy:** `/opt/homebrew/bin/claude` serves every user, so there's one version to maintain. The launchd jobs call it by absolute path and leave `~/.local/bin` off `PATH`, so a stray per-user install can't shadow it.
-- **Upgrading:** `brew upgrade claude-code`, then restart each job (§C).
-- **Version lag:** the Homebrew cask trails the `latest` release by about a week, which is fine for a stable host.
+- **Upgrading:** `brew upgrade claude-code@latest`, then restart each job (§C).
+- **Why `@latest`:** it tracks the `latest` release channel, so new runner and Remote Control features land as soon as they ship; the plain `claude-code` cask trails it by about a week. The two casks conflict, so install only one.
 
 ### A9. Xcode (if any user builds Apple-platform apps)
 Install Xcode from the App Store, then:
@@ -161,5 +161,5 @@ sudo -u OTHER_USER ls /Users/USER      # expect "Permission denied"
 | Start a job | `launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/LABEL.plist` | `sudo launchctl bootstrap gui/$(id -u USER) /Users/USER/Library/LaunchAgents/LABEL.plist` |
 | See if a job is running | `launchctl print gui/$(id -u)/LABEL \| grep state` | `sudo launchctl print gui/$(id -u USER)/LABEL \| grep state` |
 | Act as another user | | `sudo -iu USER` (GUI-dependent work still needs that user logged in via Fast User Switching) |
-| Upgrade Claude Code | | `brew upgrade claude-code`, then restart each user's job |
+| Upgrade Claude Code | | `brew upgrade claude-code@latest`, then restart each user's job |
 | Planned reboot | | `sudo fdesetup authrestart`, then log each user back in |

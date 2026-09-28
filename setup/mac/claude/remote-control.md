@@ -13,7 +13,7 @@ Placeholders (`HOST`, `ADMIN`, `ORG`, `USER`, `ACCOUNT`, `REPO`, `GH_OWNER`) are
 
 ## 1. Prerequisites (Mac)
 
-- [ ] **Mac-wide setup** (name, power, display, network, remote access, reboots, Homebrew `claude-code` + `tmux` + `gh`, Xcode): see [README.md §A](README.md#a-once-per-mac).
+- [ ] **Mac-wide setup** (name, power, display, network, remote access, reboots, Homebrew `claude-code@latest` + `tmux` + `gh`, Xcode): see [README.md §A](README.md#a-once-per-mac).
 - [ ] **Per-user setup** for `USER` (Standard user, first login, verify tools, home isolation): see [README.md §B](README.md#b-once-per-macos-user-runner-or-agent).
 
 ---
@@ -189,7 +189,7 @@ tmux attach -t rc          # watch it; switch windows with Ctrl-b n, detach with
 |---|---|
 | Check status | `tmux attach -t rc` as `USER` (from SSH: `sudo -iu USER tmux attach -t rc`) |
 | Diagnose | `claude doctor` as `USER` |
-| Restart or upgrade | As `ADMIN`: `brew upgrade claude-code` (upgrade only). Then as `USER`: `launchctl kickstart -k gui/$(id -u)/local.claude.rc` |
+| Restart or upgrade | As `ADMIN`: `brew upgrade claude-code@latest` (upgrade only). Then as `USER`: `launchctl kickstart -k gui/$(id -u)/local.claude.rc` |
 | Resume sessions after a restart | Automatic: the loop reruns `claude remote-control` in the same folder, which brings back every session that server was serving (within ~4 hours) |
 | Token expiring | Create a new fine-grained token, then `gh auth login --with-token` |
 | "Remote Control is disabled by your organization's policy" | Owner hasn't turned on the toggle (§2a), or the login is stale: `claude auth logout && claude auth login` |
