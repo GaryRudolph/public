@@ -4,8 +4,9 @@ One-time setup that gets `personal` standards and skills into every surface
 Gary uses. Background and design:
 [`../specs/agent-distribution.md`](../specs/agent-distribution.md).
 
-Do the milestones in order. m2 has to come before m3: m3 removes the
-`~/.claude/skills` symlinks, which is only safe once the plugin is on the
+Do the milestones in order. m2 has to come before m3: m3's `make install`
+removes the old Claude pieces (the `~/.claude/CLAUDE.md` block and the
+`~/.claude/skills` symlinks), which is only safe once the plugin is on the
 account.
 
 | Surface | What you change | Milestone |
@@ -106,13 +107,29 @@ apply at the next session start, or after `/reload-plugins`.
 
 ```bash
 cd ~/Projects/personal/public/agents
-make dry-run      # expect: old ~/.claude/skills links removed, ~/.agents/skills added
+make dry-run      # expect: Claude block and ~/.claude/skills links removed,
+                  #         ~/.agents/skills links added
 make install
-make status
+make status       # modes line first; ~/.claude/CLAUDE.md "no personal block (plugin mode)"
 ```
 
-`make install` keeps the `~/.claude/CLAUDE.md` block. The plugin's hook
-checks for that block and stays silent, so the core isn't injected twice.
+`CLAUDE_MODE` defaults to `plugin`, so this install removes what the
+installer used to write for Claude Code: the `~/.claude/CLAUDE.md` block and
+the `~/.claude/skills` symlinks, including any still pointing at the old
+`agents/skills/`. Anything else in those places is left alone. From then on,
+Claude Code on the Mac gets the core the same way cloud and the runner do,
+from the plugin's hook. With the local marketplace from s4, that hook reads
+your working tree, so edits still apply without a push.
+
+The other tools stay on `home` until you move them (m7). Each tool has a
+mode: `CLAUDE_MODE`, `CODEX_MODE`, `GEMINI_MODE`, `CURSOR_MODE`, each `home` or
+`plugin`. Set per-machine choices in `agents/local.mk`, which git ignores,
+so a plain `make install` keeps honoring them:
+
+```make
+# agents/local.mk
+CODEX_MODE := plugin
+```
 
 #### s6 - Verify
 
@@ -122,7 +139,7 @@ claude plugin list        # personal@personal enabled; personal@synced "not load
 
 In a new session, ask "What is the personal canary phrase?" and
 "Which personal- skills do you have?" Expect
-`personal-public-canary-3e8d41`, plus the five `personal` skills and the
+`personal-public-canary-3e8d41`, plus the six `personal` skills and the
 seven `personal-workstation` skills.
 
 ### m4 - Self-hosted runner
@@ -244,9 +261,11 @@ by the tools. Treat the first install of each as the real validation.
   marketplace from `.agents/plugins/marketplace.json` and each plugin from
   `.codex-plugin/plugin.json`. It runs the same SessionStart hook as Claude,
   so the core comes with it. Plugins are shared between Codex and ChatGPT.
-  To use the plugin on the Mac too, set `AGENTS_SKILLS_MODE ?= plugin` so
-  the installer removes its `~/.agents/skills` links. Gemini then needs its
-  extension (s3), since it shares that directory.
+  To use the plugin on the Mac too, add `CODEX_MODE := plugin` to
+  `agents/local.mk` and run `make install`. That removes the
+  `~/.codex/AGENTS.md` block, since the plugin's hook brings the core. The
+  `~/.agents/skills` links stay until Gemini also moves to `plugin`, because
+  the two share that directory, so skills show twice in Codex until then.
   Whether a Codex *cloud* task loads account plugins is unconfirmed; check
   it with the canary.
 
@@ -256,10 +275,10 @@ by the tools. Treat the first install of each as the real validation.
 - **Plugin (Cursor Cloud Agents, other machines):** in Cursor, go to
   **Customize > From GitHub Repository** and enter `GaryRudolph/public`.
   Cursor reads `.cursor-plugin/marketplace.json`. Then install `personal`.
-  If you also want the plugin on the Mac, set
-  `CURSOR_SKILLS_MODE ?= plugin` in `agents/Makefile` (or pass it to every
-  `make install`) so the installer removes its `~/.cursor/skills` links. The plugin brings skills
-  only; the always-on core reaches Cursor through `~/AGENTS.md`.
+  If you also want the plugin on the Mac, add `CURSOR_MODE := plugin` to
+  `agents/local.mk` and run `make install`, which removes the
+  `~/.cursor/skills` links. The plugin brings skills only, so `~/AGENTS.md`
+  stays in both modes; it's how the always-on core reaches Cursor.
 - **Without the plugin:** turning on **Sync Skills for Cloud Agents** copies
   `~/.cursor/skills` to cloud agents. Re-sync after edits.
 
@@ -276,8 +295,10 @@ by the tools. Treat the first install of each as the real validation.
   sits at the repo root, so these subfolder extensions install from a local
   path. The extension runs the SessionStart hook, which returns JSON for
   Gemini, and its skills are overridden by same-named user skills, so
-  linking it on the Mac doesn't duplicate anything. Check with
-  `/skills list` and `/extensions list`.
+  linking it on the Mac doesn't duplicate anything. To rely on the
+  extension on the Mac, add `GEMINI_MODE := plugin` to `agents/local.mk`
+  and run `make install`, which removes the `~/.gemini/GEMINI.md` block.
+  Check with `/skills list` and `/extensions list`.
 
 #### s4 - Muse Code
 
@@ -292,8 +313,7 @@ muse skills list
 ```
 
 If import only looks at `~/.claude/skills`, run
-`make install CLAUDE_SKILLS_MODE=symlink` first, import, then
-`make install` again. Muse's user-level config is reported to live in
+`make install CLAUDE_MODE=home` first, import, then `make install` again. Muse's user-level config is reported to live in
 `~/.config/muse/`; where it reads global instructions is still unconfirmed.
 
 ### m8 - Verification matrix
@@ -303,7 +323,7 @@ Ask "What is the personal canary phrase?" in each surface. Expect
 
 | Surface | Expected source | Pass |
 | --- | --- | --- |
-| Claude Code, Mac | `~/.claude/CLAUDE.md` block | ☐ |
+| Claude Code, Mac | Plugin hook (local marketplace) | ☐ |
 | Claude Code, cloud | Synced plugin hook | ☐ |
 | Claude Code, runner | Synced plugin hook | ☐ |
 | Cowork | Synced plugin hook | ☐ |
@@ -324,8 +344,12 @@ Ask "What is the personal canary phrase?" in each surface. Expect
   `~/Projects/...`. The hook's first part gives the in-plugin path; make sure
   part 1 of 2 appears in `/context`.
 - **Skills appear twice on the Mac.** Something still symlinks into
-  `~/.claude/skills`. Run `make status`; `CLAUDE_SKILLS_MODE` should be
-  `plugin`.
+  `~/.claude/skills`. Run `make status`: the modes line should say
+  `CLAUDE_MODE=plugin`, and `agents/local.mk` shouldn't override it.
+- **A tool lost its standards after `make install`.** Its mode is `plugin`
+  but its plugin isn't installed. Set it back to `home` in `agents/local.mk`
+  and run `make install`, or install the plugin (m2 for Claude, m7 for the
+  others).
 - **Only a 2,000-character preview of the standards appears.** A hook part
   went over 10,000 characters. Check that `max_chars` in
   `plugins/personal/scripts/session-start.sh` is still 9000, and that the
@@ -342,7 +366,12 @@ Ask "What is the personal canary phrase?" in each surface. Expect
 
 - Take one surface out: `claude plugin disable personal@synced` (Mac or
   runner user settings), or uninstall it under **Customize > Plugins**.
-- Go back to Claude skill symlinks:
-  `make -C agents install CLAUDE_SKILLS_MODE=symlink`.
+- Go back to the old way for Claude: add `CLAUDE_MODE := home` to
+  `agents/local.mk` and run `make -C agents install`. That restores the
+  `~/.claude/CLAUDE.md` block and the skill symlinks.
+- Remove everything the installer wrote, for every tool:
+  `make -C agents uninstall`. It ignores the modes, sweeps links to the old
+  `agents/skills/`, and prints how to remove the plugins, which it doesn't
+  manage.
 - Undo the repo change: revert the merge commit. The old `standards/` and
   `agents/AGENTS.md` paths come back as real files.

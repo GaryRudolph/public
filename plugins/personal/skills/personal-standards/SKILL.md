@@ -37,6 +37,7 @@ this skill's directory instead; the files are identical.
 | Tests | `standards/testing.md` |
 | Docs, ADRs, specs, milestones | `standards/documentation.md` |
 | Tiered plans, STOP gates | `standards/plan-execution.md` |
+| Handoffs, saved plans | the `personal-handoff` skill |
 | Branches, commits, PRs | `standards/git.md` |
 | Versions, releases | `standards/versioning.md` |
 | Auth, crypto, input validation | `standards/security.md` |

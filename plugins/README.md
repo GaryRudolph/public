@@ -30,6 +30,7 @@ plugins/
         SKILL.md                    <- index; loads standards on demand
         core.md                     <- always-on core (agents/AGENTS.md -> here)
         standards/                  <- full standards (repo-root standards/ -> here)
+      personal-handoff/             <- handoff and saved-plan files
       personal-plan-tag-tiers/ personal-plan-model-tiers/
       personal-plan-orchestrate/ personal-makefile/
   personal-workstation/             <- needs this Mac's files
@@ -79,7 +80,7 @@ quietly on some surfaces, so `make validate` runs before every push.
 
 | Surface | Skills | Always-on core | How it gets the plugin |
 | --- | --- | --- | --- |
-| Claude Code, this Mac | Yes | `~/.claude/CLAUDE.md` block (hook stays silent) | claude.ai sync, or the local marketplace for live edits |
+| Claude Code, this Mac | Yes | Hook (the old `~/.claude/CLAUDE.md` block is removed by `make install`) | Local marketplace for live edits, or claude.ai sync |
 | Claude Code cloud and self-hosted runner | Yes | Hook | claude.ai sync |
 | Cowork | Yes | Hook | claude.ai account |
 | Claude chat | Yes | None (chat ignores hooks) | claude.ai account |
@@ -113,6 +114,7 @@ cleaned up, then push.
 | Plugin | Skill | What it does |
 | --- | --- | --- |
 | `personal` | `personal-standards` | Index of the personal standards; loads core rules and topic standards on demand |
+| `personal` | `personal-handoff` | Write session handoffs and saved plans to `.scratch/`, and milestone handoffs to `specs/handoffs/`, with the right names and contents |
 | `personal` | `personal-plan-tag-tiers` | Shared tagging layer: tag plan steps `[deep]` / `[exec]` / `[fast]` to show complexity. Tags only; the two drivers call it automatically |
 | `personal` | `personal-plan-model-tiers` | Passive driver: group tagged steps into waves (no-thrash) and insert STOP markers with handoff blocks at tier boundaries |
 | `personal` | `personal-plan-orchestrate` | Active driver: same tagging and waves, but delegates each wave to a subagent on the right model and pauses only at mandatory STOP gates. Cursor-only today |

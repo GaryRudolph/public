@@ -5,9 +5,9 @@ How personal standards and skills reach every agent Gary uses: Claude Code
 Gemini CLI, and Muse Code. Setup steps live in
 [`../agents/runbook.md`](../agents/runbook.md).
 
-Status: m1 and m3 implemented on branch
-`claude/standards-skills-evaluation-0lf34z`; m2 is manual setup; m4 and m5
-are proposals.
+Status: m1, m3, and m6 implemented, and m5 started, on branch
+`claude/standards-skills-evaluation-0lf34z`; m2 is manual setup; m4 is a
+proposal.
 
 ## Evaluation of the previous setup
 
@@ -96,9 +96,10 @@ absolute `~/Projects/personal/public/standards/...` paths.
   allowlist-scout), so they stay out of cloud sessions' context.
 - **Always-on core.** In Claude Code and Cowork, the plugin's SessionStart
   hook prints `core.md`. Hook output is capped at 10,000 characters and
-  `core.md` is about 14,000, so the hook runs in up to three parts of 9,000
-  characters each, split on line boundaries. On the Mac the hook stays
-  silent when `~/.claude/CLAUDE.md` already has the `personal` block. Chat
+  `core.md` is about 11,400 (14,300 before m5), so the hook runs in up to
+  three parts of 9,000 characters each, split on line boundaries. The hook
+  stays silent in any tool whose home file still has the `personal` block,
+  so nothing is injected twice while a machine is mid-migration. Chat
   runs no hooks, so there the `personal-standards` skill (whose description
   covers any coding work) carries the core.
 - **Inverted symlinks.** Plugins can't reach outside their own folder, so
@@ -111,9 +112,9 @@ absolute `~/Projects/personal/public/standards/...` paths.
   agent where to find the same file on machines where that path doesn't
   exist.
 - **Installer.** `SKILLS_SRC` is now a list; `~/.agents/skills` is a new
-  target; `CLAUDE_SKILLS_MODE=plugin` (the default) keeps `~/.claude/skills`
-  clear so a skill doesn't load twice; `LEGACY_SKILLS_SRC` sweeps links that
-  still point at the old `agents/skills/`.
+  target; per-tool modes (m6) retire the old block and links for any tool
+  that has moved to its plugin; `LEGACY_SKILLS_SRC` sweeps links that still
+  point at the old `agents/skills/`.
 - **Versioning.** No `version` field, so each commit on `main` is a new
   version and synced surfaces pick it up at their next session start.
 
@@ -160,10 +161,9 @@ descriptions, or marketplace listings drift apart.
   silent when its own home file already has the `personal` block.
 - **Cursor stays off the Claude-format hook file.** Its manifest points at
   an empty `hooks/cursor-hooks.json`.
-- **Per-tool route switches.** `CURSOR_SKILLS_MODE` and `AGENTS_SKILLS_MODE`
-  (`symlink` | `plugin`) let one machine use a tool's plugin without also
-  getting the `make install` symlinks, since Codex and Cursor don't merge
-  duplicate skills.
+- **Per-tool route switches.** `CLAUDE_MODE`, `CODEX_MODE`, `GEMINI_MODE`,
+  and `CURSOR_MODE` (`home` | `plugin`) let one machine use a tool's plugin
+  without also getting the old block and symlinks; see m6.
 - **Not verified in the tools themselves.** None of the Codex, Cursor, or
   Gemini CLIs were available to load the manifests, so the first install of
   each is the real test. The runbook (m7) says what to check.
@@ -179,9 +179,42 @@ Update the tier-to-model mapping in `core.md` and
 `personal-plan-orchestrate` should also drive Claude Code subagents, which
 now take a per-agent model.
 
-### m5 - Turn procedures into skills (proposed)
+### m5 - Turn procedures into skills (in progress)
 
-See [Standards versus skills](#standards-versus-skills) below.
+See [Standards versus skills](#standards-versus-skills) below. Done so far:
+`personal-handoff`, plus trimming the plan-tier, handoff, and saved-plan
+bullets in `core.md` to short rules that point at the skills (14,300 to
+11,400 characters). The naming rules stay always-on, because plan mode
+won't reliably trigger a skill. Next: `personal-new-project`, which takes
+the core to about 10,600, then `personal-secrets` and `personal-release`.
+
+### m6 - Retire the old way per tool (done on this branch)
+
+Each tool has a mode in `agents/Makefile`: `CLAUDE_MODE` (default
+`plugin`), `CODEX_MODE`, `GEMINI_MODE`, and `CURSOR_MODE` (default `home`).
+In `plugin` mode, `make install` removes what the installer wrote for that
+tool before:
+
+| Mode | Removes |
+| --- | --- |
+| `CLAUDE_MODE=plugin` | `~/.claude/CLAUDE.md` block and `~/.claude/skills` links, both sides under WSL |
+| `CODEX_MODE=plugin` | `~/.codex/AGENTS.md` block |
+| `GEMINI_MODE=plugin` | `~/.gemini/GEMINI.md` block |
+| `CURSOR_MODE=plugin` | `~/.cursor/skills` links |
+| `CODEX_MODE` and `GEMINI_MODE` both `plugin` | `~/.agents/skills` links, which the two share |
+
+The Cursor `~/AGENTS.md` block and the Xcode blocks are always kept,
+because no plugin carries the core to them. Removal leaves content outside
+the block and links the installer didn't make, and a second run is a no-op
+(covered by `blocks-test.sh` test 8 and `extensions-test.sh` test 11).
+Per-machine choices go in the gitignored `agents/local.mk`. `make uninstall`
+ignores the modes and removes everything, including links to the old
+`agents/skills/`, then prints how to remove the plugins, which the Makefile
+doesn't manage.
+
+Still local-only, with no plugin equivalent: the allowlists
+(`install-allowlists`), because plugins can't ship permission rules, and the
+Xcode blocks.
 
 ## Standards versus skills
 
@@ -206,7 +239,7 @@ gather facts ("facts in script, judgment in agent").
 | Candidate | Source today | Why a skill | Priority |
 | --- | --- | --- | --- |
 | `personal-handoff` | `core.md` bullets for handoff files, `.scratch/plan-*` files, milestone handoffs (about 1.8k characters always on) | "Write a handoff" is a direct trigger with a fixed file-name and contents recipe. Moving it out shrinks the always-on core, and a script can pick the `{word}` and list what changed | High |
-| `personal-plan-*` (existing) | The 2.6k-character "Plan around model-tier stop points" bullet in `core.md` repeats `plan-execution.md` and the three plan skills | Cut the bullet to a two-line pointer at the skills. With the handoff and new-project moves as well, `core.md` drops from about 14,300 to about 9,500 characters. Keep the split hook anyway: that's too close to the 10,000 cap to rely on one part | High |
+| `personal-plan-*` (existing) | The 2.6k-character "Plan around model-tier stop points" bullet in `core.md` repeats `plan-execution.md` and the three plan skills | Cut the bullet to a two-line pointer at the skills. With the handoff and new-project moves as well, `core.md` drops from about 14,300 to about 10,600 characters. The naming rules stay always-on, so it stays just over the 10,000 cap and the hook still splits it | High |
 | `personal-secrets` | `standards/secrets/` (820 lines): consumer step, one-time setup runbook, rotation and offboarding, reference scripts | Longest and most procedural standard. Three clear triggers (set up, add a consumer repo, rotate). The reference scripts could ship in `scripts/` instead of as prose | High |
 | `personal-release` | `standards/versioning.md`: promote-to-release and hotfix flows, plus 12k characters of per-platform surfaces | "Cut a release" or "ship a hotfix" is a trigger. A script can detect which platform surfaces a repo has, so the agent loads only those sections | Medium |
 | `personal-new-project` | `core.md` "latest stable versions" bullet, plus `architecture.md` "Starting New Projects" | Scaffolding is a trigger, and the version lookups (`npm view`, `pip index versions`, GitHub releases) are exactly the facts a script should gather. Also takes about 1k characters out of the always-on core | Medium |
@@ -221,7 +254,7 @@ every language folder. They answer "what should this look like?", and the
 
 ### Suggested order
 
-1. `personal-handoff`, plus trimming the plan-tier bullet. That's the
+1. `personal-handoff`, plus trimming the plan-tier bullet (done). That's the
    biggest context saving, and it's mechanical.
 2. `personal-secrets`, moving the reference scripts into the skill.
 3. `personal-release` and `personal-new-project`, each with a small fact

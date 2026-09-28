@@ -67,7 +67,10 @@ BLOCKS_ENV = \
     PROJECTS_DIR="$(PROJECTS_DIR)" \
     LEGACY_GITIGNORE_CURSOR="$(LEGACY_GITIGNORE_CURSOR)" \
     LEGACY_CURSOR_GLOB="$(LEGACY_CURSOR_GLOB)" \
-    WIN_HOME="$(WIN_HOME)"
+    WIN_HOME="$(WIN_HOME)" \
+    CLAUDE_BLOCK="$(CLAUDE_BLOCK)" \
+    CODEX_BLOCK="$(CODEX_BLOCK)" \
+    GEMINI_BLOCK="$(GEMINI_BLOCK)"
 
 TEST_ENV = \
     ORG="$(ORG)" \
@@ -107,13 +110,32 @@ SKILLS_SRC                ?= $(PLUGINS_DIR)/personal/skills:$(PLUGINS_DIR)/perso
 LEGACY_SKILLS_SRC         ?= $(AGENTS_DIR)/skills
 COMMANDS_SRC              ?= $(AGENTS_DIR)/commands
 
-# plugin: that tool reads skills from its `personal` plugin, so the installer
-# keeps its skills dir clear of our entries. symlink: link skills there.
-# Claude defaults to plugin (synced from claude.ai); switch Cursor or
-# Codex/Gemini (~/.agents) to plugin only after installing their plugin.
-CLAUDE_SKILLS_MODE        ?= plugin
-CURSOR_SKILLS_MODE        ?= symlink
-AGENTS_SKILLS_MODE        ?= symlink
+# Tool modes (home | plugin) -------------------------------------------------
+# home:   this installer writes the tool's home-file block and skill symlinks.
+# plugin: the tool gets standards and skills from its `personal` plugin, so
+#         install removes whatever this installer wrote for it before.
+# Switch a tool to plugin only after its plugin is installed (agents/runbook.md).
+# Put per-machine choices in agents/local.mk (gitignored), e.g. CODEX_MODE := plugin
+-include $(AGENTS_DIR)/local.mk
+CLAUDE_MODE               ?= plugin
+CODEX_MODE                ?= home
+GEMINI_MODE               ?= home
+# Cursor's plugin carries skills only, so ~/AGENTS.md stays either way.
+CURSOR_MODE               ?= home
+
+$(foreach v,CLAUDE_MODE CODEX_MODE GEMINI_MODE CURSOR_MODE,\
+  $(if $(filter home plugin,$($(v))),,$(error $(v) must be home or plugin, got '$($(v))')))
+
+block_for  = $(if $(filter plugin,$(1)),remove,keep)
+skills_for = $(if $(filter plugin,$(1)),plugin,symlink)
+
+CLAUDE_BLOCK              := $(call block_for,$(CLAUDE_MODE))
+CODEX_BLOCK               := $(call block_for,$(CODEX_MODE))
+GEMINI_BLOCK              := $(call block_for,$(GEMINI_MODE))
+CLAUDE_SKILLS_MODE        := $(call skills_for,$(CLAUDE_MODE))
+CURSOR_SKILLS_MODE        := $(call skills_for,$(CURSOR_MODE))
+# Codex and Gemini share ~/.agents/skills: keep it until both use plugins.
+AGENTS_SKILLS_MODE        := $(if $(and $(filter plugin,$(CODEX_MODE)),$(filter plugin,$(GEMINI_MODE))),plugin,symlink)
 
 # Unix-side destinations (symlinks).
 CURSOR_SKILLS_HOME        ?= $(HOME)/.cursor/skills
@@ -151,7 +173,7 @@ EXTENSIONS_ENV = \
 .PHONY: help install uninstall dry-run status test test-blocks test-extensions test-allowlists clean-test \
         install-blocks uninstall-blocks dry-run-blocks status-blocks \
         install-extensions uninstall-extensions dry-run-extensions status-extensions \
-        install-allowlists uninstall-allowlists dry-run-allowlists status-allowlists test-manifests \
+        install-allowlists uninstall-allowlists dry-run-allowlists status-allowlists test-manifests status-modes \
         diff-allowlists restore-allowlists clean-allowlists \
         validate package
 
@@ -194,9 +216,8 @@ help:
 	@echo "  CURSOR_GLOBAL_FILE=$(CURSOR_GLOBAL_FILE)"
 	@echo "  CURSOR_SKILLS_HOME=$(CURSOR_SKILLS_HOME)"
 	@echo "  AGENTS_SKILLS_HOME=$(AGENTS_SKILLS_HOME)   (Codex, Gemini CLI)"
-	@echo "  CLAUDE_SKILLS_MODE=$(CLAUDE_SKILLS_MODE)   (plugin | symlink)"
-	@echo "  CURSOR_SKILLS_MODE=$(CURSOR_SKILLS_MODE)   (plugin | symlink)"
-	@echo "  AGENTS_SKILLS_MODE=$(AGENTS_SKILLS_MODE)   (plugin | symlink)"
+	@echo "  CLAUDE_MODE=$(CLAUDE_MODE)   CODEX_MODE=$(CODEX_MODE)   GEMINI_MODE=$(GEMINI_MODE)   CURSOR_MODE=$(CURSOR_MODE)"
+	@echo "               (home | plugin; plugin removes what this installer wrote for that tool)"
 	@echo "  CLAUDE_SKILLS_HOME=$(CLAUDE_SKILLS_HOME)"
 	@echo "  CLAUDE_COMMANDS_HOME=$(CLAUDE_COMMANDS_HOME)"
 	@echo "  WIN_HOME=$(WIN_HOME)   (auto-detected under WSL; triggers Windows-side copies)"
@@ -214,10 +235,21 @@ help:
 install: install-blocks install-extensions install-allowlists
 
 uninstall: uninstall-allowlists uninstall-extensions uninstall-blocks
+	@echo ""
+	@echo "Plugins aren't managed by this Makefile. To remove them too:"
+	@echo "  Claude:  Customize > Plugins in claude.ai, and on this Mac"
+	@echo "           claude plugin uninstall personal@personal; claude plugin marketplace remove personal"
+	@echo "  Codex:   codex plugin marketplace remove personal (and uninstall in /plugins)"
+	@echo "  Cursor:  Customize > Plugins > personal > Uninstall"
+	@echo "  Gemini:  gemini extensions uninstall personal"
 
 dry-run: dry-run-blocks dry-run-extensions dry-run-allowlists
 
-status: status-blocks status-extensions status-allowlists
+status: status-modes status-blocks status-extensions status-allowlists
+
+status-modes:
+	@echo "modes: CLAUDE_MODE=$(CLAUDE_MODE) CODEX_MODE=$(CODEX_MODE) GEMINI_MODE=$(GEMINI_MODE) CURSOR_MODE=$(CURSOR_MODE)"
+	@echo ""
 
 # ---------------------------------------------------------------------------
 # Blocks (AGENTS.md fan-out)

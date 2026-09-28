@@ -53,21 +53,37 @@ the Windows side as well.
 | --- | --- | --- |
 | `~/.cursor/skills/<name>` | `%USERPROFILE%\.cursor\skills\<name>` | Cursor (also synced to Cursor Cloud Agents when **Sync Skills for Cloud Agents** is on) |
 | `~/.agents/skills/<name>` | `%USERPROFILE%\.agents\skills\<name>` | Codex CLI, Gemini CLI (`~/.agents/skills` alias); Muse Code unconfirmed, see runbook |
-| `~/.claude/skills/<name>` | `%USERPROFILE%\.claude\skills\<name>` | Claude Code, only when `CLAUDE_SKILLS_MODE=symlink` |
+| `~/.claude/skills/<name>` | `%USERPROFILE%\.claude\skills\<name>` | Claude Code, only when `CLAUDE_MODE=home` |
 | `~/.claude/commands/<name>.md` | `%USERPROFILE%\.claude\commands\<name>.md` | Claude Code; sourced from `agents/commands/` (none today) |
 
-Each skills directory has a mode, `symlink` or `plugin`. In `plugin` mode
-that tool gets the skills from its own plugin, and `make install` removes
-the links this installer made there, so no skill loads twice.
+### Tool modes
 
-| Variable | Directory | Default |
+Each tool has a mode, `home` or `plugin`. In `home` mode this installer
+writes the tool's block and skill links. In `plugin` mode the tool gets
+standards and skills from its own plugin, so `make install` removes what
+this installer wrote for it before. The removal is idempotent, and leaves
+content outside the block and links it didn't make alone.
+
+| Mode | Default | `plugin` removes |
 | --- | --- | --- |
-| `CLAUDE_SKILLS_MODE` | `~/.claude/skills` | `plugin` (synced from claude.ai) |
-| `CURSOR_SKILLS_MODE` | `~/.cursor/skills` | `symlink` |
-| `AGENTS_SKILLS_MODE` | `~/.agents/skills` (Codex, Gemini) | `symlink` |
+| `CLAUDE_MODE` | `plugin` | `~/.claude/CLAUDE.md` block, `~/.claude/skills` links |
+| `CODEX_MODE` | `home` | `~/.codex/AGENTS.md` block |
+| `GEMINI_MODE` | `home` | `~/.gemini/GEMINI.md` block |
+| `CURSOR_MODE` | `home` | `~/.cursor/skills` links (`~/AGENTS.md` stays: Cursor's plugin has no core) |
 
-Switch a tool to `plugin` only after its plugin is installed; the runbook
-(m7) covers each one.
+`~/.agents/skills` is shared by Codex and Gemini, so its links go only when
+both are `plugin`. The Xcode blocks are always written. Windows-side copies
+follow the same modes.
+
+Put per-machine choices in `agents/local.mk` (git ignores it), such as
+`CODEX_MODE := plugin`, so every plain `make install` honors them.
+`make status` prints the modes first. Switch a tool to `plugin` only after
+its plugin is installed; the runbook (m7) covers each one.
+
+`make uninstall` removes everything the installer ever wrote, whatever the
+modes: all blocks, all skill links (including links to the old
+`agents/skills/`), and the allowlist sidecars. It then prints how to remove
+the plugins, which it doesn't manage.
 
 Symlinks that still point at the old `agents/skills/` location are swept
 automatically (`LEGACY_SKILLS_SRC`) before new links are made.
@@ -138,7 +154,7 @@ install is not loaded.
 
 | Tool | Where to ask | How standards and skills get there |
 | --- | --- | --- |
-| Claude Code (this Mac) | Anywhere | `~/.claude/CLAUDE.md` block; skills from the `personal` plugin |
+| Claude Code (this Mac) | Anywhere | `personal` plugin from the local marketplace: hook injects `core.md`; skills from the plugin |
 | Claude Code cloud session | A new session on any repo | `personal` plugin synced from claude.ai: SessionStart hook injects `core.md`; skills load from the plugin |
 | Claude Code on the self-hosted runner | A new session on any repo | Same as cloud: synced plugin |
 | Cowork | A new task | Synced plugin (hooks and skills load) |
