@@ -1,5 +1,5 @@
 ---
-name: personal-whisper-to-markdown-db
+name: personal-whisper-db-markdown
 description: >-
   Convert MacWhisper recordings into organized, dated Markdown notes by reading
   MacWhisper's local SQLite database directly (no .whisper export required).
@@ -32,6 +32,7 @@ under [`../lib/whisper/`](../lib/whisper) and a thin entry point at
 those subcommands:
 
 ```bash
+python3 scripts/run.py housekeep     --workspace ~/Projects/personal/notes
 python3 scripts/run.py plan          --workspace ~/Projects/personal/notes
 python3 scripts/run.py merge         --workspace ~/Projects/personal/notes
 python3 scripts/run.py lookup-tags propose --workspace ~/Projects/personal/notes
@@ -42,12 +43,21 @@ python3 scripts/run.py report        --workspace ~/Projects/personal/notes
 
 The standard flow is:
 
+0. `housekeep` — **always run this first.** Wipes stale `/tmp/whisper_plan/`
+   state left over from a prior or interrupted run (per-session JSONs,
+   content batches, queue/report files) so this run starts from a clean
+   slate. See *Housekeeping* below for why this matters. Never run it
+   between the two `plan` calls in step 1/3 — only once, at the very start.
 1. `plan` — opens the MacWhisper DB read-only, builds canonical structures,
    hashes, provisional titles for every non-deleted session. Writes
-   per-session JSONs under `/tmp/whisper_plan/sessions/`.
+   per-session JSONs under `/tmp/whisper_plan/sessions/`. Consults the
+   processed-sessions ledger (see below) to fast-path sessions that are
+   already written and unchanged.
 2. **Content generation** — see the decision tree below. Either fill the
    per-session JSONs inline (1 session) or dispatch Sonnet subagent(s)
-   (2+ sessions) that emit `content_<batch>.json` files.
+   (2+ sessions) that emit `content_<batch>.json` files. Only sessions
+   needing attention (`plan`'s `sessions` list, not the `unchanged_count`)
+   need content generation.
 3. `plan` again — content-aware second pass. Picks up the final titles
    from the content files and locks in final slugs / final paths.
 4. `merge` — reconciles raw tags across content batches against the
@@ -58,12 +68,66 @@ The standard flow is:
    answers to `/tmp/whisper_plan/lookup_decisions.json`.
 6. `lookup-tags apply` — rewrites session tags and appends to `tags.md`.
 7. `write` — renders and writes at the final paths. Handles
-   `git mv`/`git rm` for historical replacements.
-8. `report` — print the run summary.
+   `git mv`/`git rm` for historical replacements, then rewrites the
+   processed-sessions ledger from this run's outcomes.
+8. `report` — print the run summary. Sessions the ledger fast-pathed as
+   unchanged are reported as a single count, not enumerated.
 
 All shared state lives under `/tmp/whisper_plan/`. Subagents only read
 per-session JSON files there and write `content_*.json` back; they never
 edit scripts or move files.
+
+## Housekeeping
+
+`/tmp/whisper_plan/` is meant to hold exactly one run's working state.
+Left alone across runs it accumulates two classes of stale data that leak
+into a later run's decisions:
+
+- **Stale `content_*.json` overlays.** `plan` merges *every* content file it
+  finds in `/tmp/whisper_plan/content/`, with no notion of "this run's
+  batch." A leftover file from an earlier or interrupted run can silently
+  overlay onto the wrong session.
+- **Stale per-session JSONs.** `write` iterates every file under
+  `/tmp/whisper_plan/sessions/` — including entries for recordings deleted
+  from MacWhisper since, or notes already written days ago — needlessly
+  re-touching them.
+
+`housekeep` wipes the whole `/tmp/whisper_plan/` tree and recreates it
+empty. It does **not** touch `<workspace>/.whisper.json` (see
+next section) — that ledger is what makes it safe to wipe `/tmp` on every
+run without losing track of what's already been processed.
+
+## Processed-sessions ledger
+
+`<workspace>/.whisper.json` is a small, workspace-local, persistent
+record of every session this pipeline has successfully written a note for:
+`session_key → {content_hash, out_path, title, status}`. It survives
+`housekeep` (and reboots, and disk cleanup — it's not in `/tmp`) precisely
+so that `plan` doesn't have to re-derive "has this already been processed?"
+from scratch on every run.
+
+Two things it fixes:
+
+- **Speed.** For a session whose ledger `content_hash` matches the freshly
+  computed one, `plan` confirms the note is still on disk at the recorded
+  path and immediately calls it unchanged — no same-day-directory scan, no
+  historical-equivalent search. Only sessions that are new or actually
+  changed pay the full resolution cost.
+- **Chattiness.** Unchanged sessions are bucketed into a single
+  `unchanged_count` instead of one detailed entry per session in `plan`'s
+  output, and `report` prints that as one line instead of enumerating every
+  already-processed recording. With months or years of recordings behind
+  it, a run finding nothing new should say so in one line, not one line per
+  historical session.
+
+It's purely a cache, not a source of truth: if it's missing, stale, or the
+recorded path no longer has a note, `plan` transparently falls back to the
+same filesystem resolution it always used (`content_hash` match against the
+actual note's frontmatter). Deleting it is always safe — the next run just
+does the slower full resolution once and rebuilds it. Never edit it by
+hand; `write` rewrites it in full from that run's outcomes on every run,
+which also prunes entries for sessions no longer present (e.g. deleted from
+MacWhisper).
 
 ## Run-size decision tree
 
@@ -130,7 +194,7 @@ When a recording captures two or more meetings (back-to-back calls, a
 recording left running, etc.) the note it produces can be split into separate
 files without touching the MacWhisper database.
 
-Use the [`personal-whisper-consolidation-md`](../personal-whisper-consolidation-md/SKILL.md)
+Use the [`personal-whisper-md-consolidation`](../personal-whisper-md-consolidation/SKILL.md)
 skill after this skill completes. It detects large transcript gaps, speaker
 membership changes, farewell/greeting cue pairs, and dead-air spans, then
 splits the note with rebased timestamps.
@@ -224,3 +288,6 @@ In addition to the standard reporting categories in SPEC.md, include:
 
 - **DB connection:** path of the DB, total sessions found (non-deleted),
   how many were considered for processing.
+- **Housekeeping:** whether stale `/tmp/whisper_plan/` state was found and
+  cleared, and how many sessions are tracked in the processed-sessions
+  ledger.

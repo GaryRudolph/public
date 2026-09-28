@@ -1,5 +1,5 @@
 ---
-name: personal-whisper-split-combine-db
+name: personal-whisper-db-split-combine
 description: >-
   Orchestrate a split-then-combine workflow for MacWhisper recordings directly
   in the SQLite database. Handles the common case where recording 1 captured
@@ -79,7 +79,7 @@ python3 scripts/run.py apply --no-process-check \
 
 | Subcommand | Purpose |
 |---|---|
-| `identify` | Read-only scan: rank sessions matching title/date/time hints. Use `--recording 1` or `--recording 2` to clarify which you're identifying. |
+| `identify` | Read-only scan: rank sessions matching title/date/time hints. Only non-deleted sessions (`dateDeleted IS NULL`) are returned. Use `--recording 1` or `--recording 2` to clarify which you're identifying. |
 | `plan` | Build BOTH dry-run plans in-process (split recording 1, then combine head + recording 2). Writes `split-plan.json` and `combine-plan.json`. No live writes. |
 | `apply` | Execute both plans in sequence: backup → split apply → combine apply → verify → retain-vs-delete summary. Requires MacWhisper to be fully quit (override with `--no-process-check` for backup-copy validation). |
 
@@ -142,7 +142,7 @@ for the full schema. Relevant tables:
 
 | Table | Purpose |
 |---|---|
-| `session` | One row per recording. UUID `id` (BLOB), `dateCreated`, titles, duration. |
+| `session` | One row per recording. UUID `id` (BLOB), `dateCreated`, titles, duration, `dateDeleted` (soft-delete — all reads filter `dateDeleted IS NULL`). |
 | `transcriptline` | Per-segment transcript. `start`/`end` in ms, `text`, `speakerID`. |
 | `speaker`, `session_speaker` | Speaker definitions and many-to-many links. |
 | `recordedmeeting`, `voicememos` | Meeting/memo metadata linked from `session`. |

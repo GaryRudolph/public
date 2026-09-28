@@ -1,5 +1,5 @@
 ---
-name: personal-whisper-combine-db
+name: personal-whisper-db-combine
 description: >-
   Combine two MacWhisper recordings into a single new session directly in the
   SQLite database. Identifies session A then session B by title and/or
@@ -72,7 +72,7 @@ python3 scripts/run.py apply --no-process-check \
 
 | Subcommand | Purpose |
 |---|---|
-| `identify` | Read-only scan: rank sessions matching title/date/time hints. Use `--label a` or `--label b` to clarify which session you're identifying. |
+| `identify` | Read-only scan: rank sessions matching title/date/time hints. Only non-deleted sessions (`dateDeleted IS NULL`) are returned. Use `--label a` or `--label b` to clarify which session you're identifying. |
 | `plan` | Build a dry-run plan: load bundles A and B, combine them, stage audio, write `plan.json`. No live writes. |
 | `apply` | Execute the latest `plan.json`: backup → insert rows → move staged audio → verify. Requires MacWhisper to be fully quit (override with `--no-process-check` for backup-copy validation). |
 
@@ -127,7 +127,7 @@ for the full schema. Relevant tables:
 
 | Table | Purpose |
 |---|---|
-| `session` | One row per recording. UUID `id` (BLOB), `dateCreated`, titles, duration. |
+| `session` | One row per recording. UUID `id` (BLOB), `dateCreated`, titles, duration, `dateDeleted` (soft-delete — all reads filter `dateDeleted IS NULL`). |
 | `transcriptline` | Per-segment transcript. `start`/`end` in ms, `text`, `speakerID`. |
 | `speaker`, `session_speaker` | Speaker definitions and many-to-many links. |
 | `recordedmeeting`, `voicememos` | Meeting/memo metadata linked from `session`. |

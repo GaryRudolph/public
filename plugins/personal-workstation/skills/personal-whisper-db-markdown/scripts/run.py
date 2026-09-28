@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""DB-source entry point for personal-whisper-to-markdown-db.
+"""DB-source entry point for personal-whisper-db-markdown.
 
 This is a thin wrapper around the shared whisper runner library. It only
 knows how to enumerate MacWhisper sessions from the live SQLite DB;
@@ -153,6 +153,20 @@ def iter_db_sessions(workspace: Path):
     )
     has_succeeded = "transcriptionDidSucceed" in cols
 
+    # MacWhisper added an explicit `orderIndex` column to `transcriptline`
+    # (backed by its own index) as the authoritative line-display order —
+    # sturdier than `start`/`dateCreated` once a user splits, merges, or
+    # reorders lines in the app, where timestamps alone can tie or lag
+    # behind the edit. Prefer it when present; keep the old two-column sort
+    # as both the fallback for older schemas and a deterministic tiebreaker.
+    cur.execute("PRAGMA table_info(transcriptline)")
+    tl_cols = {r["name"] for r in cur.fetchall()}
+    transcriptline_order_by = (
+        "t.orderIndex ASC, t.start ASC, t.dateCreated ASC"
+        if "orderIndex" in tl_cols
+        else "t.start ASC, t.dateCreated ASC"
+    )
+
     select_cols = [
         "lower(hex(s.id)) AS session_id",
         "s.dateCreated AS date_created",
@@ -189,7 +203,7 @@ def iter_db_sessions(workspace: Path):
             "t.end AS end_ms, t.text AS text "
             "FROM transcriptline t "
             "WHERE t.sessionId = ? "
-            "ORDER BY t.start ASC, t.dateCreated ASC",
+            f"ORDER BY {transcriptline_order_by}",
             (bytes.fromhex(sk),),
         )
         seg_rows = [dict(r) for r in cur.fetchall()]

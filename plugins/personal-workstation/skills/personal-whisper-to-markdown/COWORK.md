@@ -5,7 +5,7 @@ Install / wiring guide for running the **file-source** skill from Claude Cowork
 [`SPEC.md`](./SPEC.md); this doc only covers the harness-specific glue.
 
 The companion DB-source skill has its own install guide:
-[`../personal-whisper-to-markdown-db/COWORK.md`](../personal-whisper-to-markdown-db/COWORK.md).
+[`../personal-whisper-db-markdown/COWORK.md`](../personal-whisper-db-markdown/COWORK.md).
 See *Related skill* at the bottom for when to pick one vs. the other.
 
 ## 1. Workspace
@@ -28,7 +28,8 @@ mention paths.
 | `~/Projects/personal/notes/whisper/` | Read | `.whisper` ZIP exports (the source) |
 | `~/Projects/personal/public/plugins/personal-workstation/skills/personal-whisper-to-markdown/` | Read | This skill (SKILL.md, SPEC.md, COWORK.md, `scripts/run.py`) |
 | `~/Projects/personal/public/plugins/personal-workstation/skills/lib/whisper/` | Read | Shared library imported by `scripts/run.py` |
-| `/tmp/whisper_plan/` | Read + Write | Per-session JSONs, content batches, lookup queue/decisions, report |
+| `/tmp/whisper_plan/` | Read + Write | Per-session JSONs, content batches, lookup queue/decisions, report — wiped at the start of every run by `housekeep` |
+| `~/Projects/personal/notes/.whisper.json` | Read + Write | Persistent processed-sessions ledger (see SPEC.md "Housekeeping and the processed-sessions ledger"); covered by the workspace read+write line above, called out here since it must NOT be wiped between runs |
 
 No `~/Library/` access needed — that's the DB skill's concern.
 
@@ -56,6 +57,15 @@ Keys:
 The file is optional; absence means "use defaults". See SPEC.md
 "Self-mic segment de-duplication" and "Manual truncation" for the
 exact semantics.
+
+## 2c. Processed-sessions ledger
+
+`<workspace>/.whisper.json` is written and maintained automatically
+by `scripts/run.py write` — nothing to configure. It's what lets `plan`
+skip already-processed, unchanged sessions quickly and quietly instead of
+re-scanning the filesystem and re-reporting on them every run. See SPEC.md
+"Housekeeping and the processed-sessions ledger" for the full explanation.
+Safe to delete if it ever looks wrong; the next run rebuilds it.
 
 ## 3. One-off prompts
 
@@ -121,6 +131,7 @@ Per [`SPEC.md`](./SPEC.md) "Reporting":
 - Historical replaced: N — with `old → new` paths
 - Ambiguous (skipped): N
 - Unparseable: N
+- Already processed, unchanged: N (single count, not enumerated)
 - Tag vocabulary changes: any tags appended to `tags.md`
 
 ## 8. Sanity bookmark
@@ -143,10 +154,11 @@ between skills does not duplicate notes.
 | Speaker rename in MacWhisper not picked up | The `.whisper` file you exported is stale | Re-export from MacWhisper, then run the skill — OR use the DB skill (no re-export needed) |
 | Same recording duplicated after switching from DB skill | `content_hash` extraction is asymmetric | Inspect both canonical dicts; should serialize byte-identical with `sort_keys=True` |
 | `metadata.json` missing keys | MacWhisper version drift | Re-run the first-run schema confirmation prompt to see what changed |
+| Run summary lists every already-processed recording every time | Forgot to run `housekeep` first, or `<workspace>/.whisper.json` is missing/being ignored | Run `housekeep` before `plan` every run; confirm the ledger file exists and is writable after a `write` step |
 
 ## Related skill: when to also use the DB skill
 
-The DB skill (`personal-whisper-to-markdown-db`) operates on the same workspace
+The DB skill (`personal-whisper-db-markdown`) operates on the same workspace
 and produces identical output, but reads MacWhisper's live SQLite directly. Use
 it instead of (or alongside) this skill when:
 

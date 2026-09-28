@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Split-combine orchestrator for personal-whisper-split-combine-db.
+"""Split-combine orchestrator for personal-whisper-db-split-combine.
 
 Thin wrapper around the shared `whisper_edit` engine. Calls split and combine
 IN-PROCESS — does NOT shell out to or re-invoke the split or combine skills.

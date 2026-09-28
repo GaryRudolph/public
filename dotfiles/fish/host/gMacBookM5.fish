@@ -10,3 +10,7 @@
 # Add as needed, e.g.:
 #   set -gx SOMETHING_HOME /opt/something
 #   fish_add_path -gP /opt/something/bin
+
+# Antigravity IDE CLI (relocated from Antigravity's auto-edit to config.fish).
+test -d $HOME/.antigravity-ide/antigravity-ide/bin
+    and fish_add_path -gP $HOME/.antigravity-ide/antigravity-ide/bin

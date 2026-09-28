@@ -126,9 +126,9 @@ cleaned up, then push.
 | `personal` | `personal-plan-orchestrate` | Active driver: same tagging and waves, but delegates each wave to a subagent on the right model and pauses only at mandatory STOP gates. Cursor-only today |
 | `personal` | `personal-makefile` | Audit and align Makefiles to the personal standard. Dry-run first; apply repo by repo with confirmation |
 | `personal-workstation` | `personal-whisper-to-markdown` | Convert MacWhisper `.whisper` exports into dated Markdown notes (incremental, idempotent) |
-| `personal-workstation` | `personal-whisper-to-markdown-db` | Same output, sourced from MacWhisper's live SQLite DB |
-| `personal-workstation` | `personal-whisper-split-db` | Split a MacWhisper recording into two sessions in `main.sqlite` |
-| `personal-workstation` | `personal-whisper-combine-db` | Combine two MacWhisper recordings into one new session |
-| `personal-workstation` | `personal-whisper-split-combine-db` | Split-then-combine for overlapping recordings; never deletes |
-| `personal-workstation` | `personal-whisper-consolidation-md` | Split a rendered whisper note that covers several meetings |
+| `personal-workstation` | `personal-whisper-db-markdown` | Same output, sourced from MacWhisper's live SQLite DB |
+| `personal-workstation` | `personal-whisper-db-split` | Split a MacWhisper recording into two sessions in `main.sqlite` |
+| `personal-workstation` | `personal-whisper-db-combine` | Combine two MacWhisper recordings into one new session |
+| `personal-workstation` | `personal-whisper-db-split-combine` | Split-then-combine for overlapping recordings; never deletes |
+| `personal-workstation` | `personal-whisper-md-consolidation` | Split a rendered whisper note that covers several meetings |
 | `personal-workstation` | `personal-allowlist-scout` | Propose safe build commands missing from the per-harness allowlists, repo by repo |

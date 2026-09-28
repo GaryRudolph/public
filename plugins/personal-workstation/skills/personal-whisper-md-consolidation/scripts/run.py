@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Entry point for personal-whisper-consolidation-md.
+"""Entry point for personal-whisper-md-consolidation.
 
 Scans whisper markdown notes for multi-meeting recordings and applies
 agent-confirmed partition decisions to split them into separate files.

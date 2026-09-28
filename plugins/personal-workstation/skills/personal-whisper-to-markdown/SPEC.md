@@ -1,7 +1,7 @@
 # Whisper to Markdown — canonical spec
 
 Shared behavior for `personal-whisper-to-markdown` (file source) and
-`personal-whisper-to-markdown-db` (DB source). Each SKILL.md wraps this spec
+`personal-whisper-db-markdown` (DB source). Each SKILL.md wraps this spec
 and adds its own source-specific guidance only.
 
 ## Folder layout
@@ -166,17 +166,49 @@ Both skills implement the canonical-build and write logic in
 the following subcommands:
 
 ```
+housekeep             wipe stale /tmp/whisper_plan/ state from a prior or
+                      interrupted run. Always run first, once per run.
 plan                  build/refresh per-session JSONs from source +
-                      overlay any content_*.json that already exists
+                      overlay any content_*.json that already exists.
+                      Consults the processed-sessions ledger to fast-path
+                      already-written, unchanged sessions.
 merge                 reconcile raw tags across content batches against
                       the workspace vocabulary
 lookup-tags propose   emit lookup_queue.json for the agent's WebSearch +
                       AskQuestion confirmation pass
 lookup-tags apply     write the agent's decisions back into per-session
                       JSONs and append to tags.md
-write                 decision tree → render → write at the FINAL path
+write                 decision tree → render → write at the FINAL path,
+                      then rewrite the processed-sessions ledger
 report                print the run summary
 ```
+
+### Housekeeping and the processed-sessions ledger
+
+`/tmp/whisper_plan/` holds exactly one run's working state (per-session
+JSONs, content batches, queue/report files). `housekeep` wipes it clean at
+the start of every run so stale `content_*.json` overlays from an earlier
+run can't attach to the wrong session, and `write` doesn't re-touch
+per-session entries for recordings that no longer exist or notes already
+written days ago.
+
+That wipe is safe because a separate, persistent file —
+`<workspace>/.whisper.json`, the **processed-sessions ledger** —
+survives it. It's a small `session_key → {content_hash, out_path, title,
+status}` map that `write` rewrites from scratch on every run. `plan` uses
+it to short-circuit sessions that are already written and unchanged:
+confirm the note is still on disk at the recorded path with the recorded
+hash, and call it done — no same-day-directory scan, no
+historical-equivalent search. It also lets the run summary report those
+sessions as a single `unchanged_count` instead of one entry per session
+(see *Reporting*).
+
+The ledger is purely a cache, never a source of truth — correctness always
+comes from comparing `content_hash` against the actual note's frontmatter.
+If the ledger is missing, stale, or wrong for a given session, `plan`
+transparently falls back to full filesystem resolution for that session
+alone. Deleting the file is always safe; the next run just does the
+slower resolution once and rebuilds it.
 
 `plan` is **content-aware and idempotent**. It is always run twice in the
 standard flow:
@@ -322,7 +354,7 @@ content_hash: <SHA-256 of canonical recording structure>
 [HH:MM:SS] <Speaker>: <line of transcript>
 ```
 
-Notes produced by the `personal-whisper-consolidation-md` post-processing skill
+Notes produced by the `personal-whisper-md-consolidation` post-processing skill
 carry two additional frontmatter keys not present in directly-generated notes:
 
 - `split_part: N/M` — which part this is out of M total kept parts.
@@ -413,4 +445,7 @@ After each run, give a short summary:
 - **Historical replaced:** N — list each as `old/path.md → new/path.md`
 - **Ambiguous (skipped):** N — list candidate paths for each skipped recording
 - **Unparseable:** N — list filenames that could not be parsed
+- **Already processed, unchanged:** N — a single count. **Do not** enumerate
+  every already-processed recording; with a large historical backlog that
+  list has zero information content and drowns out what actually changed.
 - **Tag vocabulary changes:** new tags added and glosses enriched (or "none")

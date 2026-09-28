@@ -1,12 +1,12 @@
 ---
-name: personal-whisper-consolidation-md
+name: personal-whisper-md-consolidation
 description: >-
   Post-process whisper markdown notes that contain multiple meetings in one
   recording. Scans for large transcript gaps, speaker membership changes,
   farewell/greeting cue pairs, and dead-air spans; then splits the note into
   separate files with rebased timestamps and adjusted start times. Works on the
   rendered markdown output of personal-whisper-to-markdown or
-  personal-whisper-to-markdown-db — never touches the MacWhisper database or
+  personal-whisper-db-markdown — never touches the MacWhisper database or
   .whisper files. Use when you notice a note covers two meetings, when a
   recording was left running for hours, or when you want to run a periodic
   consolidation pass over recent notes.

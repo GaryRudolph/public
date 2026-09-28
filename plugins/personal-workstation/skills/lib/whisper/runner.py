@@ -8,11 +8,18 @@ skills can't diverge.
 
 Subcommands (driven by each per-skill `run.py`):
 
+    housekeep     - wipe stale /tmp/whisper_plan/ state left over from a
+                    prior or interrupted run. Always run this first, before
+                    `plan`. Does not touch the persistent processed-sessions
+                    ledger (that lives in the workspace, not /tmp).
     plan          - bootstrap or refresh per-session JSONs from source +
                     overlay any content_*.json that already exists.
                     Idempotent. Always run twice in the standard flow:
                     once before content generation (provisional titles),
-                    once after (final titles + final slugs).
+                    once after (final titles + final slugs). Consults the
+                    processed-sessions ledger to fast-path sessions that
+                    are already written and unchanged, instead of
+                    re-resolving them against the filesystem every time.
     merge         - reconcile raw tags across content batches against the
                     workspace vocabulary; emit `merged_tag_additions.json`
                     listing new tags that need confirmation.
@@ -21,7 +28,9 @@ Subcommands (driven by each per-skill `run.py`):
     lookup-tags apply    - read agent decisions, rewrite per-session
                     tags, append to `tags.md`.
     write         - decision tree -> render -> write. Handles historical
-                    replacement via `git mv`/`git rm` and `touch -r`.
+                    replacement via `git mv`/`git rm` and `touch -r`, then
+                    rewrites the processed-sessions ledger from this run's
+                    outcomes.
     report        - print the run summary.
 
 Source-record contract (yielded by the per-skill iterator):
@@ -67,6 +76,14 @@ LOOKUP_DECISIONS_FILE = TMP_ROOT / "lookup_decisions.json"
 MERGED_TAG_ADDITIONS_FILE = TMP_ROOT / "merged_tag_additions.json"
 REPORT_FILE = TMP_ROOT / "report.json"
 
+# Persistent (workspace-local, NOT /tmp) record of sessions this pipeline has
+# already written a note for. Survives `housekeep` by design — it's what lets
+# `plan` fast-path an already-processed, unchanged session instead of
+# re-scanning the filesystem for it on every run. Purely a cache: if it's
+# deleted or wrong, `plan` falls back to the same filesystem resolution it
+# always used, so it can never cause a missed regeneration.
+LEDGER_FILENAME = ".whisper.json"
+
 SourceIterator = Callable[[Path], Iterable[dict]]
 
 
@@ -102,6 +119,67 @@ def _load_session(session_key: str) -> dict | None:
 
 def _save_session(session: dict) -> None:
     _write_json(_session_path(session["session_key"]), session)
+
+
+# ---------------------------------------------------------------------------
+# housekeeping
+# ---------------------------------------------------------------------------
+
+
+def cmd_housekeep(workspace: Path) -> dict:
+    """Wipe stale /tmp/whisper_plan/ state before a new run's first `plan`.
+
+    Per-session JSONs, content batches, and queue/report files under
+    `/tmp/whisper_plan/` only make sense for the single run that produced
+    them. Leftovers from an earlier or interrupted run would otherwise leak
+    into this run in two ways: stale `content_*.json` overlays could get
+    merged onto the wrong session (`_load_all_content` merges *every*
+    content file it finds, with no notion of "this run's batch"), and
+    `write` iterates every file under `sessions/` — including entries for
+    recordings deleted from MacWhisper since, or notes already written days
+    ago — needlessly re-touching them.
+
+    Always run this first, before the run's first `plan` call. Do not run
+    it between the two `plan` calls in a single run — that would wipe out
+    the provisional per-session JSONs the content-generation step depends
+    on.
+
+    The processed-sessions ledger (`<workspace>/.whisper.json`)
+    is intentionally untouched — it lives in the workspace, not /tmp, so
+    housekeeping never discards the "what's already been processed"
+    history that makes subsequent `plan` runs fast and quiet.
+    """
+    had_tmp = TMP_ROOT.exists()
+    if had_tmp:
+        shutil.rmtree(TMP_ROOT, ignore_errors=True)
+    _ensure_tmp()
+    ledger = _load_ledger(workspace)
+    return {
+        "tmp_root": str(TMP_ROOT),
+        "cleared_prior_state": had_tmp,
+        "ledger_path": str(_ledger_path(workspace)),
+        "ledger_sessions": len(ledger.get("sessions", {})),
+    }
+
+
+# ---------------------------------------------------------------------------
+# processed-sessions ledger
+# ---------------------------------------------------------------------------
+
+
+def _ledger_path(workspace: Path) -> Path:
+    return Path(workspace) / LEDGER_FILENAME
+
+
+def _load_ledger(workspace: Path) -> dict:
+    data = _read_json(_ledger_path(workspace), default=None)
+    if not isinstance(data, dict) or not isinstance(data.get("sessions"), dict):
+        return {"version": 1, "sessions": {}}
+    return data
+
+
+def _save_ledger(workspace: Path, ledger: dict) -> None:
+    _write_json(_ledger_path(workspace), ledger)
 
 
 # ---------------------------------------------------------------------------
@@ -220,15 +298,25 @@ def cmd_plan(workspace: Path, iter_source_records: SourceIterator) -> dict:
     cfg = canonical.load_workspace_config(workspace)
     content_overlay = _load_all_content()
     overlay_sessions = content_overlay["sessions"]
+    ledger_sessions = _load_ledger(workspace).get("sessions", {})
 
     summary = {
         "workspace": str(workspace),
         "tmp_root": str(TMP_ROOT),
         "config_path": str(workspace / canonical.CONFIG_FILENAME),
+        "ledger_path": str(_ledger_path(workspace)),
         "self_mic_speakers": cfg["self_mic_speakers"],
         "created_at": datetime.now(timezone.utc).isoformat(),
+        # Sessions needing a human/agent decision or content generation this
+        # run (create, regenerate, historical-replace/ambiguous, errors).
         "sessions": [],
         "skipped": [],
+        # Already-processed sessions whose content hasn't changed. Kept as a
+        # bare count (+ small key list) rather than one detailed entry per
+        # session, so a large historical backlog doesn't drown the report in
+        # noise about sessions nothing needs to happen to.
+        "unchanged_count": 0,
+        "unchanged_session_keys": [],
     }
 
     sessions_by_date: dict[str, list[tuple[str, str]]] = {}
@@ -254,9 +342,18 @@ def cmd_plan(workspace: Path, iter_source_records: SourceIterator) -> dict:
 
         existing = _load_session(sk) or {}
         overlay = overlay_sessions.get(sk) or {}
+        ledger_entry = ledger_sessions.get(sk) or {}
         final_title = (
             overlay.get("title")
             or existing.get("title")
+            # Falls back to the last-written title (not just content_hash /
+            # out_path) so slug/out_path recomputation after a `housekeep`
+            # wipe lands on the SAME path as before for a session whose
+            # content changed but title concept didn't — without this, pass
+            # 1 would slug from the raw provisional title, miss the real
+            # file at its true (title-based) path, and `write` would create
+            # a duplicate instead of regenerating in place.
+            or ledger_entry.get("title")
             or rec.get("provisional_title")
             or ""
         )
@@ -303,7 +400,23 @@ def cmd_plan(workspace: Path, iter_source_records: SourceIterator) -> dict:
         }
 
         # Decide the planned action and look up matching/historical notes.
-        existing_match = _resolve_existing_note(workspace, chash, out_path)
+        # Ledger fast path: if this exact session+hash was already written
+        # to a known path, confirm the note is still there with that hash
+        # and skip straight to "unchanged" — no day-directory scan, no
+        # historical-equivalent search. Falls through to the full
+        # resolution below whenever the ledger is missing, stale, or wrong;
+        # it is purely a cache and never the source of truth.
+        existing_match = None
+        if ledger_entry.get("content_hash") == chash:
+            ledger_path = workspace / ledger_entry.get("out_path", out_path)
+            if ledger_path.exists() and historical.has_our_content_hash(ledger_path) == chash:
+                existing_match = {
+                    "path": str(ledger_path.relative_to(workspace)),
+                    "abs_path": str(ledger_path),
+                    "matched_hash": True,
+                }
+        if not existing_match:
+            existing_match = _resolve_existing_note(workspace, chash, out_path)
         if existing_match:
             session["existing_note"] = existing_match
             session["action"] = "skip-existing-match"
@@ -335,14 +448,18 @@ def cmd_plan(workspace: Path, iter_source_records: SourceIterator) -> dict:
 
         _save_session(session)
         written_session_keys.append(sk)
-        summary["sessions"].append({
-            "session_key": sk,
-            "title": final_title,
-            "slug": slug,
-            "out_path": out_path,
-            "action": session["action"],
-            "content_hash": chash,
-        })
+        if session["action"] == "skip-existing-match":
+            summary["unchanged_count"] += 1
+            summary["unchanged_session_keys"].append(sk)
+        else:
+            summary["sessions"].append({
+                "session_key": sk,
+                "title": final_title,
+                "slug": slug,
+                "out_path": out_path,
+                "action": session["action"],
+                "content_hash": chash,
+            })
 
     summary["session_keys"] = written_session_keys
     _write_json(PLAN_FILE, summary)
@@ -651,13 +768,21 @@ def _touch_mtime(target: Path, mtime: float | None, source_path: Path | None = N
 
 
 def cmd_write(workspace: Path) -> dict:
-    """Decision tree -> render -> write. Handles git mv / git rm / touch."""
+    """Decision tree -> render -> write. Handles git mv / git rm / touch.
+
+    Also rewrites the processed-sessions ledger from scratch, from exactly
+    the sessions this run considered. That naturally prunes ledger entries
+    for recordings deleted from MacWhisper since the last run (they simply
+    won't be among this run's per-session JSONs) and keeps every remaining
+    entry pointing at the path/hash this run just confirmed on disk.
+    """
     _ensure_tmp()
     result = {
         "created": [], "regenerated": [], "skipped": [], "errors": [],
         "historical_replaced": [], "historical_ambiguous": [],
         "source_only_updates": [],
     }
+    new_ledger_sessions: dict[str, dict] = {}
     for sk_path in sorted(SESSIONS_DIR.glob("*.json")):
         session = _read_json(sk_path)
         if not session:
@@ -695,6 +820,12 @@ def cmd_write(workspace: Path) -> dict:
                 result["skipped"].append(str(existing_abs.relative_to(workspace)))
             session["status"] = "skipped"
             _save_session(session)
+            new_ledger_sessions[sk] = {
+                "content_hash": session["content_hash"],
+                "out_path": str(existing_abs.relative_to(workspace)),
+                "title": session.get("title"),
+                "status": "skipped",
+            }
             continue
 
         if action == "historical-ambiguous-skip":
@@ -705,6 +836,8 @@ def cmd_write(workspace: Path) -> dict:
             })
             session["status"] = "skipped"
             _save_session(session)
+            # Not added to the ledger: unresolved, so it should keep
+            # surfacing on every run's plan until the user resolves it.
             continue
 
         if not session.get("title"):
@@ -755,7 +888,14 @@ def cmd_write(workspace: Path) -> dict:
 
         session["status"] = "written"
         _save_session(session)
+        new_ledger_sessions[sk] = {
+            "content_hash": session["content_hash"],
+            "out_path": rel,
+            "title": session.get("title"),
+            "status": "written",
+        }
 
+    _save_ledger(workspace, {"version": 1, "sessions": new_ledger_sessions})
     _write_json(REPORT_FILE, result)
     return result
 
@@ -766,23 +906,32 @@ def cmd_write(workspace: Path) -> dict:
 
 
 def cmd_report(workspace: Path) -> str:
-    """Print a human-readable run summary based on REPORT_FILE."""
+    """Print a human-readable run summary based on REPORT_FILE.
+
+    Sessions the ledger fast-pathed as unchanged are reported as a single
+    count, never enumerated — with years of recordings behind it, a run
+    can have hundreds of those and zero of them are worth reading about.
+    Everything that actually needs attention (created, regenerated,
+    historical matches, ambiguous, errors) is still listed in full.
+    """
     report = _read_json(REPORT_FILE, default={})
     plan = _read_json(PLAN_FILE, default={})
     merge_data = _read_json(MERGED_TAG_ADDITIONS_FILE, default={"tag_additions": []})
 
-    def section(label: str, items: list, fmt=lambda x: f"  - {x}") -> list[str]:
+    def section(label: str, items: list, fmt=lambda x: f"  - {x}", list_items: bool = True) -> list[str]:
         if not items:
             return [f"{label}: 0"]
         lines = [f"{label}: {len(items)}"]
-        for item in items:
-            lines.append(fmt(item))
+        if list_items:
+            for item in items:
+                lines.append(fmt(item))
         return lines
 
     out: list[str] = []
     out.append(f"Workspace: {plan.get('workspace', workspace)}")
-    out.append(f"Sessions planned: {len(plan.get('sessions', []))}")
-    out.append(f"Skipped (planner): {len(plan.get('skipped', []))}")
+    out.append(f"Sessions considered: {len(plan.get('sessions', [])) + plan.get('unchanged_count', 0)}")
+    out.append(f"Already processed, unchanged: {plan.get('unchanged_count', 0)}")
+    out.append(f"Skipped (planner errors): {len(plan.get('skipped', []))}")
     out.append("")
 
     out += section("Created", report.get("created", []))
@@ -798,7 +947,7 @@ def cmd_report(workspace: Path) -> str:
         fmt=lambda x: f"  - {x.get('session_key')}: {', '.join(x.get('candidates', []))}",
     )
     out += section("Source-only frontmatter rewrites", report.get("source_only_updates", []))
-    out += section("Unchanged (skipped)", report.get("skipped", []))
+    out += section("Unchanged (skipped)", report.get("skipped", []), list_items=False)
     out += section("Errors", report.get("errors", []),
                    fmt=lambda x: f"  - {x.get('session_key')}: {x.get('error')}")
     out.append("")
@@ -832,6 +981,7 @@ def main(argv: list[str], iter_source_records: SourceIterator) -> int:
         p.add_argument("--workspace", required=True,
                        help="path to the notes workspace root")
 
+    add_workspace(sub.add_parser("housekeep"))
     add_workspace(sub.add_parser("plan"))
     add_workspace(sub.add_parser("merge"))
     add_workspace(sub.add_parser("write"))
@@ -845,9 +995,13 @@ def main(argv: list[str], iter_source_records: SourceIterator) -> int:
     args = parser.parse_args(argv)
     workspace = Path(args.workspace).expanduser().resolve()
 
-    if args.cmd == "plan":
+    if args.cmd == "housekeep":
+        out = cmd_housekeep(workspace)
+        print(json.dumps(out, indent=2))
+    elif args.cmd == "plan":
         out = cmd_plan(workspace, iter_source_records)
         print(json.dumps({"sessions": len(out.get("sessions", [])),
+                          "unchanged": out.get("unchanged_count", 0),
                           "skipped": len(out.get("skipped", []))}))
     elif args.cmd == "merge":
         out = cmd_merge(workspace)

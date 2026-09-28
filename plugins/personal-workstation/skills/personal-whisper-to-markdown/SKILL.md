@@ -31,6 +31,7 @@ under [`../lib/whisper/`](../lib/whisper) and a thin entry point at
 those subcommands:
 
 ```bash
+python3 scripts/run.py housekeep     --workspace ~/Projects/personal/notes
 python3 scripts/run.py plan          --workspace ~/Projects/personal/notes
 python3 scripts/run.py merge         --workspace ~/Projects/personal/notes
 python3 scripts/run.py lookup-tags propose --workspace ~/Projects/personal/notes
@@ -41,10 +42,18 @@ python3 scripts/run.py report        --workspace ~/Projects/personal/notes
 
 The standard flow is:
 
+0. `housekeep` — **always run this first.** Wipes stale `/tmp/whisper_plan/`
+   state left over from a prior or interrupted run. See SPEC.md
+   "Housekeeping and the processed-sessions ledger" for why. Never run it
+   between the two `plan` calls in step 1/3 — only once, at the very start.
 1. `plan` — bootstraps canonical structures, hashes, provisional titles.
+   Consults the processed-sessions ledger to fast-path sessions that are
+   already written and unchanged.
 2. **Content generation** — see the decision tree below. Either fill the
    per-session JSONs inline (1 session) or dispatch Sonnet subagent(s)
-   (2+ sessions) that emit `content_<batch>.json` files.
+   (2+ sessions) that emit `content_<batch>.json` files. Only sessions
+   needing attention (`plan`'s `sessions` list, not the `unchanged_count`)
+   need content generation.
 3. `plan` again — content-aware second pass. Picks up the final titles
    from the content files and locks in final slugs / final paths.
 4. `merge` — reconciles raw tags across content batches against the
@@ -55,12 +64,17 @@ The standard flow is:
    answers to `/tmp/whisper_plan/lookup_decisions.json`.
 6. `lookup-tags apply` — rewrites session tags and appends to `tags.md`.
 7. `write` — renders and writes at the final paths. Handles
-   `git mv`/`git rm` for historical replacements and `touch -r` for mtime.
-8. `report` — print the run summary.
+   `git mv`/`git rm` for historical replacements and `touch -r` for mtime,
+   then rewrites the processed-sessions ledger from this run's outcomes.
+8. `report` — print the run summary. Sessions the ledger fast-pathed as
+   unchanged are reported as a single count, not enumerated.
 
 All shared state lives under `/tmp/whisper_plan/`. Subagents only read
 per-session JSON files there and write `content_*.json` back; they never
 edit scripts or move files.
+
+See SPEC.md "Housekeeping and the processed-sessions ledger" for full
+detail on `housekeep` and `<workspace>/.whisper.json`.
 
 ## Run-size decision tree
 
@@ -127,7 +141,7 @@ When a recording captures two or more meetings (back-to-back calls, a
 recording left running, etc.) the note it produces can be split into separate
 files without touching the `.whisper` source or the MacWhisper database.
 
-Use the [`personal-whisper-consolidation-md`](../personal-whisper-consolidation-md/SKILL.md)
+Use the [`personal-whisper-md-consolidation`](../personal-whisper-md-consolidation/SKILL.md)
 skill after this skill completes. It detects large transcript gaps, speaker
 membership changes, farewell/greeting cue pairs, and dead-air spans, then
 splits the note with rebased timestamps.

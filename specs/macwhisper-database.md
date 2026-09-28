@@ -8,13 +8,16 @@ treats as native.
 This spec grounds two kinds of work:
 
 1. The existing read-only skills that turn recordings into Markdown notes
-   (`personal-whisper-to-markdown`, `personal-whisper-to-markdown-db`).
+   (`personal-whisper-to-markdown`, `personal-whisper-db-markdown`).
 2. A planned split/combine engine that reconstructs full-fidelity sessions
    (all linked audio tracks) directly in `main.sqlite` + `ExternalMedia/`.
 
 Everything below was verified by read-only inspection of a live database
 (`PRAGMA table_info`, `.schema`, `SELECT`) except items explicitly called out
-in §10 "Unverified assumptions".
+in §10 "Unverified assumptions". Re-verified 2026-07-10 against a live,
+actively-recording DB after a MacWhisper update — only drift found was the
+`transcriptline.orderIndex`/`startsNewParagraph` addition noted in §5.2/§8;
+everything else matched.
 
 ## 1. Safety contract
 
@@ -236,9 +239,13 @@ else other.
 | `speakerID` | BLOB | FK → `speaker.id` (nullable). |
 | `isFavorite` | BOOLEAN NOT NULL | User-flagged line. |
 | `wordsJson` | TEXT | Per-word timing JSON array: `[{"text","startTime","endTime"}, …]` (ms). |
+| `orderIndex` | INTEGER | **Authoritative display order**, 1-based per session (added by a later migration; fully backfilled — 0 NULLs observed across 147k+ existing rows). Sturdier than `start`/`dateCreated` once a user splits, merges, or reorders lines in the app, where timestamps alone can tie or lag behind the edit. Prefer this for ordering when present; falls back to `start ASC, dateCreated ASC` on older schemas (§8). |
+| `startsNewParagraph` | BOOLEAN NOT NULL DEFAULT 0 | Paragraph-break hint for rendering (added alongside `orderIndex`). Not currently consumed by the read-only skills — purely a display/formatting signal. |
 | `dateCreated` / `dateUpdated` | TEXT(DATETIME) | Line timestamps. |
 
-Indexed by `transcriptline_on_sessionId` and `idx_transcriptline_start`.
+Indexed by `transcriptline_on_sessionId`, `idx_transcriptline_start`, and
+`idx_transcriptline_sessionID_orderIndex` (composite, backing the
+`orderIndex` sort added for performance).
 
 ### 5.3 `speaker` — global speaker registry
 
@@ -448,6 +455,15 @@ gotchas:
   (DOUBLE, often NULL). `duration` lives on `recordedmeeting` /
   `systemaudiorecording`, not `session`. Code that wants "the session duration"
   should prefer `playbackDuration` and fall back defensively.
+- **`transcriptline.orderIndex` added (with an index) in a later release.**
+  Verified via `grdb_migrations`: `Add orderIndex column to transcriptline
+  table` followed by `Add startsNewParagraph column to transcriptline
+  table`, alongside an earlier `Add missing indexes for performance`
+  migration. On every session checked in the live DB, sorting by
+  `orderIndex ASC` produced byte-identical line order to the prior
+  `start ASC, dateCreated ASC` sort — so this is a forward-looking
+  hardening, not a fix for an observed bug. Detect via `PRAGMA
+  table_info(transcriptline)` and prefer `orderIndex` when present.
 
 **Adaptation pattern** (as used by `plugins/personal-workstation/skills/.../scripts/run.py`): before
 building SQL, read the live column set and pick column names by presence rather
@@ -462,6 +478,12 @@ duration_col = "playbackDuration" if "playbackDuration" in cols else (
     "duration" if "duration" in cols else None)
 has_succeeded = "transcriptionDidSucceed" in cols
 # select the resolved columns, emitting NULL for any that are absent
+
+cur.execute("PRAGMA table_info(transcriptline)")
+tl_cols = {r["name"] for r in cur.fetchall()}
+transcriptline_order_by = (
+    "t.orderIndex ASC, t.start ASC, t.dateCreated ASC"
+    if "orderIndex" in tl_cols else "t.start ASC, t.dateCreated ASC")
 ```
 
 Degrade gracefully: when a column is missing, select `NULL` for it rather than
@@ -521,6 +543,6 @@ DB **backup** before the first real write run:
 ## Related
 
 - Read-only consumers: `plugins/personal-workstation/skills/personal-whisper-to-markdown/SKILL.md`,
-  `plugins/personal-workstation/skills/personal-whisper-to-markdown-db/SKILL.md`, and the shared
+  `plugins/personal-workstation/skills/personal-whisper-db-markdown/SKILL.md`, and the shared
   library `plugins/personal-workstation/skills/lib/whisper/`.
 - Documentation conventions: `standards/documentation.md`.

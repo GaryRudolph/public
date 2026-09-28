@@ -2,7 +2,7 @@
 
 This package is the one tested code path for *writing* to MacWhisper's
 `main.sqlite` + `ExternalMedia/`. The three planned skills
-(`personal-whisper-split-db`, `-combine-db`, `-split-combine-db`) are thin
+(`personal-whisper-db-split`, `-db-combine`, `-db-split-combine`) are thin
 entry points that call these library functions in-process; the orchestrator
 skill composes split + combine here rather than re-invoking the other skills.
 

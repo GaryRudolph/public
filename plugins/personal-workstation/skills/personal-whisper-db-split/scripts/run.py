@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
-"""Combine entry point for personal-whisper-combine-db.
+"""Split entry point for personal-whisper-db-split.
 
 Thin wrapper around the shared `whisper_edit` engine. Exposes three subcommands:
 
-    python3 scripts/run.py identify  [--label a|b] [--title STR] [--date YYYY-MM-DD] [--db PATH]
-    python3 scripts/run.py plan      --session-a HEX --session-b HEX [--title STR] [--db PATH]
+    python3 scripts/run.py identify  [--title STR] [--date YYYY-MM-DD] [--time HH:MM] [--db PATH]
+    python3 scripts/run.py plan      --session-id HEX [--split-ms MS | --candidate N] [--db PATH]
     python3 scripts/run.py apply     [--plan PATH] [--no-process-check]
 
 `plan` and `apply` are separated so the agent can show the dry-run summary and
@@ -17,6 +17,7 @@ running. Use --db + --no-process-check for backup-copy validation only.
 from __future__ import annotations
 
 import argparse
+import json
 import sys
 from pathlib import Path
 
@@ -32,7 +33,8 @@ from whisper_edit import (  # noqa: E402
     db,
     identify,
     load_bundle,
-    plan_combine,
+    plan_split,
+    split,
 )
 from whisper_edit.backup import DEFAULT_BACKUP_ROOT  # noqa: E402
 from whisper_edit.engine import DEFAULT_PLAN_ROOT, PLAN_FILENAME, OperationPlan  # noqa: E402
@@ -83,9 +85,6 @@ def cmd_identify(args: argparse.Namespace) -> int:
         print(f"ERROR: DB not found at {db_path}", file=sys.stderr)
         return 1
 
-    label = args.label or ""
-    label_str = f" (session {label.upper()})" if label else ""
-
     candidates = identify(
         db_path,
         title=args.title or None,
@@ -95,10 +94,10 @@ def cmd_identify(args: argparse.Namespace) -> int:
     )
 
     if not candidates:
-        print(f"No matching sessions found{label_str}.")
+        print("No matching sessions found.")
         return 0
 
-    print(f"Found {len(candidates)} candidate(s){label_str}:\n")
+    print(f"Found {len(candidates)} candidate(s):\n")
     for i, c in enumerate(candidates):
         rec = c.record
         dt_str = rec.date_created or "unknown date"
@@ -110,12 +109,7 @@ def cmd_identify(args: argparse.Namespace) -> int:
         print(f"       score: {c.score:.3f}{reasons}")
         print()
 
-    if label.lower() in ("a", "b"):
-        other = "b" if label.lower() == "a" else "a"
-        print(f"Use the id value with --session-{label.lower()} in the plan step.")
-        print(f"Then run: python3 scripts/run.py identify --label {other} ...")
-    else:
-        print("Use the id values with: python3 scripts/run.py plan --session-a <idA> --session-b <idB>")
+    print("Use the id value with: python3 scripts/run.py plan --session-id <id>")
     return 0
 
 
@@ -131,37 +125,60 @@ def cmd_plan(args: argparse.Namespace) -> int:
         return 1
 
     try:
-        bundle_a = load_bundle(db_path, args.session_a)
+        bundle = load_bundle(db_path, args.session_id)
     except Exception as exc:
-        print(f"ERROR loading session A ({args.session_a}): {exc}", file=sys.stderr)
+        print(f"ERROR loading session {args.session_id}: {exc}", file=sys.stderr)
         return 1
 
-    try:
-        bundle_b = load_bundle(db_path, args.session_b)
-    except Exception as exc:
-        print(f"ERROR loading session B ({args.session_b}): {exc}", file=sys.stderr)
-        return 1
+    split_ms: int | None = args.split_ms
+
+    if split_ms is None:
+        print("Auto-detecting split candidates...")
+        candidates = split.detect_split_candidates(bundle)
+        if not candidates:
+            print(
+                "ERROR: No split candidates detected automatically.\n"
+                "Pass --split-ms <milliseconds> to specify the boundary explicitly.\n"
+                "Review the transcript to find a suitable pause between meetings.",
+                file=sys.stderr,
+            )
+            return 1
+        print(f"Found {len(candidates)} split candidate(s):\n")
+        for i, sc in enumerate(candidates):
+            print(f"  [{i}] {_ms_to_human(sc.split_ms)} ({sc.split_ms} ms)  score={sc.score:.3f}  reason={sc.reason}")
+            if sc.before_context:
+                last = sc.before_context[-1]
+                print(f"       before: \"{last.text[:80]}\"")
+            if sc.after_context:
+                first = sc.after_context[0]
+                print(f"       after : \"{first.text[:80]}\"")
+            print()
+        idx = getattr(args, "candidate", 0) or 0
+        if idx >= len(candidates):
+            print(
+                f"ERROR: --candidate {idx} out of range (0..{len(candidates)-1})",
+                file=sys.stderr,
+            )
+            return 1
+        chosen = candidates[idx]
+        split_ms = chosen.split_ms
+        print(f"Using candidate [{idx}]: {_ms_to_human(split_ms)} ({split_ms} ms)  {chosen.reason}\n")
 
     plan_root = Path(args.plan_root) if args.plan_root else DEFAULT_PLAN_ROOT
     include_merged = not args.no_merged_multitrack
 
-    dur_a = _ms_to_human(bundle_a.duration_ms())
-    dur_b = _ms_to_human(bundle_b.duration_ms())
     print(
-        f"Planning combine:\n"
-        f"  A: {bundle_a.title}  ({dur_a})  [{bundle_a.session.id_hex}]\n"
-        f"  B: {bundle_b.title}  ({dur_b})  [{bundle_b.session.id_hex}]\n"
-        f"  merged trk: {include_merged}\n"
+        f"Planning split of session {bundle.session.id_hex}\n"
+        f"  title      : {bundle.title}\n"
+        f"  split at   : {_ms_to_human(split_ms)} ({split_ms} ms)\n"
+        f"  merged trk : {include_merged}\n"
     )
 
-    if args.title:
-        print(f"  custom title: {args.title}\n")
-
     try:
-        op_plan = plan_combine(
-            bundle_a,
-            bundle_b,
+        op_plan = plan_split(
+            bundle,
             db_path=db_path,
+            split_ms=split_ms,
             include_merged_multitrack=include_merged,
             plan_root=plan_root,
         )
@@ -236,13 +253,12 @@ def cmd_apply(args: argparse.Namespace) -> int:
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="run.py",
-        description="Combine two MacWhisper sessions into one (identify → plan → apply).",
+        description="Split a MacWhisper session into two (identify → plan → apply).",
     )
     sub = parser.add_subparsers(dest="cmd", required=True)
 
     # identify
     p_id = sub.add_parser("identify", help="Find and rank sessions matching hints.")
-    p_id.add_argument("--label", metavar="a|b", help="Which session you're identifying (display only).")
     p_id.add_argument("--db", metavar="PATH", help="Path to main.sqlite (default: live DB).")
     p_id.add_argument("--title", metavar="STR", help="Title fragment (fuzzy).")
     p_id.add_argument("--date", metavar="YYYY-MM-DD", help="Boost sessions on this date.")
@@ -250,11 +266,11 @@ def build_parser() -> argparse.ArgumentParser:
     p_id.add_argument("--limit", type=int, default=10, metavar="N", help="Max candidates (default 10).")
 
     # plan
-    p_plan = sub.add_parser("plan", help="Build a dry-run combine plan (no writes).")
-    p_plan.add_argument("--session-a", required=True, metavar="HEX", help="Session A (plays first). 32-char hex.")
-    p_plan.add_argument("--session-b", required=True, metavar="HEX", help="Session B (plays second). 32-char hex.")
+    p_plan = sub.add_parser("plan", help="Build a dry-run split plan (no writes).")
+    p_plan.add_argument("--session-id", required=True, metavar="HEX", help="32-char hex session ID from identify.")
     p_plan.add_argument("--db", metavar="PATH", help="Path to main.sqlite (default: live DB).")
-    p_plan.add_argument("--title", metavar="STR", help="Custom title for the combined session.")
+    p_plan.add_argument("--split-ms", type=int, metavar="MS", help="Split boundary in ms from session start.")
+    p_plan.add_argument("--candidate", type=int, default=0, metavar="N", help="Auto-detected candidate index (default 0).")
     p_plan.add_argument("--no-merged-multitrack", action="store_true", help="Skip mergedMultitrack audio reconstruction.")
     p_plan.add_argument("--plan-root", metavar="DIR", help=f"Directory for plan.json + staging (default {DEFAULT_PLAN_ROOT}).")
 

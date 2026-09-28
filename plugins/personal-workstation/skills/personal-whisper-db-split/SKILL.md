@@ -1,5 +1,5 @@
 ---
-name: personal-whisper-split-db
+name: personal-whisper-db-split
 description: >-
   Split a MacWhisper recording into two sessions directly in the SQLite
   database. Identifies the source session by title and/or date/time, proposes
@@ -64,7 +64,7 @@ python3 scripts/run.py apply --no-process-check \
 
 | Subcommand | Purpose |
 |---|---|
-| `identify` | Read-only scan: rank sessions matching title/date/time hints. Prints a numbered list so you can pick a `--session-id`. |
+| `identify` | Read-only scan: rank sessions matching title/date/time hints. Only non-deleted sessions (`dateDeleted IS NULL`) are returned. Prints a numbered list so you can pick a `--session-id`. |
 | `plan` | Build a dry-run plan: load the bundle, determine the split point (explicit or auto-detected), stage audio, write `plan.json`. No live writes. |
 | `apply` | Execute the latest `plan.json`: backup → insert rows → move staged audio → verify. Requires MacWhisper to be fully quit (override with `--no-process-check` for backup-copy validation). |
 
@@ -118,7 +118,7 @@ for the full schema. Relevant tables:
 
 | Table | Purpose |
 |---|---|
-| `session` | One row per recording. UUID `id` (BLOB), `dateCreated`, titles, duration. |
+| `session` | One row per recording. UUID `id` (BLOB), `dateCreated`, titles, duration, `dateDeleted` (soft-delete — all reads filter `dateDeleted IS NULL`). |
 | `transcriptline` | Per-segment transcript. `start`/`end` in ms, `text`, `speakerID`. |
 | `speaker`, `session_speaker` | Speaker definitions and many-to-many links. |
 | `recordedmeeting`, `voicememos` | Meeting/memo metadata linked from `session`. |
