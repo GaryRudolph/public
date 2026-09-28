@@ -454,10 +454,12 @@ The `cut-release` flow:
 
 When a released line needs a fix without dragging in newer work:
 
-1. `git switch -c release/v2.4 v2.4.1` — branch from the tag you need to patch; push.
-2. Open a PR against `release/v2.4` with the fix; label `backport main`.
+1. `git switch -c release/v2.4 v2.4.1` — branch from the tag you need to patch; push. Name the branch for the line it serves:
+   - `release/v2.4` — a **minor line**: ships only `2.4.*` patches.
+   - `release/v2` — a **major line**: ships `2.*` patches and minors, for when `main` has moved to `v3` and `v2` still gets fixes or backported features.
+2. Open a PR against the line branch with the fix; label `backport main`.
 3. Merge after CI. A backport workflow auto-opens a follow-up PR cherry-picking the fix onto `main`.
-4. Dispatch the Release workflow from the `release/v2.4` branch (`Use workflow from: release/v2.4`) with `level=patch`. This produces `v2.4.2` from the hotfix line without pulling in newer `main` work.
+4. Dispatch the Release workflow from the line branch (`Use workflow from: release/v2.4`) with `level=patch` (or `level=minor` on a major line such as `release/v2`). The workflow refuses a level that would leave the branch's line. This produces `v2.4.2` from the hotfix line without pulling in newer `main` work.
 5. The hotfix tag does not need to live on `main`; the published artifacts just need the right code at the right SHA.
 
 #### Android Play caveat for hotfixes

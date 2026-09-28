@@ -32,7 +32,7 @@ A project or organization rule can override a personal preference if there's a d
 
 ## Git Conventions
 
-- **Branching**: GitHub Flow — `feature/name`, `fix/name`, `release/vN`; agents default to the current branch (see `~/Projects/personal/public/standards/git.md` "AI Agent Behavior")
+- **Branching**: GitHub Flow — `feature/name`, `fix/name`, `release/vN` or `release/vN.M` (release lines for hotfixes); agents default to the current branch (see `~/Projects/personal/public/standards/git.md` "AI Agent Behavior")
 - **Versioning**: artifacts use SemVer tags `vMAJOR.MINOR.PATCH`, bumped only at release time (`version.txt` holds the last release; no pre-release suffixes; dev builds are `<release>+<sha>`); contracts (API paths, wire and file formats) use integer majors `v1`, `v2`, with `v2.1` only for hotfixes. See `~/Projects/personal/public/standards/versioning.md`, or the `personal-release` skill
 - **Commits**: imperative mood, optional ticket prefix, 72-char subject, no period
   - `add login endpoint` or `PROJ-123 add login endpoint`

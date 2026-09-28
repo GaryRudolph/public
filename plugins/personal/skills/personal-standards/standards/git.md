@@ -7,7 +7,7 @@ We follow **GitHub Flow** — short-lived feature branches merged frequently to 
 - **`main`** — production-ready, always deployable
 - **Feature**: `feature/feature-name` or `feature/TICKET-123-feature-name`
 - **Bugfix**: `fix/issue-description` or `fix/TICKET-123-description`
-- **Release**: `release/v2` (short-lived, for hotfixes only; ideally not needed)
+- **Release**: `release/v2` (a major line: `2.*` patches and minors) or `release/v2.4` (a minor line: `2.4.*` patches only). For hotfixes to a released line; ideally not needed. See [versioning.md](versioning.md#hotfix-flow)
 
 These naming conventions apply when a branch is intentionally created (by me or on request) — they are not license for an agent to auto-branch.
 

@@ -4,7 +4,8 @@ description: >-
   Cut releases Gary's way: pick patch/minor/major from what changed since the
   last v-tag, bump version.txt and every package version in lock-step, move
   the CHANGELOG's Unreleased entries, tag vMAJOR.MINOR.PATCH (no pre-release
-  suffixes), run the hotfix flow from a release/vX.Y branch, compute a build's
+  suffixes), run the hotfix flow from a release/vX or release/vX.Y line
+  branch, compute a build's
   <release>+<sha> (<buildCode>) string, and set up a repo's versioning and
   Release workflow. Also decides when an API/file-format contract gets a new
   integer major (v1 to v2). Use for "cut a release", "release this", "bump
@@ -43,7 +44,8 @@ recommendation. Decide from these facts.
 
 ## Cut a release
 
-1. **Preconditions.** On `main`, or `release/vX.Y` for a hotfix. Clean tree,
+1. **Preconditions.** On `main`, or a release line branch (`release/vX` or
+   `release/vX.Y`) for a hotfix. Clean tree,
    CI green on HEAD, not already tagged, every version field matching
    `version.txt`. Stop and report anything that isn't met.
 2. **Propose the level.** Read the commits and the Unreleased entries since
@@ -58,8 +60,10 @@ recommendation. Decide from these facts.
    fill gaps from the commits, but don't invent entries.
 4. **Release.** With Gary's go-ahead:
    - If the repo has a Release workflow:
-     `gh workflow run release.yml -f level=<level>` (add `--ref release/vX.Y`
-     for a hotfix), then watch it.
+     `gh workflow run release.yml -f level=<level>` (add
+     `--ref release/vX` or `--ref release/vX.Y` for a hotfix), then watch it.
+   - Locally on a line branch, pass `--line vX` or `--line vX.Y` to
+     `bump_version.py` so the bump can't leave the line.
    - Otherwise, locally: `python3 scripts/bump_version.py <level>`, review
      the diff, commit `release vX.Y.Z`, `git tag -a vX.Y.Z -m vX.Y.Z`, and
      push the branch and the tag. Pushing is outward-facing, so confirm first.
@@ -73,12 +77,23 @@ which form.
 
 ## Hotfix
 
-1. `git switch -c release/vX.Y vX.Y.Z` from the tag being patched, and push.
-2. PR the fix against `release/vX.Y`, labelled `backport main`. Once it's
+1. **Pick the line.** Branch from the tag being patched, named for the line
+   it serves:
+   - `release/vX.Y` (for example `release/v2.4`) for a minor line: it only
+     ships `X.Y.*` patches. Use it when users are pinned to `2.4`.
+   - `release/vX` (for example `release/v2`) for a major line: it ships
+     `X.*` patches and minors. Use it when `main` has moved to the next
+     major and the old major still gets fixes or backported features.
+
+   `git switch -c release/v2.4 v2.4.1` (or `release/v2`), then push. Reuse
+   the branch if it already exists.
+2. PR the fix against the line branch, labelled `backport main`. Once it's
    merged, get the same fix onto `main` (the backport workflow, or a
    cherry-pick PR).
-3. Release from `release/vX.Y` with `level=patch`. The hotfix tag doesn't
-   need to be on `main`.
+3. Release from the line branch: `level=patch`, or `level=minor` on a
+   `release/vX` line. The Release workflow refuses a level that would leave
+   the line (a `major`, or a `minor` on `release/vX.Y`). The hotfix tag
+   doesn't need to be on `main`.
 4. **Android Play:** `versionCode` must beat the current production value,
    so override `BUILD_CODE` for the upload (see the standard's Play
    caveat), and note the override in the release notes. iOS needs nothing.

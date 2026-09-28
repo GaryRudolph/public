@@ -185,6 +185,10 @@ def main(argv):
     shallow = git("rev-parse", "--is-shallow-repository") == "true"
     build_code = git("rev-list", "--count", "HEAD")
     print(f"  branch: {branch}")
+    line = re.match(r"^release/v(\d+)(?:\.(\d+))?$", branch)
+    if line:
+        kind = "minor line: patches only" if line.group(2) is not None else "major line: patches and minors"
+        print(f"  release line: v{line.group(1)}{'.' + line.group(2) if line.group(2) is not None else ''} ({kind})")
     print(f"  head: {sha}")
     print(f"  working tree: {'dirty' if dirty else 'clean'}")
     print(f"  shallow clone: {'yes (buildCode below undercounts; fetch full history)' if shallow else 'no'}")

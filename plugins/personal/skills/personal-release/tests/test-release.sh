@@ -113,6 +113,63 @@ done
 git checkout -q -- .
 expect_fail "refuses an unknown level"               python3 "$bump" huge
 
+printf '\nrelease lines\n'
+fixture lines
+expect_ok   "--line v2 allows a patch"               python3 "$bump" patch --line v2 --dry-run
+expect_eq   "  ...2.4.1"                             "$(tail -1 "$work/out")" "2.4.1"
+expect_ok   "--line v2 allows a minor"               python3 "$bump" minor --line v2 --dry-run
+expect_eq   "  ...2.5.0"                             "$(tail -1 "$work/out")" "2.5.0"
+expect_fail "--line v2 refuses a major"              python3 "$bump" major --line v2 --dry-run
+expect_grep "  ...says it leaves the line"           "leaves the v2 line"
+expect_ok   "--line v2.4 allows a patch"             python3 "$bump" patch --line v2.4 --dry-run
+expect_fail "--line v2.4 refuses a minor"            python3 "$bump" minor --line v2.4 --dry-run
+expect_fail "--line v3 refuses a 2.x version.txt"    python3 "$bump" patch --line v3 --dry-run
+expect_grep "  ...says version.txt is off the line"  "isn't on the v3 line"
+expect_fail "--line v2.5 refuses 2.4.0"              python3 "$bump" patch --line v2.5 --dry-run
+expect_fail "--line needs vX or vX.Y"                python3 "$bump" patch --line 2.4 --dry-run
+expect_fail "--line needs a value"                   python3 "$bump" patch --line
+expect_eq   "dry runs changed nothing"               "$(git status --porcelain)" ""
+
+# The Release workflow's own branch check, extracted from release.yml.
+branch_check="$work/branch-check.sh"
+python3 - "$here/../templates/release.yml" > "$branch_check" <<'EOF'
+import sys
+lines = open(sys.argv[1]).read().splitlines()
+start = next(i for i, l in enumerate(lines) if l.strip() == "id: branch")
+run = next(i for i in range(start, len(lines)) if lines[i].strip() == "run: |")
+indent = len(lines[run + 1]) - len(lines[run + 1].lstrip())
+body = []
+for l in lines[run + 1:]:
+    if l.strip() and len(l) - len(l.lstrip()) < indent:
+        break
+    body.append(l[indent:])
+print("\n".join(body))
+EOF
+for case in "main=" "release/v2=v2" "release/v2.4=v2.4" "release/v10.12=v10.12"; do
+    ref=${case%%=*}
+    want=${case#*=}
+    : > "$work/gh-output"
+    if GITHUB_REF_NAME="$ref" GITHUB_OUTPUT="$work/gh-output" bash "$branch_check" >/dev/null 2>&1; then
+        expect_eq "workflow accepts $ref"            "$(sed -n 's/^line=//p' "$work/gh-output")" "$want"
+    else
+        fail "workflow refused $ref"
+    fi
+done
+for ref in feature/x release/2.4 release/v2.4.1 release/vx release/v2.; do
+    if GITHUB_REF_NAME="$ref" GITHUB_OUTPUT=/dev/null bash "$branch_check" >/dev/null 2>&1; then
+        fail "workflow accepted $ref"
+    else
+        pass "workflow refuses $ref"
+    fi
+done
+
+git switch -q -c release/v2
+expect_ok   "facts on a major line"                  python3 "$facts"
+expect_grep "  ...names it"                          "release line: v2 (major line: patches and minors)"
+git switch -q -c release/v2.4
+expect_ok   "facts on a minor line"                  python3 "$facts"
+expect_grep "  ...names it"                          "release line: v2.4 (minor line: patches only)"
+
 printf '\nrelease_facts.py\n'
 fixture b
 printf '{\n  "name": "@acme/a",\n  "version": "2.4.1-rc.1"\n}\n' > packages/a/package.json

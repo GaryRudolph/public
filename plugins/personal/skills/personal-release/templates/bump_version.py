@@ -16,7 +16,11 @@ Everything else (Info.plist, build.gradle, pom.xml, Docker tags, ...) should
 derive from version.txt at build time. Those files are not touched.
 
 Usage:
-    bump_version.py patch|minor|major [--dry-run] [--date YYYY-MM-DD]
+    bump_version.py patch|minor|major [--dry-run] [--date YYYY-MM-DD] [--line vX[.Y]]
+
+--line keeps a release on its release branch's line: from release/v2 the
+new version must be 2.x.y, and from release/v2.4 it must be 2.4.y. The
+Release workflow passes it automatically on release/* branches.
 
 Prints the new version as the last line of stdout. Refuses without changing
 anything when version.txt isn't MAJOR.MINOR.PATCH or a managed field
@@ -31,6 +35,7 @@ import sys
 from pathlib import Path
 
 RELEASE = re.compile(r"^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$")
+LINE = re.compile(r"^v(0|[1-9]\d*)(\.(0|[1-9]\d*))?$")
 SKIP_DIRS = {"node_modules", ".git", "vendor", "target", "build", "dist", ".venv", "venv"}
 
 
@@ -143,11 +148,19 @@ def main(argv):
     args = [a for a in argv if not a.startswith("--")]
     dry_run = "--dry-run" in argv
     date = datetime.date.today().isoformat()
+    for flag in ("--date", "--line"):
+        if flag in argv:
+            i = argv.index(flag)
+            if i + 1 >= len(argv) or argv[i + 1].startswith("--"):
+                fail(f"{flag} needs a value")
+            args.remove(argv[i + 1])
     if "--date" in argv:
         date = argv[argv.index("--date") + 1]
-        args.remove(date)
+    line = argv[argv.index("--line") + 1] if "--line" in argv else None
+    if line is not None and not LINE.match(line):
+        fail(f"--line {line!r} must look like v2 or v2.4")
     if len(args) != 1 or args[0] not in ("patch", "minor", "major"):
-        fail("usage: bump_version.py patch|minor|major [--dry-run] [--date YYYY-MM-DD]")
+        fail("usage: bump_version.py patch|minor|major [--dry-run] [--date YYYY-MM-DD] [--line vX[.Y]]")
 
     root = Path(subprocess.run(["git", "rev-parse", "--show-toplevel"], capture_output=True, text=True).stdout.strip() or ".")
     version_file = root / "version.txt"
@@ -155,6 +168,13 @@ def main(argv):
         fail("version.txt not found at the repo root; create it with the last released version")
     current = version_file.read_text().strip()
     new = next_version(current, args[0])
+    if line is not None:
+        prefix = line[1:] + "."
+        if not current.startswith(prefix):
+            fail(f"version.txt is {current}, which isn't on the {line} line this branch releases")
+        if not new.startswith(prefix):
+            fail(f"a {args[0]} bump from {current} gives {new}, which leaves the {line} line; "
+                 f"release/{line} only ships {line[1:]}.* versions")
 
     fields = []
     for path in repo_files(root, "package.json"):

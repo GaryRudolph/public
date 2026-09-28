@@ -1,7 +1,9 @@
 # Release workflow: copy to .github/workflows/release.yml.
 #
-# Dispatch from main for a normal release, or from release/vX.Y for a hotfix
-# ("Use workflow from"). Bumps version.txt and the managed version fields in
+# Dispatch from main for a normal release, or from a release line branch for
+# a hotfix ("Use workflow from"): release/vX for a major line (patch or minor
+# bumps within X.*), or release/vX.Y for a minor line (patch bumps within
+# X.Y.*). The bump refuses a level that would leave the branch's line. Bumps version.txt and the managed version fields in
 # lock-step, moves CHANGELOG.md's Unreleased entries, commits
 # "release vX.Y.Z", tags vX.Y.Z, and pushes both. The tag push starts the
 # per-platform build and publish workflows.
@@ -35,19 +37,25 @@ jobs:
           fetch-depth: 0              # full history: buildCode = git rev-list --count HEAD
           token: ${{ secrets.RELEASE_TOKEN }}
 
-      - name: Refuse unless on main or a release/vX.Y branch
+      - name: Refuse unless on main or a release line branch
+        id: branch
         run: |
-          case "$GITHUB_REF_NAME" in
-            main|release/v[0-9]*.[0-9]*) ;;
-            *) echo "Releases run from main or release/vX.Y, not $GITHUB_REF_NAME" >&2; exit 1 ;;
-          esac
+          if [ "$GITHUB_REF_NAME" = main ]; then
+            echo "line=" >> "$GITHUB_OUTPUT"
+          elif [[ "$GITHUB_REF_NAME" =~ ^release/(v[0-9]+(\.[0-9]+)?)$ ]]; then
+            echo "line=${BASH_REMATCH[1]}" >> "$GITHUB_OUTPUT"
+          else
+            echo "Releases run from main, release/vX, or release/vX.Y, not $GITHUB_REF_NAME" >&2
+            exit 1
+          fi
 
       - name: Bump
         id: bump
         env:
           LEVEL: ${{ inputs.level }}
+          LINE: ${{ steps.branch.outputs.line }}
         run: |
-          version=$(python3 scripts/bump_version.py "$LEVEL" | tail -1)
+          version=$(python3 scripts/bump_version.py "$LEVEL" ${LINE:+--line "$LINE"} | tail -1)
           echo "version=$version" >> "$GITHUB_OUTPUT"
 
       - name: Refuse an existing tag
