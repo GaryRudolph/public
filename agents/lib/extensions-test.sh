@@ -161,10 +161,10 @@ assert_grep "Fixture command content v1" \
 printf '=== test 3: idempotent second install ===\n'
 # Capture the windows-side file mtime so we can prove we didn't re-copy.
 sleep 1  # ensure mtime resolution will detect any rewrite
-WIN_SKILL_BEFORE=$(stat -f '%m' "$FAKE_WIN_HOME/.cursor/skills/${ORG}-fake-skill/SKILL.md" 2>/dev/null \
-    || stat -c '%Y' "$FAKE_WIN_HOME/.cursor/skills/${ORG}-fake-skill/SKILL.md")
-WIN_CMD_BEFORE=$(stat -f '%m' "$FAKE_WIN_HOME/.claude/commands/${ORG}-fake-cmd.md" 2>/dev/null \
-    || stat -c '%Y' "$FAKE_WIN_HOME/.claude/commands/${ORG}-fake-cmd.md")
+WIN_SKILL_BEFORE=$(stat -c '%Y' "$FAKE_WIN_HOME/.cursor/skills/${ORG}-fake-skill/SKILL.md" 2>/dev/null \
+    || stat -f '%m' "$FAKE_WIN_HOME/.cursor/skills/${ORG}-fake-skill/SKILL.md")
+WIN_CMD_BEFORE=$(stat -c '%Y' "$FAKE_WIN_HOME/.claude/commands/${ORG}-fake-cmd.md" 2>/dev/null \
+    || stat -f '%m' "$FAKE_WIN_HOME/.claude/commands/${ORG}-fake-cmd.md")
 
 run_ext install > "$TEST_DIR/install-2.out"
 
@@ -174,10 +174,10 @@ if grep -qE '(\+ |~ )' "$TEST_DIR/install-2.out"; then
     grep -E '(\+ |~ )' "$TEST_DIR/install-2.out" >&2 || true
 fi
 
-WIN_SKILL_AFTER=$(stat -f '%m' "$FAKE_WIN_HOME/.cursor/skills/${ORG}-fake-skill/SKILL.md" 2>/dev/null \
-    || stat -c '%Y' "$FAKE_WIN_HOME/.cursor/skills/${ORG}-fake-skill/SKILL.md")
-WIN_CMD_AFTER=$(stat -f '%m' "$FAKE_WIN_HOME/.claude/commands/${ORG}-fake-cmd.md" 2>/dev/null \
-    || stat -c '%Y' "$FAKE_WIN_HOME/.claude/commands/${ORG}-fake-cmd.md")
+WIN_SKILL_AFTER=$(stat -c '%Y' "$FAKE_WIN_HOME/.cursor/skills/${ORG}-fake-skill/SKILL.md" 2>/dev/null \
+    || stat -f '%m' "$FAKE_WIN_HOME/.cursor/skills/${ORG}-fake-skill/SKILL.md")
+WIN_CMD_AFTER=$(stat -c '%Y' "$FAKE_WIN_HOME/.claude/commands/${ORG}-fake-cmd.md" 2>/dev/null \
+    || stat -f '%m' "$FAKE_WIN_HOME/.claude/commands/${ORG}-fake-cmd.md")
 
 [ "$WIN_SKILL_BEFORE" = "$WIN_SKILL_AFTER" ] || \
     fail "windows-side skill file mtime changed on no-op install"

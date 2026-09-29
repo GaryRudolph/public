@@ -352,12 +352,12 @@ if [ -n "$COPILOT_SRC_DIR" ]; then
     printf '=== test 5b: copilot fan-out idempotency ===\n'
 
     # Snapshot the fan-out target files; a clean re-run should not touch them.
-    pre_a=$(stat -f '%m %z' "$REPO_FANOUT_A/.github/copilot-instructions.md" 2>/dev/null \
-            || stat -c '%Y %s' "$REPO_FANOUT_A/.github/copilot-instructions.md")
+    pre_a=$(stat -c '%Y %s' "$REPO_FANOUT_A/.github/copilot-instructions.md" 2>/dev/null \
+            || stat -f '%m %z' "$REPO_FANOUT_A/.github/copilot-instructions.md")
     run_blocks install > "$TEST_DIR/install_fanout_idem.out"
     sed 's/^/  /' "$TEST_DIR/install_fanout_idem.out"
-    post_a=$(stat -f '%m %z' "$REPO_FANOUT_A/.github/copilot-instructions.md" 2>/dev/null \
-             || stat -c '%Y %s' "$REPO_FANOUT_A/.github/copilot-instructions.md")
+    post_a=$(stat -c '%Y %s' "$REPO_FANOUT_A/.github/copilot-instructions.md" 2>/dev/null \
+             || stat -f '%m %z' "$REPO_FANOUT_A/.github/copilot-instructions.md")
     [ "$pre_a" = "$post_a" ] \
         || fail "fanout-a: idempotent re-install should NOT modify copilot-instructions.md (was $pre_a, now $post_a)"
 
