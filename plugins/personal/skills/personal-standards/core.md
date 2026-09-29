@@ -41,6 +41,7 @@ A project or organization rule can override a personal preference if there's a d
 ## Workflow
 
 - **Never commit unless asked** — do not create commits unless I explicitly ask you to; this applies even during multi-step plans
+- **Never push unless asked** — no `git push` or other remote-writing git command unless I explicitly ask, and never in an unattended session. Never force-push `main`; cut feature branches with `--no-track` so they don't inherit `main` as upstream
 - **Stay on the current branch** — never auto-create or switch branches; default to the current branch (or `main`). Worktrees only when I ask. If you think the branch should change, propose it and wait for explicit confirmation (skipping is not confirmation). See `~/Projects/personal/public/standards/git.md` "AI Agent Behavior"
 - **Verify git email** — before any commit, run `git config user.email` and confirm it matches the expected email for this repo's organization; flag a mismatch and wait for me to fix it
 - **Pause after each step** — stop and show me what changed before moving on
