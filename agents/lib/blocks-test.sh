@@ -2,21 +2,18 @@
 # Test harness for blocks.sh. Builds a sandboxed fake $HOME and
 # fake projects tree, then exercises every install/uninstall path
 # (block ops, legacy cleanup, preservation, idempotency, dry-run,
-# Windows-host dual pass, and Copilot fan-out for orgs that enable it).
+# Windows-host dual pass, plugin-mode block removal, Cursor rule extras).
 #
 # All assertions are local to the sandbox. The script never touches
 # the real $HOME, real PROJECTS_DIR, or any other system path.
 #
 # Required env (set by the calling Makefile):
-#   ORG                          - "personal" (or any installer identity)
+#   ORG                          - "agerpoint" or "personal"
 #   AGENTS_DIR                   - absolute path to the agents/ dir
 #   LEGACY_GITIGNORE_CURSOR      - gitignore line to clean up
 #   LEGACY_CURSOR_GLOB           - filename glob for cursor symlinks
 #   LEGACY_GITIGNORE_JETBRAINS   - optional
 #   LEGACY_JETBRAINS_GLOB        - optional
-#
-# Copilot fan-out is exercised when AGENTS_DIR contains a github-copilot/
-# template directory (bok only; personal does not have Ticket-to-PR).
 
 set -euo pipefail
 
@@ -97,38 +94,12 @@ REPO_ONLY=$(mk_repo "only-gitignore-repo")
     printf '%s\n' "$LEGACY_GITIGNORE_CURSOR"
 } > "$REPO_ONLY/.gitignore"
 
-# Copilot fan-out is enabled only when the source dir exists.
-COPILOT_SRC_DIR=""
-if [ -d "$AGENTS_DIR/github-copilot" ] && \
-   [ -f "$AGENTS_DIR/github-copilot/copilot-instructions.md" ] && \
-   [ -f "$AGENTS_DIR/github-copilot/copilot-setup-steps.yml" ]; then
-    # Stage a copy in the sandbox so the test can mutate it without touching
-    # the real BOK source tree.
-    COPILOT_SRC_DIR="$TEST_DIR/copilot-src"
-    mkdir -p "$COPILOT_SRC_DIR"
-    cp "$AGENTS_DIR/github-copilot/copilot-instructions.md" "$COPILOT_SRC_DIR/"
-    cp "$AGENTS_DIR/github-copilot/copilot-setup-steps.yml" "$COPILOT_SRC_DIR/"
-fi
-
-# fan-out repos: extra siblings used only when COPILOT_SRC_DIR is set.
-# Each will receive both Copilot files via the fan-out logic.
-REPO_FANOUT_A=""
-REPO_FANOUT_B=""
-if [ -n "$COPILOT_SRC_DIR" ]; then
-    REPO_FANOUT_A=$(mk_repo "fanout-a")
-    REPO_FANOUT_B=$(mk_repo "fanout-b")
-    # Plant a stale copy in REPO_FANOUT_B so we can test update-on-change.
-    mkdir -p "$REPO_FANOUT_B/.github/workflows"
-    printf 'stale instructions from before\n' \
-        > "$REPO_FANOUT_B/.github/copilot-instructions.md"
-    printf 'name: stale setup\n' \
-        > "$REPO_FANOUT_B/.github/workflows/copilot-setup-steps.yml"
-fi
-
-# A fake bok-self repo: should always be skipped during the Copilot fan-out
-# because $REPO_ROOT names it.
-REPO_BOK_SELF=$(mk_repo "bok-self")
-FAKE_REPO_ROOT="$REPO_BOK_SELF"
+# A sibling repo with committed Copilot files: the installer must never touch
+# another repo's .github/ (the old Copilot fan-out is gone).
+REPO_WITH_GITHUB=$(mk_repo "with-github")
+mkdir -p "$REPO_WITH_GITHUB/.github/workflows"
+printf 'repo-owned instructions\n' > "$REPO_WITH_GITHUB/.github/copilot-instructions.md"
+printf 'name: repo-owned setup\n' > "$REPO_WITH_GITHUB/.github/workflows/copilot-setup-steps.yml"
 
 # ---------------------------------------------------------------------------
 # Helper: run blocks.sh with the sandbox env
@@ -149,8 +120,7 @@ run_blocks() {
     XCODE_CLAUDE_DIR="$home/xcode-claude" \
     XCODE_CODEX_DIR="$home/xcode-codex" \
     PROJECTS_DIR="$FAKE_PROJECTS" \
-    REPO_ROOT="$FAKE_REPO_ROOT" \
-    COPILOT_SRC="$COPILOT_SRC_DIR" \
+    CURSOR_EXTRA_SOURCES="${CURSOR_EXTRA_SOURCES_T:-}" \
     LEGACY_GITIGNORE_CURSOR="$LEGACY_GITIGNORE_CURSOR" \
     LEGACY_GITIGNORE_JETBRAINS="${LEGACY_GITIGNORE_JETBRAINS:-}" \
     LEGACY_CURSOR_GLOB="$LEGACY_CURSOR_GLOB" \
@@ -214,13 +184,13 @@ assert_file_exists "$FAKE_HOME/.gemini/GEMINI.md"
 assert_file_exists "$FAKE_HOME/AGENTS.md"
 assert_file_exists "$FAKE_HOME/.codex/AGENTS.md"
 
-# @-import in Claude/Gemini/Cursor; canary inlined in Codex.
+# @-import in Claude/Gemini; canary inlined in Codex and Cursor.
 assert_grep "@" "$FAKE_HOME/.claude/CLAUDE.md"
 assert_grep "AGENTS.md" "$FAKE_HOME/.claude/CLAUDE.md"
 assert_grep "@" "$FAKE_HOME/.gemini/GEMINI.md"
 assert_grep "$CANARY_PHRASE" "$FAKE_HOME/.codex/AGENTS.md"
-# Cursor doesn't expand @-imports, so its block is inlined.
 assert_grep "$CANARY_PHRASE" "$FAKE_HOME/AGENTS.md"
+assert_not_grep "@$FAKE_SOURCE" "$FAKE_HOME/AGENTS.md"
 
 # Preservation: the someothertenant block survives.
 assert_grep "$OTHER_ORG_MARK_OPEN"   "$FAKE_HOME/.claude/CLAUDE.md"
@@ -250,39 +220,12 @@ assert_file_missing "$REPO_ONLY/.gitignore" # gitignore deleted (was only our en
 [ -d "$REPO_CLEAN/.cursor" ] && fail "clean-repo: install should not create .cursor"
 [ -d "$REPO_CLEAN/.aiassistant" ] && fail "clean-repo: install should not create .aiassistant"
 
-# Copilot fan-out should NOT produce a CONFLICTS section any more.
+# A clean install produces no CONFLICTS section.
 if grep -q "CONFLICTS" "$TEST_DIR/install.out"; then
-    fail "install output should not contain CONFLICTS (Copilot files are BOK-managed, not v1)"
+    fail "install output should not contain CONFLICTS"
 fi
 
-# Copilot fan-out behavior (only when source templates are available).
-if [ -n "$COPILOT_SRC_DIR" ]; then
-    # Both files installed into a previously-empty repo.
-    assert_file_exists "$REPO_FANOUT_A/.github/copilot-instructions.md"
-    assert_file_exists "$REPO_FANOUT_A/.github/workflows/copilot-setup-steps.yml"
-    cmp -s "$COPILOT_SRC_DIR/copilot-instructions.md" \
-           "$REPO_FANOUT_A/.github/copilot-instructions.md" \
-        || fail "fanout-a copilot-instructions.md content differs from source"
-    cmp -s "$COPILOT_SRC_DIR/copilot-setup-steps.yml" \
-           "$REPO_FANOUT_A/.github/workflows/copilot-setup-steps.yml" \
-        || fail "fanout-a copilot-setup-steps.yml content differs from source"
-
-    # A repo that had stale content gets updated to match source.
-    cmp -s "$COPILOT_SRC_DIR/copilot-instructions.md" \
-           "$REPO_FANOUT_B/.github/copilot-instructions.md" \
-        || fail "fanout-b: stale copilot-instructions.md was not updated"
-    cmp -s "$COPILOT_SRC_DIR/copilot-setup-steps.yml" \
-           "$REPO_FANOUT_B/.github/workflows/copilot-setup-steps.yml" \
-        || fail "fanout-b: stale copilot-setup-steps.yml was not updated"
-
-    # The bok-self repo must be skipped.
-    [ ! -f "$REPO_BOK_SELF/.github/copilot-instructions.md" ] \
-        || fail "bok-self: copilot files should NOT have been written (bok skips itself)"
-
-    # The installer should print a copilot summary line.
-    grep -q "^copilot:" "$TEST_DIR/install.out" \
-        || fail "expected 'copilot:' summary line in install output"
-fi
+assert_grep "repo-owned instructions" "$REPO_WITH_GITHUB/.github/copilot-instructions.md"
 
 # ---------------------------------------------------------------------------
 # Test 2: idempotency
@@ -306,6 +249,7 @@ run_blocks install > "$TEST_DIR/install3.out"
 sed 's/^/  /' "$TEST_DIR/install3.out"
 assert_block_count "$FAKE_HOME/.codex/AGENTS.md" 1
 assert_grep "Extra line for change detection" "$FAKE_HOME/.codex/AGENTS.md"
+assert_grep "Extra line for change detection" "$FAKE_HOME/AGENTS.md"
 grep -q "replaced" "$TEST_DIR/install3.out" || fail "expected 'replaced' in change-install output"
 
 # ---------------------------------------------------------------------------
@@ -341,44 +285,13 @@ assert_grep "$CANARY_PHRASE" "$FAKE_WIN_HOME/.claude/CLAUDE.md"
 assert_grep "$CANARY_PHRASE" "$FAKE_WIN_HOME/.gemini/GEMINI.md"
 assert_grep "$CANARY_PHRASE" "$FAKE_WIN_HOME/AGENTS.md"
 assert_grep "$CANARY_PHRASE" "$FAKE_WIN_HOME/.codex/AGENTS.md"
-# The home side must still use @-imports (unchanged from test 1).
+# The home side must still use @-imports for Claude/Gemini (unchanged from test 1).
+# Cursor is inlined on both passes.
 assert_grep "@" "$FAKE_HOME/.claude/CLAUDE.md"
 assert_not_grep "$CANARY_PHRASE" "$FAKE_HOME/.claude/CLAUDE.md"
 
 # ---------------------------------------------------------------------------
-# Test 5b: Copilot fan-out idempotency + change-propagation
-# ---------------------------------------------------------------------------
 
-if [ -n "$COPILOT_SRC_DIR" ]; then
-    printf '=== test 5b: copilot fan-out idempotency ===\n'
-
-    # Snapshot the fan-out target files; a clean re-run should not touch them.
-    pre_a=$(stat -c '%Y %s' "$REPO_FANOUT_A/.github/copilot-instructions.md" 2>/dev/null \
-            || stat -f '%m %z' "$REPO_FANOUT_A/.github/copilot-instructions.md")
-    run_blocks install > "$TEST_DIR/install_fanout_idem.out"
-    sed 's/^/  /' "$TEST_DIR/install_fanout_idem.out"
-    post_a=$(stat -c '%Y %s' "$REPO_FANOUT_A/.github/copilot-instructions.md" 2>/dev/null \
-             || stat -f '%m %z' "$REPO_FANOUT_A/.github/copilot-instructions.md")
-    [ "$pre_a" = "$post_a" ] \
-        || fail "fanout-a: idempotent re-install should NOT modify copilot-instructions.md (was $pre_a, now $post_a)"
-
-    grep -qE "= [0-9]+ unchanged" "$TEST_DIR/install_fanout_idem.out" \
-        || fail "expected copilot summary to report 'unchanged' on idempotent re-run"
-
-    printf '=== test 5c: copilot fan-out change propagation ===\n'
-
-    # Mutate the source template; next install should overwrite both repos.
-    printf '\n## Updated template line\n' >> "$COPILOT_SRC_DIR/copilot-instructions.md"
-    run_blocks install > "$TEST_DIR/install_fanout_update.out"
-    sed 's/^/  /' "$TEST_DIR/install_fanout_update.out"
-
-    assert_grep "Updated template line" \
-        "$REPO_FANOUT_A/.github/copilot-instructions.md"
-    assert_grep "Updated template line" \
-        "$REPO_FANOUT_B/.github/copilot-instructions.md"
-    grep -qE "~ [0-9]+ updated" "$TEST_DIR/install_fanout_update.out" \
-        || fail "expected copilot summary to report 'updated' after source change"
-fi
 
 # ---------------------------------------------------------------------------
 # Test 6: uninstall
@@ -406,16 +319,9 @@ assert_grep "$OTHER_ORG_MARK_OPEN" "$FAKE_HOME/.claude/CLAUDE.md"
 assert_grep "$OTHER_ORG_PAYLOAD"   "$FAKE_HOME/.claude/CLAUDE.md"
 assert_grep "$OTHER_ORG_MARK_OPEN" "$FAKE_HOME/AGENTS.md"
 
-# Copilot files should be removed from every sibling repo (but not bok-self).
-if [ -n "$COPILOT_SRC_DIR" ]; then
-    assert_file_missing "$REPO_FANOUT_A/.github/copilot-instructions.md"
-    assert_file_missing "$REPO_FANOUT_A/.github/workflows/copilot-setup-steps.yml"
-    assert_file_missing "$REPO_FANOUT_B/.github/copilot-instructions.md"
-    assert_file_missing "$REPO_FANOUT_B/.github/workflows/copilot-setup-steps.yml"
-    # bok-self never had them; should still not.
-    [ ! -f "$REPO_BOK_SELF/.github/copilot-instructions.md" ] \
-        || fail "bok-self: should remain free of copilot files after uninstall"
-fi
+# Sibling repos' own .github/ files survive uninstall too.
+assert_file_exists "$REPO_WITH_GITHUB/.github/copilot-instructions.md"
+assert_file_exists "$REPO_WITH_GITHUB/.github/workflows/copilot-setup-steps.yml"
 
 # Uninstall also re-runs legacy cleanup; nothing left to do, but no failure.
 run_blocks uninstall > /dev/null
@@ -437,37 +343,30 @@ printf '=== test 8: plugin mode migrates away from blocks ===\n'
 PM_HOME="$TEST_DIR/plugin-mode-home"
 PM_WIN="$TEST_DIR/plugin-mode-win"
 mkdir -p "$PM_HOME/.claude" "$PM_WIN"
-
-# The old way: every block written, plus content the user owns.
+printf 'user notes above\n' > "$PM_HOME/.claude/CLAUDE.md"
 run_blocks install "$PM_HOME" "$PM_WIN" > /dev/null
-printf '\n# my own notes\n' >> "$PM_HOME/.claude/CLAUDE.md"
 for f in .claude/CLAUDE.md .codex/AGENTS.md .gemini/GEMINI.md AGENTS.md; do
-    grep -qF "# >>> $ORG >>>" "$PM_HOME/$f" || fail "setup: no block in $f"
+    grep -qF "# >>> $ORG >>>" "$PM_HOME/$f" || fail "setup: home mode should write a block in $f"
 done
 
-CLAUDE_BLOCK=remove CODEX_BLOCK=remove \
+CLAUDE_BLOCK=remove CODEX_BLOCK=remove CURSOR_BLOCK=remove \
     run_blocks install "$PM_HOME" "$PM_WIN" > "$TEST_DIR/plugin-mode.out"
-
-for f in "$PM_HOME/.claude/CLAUDE.md" "$PM_WIN/.claude/CLAUDE.md"; do
-    if [ -f "$f" ] && grep -qF "# >>> $ORG >>>" "$f"; then
-        fail "CLAUDE_BLOCK=remove left a block in $f"
-    fi
-done
-grep -qF "# my own notes" "$PM_HOME/.claude/CLAUDE.md" \
-    || fail "CLAUDE_BLOCK=remove dropped content outside the block"
+assert_not_grep "# >>> $ORG >>>" "$PM_HOME/.claude/CLAUDE.md"
+assert_grep "user notes above" "$PM_HOME/.claude/CLAUDE.md"
 [ ! -e "$PM_HOME/.codex/AGENTS.md" ] \
     || fail "CODEX_BLOCK=remove should delete a file that only held the block"
+[ ! -e "$PM_HOME/AGENTS.md" ] \
+    || fail "CURSOR_BLOCK=remove should delete a file that only held the block"
 grep -qF "# >>> $ORG >>>" "$PM_HOME/.gemini/GEMINI.md" || fail "GEMINI_BLOCK=keep lost its block"
-grep -qF "# >>> $ORG >>>" "$PM_HOME/AGENTS.md" || fail "the Cursor block must always be kept"
 
 # Idempotent: a second plugin-mode install changes nothing.
-CLAUDE_BLOCK=remove CODEX_BLOCK=remove \
+CLAUDE_BLOCK=remove CODEX_BLOCK=remove CURSOR_BLOCK=remove \
     run_blocks install "$PM_HOME" "$PM_WIN" > "$TEST_DIR/plugin-mode-2.out"
 if grep -qE ' (\+|~|-) ' "$TEST_DIR/plugin-mode-2.out"; then
     fail "second plugin-mode install was not a no-op"
 fi
 
-CLAUDE_BLOCK=remove CODEX_BLOCK=remove \
+CLAUDE_BLOCK=remove CODEX_BLOCK=remove CURSOR_BLOCK=remove \
     run_blocks status "$PM_HOME" > "$TEST_DIR/plugin-mode-status.out" || true
 grep -q "no $ORG block (plugin mode)" "$TEST_DIR/plugin-mode-status.out" \
     || fail "status should report plugin mode for removed blocks"
@@ -477,25 +376,25 @@ if CLAUDE_BLOCK=bogus run_blocks install "$PM_HOME" > /dev/null 2>&1; then
 fi
 
 # Uninstall still removes every block, whatever the modes.
-run_blocks uninstall "$PM_HOME" "$PM_WIN" > /dev/null
-for f in .gemini/GEMINI.md AGENTS.md; do
-    if [ -f "$PM_HOME/$f" ] && grep -qF "# >>> $ORG >>>" "$PM_HOME/$f"; then
-        fail "uninstall left a block in $f"
-    fi
-done
+CLAUDE_BLOCK=remove run_blocks uninstall "$PM_HOME" "$PM_WIN" > /dev/null
+if [ -f "$PM_HOME/.gemini/GEMINI.md" ] && grep -qF "# >>> $ORG >>>" "$PM_HOME/.gemini/GEMINI.md"; then
+    fail "uninstall left a block in .gemini/GEMINI.md"
+fi
 
 # ---------------------------------------------------------------------------
-# Test 9: uninstall leaves other installers' Copilot files alone
+# Test 9: the Cursor block carries the Cursor-only rules, others don't
 # ---------------------------------------------------------------------------
 
-printf '=== test 9: uninstall without COPILOT_SRC keeps sibling Copilot files ===\n'
-REPO_FOREIGN=$(mk_repo "foreign-copilot")
-mkdir -p "$REPO_FOREIGN/.github/workflows"
-printf 'owned by another installer\n' > "$REPO_FOREIGN/.github/copilot-instructions.md"
-printf 'name: other\n' > "$REPO_FOREIGN/.github/workflows/copilot-setup-steps.yml"
-COPILOT_SRC_DIR="" run_blocks uninstall > "$TEST_DIR/uninstall-foreign.out"
-assert_file_exists "$REPO_FOREIGN/.github/copilot-instructions.md"
-assert_file_exists "$REPO_FOREIGN/.github/workflows/copilot-setup-steps.yml"
+printf '=== test 9: cursor block appends rule bodies ===\n'
+CX_HOME="$TEST_DIR/cursor-extras-home"
+mkdir -p "$CX_HOME"
+CX_RULE="$TEST_DIR/cursor-rule.mdc"
+printf -- '---\ndescription: test rule\nalwaysApply: true\n---\n\n# Cursor-only rule body\n' > "$CX_RULE"
+CURSOR_EXTRA_SOURCES_T="$CX_RULE" run_blocks install "$CX_HOME" > /dev/null
+assert_grep "Cursor-only rule body" "$CX_HOME/AGENTS.md"
+assert_not_grep "alwaysApply: true" "$CX_HOME/AGENTS.md"
+assert_not_grep "Cursor-only rule body" "$CX_HOME/.codex/AGENTS.md"
+assert_grep "$CANARY_PHRASE" "$CX_HOME/AGENTS.md"
 
 # ---------------------------------------------------------------------------
 # Summary

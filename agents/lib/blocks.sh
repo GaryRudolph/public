@@ -1,21 +1,16 @@
 #!/usr/bin/env bash
-# Block-marker installer for AGENTS.md-style global agent configuration,
-# plus the per-repo GitHub Copilot fan-out for organizations that need it.
+# Block-marker installer for AGENTS.md-style global agent configuration.
 #
 # Manages a single $ORG-keyed block in each home configuration file, leaving
 # all other content byte-for-byte intact. Also cleans up legacy v1 per-project
 # artifacts (Cursor / JetBrains symlinks and matching .gitignore entries).
 #
-# When $COPILOT_SRC is set, also fans out two per-repo files
-# (.github/copilot-instructions.md and .github/workflows/copilot-setup-steps.yml)
-# to every git repo under $PROJECTS_DIR, skipping $REPO_ROOT and nested repos.
-# These are NOT v1 artifacts — they are load-bearing for GitHub Copilot Cloud
-# Agent (see standards/ticket-to-pr-setup.md). They live committed in each
-# repo because Cloud Agent runs in a GitHub-managed VM with no access to your
-# home directory.
+# Each tool's block follows its mode. A tool in plugin mode gets the core from
+# the $ORG plugin, so install strips the block this installer wrote
+# before. Uninstall removes every block whatever the modes.
 #
 # Required env (set by the calling Makefile):
-#   ORG               installer identity (e.g. "personal")
+#   ORG               installer identity ("agerpoint", "personal", ...)
 #   SOURCE_AGENTS     absolute path to the canonical AGENTS.md
 #   MAKEFILE_LABEL    human-readable label for the "managed by" line
 #
@@ -24,25 +19,21 @@
 #   CURSOR_GLOBAL_FILE
 #   XCODE_CLAUDE_DIR, XCODE_CODEX_DIR
 #
-# Per-tool block mode (keep | remove, default keep):
-#   CLAUDE_BLOCK, CODEX_BLOCK, GEMINI_BLOCK
-#   remove means the tool gets the core standards from its plugin instead, so
-#   install strips any block left from before instead of writing one. The
-#   Cursor (~/AGENTS.md) and Xcode blocks are always kept: no plugin carries
-#   the core to them.
+# Block modes (keep | remove; the Makefile derives them from the tool modes):
+#   CLAUDE_BLOCK, GEMINI_BLOCK, CODEX_BLOCK, CURSOR_BLOCK
 #
-# Sibling-repo scan (legacy cleanup + copilot fan-out):
+# Cursor extras:
+#   CURSOR_EXTRA_SOURCES         colon list of .mdc rules whose bodies are
+#                                appended to the Cursor block. They reach
+#                                Cursor from the plugin in plugin mode; in
+#                                home mode the block has to carry them.
+#
+# Sibling-repo scan (legacy cleanup only):
 #   PROJECTS_DIR                 sibling-repo scan root
-#   REPO_ROOT                    this installer's own repo (skipped during fan-out)
 #   LEGACY_GITIGNORE_CURSOR      gitignore line to remove (cursor)
 #   LEGACY_GITIGNORE_JETBRAINS   gitignore line to remove (jetbrains, optional)
 #   LEGACY_CURSOR_GLOB           filename glob for cursor symlinks
 #   LEGACY_JETBRAINS_GLOB        filename glob for jetbrains symlinks (optional)
-#
-# Copilot fan-out (set only by orgs that drive Ticket-to-PR; bok yes, personal no):
-#   COPILOT_SRC                  directory holding copilot-instructions.md +
-#                                copilot-setup-steps.yml templates. When unset,
-#                                the fan-out is a no-op.
 #
 # WSL -> Windows-host dual install:
 #   WIN_HOME                     If set or auto-detected when /proc/version
@@ -51,13 +42,11 @@
 #                                content (not @-imports) in every home file.
 #
 # Subcommands:
-#   install      Legacy cleanup, write/update the ORG block in each home file,
-#                fan out Copilot files (idempotent: only writes when missing
-#                or content differs from source).
-#   uninstall    Legacy cleanup, remove the ORG block from each home file,
-#                remove Copilot files from every sibling repo's working tree.
+#   install      Legacy cleanup, then write/update or strip the ORG block in
+#                each home file according to its mode.
+#   uninstall    Legacy cleanup, remove the ORG block from each home file.
 #   dry-run      Show what install would do; no disk writes.
-#   status       Report block presence, fan-out state, and v1 artifacts.
+#   status       Report block presence, modes, and v1 artifacts.
 
 set -euo pipefail
 
@@ -77,18 +66,18 @@ set -euo pipefail
 : "${XCODE_CODEX_DIR:=$HOME/Library/Developer/Xcode/CodingAssistant/codex}"
 
 : "${PROJECTS_DIR:=}"
-: "${REPO_ROOT:=}"
 : "${LEGACY_GITIGNORE_CURSOR:=}"
 : "${LEGACY_GITIGNORE_JETBRAINS:=}"
 : "${LEGACY_CURSOR_GLOB:=}"
 : "${LEGACY_JETBRAINS_GLOB:=}"
 
-: "${COPILOT_SRC:=}"
-
 : "${CLAUDE_BLOCK:=keep}"
-: "${CODEX_BLOCK:=keep}"
 : "${GEMINI_BLOCK:=keep}"
-for block_var in CLAUDE_BLOCK CODEX_BLOCK GEMINI_BLOCK; do
+: "${CODEX_BLOCK:=keep}"
+: "${CURSOR_BLOCK:=keep}"
+: "${CURSOR_EXTRA_SOURCES:=}"
+
+for block_var in CLAUDE_BLOCK GEMINI_BLOCK CODEX_BLOCK CURSOR_BLOCK; do
     case "${!block_var}" in
         keep|remove) ;;
         *) printf '%s must be keep or remove (got %s)\n' "$block_var" "${!block_var}" >&2; exit 2 ;;
@@ -251,8 +240,8 @@ content_stats() {
     fi
 }
 
-# Render block body when this home file uses @-imports (Claude/Gemini on the
-# native-side pass). Use a ~/ path when possible — `@~/...` is portable
+# Render block body when this home file uses @-imports (Claude/Gemini on
+# the native-side pass). Use a ~/ path when possible — `@~/...` is portable
 # across engineer machines and is honored by Claude and Gemini. Cursor's
 # AGENTS.md is plain markdown and does not expand @-imports.
 render_import_content() {
@@ -260,15 +249,48 @@ render_import_content() {
     printf '@%s\n' "$(pretty_path "$SOURCE_AGENTS")" > "$out"
 }
 
-# Render block body in cases where ~ expansion is unreliable (Codex inlines
-# anyway, so this is currently used only for the Windows-host pass where the
-# import path can't reach the WSL bok checkout — those passes inline instead).
-
-# Render block body when this home file inlines content (Codex everywhere,
-# AND every home file on the Windows-host pass).
+# Render block body when this home file inlines content (Codex and Cursor
+# everywhere, AND every home file on the Windows-host pass).
 render_inline_content() {
     local out="$1"
     cat "$SOURCE_AGENTS" > "$out"
+}
+
+# Render the Cursor block: the inlined core plus the bodies of the
+# Cursor-only rules (frontmatter stripped), which left the core so Claude,
+# Codex, and Gemini don't carry them.
+render_cursor_content() {
+    local out="$1" rule item
+    cat "$SOURCE_AGENTS" > "$out"
+    local IFS=':'
+    for rule in $CURSOR_EXTRA_SOURCES; do
+        [ -f "$rule" ] || continue
+        printf '\n' >> "$out"
+        awk 'NR == 1 && $0 == "---" { fm = 1; next } fm && $0 == "---" { fm = 0; next } !fm' "$rule" >> "$out"
+    done
+}
+
+# Write the block, or strip one left from before when the tool has moved to
+# its plugin. Args: $1 = keep | remove, then apply_block's arguments.
+keep_or_remove() {
+    local block_mode="$1"
+    shift
+    if [ "$block_mode" = "remove" ]; then
+        remove_block_from "$1"
+    else
+        apply_block "$@"
+    fi
+}
+
+# Block mode for a home file, for status output.
+block_mode_for() {
+    case "$1" in
+        "$CLAUDE_HOME/CLAUDE.md"|*/.claude/CLAUDE.md) printf '%s' "$CLAUDE_BLOCK" ;;
+        "$CODEX_HOME/AGENTS.md"|*/.codex/AGENTS.md)   printf '%s' "$CODEX_BLOCK" ;;
+        "$GEMINI_HOME/GEMINI.md"|*/.gemini/GEMINI.md) printf '%s' "$GEMINI_BLOCK" ;;
+        "$CURSOR_GLOBAL_FILE"|*/AGENTS.md)            printf '%s' "$CURSOR_BLOCK" ;;
+        *) printf 'keep' ;;
+    esac
 }
 
 # Atomic write of a string-content-from-file to the target file.
@@ -418,6 +440,8 @@ remove_block_from() {
     if ! grep -q '[^[:space:]]' "$stripped" 2>/dev/null; then
         rm -f "$stripped" "$target"
         printf '%-50s - removed %s block; file deleted (no other content)\n' "$pretty" "$ORG"
+        # Drop the tool dir too if that file was all it held (e.g. ~/.codex).
+        [ "$(dirname "$target")" = "$HOME" ] || rmdir "$(dirname "$target")" 2>/dev/null || true
     else
         # Trim a single trailing blank line if we left one above the removed block.
         # (Cosmetic: keeps the file the same shape as before the block was added.)
@@ -433,43 +457,21 @@ remove_block_from() {
 # Pass orchestration
 # ---------------------------------------------------------------------------
 
-# Write the block, or strip one left from before when the tool has moved to
-# its plugin. Args: $1 = keep | remove, then apply_block's arguments.
-keep_or_remove() {
-    local block_mode="$1"
-    shift
-    if [ "$block_mode" = "remove" ]; then
-        remove_block_from "$1"
-    else
-        apply_block "$@"
-    fi
-}
-
-# Block mode for a home file, for status output.
-block_mode_for() {
-    case "$1" in
-        */.claude/CLAUDE.md|"$CLAUDE_HOME/CLAUDE.md") printf '%s' "$CLAUDE_BLOCK" ;;
-        */.codex/AGENTS.md|"$CODEX_HOME/AGENTS.md")   printf '%s' "$CODEX_BLOCK" ;;
-        */.gemini/GEMINI.md|"$GEMINI_HOME/GEMINI.md") printf '%s' "$GEMINI_BLOCK" ;;
-        *) printf 'keep' ;;
-    esac
-}
-
 # Iterate all home files for one pass, applying or removing the block.
 # Args: $1 = "apply" or "remove"
 #       $2 = home directory base (HOME on native, WIN_HOME on Windows pass)
-#       $3 = "inline" or "import" (mode for Claude/Gemini/Cursor; Codex is always inline)
+#       $3 = "inline" or "import" (mode for Claude/Gemini; Cursor and Codex are always inline)
 run_pass() {
     local action="$1"
     local home_base="$2"
     local mode="$3"
 
-    # Files that vary by mode (import vs inline)
+    # Files that vary by mode (import vs inline): Claude and Gemini.
     local claude_file="$home_base/.claude/CLAUDE.md"
     local gemini_file="$home_base/.gemini/GEMINI.md"
-    local cursor_file="$home_base/AGENTS.md"
 
-    # Files that are always inlined (Codex, Xcode Codex).
+    # Files that are always inlined (Cursor, Codex, Xcode Codex).
+    local cursor_file="$home_base/AGENTS.md"
     local codex_file="$home_base/.codex/AGENTS.md"
     local xcode_claude_file="$home_base/Library/Developer/Xcode/CodingAssistant/ClaudeAgentConfig/CLAUDE.md"
     local xcode_codex_file="$home_base/Library/Developer/Xcode/CodingAssistant/codex/AGENTS.md"
@@ -502,9 +504,10 @@ run_pass() {
 
     # action = apply (or dry-run, controlled by DRY_RUN flag)
 
-    local import_content inline_content
+    local import_content inline_content cursor_content
     import_content=$(mktemp); render_import_content "$import_content"
     inline_content=$(mktemp); render_inline_content "$inline_content"
+    cursor_content=$(mktemp); render_cursor_content "$cursor_content"
     local source_label
     source_label="$(pretty_path "$SOURCE_AGENTS")"
 
@@ -518,9 +521,8 @@ run_pass() {
         keep_or_remove "$GEMINI_BLOCK" "$gemini_file" "$import_content"
     fi
 
-    # Cursor doesn't expand @-imports in AGENTS.md, so the stub would load
-    # as one line of text and the core would never arrive. Always inline.
-    apply_block "$cursor_file" "$inline_content" "$source_label"
+    # Cursor's AGENTS.md does not support @-imports; always inline.
+    keep_or_remove "$CURSOR_BLOCK" "$cursor_file" "$cursor_content" "$source_label"
 
     # Codex never supports @-imports; always inline.
     keep_or_remove "$CODEX_BLOCK" "$codex_file" "$inline_content" "$source_label"
@@ -535,7 +537,7 @@ run_pass() {
         apply_block "$xcode_codex_file" "$inline_content" "$source_label"
     fi
 
-    rm -f "$import_content" "$inline_content"
+    rm -f "$import_content" "$inline_content" "$cursor_content"
 }
 
 # ---------------------------------------------------------------------------
@@ -645,280 +647,6 @@ print_conflicts() {
 }
 
 # ---------------------------------------------------------------------------
-# GitHub Copilot per-repo fan-out
-# ---------------------------------------------------------------------------
-# Copilot Cloud Agent runs on a GitHub-managed VM with $HOME set to a runner
-# user, not yours, so there is no home-dir equivalent for these files. They
-# must live committed in each repo. Two templates are repo-agnostic; the BOK
-# is the single source of truth (see standards/ticket-to-pr-setup.md §5/§6).
-#
-# Install semantics (per user choice): write only when the file is missing
-# or its content differs from source. No work, no working-tree noise on a
-# clean re-run. When the BOK template changes, the next install propagates
-# the new content (engineer reviews the diff in their working tree and
-# commits per repo).
-#
-# Uninstall semantics: rm both files from every sibling repo's working tree.
-# Each repo ends up with staged deletes the engineer commits at their pace.
-#
-# The bok itself is skipped: its own .github/ copies are deliberately
-# divergent (the bok IS the BOK; it doesn't clone itself).
-
-# Returns one of: "added", "updated", "unchanged".
-copilot_file_action() {
-    local target="$1"
-    local source="$2"
-    if [ ! -f "$target" ]; then
-        echo added
-    elif cmp -s "$target" "$source"; then
-        echo unchanged
-    else
-        echo updated
-    fi
-}
-
-# Install or dry-run the Copilot files for every repo under $PROJECTS_DIR.
-# Skips the bok itself and any nested-under-another-repo paths.
-apply_copilot() {
-    [ -n "$COPILOT_SRC" ] || return 0
-    [ -n "$PROJECTS_DIR" ] || return 0
-    [ -d "$PROJECTS_DIR" ] || return 0
-
-    local instr_src="$COPILOT_SRC/copilot-instructions.md"
-    local steps_src="$COPILOT_SRC/copilot-setup-steps.yml"
-    if [ ! -f "$instr_src" ] || [ ! -f "$steps_src" ]; then
-        printf 'copilot: source templates missing under %s; skipping fan-out\n' \
-            "$(pretty_path "$COPILOT_SRC")"
-        return 0
-    fi
-
-    local projects_real
-    projects_real=$(cd "$PROJECTS_DIR" && pwd -P)
-    local repo_root_real=""
-    [ -n "$REPO_ROOT" ] && [ -d "$REPO_ROOT" ] && repo_root_real=$(cd "$REPO_ROOT" && pwd -P)
-
-    local total=0 added=0 updated=0 unchanged=0 skipped_self=0 skipped_nested=0
-    local gitdir repo
-
-    while IFS= read -r gitdir; do
-        [ -z "$gitdir" ] && continue
-        repo="${gitdir%/.git}"
-
-        if [ -n "$repo_root_real" ] && [ "$repo" = "$repo_root_real" ]; then
-            skipped_self=$((skipped_self + 1))
-            continue
-        fi
-
-        local nested=0 parent="$repo"
-        while parent=$(dirname "$parent"); do
-            case "$parent" in
-                "$projects_real"|/) break ;;
-            esac
-            if [ -e "$parent/.git" ]; then nested=1; break; fi
-        done
-        if [ "$nested" = "1" ]; then
-            skipped_nested=$((skipped_nested + 1))
-            continue
-        fi
-
-        total=$((total + 1))
-
-        local instr_target="$repo/.github/copilot-instructions.md"
-        local steps_target="$repo/.github/workflows/copilot-setup-steps.yml"
-        local a1 a2 verdict
-        a1=$(copilot_file_action "$instr_target" "$instr_src")
-        a2=$(copilot_file_action "$steps_target" "$steps_src")
-
-        if [ "$a1" = "unchanged" ] && [ "$a2" = "unchanged" ]; then
-            verdict=unchanged
-        elif [ "$a1" = "added" ] || [ "$a2" = "added" ]; then
-            verdict=added
-        else
-            verdict=updated
-        fi
-
-        case "$verdict" in
-            unchanged)
-                unchanged=$((unchanged + 1))
-                ;;
-            added)
-                added=$((added + 1))
-                if [ "$DRY_RUN" = "1" ]; then
-                    printf '%-50s + would add copilot files (instructions=%s, setup-steps=%s)\n' \
-                        "$(pretty_path "$repo")" "$a1" "$a2"
-                else
-                    mkdir -p "$repo/.github/workflows"
-                    cp -f "$instr_src" "$instr_target"
-                    cp -f "$steps_src" "$steps_target"
-                    printf '%-50s + added copilot files\n' "$(pretty_path "$repo")"
-                fi
-                ;;
-            updated)
-                updated=$((updated + 1))
-                if [ "$DRY_RUN" = "1" ]; then
-                    printf '%-50s ~ would update copilot files (instructions=%s, setup-steps=%s)\n' \
-                        "$(pretty_path "$repo")" "$a1" "$a2"
-                else
-                    mkdir -p "$repo/.github/workflows"
-                    [ "$a1" != "unchanged" ] && cp -f "$instr_src" "$instr_target"
-                    [ "$a2" != "unchanged" ] && cp -f "$steps_src" "$steps_target"
-                    printf '%-50s ~ updated copilot files (BOK template propagated)\n' \
-                        "$(pretty_path "$repo")"
-                fi
-                ;;
-        esac
-    done < <(find_repos "$PROJECTS_DIR")
-
-    printf '\ncopilot: %d eligible repo(s) under %s\n' "$total" "$(pretty_path "$PROJECTS_DIR")"
-    if [ "$DRY_RUN" = "1" ]; then
-        printf '  + %d would be added (missing files)\n'           "$added"
-        printf '  ~ %d would be updated (BOK template differs)\n'  "$updated"
-        printf '  = %d unchanged\n'                                "$unchanged"
-    else
-        printf '  + %d added\n'      "$added"
-        printf '  ~ %d updated\n'    "$updated"
-        printf '  = %d unchanged\n'  "$unchanged"
-    fi
-    [ "$skipped_self" -gt 0 ]   && printf '  - %d skipped (this is the bok)\n'      "$skipped_self"
-    [ "$skipped_nested" -gt 0 ] && printf '  - %d skipped (nested repo)\n'           "$skipped_nested"
-    return 0
-}
-
-# Remove the Copilot files from every sibling repo. Skips the bok itself
-# and nested repos for the same reasons as apply_copilot.
-remove_copilot() {
-    # Without a template source this installer never fanned anything out, so
-    # there is nothing of ours to remove. Guarding here keeps uninstall from
-    # deleting other installers' committed Copilot files under $PROJECTS_DIR.
-    [ -n "$COPILOT_SRC" ] || return 0
-    [ -n "$PROJECTS_DIR" ] || return 0
-    [ -d "$PROJECTS_DIR" ] || return 0
-
-    local projects_real
-    projects_real=$(cd "$PROJECTS_DIR" && pwd -P)
-    local repo_root_real=""
-    [ -n "$REPO_ROOT" ] && [ -d "$REPO_ROOT" ] && repo_root_real=$(cd "$REPO_ROOT" && pwd -P)
-
-    local total=0 removed=0 absent=0 skipped_self=0 skipped_nested=0
-    local gitdir repo
-
-    while IFS= read -r gitdir; do
-        [ -z "$gitdir" ] && continue
-        repo="${gitdir%/.git}"
-
-        if [ -n "$repo_root_real" ] && [ "$repo" = "$repo_root_real" ]; then
-            skipped_self=$((skipped_self + 1))
-            continue
-        fi
-
-        local nested=0 parent="$repo"
-        while parent=$(dirname "$parent"); do
-            case "$parent" in
-                "$projects_real"|/) break ;;
-            esac
-            if [ -e "$parent/.git" ]; then nested=1; break; fi
-        done
-        if [ "$nested" = "1" ]; then
-            skipped_nested=$((skipped_nested + 1))
-            continue
-        fi
-
-        total=$((total + 1))
-
-        local instr_target="$repo/.github/copilot-instructions.md"
-        local steps_target="$repo/.github/workflows/copilot-setup-steps.yml"
-        local had_any=0
-        [ -f "$instr_target" ] && had_any=1
-        [ -f "$steps_target" ] && had_any=1
-
-        if [ "$had_any" = "0" ]; then
-            absent=$((absent + 1))
-            continue
-        fi
-
-        removed=$((removed + 1))
-        if [ "$DRY_RUN" = "1" ]; then
-            printf '%-50s - would remove copilot files\n' "$(pretty_path "$repo")"
-        else
-            rm -f "$instr_target" "$steps_target"
-            printf '%-50s - removed copilot files\n' "$(pretty_path "$repo")"
-        fi
-    done < <(find_repos "$PROJECTS_DIR")
-
-    printf '\ncopilot: %d eligible repo(s) under %s\n' "$total" "$(pretty_path "$PROJECTS_DIR")"
-    if [ "$DRY_RUN" = "1" ]; then
-        printf '  - %d would have copilot files removed\n' "$removed"
-    else
-        printf '  - %d had copilot files removed\n' "$removed"
-    fi
-    printf '  = %d already absent\n' "$absent"
-    [ "$skipped_self" -gt 0 ]   && printf '  - %d skipped (this is the bok)\n' "$skipped_self"
-    [ "$skipped_nested" -gt 0 ] && printf '  - %d skipped (nested repo)\n'      "$skipped_nested"
-    return 0
-}
-
-# Read-only status for the Copilot fan-out (used by cmd_status).
-status_copilot() {
-    [ -n "$COPILOT_SRC" ] || return 0
-    [ -n "$PROJECTS_DIR" ] || return 0
-    [ -d "$PROJECTS_DIR" ] || return 0
-
-    local instr_src="$COPILOT_SRC/copilot-instructions.md"
-    local steps_src="$COPILOT_SRC/copilot-setup-steps.yml"
-    if [ ! -f "$instr_src" ] || [ ! -f "$steps_src" ]; then
-        printf 'copilot: source templates missing under %s\n' \
-            "$(pretty_path "$COPILOT_SRC")"
-        return
-    fi
-
-    local projects_real
-    projects_real=$(cd "$PROJECTS_DIR" && pwd -P)
-    local repo_root_real=""
-    [ -n "$REPO_ROOT" ] && [ -d "$REPO_ROOT" ] && repo_root_real=$(cd "$REPO_ROOT" && pwd -P)
-
-    local total=0 current=0 stale=0 missing=0 partial=0
-    local gitdir repo
-
-    while IFS= read -r gitdir; do
-        [ -z "$gitdir" ] && continue
-        repo="${gitdir%/.git}"
-        [ -n "$repo_root_real" ] && [ "$repo" = "$repo_root_real" ] && continue
-
-        local nested=0 parent="$repo"
-        while parent=$(dirname "$parent"); do
-            case "$parent" in
-                "$projects_real"|/) break ;;
-            esac
-            if [ -e "$parent/.git" ]; then nested=1; break; fi
-        done
-        [ "$nested" = "1" ] && continue
-
-        total=$((total + 1))
-
-        local a1 a2
-        a1=$(copilot_file_action "$repo/.github/copilot-instructions.md" "$instr_src")
-        a2=$(copilot_file_action "$repo/.github/workflows/copilot-setup-steps.yml" "$steps_src")
-
-        if [ "$a1" = "unchanged" ] && [ "$a2" = "unchanged" ]; then
-            current=$((current + 1))
-        elif [ "$a1" = "added" ] && [ "$a2" = "added" ]; then
-            missing=$((missing + 1))
-        elif [ "$a1" = "added" ] || [ "$a2" = "added" ]; then
-            partial=$((partial + 1))
-        else
-            stale=$((stale + 1))
-        fi
-    done < <(find_repos "$PROJECTS_DIR")
-
-    printf '\ncopilot fan-out: %d eligible repo(s) under %s\n' "$total" "$(pretty_path "$PROJECTS_DIR")"
-    printf '  = %d current (both files match BOK source)\n' "$current"
-    [ "$stale"   -gt 0 ] && printf '  ~ %d stale (BOK template has been updated; run `make install`)\n' "$stale"
-    [ "$partial" -gt 0 ] && printf '  ! %d partial (one of the two files is missing; run `make install`)\n' "$partial"
-    [ "$missing" -gt 0 ] && printf '  + %d missing both files (run `make install` to fan out)\n' "$missing"
-    return 0
-}
-
-# ---------------------------------------------------------------------------
 # Subcommands
 # ---------------------------------------------------------------------------
 
@@ -940,7 +668,6 @@ cmd_install() {
     if [ -n "$WIN_HOME" ]; then
         run_pass apply "$WIN_HOME" inline
     fi
-    apply_copilot
     print_conflicts
 }
 
@@ -953,7 +680,6 @@ cmd_uninstall() {
     if [ -n "$WIN_HOME" ]; then
         run_pass remove "$WIN_HOME" inline
     fi
-    remove_copilot
     print_conflicts
 }
 
@@ -966,7 +692,6 @@ cmd_dry_run() {
     if [ -n "$WIN_HOME" ]; then
         run_pass apply "$WIN_HOME" inline
     fi
-    apply_copilot
     print_conflicts
 }
 
@@ -990,20 +715,20 @@ cmd_status() {
     for f in "${files[@]}"; do
         pretty=$(pretty_path "$f")
         if [ ! -f "$f" ] && [ "$(block_mode_for "$f")" = "remove" ]; then
-            printf '%-50s OK no %s block (plugin mode)\n' "$pretty" "$ORG"
+            printf '%-50s = no %s block (plugin mode)\n' "$pretty" "$ORG"
         elif [ ! -f "$f" ]; then
             printf '%-50s ! file missing\n' "$pretty"
         elif has_block "$f"; then
             local body
             body=$(mktemp); extract_block_body "$f" > "$body"
             if [ "$(block_mode_for "$f")" = "remove" ]; then
-                printf '%-50s ! %s block present; plugin mode removes it on install\n' "$pretty" "$ORG"
+                printf '%-50s ~ %s block present; plugin mode removes it on install\n' "$pretty" "$ORG"
             else
                 printf '%-50s OK %s block present (%s)\n' "$pretty" "$ORG" "$(content_stats "$body")"
             fi
             rm -f "$body"
         elif [ "$(block_mode_for "$f")" = "remove" ]; then
-            printf '%-50s OK no %s block (plugin mode)\n' "$pretty" "$ORG"
+            printf '%-50s = no %s block (plugin mode)\n' "$pretty" "$ORG"
         else
             printf '%-50s -- no %s block\n' "$pretty" "$ORG"
         fi
@@ -1014,21 +739,13 @@ cmd_status() {
         for sub in .claude/CLAUDE.md .gemini/GEMINI.md AGENTS.md .codex/AGENTS.md; do
             f="$WIN_HOME/$sub"
             pretty=$(pretty_path "$f")
-            if [ ! -f "$f" ] && [ "$(block_mode_for "$f")" = "remove" ]; then
-                printf '%-50s OK no %s block (plugin mode)\n' "$pretty" "$ORG"
-            elif [ ! -f "$f" ]; then
+            if [ ! -f "$f" ]; then
                 printf '%-50s ! file missing\n' "$pretty"
             elif has_block "$f"; then
                 local body
                 body=$(mktemp); extract_block_body "$f" > "$body"
-                if [ "$(block_mode_for "$f")" = "remove" ]; then
-                    printf '%-50s ! %s block present; plugin mode removes it on install\n' "$pretty" "$ORG"
-                else
-                    printf '%-50s OK %s block present (%s)\n' "$pretty" "$ORG" "$(content_stats "$body")"
-                fi
+                printf '%-50s OK %s block present (%s)\n' "$pretty" "$ORG" "$(content_stats "$body")"
                 rm -f "$body"
-            elif [ "$(block_mode_for "$f")" = "remove" ]; then
-                printf '%-50s OK no %s block (plugin mode)\n' "$pretty" "$ORG"
             else
                 printf '%-50s -- no %s block\n' "$pretty" "$ORG"
             fi
@@ -1071,7 +788,6 @@ cmd_status() {
         fi
     fi
 
-    status_copilot
     print_conflicts
 }
 

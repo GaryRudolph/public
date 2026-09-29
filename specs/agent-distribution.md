@@ -216,13 +216,18 @@ tool before:
 | `CLAUDE_MODE=plugin` | `~/.claude/CLAUDE.md` block and `~/.claude/skills` links, both sides under WSL |
 | `CODEX_MODE=plugin` | `~/.codex/AGENTS.md` block |
 | `GEMINI_MODE=plugin` | `~/.gemini/GEMINI.md` block |
-| `CURSOR_MODE=plugin` | `~/.cursor/skills` links |
+| `CURSOR_MODE=plugin` | `~/AGENTS.md` block, `~/.cursor/skills` copies, refresh hook |
 | `CODEX_MODE` and `GEMINI_MODE` both `plugin` | `~/.agents/skills` links, which the two share |
 
-The Cursor `~/AGENTS.md` block and the Xcode blocks are always kept,
-because no plugin carries the core to them. Removal leaves content outside
+The Xcode blocks are always kept, because no plugin carries the core to
+them. (The Cursor block used to be kept too; since the Cursor plugin ships
+the core as the generated `personal-core` rule, `CURSOR_MODE=plugin`
+removes it.) Removal leaves content outside
 the block and links the installer didn't make, and a second run is a no-op
-(covered by `blocks-test.sh` test 8 and `extensions-test.sh` test 11).
+(covered by `blocks-test.sh` test 8, `extensions-test.sh` test 12, and
+`roundtrip-test.sh`). The installer libs are now shared byte for byte with
+the Agerpoint bok (`ORG` selects the identity), which also brought Cursor
+copy mode, the managed denylist hook, and a full `make uninstall`.
 Per-machine choices go in the gitignored `agents/local.mk`. `make uninstall`
 ignores the modes and removes everything, including links to the old
 `agents/skills/`, then prints how to remove the plugins, which the Makefile

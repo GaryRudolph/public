@@ -376,6 +376,12 @@ extract_passthrough() {
 }
 
 # True (exit 0) when a passthrough JSON has no top-level keys.
+# True when a rendered target has no entries at all: every value is an
+# empty list or object, recursively.
+render_is_empty() {
+    jq -e '[.. | scalars] | length == 0' "$1" >/dev/null 2>&1
+}
+
 is_empty_object() {
     local f="$1"
     local n
@@ -782,13 +788,25 @@ remove_one_target() {
         fi
     fi
 
-    # Re-render without our sidecar. May produce an empty rendering if no
-    # other inputs survive; in that case leave the live file alone (the
-    # engineer can delete it manually) -- our contract is "remove ORG's
-    # contribution", not "remove the file".
+    # Re-render without our sidecar. When nothing else feeds this file (no
+    # other org, user-managed, or passthrough sidecar) and the rendering has
+    # no entries left, the file only ever held our contribution: remove it,
+    # so uninstall leaves no empty permission files behind.
     local proposed
     proposed=$(mktemp)
     render_one_target "$stem" "$dir" "$kind" "$proposed" "" "1"
+
+    if [ -f "$live" ] && ! ls "$dir/.$stem."*.json >/dev/null 2>&1 && render_is_empty "$proposed"; then
+        rm -f "$proposed"
+        if [ "$DRY_RUN" = "1" ]; then
+            printf '%-50s - would remove (only held %s entries)%s\n' "$pretty" "$ORG" "$label"
+            return 0
+        fi
+        rotate_history "$stem" "$dir"
+        rm -f -- "$live"
+        printf '%-50s - removed (only held %s entries)%s\n' "$pretty" "$ORG" "$label"
+        return 0
+    fi
 
     if [ -f "$live" ] && cmp -s "$proposed" "$live"; then
         rm -f "$proposed"
@@ -922,6 +940,8 @@ clean_one_dir() {
     else
         rm -rf -- "$hist"
         printf '%-50s - removed .history/\n' "$pretty"
+        # A dir we created only for rendered files (~/.gemini/policies) goes too.
+        case "$dir" in */policies) rmdir "$dir" "$(dirname "$dir")" 2>/dev/null || true ;; esac
     fi
 }
 
@@ -1122,6 +1142,7 @@ remove_gemini_target() {
 
     rotate_gemini_history "$dir"
     rm -f -- "$live"
+    rmdir "$(dirname "$live")" 2>/dev/null || true
     printf '%-50s - removed managed policy%s\n' "$pretty" "$label"
 }
 

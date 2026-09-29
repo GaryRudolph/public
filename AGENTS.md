@@ -9,6 +9,10 @@ installs. This file only covers the layout of this repo.
   `plugins/personal/skills/personal-standards/`. Edit the real files.
 - Keep every plugin self-contained: no paths above the plugin root, no
   top-level `bin/`. See `plugins/README.md` for the rules.
+- `plugins/personal/cursor/rules/personal-core.mdc` is generated from
+  `core.md`; after editing `core.md`, run `make -C agents cursor-core-rule`.
+- `agents/lib/` is shared byte for byte with the Agerpoint bok's
+  `agents/lib/`; `ORG` picks the identity. Port changes both ways.
 - After changing anything under `plugins/` or `agents/`, run
   `make -C agents validate test`.
 - `specs/agent-distribution.md` explains why the repo is laid out this way;
