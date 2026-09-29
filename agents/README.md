@@ -39,7 +39,7 @@ operation. The Makefile is unaware of any other installer, by design.
 | ---------------------------------- | --------------------------------------------------------------- |
 | `~/.claude/CLAUDE.md`              | `@~/Projects/personal/public/agents/AGENTS.md`                  |
 | `~/.gemini/GEMINI.md`              | `@~/Projects/personal/public/agents/AGENTS.md`                  |
-| `~/AGENTS.md`                      | `@~/Projects/personal/public/agents/AGENTS.md` (Cursor ancestor walk) |
+| `~/AGENTS.md`                      | Inlined copy of `agents/AGENTS.md` (Cursor ancestor walk; Cursor doesn't expand `@`-imports) |
 | `~/.codex/AGENTS.md`               | Inlined copy of `agents/AGENTS.md`                              |
 | Xcode pair (when Xcode is present) | Same pattern (Claude=`@`-import, Codex=inlined)                 |
 
@@ -159,7 +159,7 @@ install is not loaded.
 | Claude Code on the self-hosted runner | A new session on any repo | Same as cloud: synced plugin |
 | Cowork | A new task | Synced plugin (hooks and skills load) |
 | Claude chat (web, desktop, mobile) | A new chat | Synced plugin, skills only (chat ignores hooks); ask it to use `personal-standards` |
-| Cursor (unix) | Any project under `~` | `@`-import from `~/AGENTS.md`; skills symlinked under `~/.cursor/skills/` |
+| Cursor (unix) | Any project under `~` | Inlined block in `~/AGENTS.md`; skills under `~/.cursor/skills/` |
 | Cursor (Windows-native) | Any project, after install from WSL | Inlined block in `%USERPROFILE%\AGENTS.md`; skills copied under `%USERPROFILE%\.cursor\skills\` |
 | Gemini CLI | Anywhere | `~/.gemini/GEMINI.md` block; skills from `~/.agents/skills/` |
 | Codex CLI | Anywhere | Inlined block in `~/.codex/AGENTS.md`; skills from `~/.agents/skills/` |
@@ -184,7 +184,7 @@ inside WSL covers Windows-native tools too.
 What changes mode between the two passes:
 
 - **Blocks (unix-side, `$HOME`):** `@`-import lines that point at the WSL
-  checkout (Claude / Gemini / Cursor) or fully inlined content (Codex,
+  checkout (Claude / Gemini) or fully inlined content (Cursor, Codex,
   Xcode Codex).
 - **Blocks (windows-side, `%USERPROFILE%`):** **always inlined** — Windows-
   native tools like `Cursor.exe` resolve `~` to `C:\Users\<user>\` and can't
@@ -221,8 +221,8 @@ own block and never reads, writes, or comments on any other content.
 `core.md` references standards using absolute `~/`-paths
 (e.g., `~/Projects/personal/public/standards/code-style.md`). On this machine
 those resolve through the `standards` symlink at the repo root, whichever
-install pathway loaded them: `@`-import (Claude, Gemini, Cursor) or inlined
-(Codex, Xcode Codex, Windows host).
+install pathway loaded them: `@`-import (Claude, Gemini) or inlined (Cursor,
+Codex, Xcode Codex, Windows host).
 
 Everywhere else the `~` path doesn't exist. The plugin's SessionStart hook
 and the `personal-standards` skill both tell the agent to read the same file
@@ -230,19 +230,14 @@ from the skill's own `standards/` directory instead. Skills cite standards
 relative to themselves (`../personal-standards/standards/<file>`), which
 resolves both inside the plugin and through the `~/.agents/skills` symlinks.
 
-## Two undocumented Cursor behaviors this design relies on
+## Undocumented Cursor behavior this design relies on
 
-Cursor's official documentation does not currently describe either of
-these, but both are empirically confirmed:
+**Ancestor walk for `AGENTS.md`** — when you open a project, Cursor reads
+`AGENTS.md` files in the project root and every ancestor directory, up
+through `~`. That makes `~/AGENTS.md` work as a global Cursor configuration.
 
-1. **Ancestor walk for `AGENTS.md`** — when you open a project, Cursor
-   reads `AGENTS.md` files in the project root and every ancestor
-   directory, up through `~`. This is what makes `~/AGENTS.md` work as a
-   "global" Cursor configuration.
-2. **`@`-imports inside `AGENTS.md`** — Cursor follows `@path/to/file`
-   references inside `AGENTS.md` the same way Claude Code and Gemini CLI
-   do, including across files that live outside the project.
-
-If Cursor changes either behavior, only the Cursor block's target file
-(currently `~/AGENTS.md`) needs to change — the algorithm and other home
-files are unaffected.
+Cursor does **not** expand `@`-imports inside `AGENTS.md`; the file is plain
+markdown, so a one-line `@~/...` stub reaches the agent as text and the core
+never loads. The installer inlines the core into `~/AGENTS.md`, the same way
+it does for Codex. (Found and fixed in the Agerpoint bok first; see its
+`specs/cursor-agents-md-import.md`.)

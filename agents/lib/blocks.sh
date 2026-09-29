@@ -251,9 +251,10 @@ content_stats() {
     fi
 }
 
-# Render block body when this home file uses @-imports (Claude/Gemini/Cursor on
-# the native-side pass). Use a ~/ path when possible — `@~/...` is portable
-# across engineer machines and is honored by Claude, Gemini, and Cursor.
+# Render block body when this home file uses @-imports (Claude/Gemini on the
+# native-side pass). Use a ~/ path when possible — `@~/...` is portable
+# across engineer machines and is honored by Claude and Gemini. Cursor's
+# AGENTS.md is plain markdown and does not expand @-imports.
 render_import_content() {
     local out="$1"
     printf '@%s\n' "$(pretty_path "$SOURCE_AGENTS")" > "$out"
@@ -511,13 +512,15 @@ run_pass() {
         # All home files inlined (Windows-host pass).
         keep_or_remove "$CLAUDE_BLOCK" "$claude_file" "$inline_content" "$source_label"
         keep_or_remove "$GEMINI_BLOCK" "$gemini_file" "$inline_content" "$source_label"
-        apply_block "$cursor_file" "$inline_content" "$source_label"
     else
-        # @-imports for Claude/Gemini/Cursor (native pass).
+        # @-imports for Claude/Gemini (native pass).
         keep_or_remove "$CLAUDE_BLOCK" "$claude_file" "$import_content"
         keep_or_remove "$GEMINI_BLOCK" "$gemini_file" "$import_content"
-        apply_block "$cursor_file" "$import_content"
     fi
+
+    # Cursor doesn't expand @-imports in AGENTS.md, so the stub would load
+    # as one line of text and the core would never arrive. Always inline.
+    apply_block "$cursor_file" "$inline_content" "$source_label"
 
     # Codex never supports @-imports; always inline.
     keep_or_remove "$CODEX_BLOCK" "$codex_file" "$inline_content" "$source_label"

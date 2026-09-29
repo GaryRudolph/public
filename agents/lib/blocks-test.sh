@@ -219,7 +219,8 @@ assert_grep "@" "$FAKE_HOME/.claude/CLAUDE.md"
 assert_grep "AGENTS.md" "$FAKE_HOME/.claude/CLAUDE.md"
 assert_grep "@" "$FAKE_HOME/.gemini/GEMINI.md"
 assert_grep "$CANARY_PHRASE" "$FAKE_HOME/.codex/AGENTS.md"
-assert_grep "@" "$FAKE_HOME/AGENTS.md"
+# Cursor doesn't expand @-imports, so its block is inlined.
+assert_grep "$CANARY_PHRASE" "$FAKE_HOME/AGENTS.md"
 
 # Preservation: the someothertenant block survives.
 assert_grep "$OTHER_ORG_MARK_OPEN"   "$FAKE_HOME/.claude/CLAUDE.md"
