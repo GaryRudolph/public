@@ -784,6 +784,10 @@ apply_copilot() {
 # Remove the Copilot files from every sibling repo. Skips the bok itself
 # and nested repos for the same reasons as apply_copilot.
 remove_copilot() {
+    # Without a template source this installer never fanned anything out, so
+    # there is nothing of ours to remove. Guarding here keeps uninstall from
+    # deleting other installers' committed Copilot files under $PROJECTS_DIR.
+    [ -n "$COPILOT_SRC" ] || return 0
     [ -n "$PROJECTS_DIR" ] || return 0
     [ -d "$PROJECTS_DIR" ] || return 0
 

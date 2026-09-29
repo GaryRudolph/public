@@ -484,6 +484,19 @@ for f in .gemini/GEMINI.md AGENTS.md; do
 done
 
 # ---------------------------------------------------------------------------
+# Test 9: uninstall leaves other installers' Copilot files alone
+# ---------------------------------------------------------------------------
+
+printf '=== test 9: uninstall without COPILOT_SRC keeps sibling Copilot files ===\n'
+REPO_FOREIGN=$(mk_repo "foreign-copilot")
+mkdir -p "$REPO_FOREIGN/.github/workflows"
+printf 'owned by another installer\n' > "$REPO_FOREIGN/.github/copilot-instructions.md"
+printf 'name: other\n' > "$REPO_FOREIGN/.github/workflows/copilot-setup-steps.yml"
+COPILOT_SRC_DIR="" run_blocks uninstall > "$TEST_DIR/uninstall-foreign.out"
+assert_file_exists "$REPO_FOREIGN/.github/copilot-instructions.md"
+assert_file_exists "$REPO_FOREIGN/.github/workflows/copilot-setup-steps.yml"
+
+# ---------------------------------------------------------------------------
 # Summary
 # ---------------------------------------------------------------------------
 
