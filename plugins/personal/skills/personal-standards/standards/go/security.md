@@ -53,7 +53,7 @@ func VerifyToken(tokenStr string) (jwt.MapClaims, error) {
     for _, secret := range jwtSecrets {
         token, err := jwt.Parse(tokenStr, func(t *jwt.Token) (any, error) {
             return secret, nil
-        })
+        }, jwt.WithValidMethods([]string{"HS256"}), jwt.WithExpirationRequired()) // RFC 8725: pin algorithms
         if err == nil {
             return token.Claims.(jwt.MapClaims), nil
         }
@@ -106,9 +106,19 @@ Use `crypto/subtle.ConstantTimeCompare` for secret comparisons.
 
 ## Input Validation
 
-Use `go-playground/validator` for struct-tag validation:
+Use `go-playground/validator` for struct-tag validation. Register the JSON tag as the field name so
+failures map straight to JSON Pointers:
 
 ```go
+func newValidator() *validator.Validate {
+    v := validator.New(validator.WithRequiredStructEnabled())
+    v.RegisterTagNameFunc(func(f reflect.StructField) string {
+        name, _, _ := strings.Cut(f.Tag.Get("json"), ",")
+        return name
+    })
+    return v
+}
+
 type CreateUserRequest struct {
     Email    string `json:"email" validate:"required,email"`
     Password string `json:"password" validate:"required,min=12,max=128"`
@@ -118,16 +128,35 @@ type CreateUserRequest struct {
 func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
     var req CreateUserRequest
     if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-        writeError(w, http.StatusBadRequest, "invalid JSON")
+        writeProblem(w, &Problem{
+            Type:   "about:blank",
+            Title:  http.StatusText(http.StatusBadRequest),
+            Status: http.StatusBadRequest,
+            Detail: "request body is not valid JSON",
+        })
         return
     }
     if err := h.validate.Struct(req); err != nil {
-        writeError(w, http.StatusBadRequest, err.Error())
+        verrs, ok := errors.AsType[validator.ValidationErrors](err)
+        if !ok {
+            writeErr(w, err)
+            return
+        }
+        items := make([]FieldError, 0, len(verrs))
+        for _, fe := range verrs {
+            items = append(items, FieldError{
+                Pointer: "#/" + fe.Field(),
+                Detail:  fmt.Sprintf("failed %q validation", fe.Tag()),
+            })
+        }
+        writeProblem(w, Validation(items...))
         return
     }
     // ...
 }
 ```
+
+Never echo `err.Error()` from the validator or decoder to the client; it describes Go types, not the API.
 
 ## Database Security
 
@@ -183,19 +212,32 @@ r.With(httprate.LimitByIP(5, 15*time.Minute)).Post("/auth/login", loginHandler)
 
 ## Error Boundaries
 
-Never expose internal errors to clients. Map domain errors to safe HTTP responses:
+Never expose internal errors to clients. Every error response is an RFC 9457 `Problem` (see
+[architecture.md](architecture.md#error-catalog)); anything that isn't one becomes an opaque 500:
 
 ```go
-func writeError(w http.ResponseWriter, status int, code, message string) {
-    w.Header().Set("Content-Type", "application/json")
-    w.WriteHeader(status)
-    json.NewEncoder(w).Encode(map[string]any{
-        "error": map[string]string{"code": code, "message": message},
+func writeProblem(w http.ResponseWriter, p *Problem) {
+    w.Header().Set("Content-Type", "application/problem+json")
+    w.WriteHeader(p.Status)
+    json.NewEncoder(w).Encode(p)
+}
+
+func writeErr(w http.ResponseWriter, err error) {
+    if p, ok := errors.AsType[*Problem](err); ok {
+        writeProblem(w, p)
+        return
+    }
+    slog.Error("unhandled error", "err", err)
+    writeProblem(w, &Problem{
+        Type:   "about:blank",
+        Title:  http.StatusText(http.StatusInternalServerError),
+        Status: http.StatusInternalServerError,
+        Detail: "an internal error occurred",
     })
 }
 ```
 
-Log the full error internally; return a generic message externally.
+Log the full error internally with the request id that goes in `Instance`; return a generic detail externally.
 
 ## Dependency Security
 

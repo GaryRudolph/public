@@ -77,7 +77,7 @@ if err != nil {
 
 if errors.Is(err, ErrNotFound) { ... }
 
-if appErr, ok := errors.AsType[*AppError](err); ok { ... }
+if p, ok := errors.AsType[*Problem](err); ok { ... }
 ```
 
 ## Logging

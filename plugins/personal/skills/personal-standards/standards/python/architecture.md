@@ -120,21 +120,127 @@ class Order(Model):
 
 ## Error Catalog Pattern
 
-Centralize error definitions as classmethods on a single class:
+Every error is an RFC 9457 problem (see [Error Responses](../architecture.md#error-responses-rfc-9457)). `ProblemError` carries one; catalog classmethods raise it:
 
 ```python
+# app/core/problems.py
+from collections.abc import Mapping, Sequence
+from http import HTTPStatus
+from typing import Any, NoReturn, Self
+
+from fastapi import FastAPI, Request
+from fastapi.exceptions import RequestValidationError
+from fastapi.responses import JSONResponse
+from starlette.exceptions import HTTPException as StarletteHTTPException
+
+PROBLEM_BASE = "https://api.example.com/problems/"
+
+
+class ProblemError(Exception):
+    def __init__(
+        self,
+        status: HTTPStatus,
+        detail: str,
+        type_: str = "about:blank",
+        title: str | None = None,
+        errors: list[dict[str, str]] | None = None,
+    ) -> None:
+        super().__init__(detail)
+        self.status = status
+        self.detail = detail
+        self.type = type_
+        self.title = title or status.phrase
+        self.errors = errors
+
+    @classmethod
+    def validation(cls, errors: list[dict[str, str]]) -> Self:
+        return cls(
+            HTTPStatus.UNPROCESSABLE_ENTITY,
+            "One or more fields are invalid",
+            type_=PROBLEM_BASE + "validation-error",
+            title="Request validation failed",
+            errors=errors,
+        )
+
+    def to_dict(self) -> dict[str, Any]:
+        body: dict[str, Any] = {
+            "type": self.type,
+            "title": self.title,
+            "status": int(self.status),
+            "detail": self.detail,
+        }
+        if self.errors:
+            body["errors"] = self.errors
+        return body
+
+
 class Errors:
     @classmethod
-    def user_not_found(cls) -> AppError:
-        raise AppError(HTTPStatus.NOT_FOUND, 3, "User not found")
+    def user_not_found(cls) -> NoReturn:
+        raise ProblemError(HTTPStatus.NOT_FOUND, "User not found")
 
     @classmethod
-    def bad_token(cls) -> AppError:
-        raise AppError(HTTPStatus.UNAUTHORIZED, 7, "Bad token")
+    def bad_token(cls) -> NoReturn:
+        raise ProblemError(HTTPStatus.UNAUTHORIZED, "Bad token")
 
     @classmethod
-    def required_field(cls, field: str) -> AppError:
-        raise AppError(HTTPStatus.BAD_REQUEST, 10, f"Missing required field: {field}")
+    def required_field(cls, field: str) -> NoReturn:
+        raise ProblemError.validation(
+            [{"detail": "is required", "pointer": f"#/{field}"}]
+        )
+```
+
+Register the handlers in `main.py` with `register_problem_handlers(app)`. They render `ProblemError`, turn FastAPI's own validation and HTTP errors into problems, and make anything else an opaque 500 (Starlette still logs the traceback):
+
+```python
+# app/core/problems.py (continued)
+PROBLEM_JSON = "application/problem+json"
+
+
+def _render(
+    problem: ProblemError, headers: Mapping[str, str] | None = None
+) -> JSONResponse:
+    return JSONResponse(
+        problem.to_dict(),
+        status_code=problem.status,
+        headers=headers,
+        media_type=PROBLEM_JSON,
+    )
+
+
+def _locate(loc: Sequence[str | int]) -> dict[str, str]:
+    where, *rest = loc
+    if where == "body":
+        tokens = (str(p).replace("~", "~0").replace("/", "~1") for p in rest)
+        return {"pointer": "#" + "".join(f"/{t}" for t in tokens)}
+    return {"header" if where == "header" else "parameter": str(rest[0])}
+
+
+def register_problem_handlers(app: FastAPI) -> None:
+    @app.exception_handler(ProblemError)
+    async def problem(request: Request, exc: ProblemError) -> JSONResponse:
+        return _render(exc)
+
+    @app.exception_handler(RequestValidationError)
+    async def invalid(request: Request, exc: RequestValidationError) -> JSONResponse:
+        if any(e["type"] == "json_invalid" for e in exc.errors()):
+            return _render(
+                ProblemError(HTTPStatus.BAD_REQUEST, "request body is not valid JSON")
+            )
+        errors = [{"detail": e["msg"], **_locate(e["loc"])} for e in exc.errors()]
+        return _render(ProblemError.validation(errors))
+
+    @app.exception_handler(StarletteHTTPException)
+    async def http_error(request: Request, exc: StarletteHTTPException) -> JSONResponse:
+        return _render(
+            ProblemError(HTTPStatus(exc.status_code), str(exc.detail)), exc.headers
+        )
+
+    @app.exception_handler(Exception)
+    async def unhandled(request: Request, exc: Exception) -> JSONResponse:
+        return _render(
+            ProblemError(HTTPStatus.INTERNAL_SERVER_ERROR, "an internal error occurred")
+        )
 ```
 
 ## Request / Response Schemas — Pydantic

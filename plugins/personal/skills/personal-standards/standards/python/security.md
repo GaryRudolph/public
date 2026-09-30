@@ -20,10 +20,11 @@ def verify_password(password: str, hashed: str) -> bool:
 
 ```python
 import jwt, os, secrets
+from datetime import UTC, datetime, timedelta
 
 def create_token(user_id: str, role: str) -> str:
     return jwt.encode(
-        {"user_id": user_id, "role": role},
+        {"sub": user_id, "role": role, "exp": datetime.now(UTC) + timedelta(minutes=15)},
         os.environ["JWT_SECRET"],
         algorithm="HS256",
     )
@@ -43,7 +44,9 @@ def verify_token(token: str) -> dict:
     last_error = None
     for secret in JWT_SECRETS:
         try:
-            return jwt.decode(token, secret, algorithms=["HS256"])
+            return jwt.decode(  # RFC 8725: pin algorithms, require exp
+                token, secret, algorithms=["HS256"], options={"require": ["exp", "sub"]}
+            )
         except jwt.InvalidTokenError as e:
             last_error = e
     raise last_error
