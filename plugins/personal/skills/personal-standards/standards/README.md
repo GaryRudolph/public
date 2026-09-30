@@ -5,21 +5,21 @@ This directory contains coding standards for consistent, maintainable, quality c
 ## Core Standards
 
 - **[Code Style](code-style.md)** — Naming conventions, formatting, imports, anti-patterns
-- **[Architecture](architecture.md)** — Layering, DI, API design, error handling
+- **[Architecture](architecture.md)** — Layering, DI, RFC-based API design, RFC 9457 error responses
 - **[Platform Parity](platform-parity.md)** — Cross-platform Swift/Kotlin naming and layer conventions
 - **[Testing](testing.md)** — Coverage targets, test structure, mocking rules
 - **[Documentation](documentation.md)** — What to document, ADR format, TODO conventions
 - **[Plan Execution](plan-execution.md)** — Model-tier tagging, STOP gates, kickoff/progress tracking, subagent delegation
 - **[Git Workflow](git.md)** — Branching, commit format, PR workflow
 - **[Versioning](versioning.md)** — SemVer for artifacts, integer-major for contracts, commit-count `versionCode`, per-platform surface map, release & hotfix flows
-- **[Security](security.md)** — Auth, encryption, input validation, checklists
+- **[Security](security.md)** — Auth (OAuth, JWT, native-app BCPs), encryption, input validation, checklists
 - **[Makefile](makefile.md)** — Target vocabulary, self-documenting help, workspace/polyrepo delegation, danger guards
 
 ## Language-Specific Standards
 
 ### Python
 - **[Code Style](python/code-style.md)** — PEP 8, Ruff/Black, type annotations, mypy
-- **[Architecture](python/architecture.md)** — Patterns, DI, error catalog
+- **[Architecture](python/architecture.md)** — Patterns, DI, RFC 9457 error catalog
 - **[Testing](python/testing.md)** — pytest, Hypothesis, coverage, moto/AWS
 - **[Documentation](python/documentation.md)** — Google-style docstrings, Sphinx
 - **[Security](python/security.md)** — bcrypt, JWT, Flask security, Pydantic, Bandit

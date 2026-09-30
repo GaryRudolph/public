@@ -231,33 +231,61 @@ func (s *BigQueryStore) QueryEvents(ctx context.Context, since time.Time) ([]Eve
 
 ## Error Catalog
 
-Centralize domain errors. Handlers map them to HTTP responses:
+Centralize domain errors. Handlers map them to RFC 9457 problem responses (see [Error Responses](../architecture.md#error-responses-rfc-9457)):
 
 ```go
 var (
     ErrNotFound     = errors.New("not found")
     ErrUnauthorized = errors.New("unauthorized")
-    ErrValidation   = errors.New("validation failed")
 )
 
-type AppError struct {
-    Status  int
-    Code    string
-    Message string
+const problemBase = "https://api.example.com/problems/"
+
+// Problem is an RFC 9457 problem details object.
+type Problem struct {
+    Type     string       `json:"type"`
+    Title    string       `json:"title"`
+    Status   int          `json:"status"`
+    Detail   string       `json:"detail,omitempty"`
+    Instance string       `json:"instance,omitempty"`
+    Errors   []FieldError `json:"errors,omitempty"`
 }
 
-func (e *AppError) Error() string { return e.Message }
+// FieldError is one item of the "errors" extension. Set exactly one locator.
+type FieldError struct {
+    Detail    string `json:"detail"`
+    Pointer   string `json:"pointer,omitempty"`
+    Parameter string `json:"parameter,omitempty"`
+    Header    string `json:"header,omitempty"`
+}
 
-func NotFound(resource string) *AppError {
-    return &AppError{http.StatusNotFound, "NOT_FOUND", resource + " not found"}
+func (p *Problem) Error() string { return p.Title + ": " + p.Detail }
+
+func NotFound(resource string) *Problem {
+    return &Problem{
+        Type:   "about:blank",
+        Title:  http.StatusText(http.StatusNotFound),
+        Status: http.StatusNotFound,
+        Detail: resource + " not found",
+    }
+}
+
+func Validation(errs ...FieldError) *Problem {
+    return &Problem{
+        Type:   problemBase + "validation-error",
+        Title:  "Request validation failed",
+        Status: http.StatusUnprocessableEntity,
+        Detail: "One or more fields are invalid",
+        Errors: errs,
+    }
 }
 ```
 
 **Layers:**
 
-1. **Service** — returns domain errors (`ErrNotFound`, `*AppError`)
-2. **Handler** — catches errors, writes JSON response
-3. **Middleware** — catches unexpected panics/errors, logs, returns safe 500
+1. **Service** — returns domain errors (`ErrNotFound`, `*Problem`)
+2. **Handler** — maps errors to a `*Problem` and writes `application/problem+json` (see [security.md](security.md#error-boundaries))
+3. **Middleware** — catches unexpected panics/errors, logs, returns an `about:blank` 500 problem
 
 ## Graceful Shutdown
 

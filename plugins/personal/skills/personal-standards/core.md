@@ -4,7 +4,7 @@ Guidelines for AI coding agents working with me.
 
 ## Core Preferences
 
-- **Simplicity first** — solve the current problem; prefer boring, established technology
+- **Simplicity first** — solve the current problem; prefer boring, established technology and published standards (RFCs) over home-grown conventions
 - **Readability over cleverness** — descriptive names, self-documenting code
 - **Consistency** — follow existing patterns in the codebase
 - **Constructor injection** — all dependencies via constructor; a single factory/composition root wires them

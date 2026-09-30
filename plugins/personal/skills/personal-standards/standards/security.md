@@ -2,10 +2,13 @@
 
 ## Authentication
 
-- **Passwords**: adaptive hashing (bcrypt, argon2) — never MD5 or SHA-1; minimum 12 chars with complexity; timing-safe comparison
+- **Passwords**: adaptive hashing, argon2id ([RFC 9106]) preferred, bcrypt acceptable — never MD5 or SHA-1; minimum 12 chars with complexity; timing-safe comparison
 - **Tokens**: short-lived access tokens with minimal payloads; refresh tokens with server-side rotation; cryptographically secure generation
-- **Sessions**: cookies marked Secure, HttpOnly, SameSite=Strict; 15-30 min lifetime for sensitive apps; don't use default cookie names
-- **MFA**: TOTP or hardware keys; allow small time-step window for clock drift
+- **JWTs**: follow the JWT BCP ([RFC 8725]) — pin the accepted algorithms, always set and require `exp`, check `iss` and `aud` when more than one service issues or accepts tokens
+- **OAuth 2.0**: follow the Security BCP ([RFC 9700]) — authorization code with PKCE ([RFC 7636]) for every client; no implicit or password grants
+- **Native apps** (iOS, Android): sign in through the system browser (`ASWebAuthenticationSession`, Custom Tabs), never an embedded web view ([RFC 8252])
+- **Sessions**: cookies ([RFC 6265]) marked Secure, HttpOnly, SameSite=Strict; 15-30 min lifetime for sensitive apps; don't use default cookie names
+- **MFA**: TOTP ([RFC 6238]) or WebAuthn hardware keys; allow small time-step window for clock drift
 - **Separate authn from authz**: check permissions at the service layer, not just UI
 
 ## Input Validation
@@ -18,7 +21,7 @@
 
 ## Security Headers
 
-- `Strict-Transport-Security` — enforce HTTPS
+- `Strict-Transport-Security` ([RFC 6797]) — enforce HTTPS; TLS 1.2 minimum, 1.3 preferred ([RFC 9325])
 - `Content-Security-Policy` — restrict resource loading
 - `X-Content-Type-Options: nosniff`
 - `X-Frame-Options: DENY`
@@ -26,7 +29,7 @@
 
 ## API Security
 
-- Rate limits on all endpoints, stricter on auth; return `429` with `Retry-After`
+- Rate limits on all endpoints, stricter on auth; return `429` ([RFC 6585]) with `Retry-After` ([RFC 9110]) as an RFC 9457 problem ([architecture.md](architecture.md#error-responses-rfc-9457))
 - API keys: store only hashed keys; include expiration and scope
 
 ## Secrets Management
@@ -81,3 +84,15 @@
 - **[Swift / iOS](swift/security.md)**
 - **[Kotlin / Android](kotlin/security.md)**
 - **[Go](go/security.md)**
+
+[RFC 6238]: https://www.rfc-editor.org/rfc/rfc6238
+[RFC 6265]: https://www.rfc-editor.org/rfc/rfc6265
+[RFC 6585]: https://www.rfc-editor.org/rfc/rfc6585
+[RFC 6797]: https://www.rfc-editor.org/rfc/rfc6797
+[RFC 7636]: https://www.rfc-editor.org/rfc/rfc7636
+[RFC 8252]: https://www.rfc-editor.org/rfc/rfc8252
+[RFC 8725]: https://www.rfc-editor.org/rfc/rfc8725
+[RFC 9106]: https://www.rfc-editor.org/rfc/rfc9106
+[RFC 9110]: https://www.rfc-editor.org/rfc/rfc9110
+[RFC 9325]: https://www.rfc-editor.org/rfc/rfc9325
+[RFC 9700]: https://www.rfc-editor.org/rfc/rfc9700
