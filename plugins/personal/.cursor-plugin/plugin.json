@@ -10,5 +10,6 @@
     "standards",
     "skills"
   ],
-  "hooks": "./hooks/cursor-hooks.json"
+  "hooks": "./hooks/cursor-hooks.json",
+  "rules": "./cursor/rules/"
 }

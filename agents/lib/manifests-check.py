@@ -7,6 +7,7 @@ copies, which is the mistake that's easy to make and hard to notice.
 """
 
 import json
+import os
 import sys
 from pathlib import Path
 
@@ -42,6 +43,26 @@ def marketplace_sources(errors):
     return listed["claude"]
 
 
+ORG = os.environ.get("ORG", "agerpoint")
+CANARY_FILES = (
+    f"plugins/{ORG}/skills/{ORG}-standards/core.md",
+    f"plugins/{ORG}/skills/{ORG}-standards/SKILL.md",
+)
+
+
+def check_canary(errors):
+    """The skill answers the canary where no hook runs (chat), so the phrase
+    in SKILL.md must match the one in core.md."""
+    import re
+    found = {}
+    for rel in CANARY_FILES:
+        text = (REPO / rel).read_text()
+        match = re.search(rf"{ORG}-[a-z-]*canary-[0-9a-f]+", text)
+        found[rel] = match.group(0) if match else None
+    if len(set(found.values())) != 1 or None in found.values():
+        errors.append(f"canary phrase differs or is missing: {found}")
+
+
 def main():
     errors = []
     for name, source in marketplace_sources(errors).items():
@@ -59,6 +80,7 @@ def main():
                 errors.append(f"{source}/{rel}: description differs from .claude-plugin/plugin.json")
         if (root / "bin").exists():
             errors.append(f"{source}: top-level bin/ makes claude.ai refuse the plugin")
+    check_canary(errors)
     for err in errors:
         print(f"FAIL: {err}", file=sys.stderr)
     if errors:

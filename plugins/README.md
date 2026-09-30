@@ -24,6 +24,7 @@ plugins/
     .cursor-plugin/plugin.json  gemini-extension.json
     hooks/hooks.json                <- SessionStart for Claude, Codex, Gemini
     hooks/cursor-hooks.json         <- empty; keeps Cursor off hooks.json
+    cursor/rules/personal-core.mdc  <- GENERATED from core.md; Cursor's always-on core
     scripts/session-start.sh
     skills/
       personal-standards/
@@ -71,7 +72,9 @@ quietly on some surfaces, so `make validate` runs before every push.
   first, and Gemini substitutes the second. `session-start.sh` prints plain
   text for Claude and Codex and a single JSON object for Gemini, which
   rejects anything else. Cursor's hook format differs, so its manifest points
-  at the empty `hooks/cursor-hooks.json` instead.
+  at the empty `hooks/cursor-hooks.json` instead, and Cursor gets the core
+  from `cursor/rules/personal-core.mdc` (`alwaysApply: true`). That rule is
+  generated from `core.md`; `make -C agents test` fails when it's stale.
 - **No `version` field** in the Claude, Codex, or Cursor manifests. Without one, the version is the commit SHA, so
   every push to `main` is an update. Pin a version only if you want to hold
   everyone on a release.
@@ -88,7 +91,7 @@ quietly on some surfaces, so `make validate` runs before every push.
 | Cowork | Yes | Hook | claude.ai account |
 | Claude chat | Yes | None (chat ignores hooks) | claude.ai account |
 | Codex CLI / ChatGPT | Yes | Hook, or the `~/.codex/AGENTS.md` block | `codex plugin marketplace add GaryRudolph/public`, or `~/.agents/skills` |
-| Cursor, including Cloud Agents | Yes | `~/AGENTS.md` on the Mac only | Customize > From GitHub Repository, or `~/.cursor/skills` |
+| Cursor, including Cloud Agents | Yes | The plugin's `personal-core` rule (or `~/AGENTS.md` in home mode) | Customize > From GitHub Repository, or `~/.cursor/skills` |
 | Gemini CLI | Yes | Hook, or the `~/.gemini/GEMINI.md` block | `gemini extensions link <path>`, or `~/.agents/skills` |
 
 On the Mac, pick one route per tool. Codex and Cursor don't merge two copies

@@ -43,6 +43,9 @@ See **[versioning.md](versioning.md)** for the full standard, including BNF gram
 ## AI Agent Behavior
 
 - **Do not auto-commit** — only commit when explicitly asked
+- **Do not auto-push** — only push when explicitly asked, never from an unattended session or a subagent that wasn't told to
+- **Never force-push `main`** (or any shared branch); on your own branch prefer `--force-with-lease`
+- **Cut feature branches with `--no-track`** (`git switch -c feature/<name> origin/main --no-track`) so they don't track `main` and a bare `git push` can't land there; first push with `git push -u origin feature/<name>`
 - **No co-authored-by** — do not add `Co-Authored-By` trailers for AI agents
 - **Do not auto-branch** — never create or switch branches on your own. Default to the branch already checked out; if none was specified, that means `main`. Multi-agent work on one repo especially must not silently move branches.
 - **Worktrees only when asked** — create a worktree only on explicit request (see [Worktrees](#worktrees) for layout/naming). Do not spin one up proactively.

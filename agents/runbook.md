@@ -287,14 +287,18 @@ by the tools. Treat the first install of each as the real validation.
 
 #### s2 - Cursor
 
-- **Mac:** `~/AGENTS.md` plus `~/.cursor/skills`.
+- **Mac:** `~/AGENTS.md` plus copied `~/.cursor/skills` (refreshed by a
+  Cursor hook), until you move to the plugin.
 - **Plugin (Cursor Cloud Agents, other machines):** in Cursor, go to
   **Customize > From GitHub Repository** and enter `GaryRudolph/public`.
   Cursor reads `.cursor-plugin/marketplace.json`. Then install `personal`.
   If you also want the plugin on the Mac, add `CURSOR_MODE := plugin` to
   `agents/local.mk` and run `make install`, which removes the
-  `~/.cursor/skills` links. The plugin brings skills only, so `~/AGENTS.md`
-  stays in both modes; it's how the always-on core reaches Cursor.
+  `~/AGENTS.md` block, the `~/.cursor/skills` copies, and the refresh hook.
+  The plugin carries the core as the always-apply `personal-core` rule
+  (generated from `core.md` by `make -C agents cursor-core-rule`), so check
+  **Rules** lists it before switching. The denylist hook stays in both
+  modes.
 - **Without the plugin:** turning on **Sync Skills for Cloud Agents** copies
   `~/.cursor/skills` to cloud agents. Re-sync after edits.
 

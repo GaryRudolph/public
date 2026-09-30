@@ -39,64 +39,83 @@ operation. The Makefile is unaware of any other installer, by design.
 | ---------------------------------- | --------------------------------------------------------------- |
 | `~/.claude/CLAUDE.md`              | `@~/Projects/personal/public/agents/AGENTS.md`                  |
 | `~/.gemini/GEMINI.md`              | `@~/Projects/personal/public/agents/AGENTS.md`                  |
-| `~/AGENTS.md`                      | `@~/Projects/personal/public/agents/AGENTS.md` (Cursor ancestor walk) |
+| `~/AGENTS.md`                      | Inlined copy of `agents/AGENTS.md` (Cursor ancestor walk; Cursor doesn't expand `@`-imports) |
 | `~/.codex/AGENTS.md`               | Inlined copy of `agents/AGENTS.md`                              |
 | Xcode pair (when Xcode is present) | Same pattern (Claude=`@`-import, Codex=inlined)                 |
 
 ## Extensions (skills and commands)
 
-`make install` also symlinks every skill folder under `plugins/*/skills/`
-into each skills directory a local tool scans. Under WSL it copies them to
-the Windows side as well.
+`make install` also puts every skill folder under `plugins/*/skills/` into
+each skills directory a local tool scans, for tools in `home` mode. Under
+WSL it copies them to the Windows side as well.
 
-| Home entry (symlink) | Windows side (copy via WSL) | Read by |
+| Home entry | Kind | Windows side (copy via WSL) | Read by |
+| --- | --- | --- | --- |
+| `~/.cursor/skills/<name>` | **copy** + `.personal-managed` marker | `%USERPROFILE%\.cursor\skills\<name>` | Cursor |
+| `~/.agents/skills/<name>` | symlink | `%USERPROFILE%\.agents\skills\<name>` | Codex CLI, Gemini CLI, Copilot CLI; Muse Code unconfirmed, see runbook |
+| `~/.claude/skills/<name>` | symlink | `%USERPROFILE%\.claude\skills\<name>` | Claude Code, only when `CLAUDE_MODE=home` |
+| `~/.claude/commands/<name>.md` | symlink | `%USERPROFILE%\.claude\commands\<name>.md` | Claude Code; sourced from `agents/commands/` (none today) |
+
+Cursor gets **copies**: it doesn't reliably follow symlinks when it discovers
+home-directory skills (confirmed on Linux `cursor-server`; see the Agerpoint
+bok's `specs/cursor-skill-symlink-discovery.md`). A Cursor user hook
+refreshes the copies at session start and after edits under `plugins/`.
+Codex, Gemini, and Claude Code follow symlinks, so edits there are live.
+
+### Cursor hooks
+
+| Hook | Events | When |
 | --- | --- | --- |
-| `~/.cursor/skills/<name>` | `%USERPROFILE%\.cursor\skills\<name>` | Cursor (also synced to Cursor Cloud Agents when **Sync Skills for Cloud Agents** is on) |
-| `~/.agents/skills/<name>` | `%USERPROFILE%\.agents\skills\<name>` | Codex CLI, Gemini CLI (`~/.agents/skills` alias); Muse Code unconfirmed, see runbook |
-| `~/.claude/skills/<name>` | `%USERPROFILE%\.claude\skills\<name>` | Claude Code, only when `CLAUDE_MODE=home` |
-| `~/.claude/commands/<name>.md` | `%USERPROFILE%\.claude\commands\<name>.md` | Claude Code; sourced from `agents/commands/` (none today) |
+| `~/.cursor/hooks/personal-enforce-denylist.sh` | `beforeShellExecution` (`failClosed`), `preToolUse` | Every mode |
+| `~/.cursor/hooks/personal-refresh-skills.sh` | `sessionStart`, `afterFileEdit` | `CURSOR_MODE=home` |
+
+The Cursor IDE ignores `terminalDenylist` in `permissions.json`, so the
+denies the allowlists render (`sudo`, `rm -rf`, `dd`, `mkfs`, …) did nothing
+in the IDE until this hook. It's a copy of
+[`cursor/hooks/enforce-denylist.sh`](cursor/hooks/enforce-denylist.sh), not
+a symlink, because it runs `failClosed`. `hooks.json` is merged, never
+overwritten.
 
 ### Tool modes
 
 Each tool has a mode, `home` or `plugin`. In `home` mode this installer
-writes the tool's block and skill links. In `plugin` mode the tool gets
+writes the tool's block and skill entries. In `plugin` mode the tool gets
 standards and skills from its own plugin, so `make install` removes what
 this installer wrote for it before. The removal is idempotent, and leaves
-content outside the block and links it didn't make alone.
+content outside the block and entries it didn't make alone.
 
 | Mode | Default | `plugin` removes |
 | --- | --- | --- |
-| `CLAUDE_MODE` | `plugin` | `~/.claude/CLAUDE.md` block, `~/.claude/skills` links |
+| `CLAUDE_MODE` | `plugin` | `~/.claude/CLAUDE.md` block, `~/.claude/skills` and `~/.claude/commands` links |
 | `CODEX_MODE` | `home` | `~/.codex/AGENTS.md` block |
 | `GEMINI_MODE` | `home` | `~/.gemini/GEMINI.md` block |
-| `CURSOR_MODE` | `home` | `~/.cursor/skills` links (`~/AGENTS.md` stays: Cursor's plugin has no core) |
+| `CURSOR_MODE` | `home` | `~/AGENTS.md` block, `~/.cursor/skills` copies, the refresh hook. Cursor's plugin carries the core as the always-apply `personal-core` rule |
 
 `~/.agents/skills` is shared by Codex and Gemini, so its links go only when
-both are `plugin`. The Xcode blocks are always written. Windows-side copies
-follow the same modes.
+both are `plugin`. The Xcode blocks, the denylist hook, and the allowlists
+are kept in every mode. Windows-side copies follow the same modes.
 
 Put per-machine choices in `agents/local.mk` (git ignores it), such as
 `CODEX_MODE := plugin`, so every plain `make install` honors them.
 `make status` prints the modes first. Switch a tool to `plugin` only after
 its plugin is installed; the runbook (m7) covers each one.
 
-`make uninstall` removes everything the installer ever wrote, whatever the
-modes: all blocks, all skill links (including links to the old
-`agents/skills/`), and the allowlist sidecars. It then prints how to remove
-the plugins, which it doesn't manage.
+`make install` also sweeps what earlier versions wrote: links into the old
+`agents/skills/`, and anything of ours in the retired per-tool skill dirs.
+All managed skills are prefixed `personal-`. Copies are ours when they carry
+the `.personal-managed` marker; symlinks are ours when they point into a
+current or former source.
 
-Symlinks that still point at the old `agents/skills/` location are swept
-automatically (`LEGACY_SKILLS_SRC`) before new links are made.
+### `make uninstall`
 
-All managed skills are prefixed `personal-` to match the installer's
-`ORG=personal` identity and to stay distinct from anything another org-keyed
-installer puts in the same directories.
-
-Ownership marker on the Windows-side copies is a hidden `.personal-managed`
-file inside each managed skill directory (and a `<name>.md.personal-managed`
-sidecar next to each managed command file). `make uninstall` only removes
-entries with the marker, so anything you drop into those directories
-yourself survives untouched.
+Removes everything the installer ever wrote, whatever the modes: every
+block, skill link and copy (both sides), the Cursor hooks and their
+`hooks.json` entries, the allowlist sidecars (a live permission file that
+held only our entries is removed), the local marketplace if it points at
+this checkout, and directories it created that are now empty. It then
+prints how to remove the plugins, which it doesn't manage. A second run is
+a no-op, and `make test-roundtrip` checks the whole install/uninstall
+cycle leaves a sandboxed `$HOME` unchanged.
 
 ### Adding or removing skills
 
@@ -104,24 +123,19 @@ yourself survives untouched.
   `workstation` if it needs this Mac), run `make install`, and push.
   The push reaches the Claude surfaces; the install reaches local tools.
 - **Remove**: delete the folder, run `make install`, and push. Orphaned
-  symlinks are cleaned up automatically.
+  links and copies are cleaned up automatically.
 - **Full details**: see [`../plugins/README.md`](../plugins/README.md).
-
-### Empirical assumption
-
-Cursor, Codex, and Gemini CLI follow symlinks when scanning their
-skills directories. If one stops, only the install mechanic changes; the
-source files are unaffected.
 
 ## Setup
 
 ```bash
 cd ~/Projects/personal/public/agents
-make install      # idempotent: writes/updates blocks + installs extension symlinks
-make status       # show install state for blocks and extensions
-make uninstall    # remove blocks and extension symlinks
+make install      # per tool mode: write, or remove, blocks and skill entries; hooks; allowlists
+make status       # modes, then blocks, extensions, hooks, allowlists, local marketplace
+make uninstall    # remove everything this installer ever wrote locally
 make dry-run      # preview all install actions, no disk writes
-make test         # sandboxed test of install/uninstall and preservation
+make test         # sandboxed tests, including an install/uninstall round trip
+make install-local-marketplace   # load the plugins from this checkout in Claude Code
 make validate     # validate the marketplace and plugin manifests
 make package      # zip each plugin into build/plugins/ for manual upload
 ```
@@ -159,7 +173,7 @@ install is not loaded.
 | Claude Code on the self-hosted runner | A new session on any repo | Same as cloud: synced plugin |
 | Cowork | A new task | Synced plugin (hooks and skills load) |
 | Claude chat (web, desktop, mobile) | A new chat | Synced plugin, skills only (chat ignores hooks); ask it to use `personal-standards` |
-| Cursor (unix) | Any project under `~` | `@`-import from `~/AGENTS.md`; skills symlinked under `~/.cursor/skills/` |
+| Cursor (unix) | Any project under `~` | Plugin mode: the `personal-core` rule and plugin skills. Home mode: inlined block in `~/AGENTS.md`, skills copied under `~/.cursor/skills/` |
 | Cursor (Windows-native) | Any project, after install from WSL | Inlined block in `%USERPROFILE%\AGENTS.md`; skills copied under `%USERPROFILE%\.cursor\skills\` |
 | Gemini CLI | Anywhere | `~/.gemini/GEMINI.md` block; skills from `~/.agents/skills/` |
 | Codex CLI | Anywhere | Inlined block in `~/.codex/AGENTS.md`; skills from `~/.agents/skills/` |
@@ -184,7 +198,7 @@ inside WSL covers Windows-native tools too.
 What changes mode between the two passes:
 
 - **Blocks (unix-side, `$HOME`):** `@`-import lines that point at the WSL
-  checkout (Claude / Gemini / Cursor) or fully inlined content (Codex,
+  checkout (Claude / Gemini) or fully inlined content (Cursor, Codex,
   Xcode Codex).
 - **Blocks (windows-side, `%USERPROFILE%`):** **always inlined** — Windows-
   native tools like `Cursor.exe` resolve `~` to `C:\Users\<user>\` and can't
@@ -221,8 +235,8 @@ own block and never reads, writes, or comments on any other content.
 `core.md` references standards using absolute `~/`-paths
 (e.g., `~/Projects/personal/public/standards/code-style.md`). On this machine
 those resolve through the `standards` symlink at the repo root, whichever
-install pathway loaded them: `@`-import (Claude, Gemini, Cursor) or inlined
-(Codex, Xcode Codex, Windows host).
+install pathway loaded them: `@`-import (Claude, Gemini) or inlined (Cursor,
+Codex, Xcode Codex, Windows host).
 
 Everywhere else the `~` path doesn't exist. The plugin's SessionStart hook
 and the `personal-standards` skill both tell the agent to read the same file
@@ -230,19 +244,14 @@ from the skill's own `standards/` directory instead. Skills cite standards
 relative to themselves (`../personal-standards/standards/<file>`), which
 resolves both inside the plugin and through the `~/.agents/skills` symlinks.
 
-## Two undocumented Cursor behaviors this design relies on
+## Undocumented Cursor behavior this design relies on
 
-Cursor's official documentation does not currently describe either of
-these, but both are empirically confirmed:
+**Ancestor walk for `AGENTS.md`** — when you open a project, Cursor reads
+`AGENTS.md` files in the project root and every ancestor directory, up
+through `~`. That makes `~/AGENTS.md` work as a global Cursor configuration.
 
-1. **Ancestor walk for `AGENTS.md`** — when you open a project, Cursor
-   reads `AGENTS.md` files in the project root and every ancestor
-   directory, up through `~`. This is what makes `~/AGENTS.md` work as a
-   "global" Cursor configuration.
-2. **`@`-imports inside `AGENTS.md`** — Cursor follows `@path/to/file`
-   references inside `AGENTS.md` the same way Claude Code and Gemini CLI
-   do, including across files that live outside the project.
-
-If Cursor changes either behavior, only the Cursor block's target file
-(currently `~/AGENTS.md`) needs to change — the algorithm and other home
-files are unaffected.
+Cursor does **not** expand `@`-imports inside `AGENTS.md`; the file is plain
+markdown, so a one-line `@~/...` stub reaches the agent as text and the core
+never loads. The installer inlines the core into `~/AGENTS.md`, the same way
+it does for Codex. (Found and fixed in the Agerpoint bok first; see its
+`specs/cursor-agents-md-import.md`.)
