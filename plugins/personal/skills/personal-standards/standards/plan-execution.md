@@ -284,7 +284,7 @@ For an escalation back to `[deep]` (after `[exec]` or `[fast]`):
 
 Rules for filling in the template:
 
-- `<absolute path to the plan file>` is the **fully-qualified absolute path** to the plan file, resolved when the plan was identified — for example: `/Users/gary/Projects/personal/public/.scratch/plan-topic-word.md`. Never emit a bare filename or a repo-relative path — the next chat may start from a different working directory. The one exception is a plan tracked in `specs/handoffs/` on a runner: give its repo-relative path, because the branch is reopened on another machine where the container's absolute path means nothing.
+- `<absolute path to the plan file>` is the **fully-qualified absolute path** to the plan file, resolved when the plan was identified — for example: `/Users/gary/Projects/personal/public/.scratch/plan-topic-word.md`. Never emit a bare filename or a repo-relative path — the next chat may start from a different working directory. The one exception is a plan tracked in `specs/handoffs/` on a runner: give its repo-relative path and the branch it's on, because the branch is reopened on another machine where the container's absolute path means nothing.
 - Name the next group using whatever identifiers the plan uses: if headings
   carry IDs, use those (e.g. `m2 s1-s4`); if not, use exact title text
   (e.g. `the "Wire Redis client" through "Write integration tests" steps`).
@@ -444,7 +444,7 @@ Active variant — orchestrate (always `[deep]` / Opus xhigh):
 
 Rules for filling in the template:
 
-- `<absolute path to the plan file>` is the **fully-qualified absolute path** to the plan file, resolved when the plan was identified — for example: `/Users/gary/Projects/personal/public/.scratch/plan-topic-word.md`. Never emit a bare filename or a repo-relative path — the next chat may start from a different working directory. The one exception is a plan tracked in `specs/handoffs/` on a runner: give its repo-relative path, because the branch is reopened on another machine where the container's absolute path means nothing.
+- `<absolute path to the plan file>` is the **fully-qualified absolute path** to the plan file, resolved when the plan was identified — for example: `/Users/gary/Projects/personal/public/.scratch/plan-topic-word.md`. Never emit a bare filename or a repo-relative path — the next chat may start from a different working directory. The one exception is a plan tracked in `specs/handoffs/` on a runner: give its repo-relative path and the branch it's on, because the branch is reopened on another machine where the container's absolute path means nothing.
 - For the passive variant, the `<tier>` is the **execution tier of the first wave** after the no-thrash folding pass (see [No-thrash rule](#no-thrash-rule)). This is normally the tag on the first executable heading, walking top-down — higher-level grouping headings (milestones, phases) are untagged and ignored, per [Tag placement](#tag-placement). The one exception: when a short leading `[fast]` run (< 3 steps) is folded into the following `[exec]` wave, the first wave executes at `[exec]`, so the Kickoff shows `[exec]` even though those headings keep their honest `[fast]` tags.
 - For the active variant, the model is **always** `claude-opus-5-5-xhigh` / `/model opus` xhigh, regardless of what the first wave's tier is. The orchestrator-parent always runs at `[deep]`.
 - Use `->` ASCII arrows rather than Unicode em-dash arrows so the marker is safe in terminals and grep.

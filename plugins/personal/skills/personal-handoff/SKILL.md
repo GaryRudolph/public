@@ -52,9 +52,10 @@ files.
 `.scratch/` dies with the container. When the script prints
 `claude_code_remote: true`, or the harness says the session is remote,
 write the handoff and the plan to `specs/handoffs/` instead (create the
-folder if needed), commit them with the work, and push. Commit and push
-before every turn that waits for Gary; that turn may be the last one the
-container runs. The files are removed or promoted before the branch merges.
+folder if needed), along with any draft or research Gary asked for, commit
+them with the work, and push. Commit and push before every turn that waits
+for Gary; that turn may be the last one the container runs. Remove or
+promote them before the branch merges.
 The rules are in core.md under "Runner scratch rides the branch" and
 "Runners save before they stop".
 

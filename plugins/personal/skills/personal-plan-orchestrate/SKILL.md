@@ -377,8 +377,8 @@ authoritative usage data.
 ## Procedure
 
 1. **Identify the plan** using the same priority order as the sibling
-   skill (named path → most recent `.scratch/plan-*.md`, or
-   `specs/handoffs/plan-*.md` on a runner → in-conversation plan). Remember the resolved path.
+   skill (named path → most recent `plan-*.md` in `.scratch/` or
+   `specs/handoffs/` → in-conversation plan). Remember the resolved path.
 2. **Run the harness gate** above. STOP and ask if not Cursor.
 3. **Tag the plan, group into waves, and write wave markers.** If the plan
    is not already tagged, run
@@ -411,7 +411,7 @@ authoritative usage data.
    template". The model row is **always** `claude-opus-5-5-xhigh`
    / `/model opus` xhigh because the orchestrator-parent always runs at
    `[deep]` (see "Orchestrator-parent invariant" above). The prompt body
-   references the resolved absolute plan path from step 1 and names this
+   references the resolved plan path from step 1 and names this
    skill (`personal-plan-orchestrate`). The Kickoff block is
    **idempotent**: if a Kickoff block already exists at the top of the
    file (any line matching `--- KICKOFF: ... ---`), replace it;
