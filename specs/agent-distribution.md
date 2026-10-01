@@ -179,6 +179,14 @@ the version-less aliases `opus`, `sonnet`, and `haiku`, which resolve to the
 newest model of each tier, so only the Cursor column needs future bumps. Thinking
 is set with `/effort`, since Opus 5.5 and Sonnet 5.5 can't turn thinking off.
 
+The 2026-10-01 refresh added an `[xdeep]` tier for Fable above `[deep]`,
+turned the picker into one row per harness (Claude Code, Cursor, Codex,
+Gemini CLI, Muse Code, Grok Build), and priced every model in it. In Cursor,
+`[exec]` moved to Grok 4.7, which bills from Cursor's included pool and
+scores within 4 points of Sonnet 5.5 on CursorBench 4.0; `[deep]` stays on
+Opus because Grok trails it by about 10. Cursor slugs now use the bracket
+parameters from Cursor's subagent docs.
+
 Still open: whether `personal-plan-orchestrate` should drive Claude Code
 subagents. Their `model` parameter takes aliases, but
 [anthropics/claude-code#43869](https://github.com/anthropics/claude-code/issues/43869)

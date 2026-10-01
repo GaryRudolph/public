@@ -128,7 +128,9 @@ include:
    name if their harness supports it. Emit it even though there is no
    guarantee it will be used. See the standards §"Wave title format".
 3. The next model + thinking level for **both** Cursor and Claude Code
-   (look up from the model picker in standards).
+   (look up from the model picker in standards). When the plan runs in
+   Codex, Gemini CLI, Muse Code, or Grok Build, use that harness's row in
+   place of Cursor's.
 4. A copy-pasteable prompt that names the next group using whatever
    identifiers the plan uses (IDs like `m2 s1-s4` if present, or exact
    title text if not), references the resolved absolute plan path, carries
@@ -296,9 +298,9 @@ wave):
 
 | wave | group | model | ~input | ~output | ~cost |
 |------|-------|-------|--------|---------|-------|
-| wave-1 | m1-s1-s3 | claude-opus-5-5-xhigh | … | … | … |
-| review-wave-1 | m1-s1-s3 | claude-opus-5-5-xhigh | … | … | … |
-| wave-2 | m2-s4-s6 | claude-sonnet-5-5-medium | … | … | … |
+| wave-1 | m1-s1-s3 | claude-opus-5-5 | … | … | … |
+| review-wave-1 | m1-s1-s3 | claude-opus-5-5 | … | … | … |
+| wave-2 | m2-s4-s6 | grok-4-7 | … | … | … |
 | **GRAND TOTAL** | | | | | … |
 
 The GRAND TOTAL cost is the **sum of per-wave costs** (each priced at its own

@@ -83,11 +83,11 @@ Read that section first when in doubt. This file does not duplicate it.
 ## Orchestrator-parent invariant
 
 The orchestrator-parent **always runs at `[deep]` /
-`claude-opus-5-5-xhigh`**. Tagging decisions, subagent-summary
+`claude-opus-5-5[effort=high]`**. Tagging decisions, subagent-summary
 review, re-tagging on failure, and the gate-2/3 architectural review of
 cheaper-tier output are all `[deep]` work; weakening the orchestrator caps
 review quality at the level of the work being reviewed. The Kickoff block
-written in step 4 hardcodes Opus xhigh for the same reason.
+written in step 4 hardcodes Opus for the same reason.
 
 - `[xdeep]` waves go to a Fable subagent; the parent stays on Opus. A
   Fable parent would bill Fable rates for every summary it reads, and the
@@ -101,32 +101,39 @@ written in step 4 hardcodes Opus xhigh for the same reason.
 ## Harness gate — verify before proceeding
 
 This skill assumes **Cursor's `Task` tool with a per-invocation `model`
-parameter** and the documented Cursor model slugs:
+parameter** and the Cursor slugs from the standards model picker:
 
-- `claude-opus-5-5-xhigh`
-- `claude-sonnet-5-5-medium`
-- `composer-2.5-fast`
+- `[xdeep]`: `claude-fable-5-1[effort=max]`
+- `[deep]` and the parent: `claude-opus-5-5[effort=high]`
+- `[exec]`: `grok-4-7[effort=high]` (alt: `claude-sonnet-5-5[effort=high]`)
+- `[fast]`: `composer-2.5[fast=false]`
 
 **Default for Cursor: proceed.** Inspect your tool list. If you see a
-`Task` tool whose `model` parameter accepts the slugs above — a quick
-check is that the schema enumerates `claude-opus-5-5-xhigh`,
-`claude-sonnet-5-5-medium`, and `composer-2.5-fast` — assume it
-works and continue. The schema is sufficient evidence; you do not need
-explicit user confirmation, and you do not need to verify the parameter
-"actually takes effect" beyond the schema.
+`Task` tool whose `model` parameter accepts these slugs, or takes a
+free-form model string, assume it works and continue. The schema is
+sufficient evidence; you do not need explicit user confirmation, and you
+do not need to verify the parameter "actually takes effect" beyond the
+schema.
+
+**Bracket parameters.** The `[effort=...]` and `[fast=false]` forms come
+from Cursor's subagent docs, which don't list the `Task` enum. If the enum
+offers plain or suffixed IDs instead, dispatch the entry for the same model
+at the same (or nearest) effort, and tell the user to refresh the standards
+model picker. If the only Composer entry is Fast, use it and note the 6×
+price in the token tally.
 
 **Use the newest version of each family.** Cursor has no version-less
-alias, so the slugs above go stale. If the enum offers a newer Opus or
-Sonnet entry than the one listed (same family, same effort level), dispatch
-that one instead, and tell the user to refresh the standards model picker.
-Missing the exact listed slug is not a reason to STOP when a newer entry of
-the same family is present.
+alias, so the slugs above go stale. If the enum offers a newer entry of the
+same family at the same effort, dispatch that one instead, and tell the
+user to refresh the standards model picker. Missing the exact listed slug
+is not a reason to STOP when a newer entry of the same family is present.
 
 Only STOP and ask the user when one of these is true:
 
 - `Task` is absent from your tool list entirely.
-- `Task` is present but has no `model` parameter, or the slugs above are
-  not in its accepted enum.
+- `Task` is present but has no `model` parameter, or its enum is missing
+  Opus, Composer, or both Grok and Sonnet. (A missing Fable entry blocks
+  only `[xdeep]` waves; see step 8.)
 - You can tell you are running on **Claude Code**. `Task` there accepts
   `model` on paper, but
   [anthropics/claude-code#43869](https://github.com/anthropics/claude-code/issues/43869)
@@ -135,8 +142,11 @@ Only STOP and ask the user when one of these is true:
   that is fixed, dispatch with the version-less aliases `opus`, `sonnet`,
   and `haiku`, which always resolve to the newest model of the tier, rather
   than pinned slugs.)
-- You can tell you are running on **Codex CLI** or **Gemini CLI**. No
-  subagent tool with per-invocation model selection exists there.
+- You can tell you are running on **Codex CLI**, **Gemini CLI**, **Muse
+  Code**, or **Grok Build**. Codex custom agents (`.codex/agents/*.toml`),
+  Gemini CLI agents (`.gemini/agents/*.md`), and Grok Build's
+  `[subagents.models]` can each pin a model per subagent definition now,
+  but this skill is written against Cursor's `Task` and hasn't been ported.
   Recommend `personal-plan-model-tiers`.
 
 When you do STOP, surface the specific concern, recommend the fallback,
@@ -150,15 +160,19 @@ The `[xdeep]` / `[deep]` / `[exec]` / `[fast]` definitions, default-up bias,
 Claude Code model picker live in the standards section above. Cursor picks
 for orchestrator subagents, repeated here for reading clarity only:
 
-- `[deep]` subagent or parent: `claude-opus-5-5-xhigh`
-- `[exec]` subagent (default for delegated work): `claude-sonnet-5-5-medium`
-- `[fast]` subagent (only when no-thrash criterion met): `composer-2.5-fast`
+- `[xdeep]` subagent (after gate 7): `claude-fable-5-1[effort=max]`
+- `[deep]` subagent or parent: `claude-opus-5-5[effort=high]`
+- `[exec]` subagent (default for delegated work): `grok-4-7[effort=high]`,
+  or `claude-sonnet-5-5[effort=high]` once included Cursor-pool usage runs
+  out (see the standards model picker notes)
+- `[fast]` subagent (only when no-thrash criterion met): `composer-2.5[fast=false]`
 
 If the standards section and this list disagree, the standards section
 wins.
 
-**Step-up on subagent failure**: composer → sonnet → opus → fable. Stepping
-up to opus usually means the step was mistagged; STOP, re-tag as `[deep]`, and
+**Step-up on subagent failure**: composer → the `[exec]` model (grok, or
+sonnet) → opus → fable. Stepping up to opus usually means the step was
+mistagged; STOP, re-tag as `[deep]`, and
 dispatch an opus subagent for the re-attempt — the orchestrator-parent
 never executes plan work inline (see STOP gates below). Stepping up from opus
 to fable is the first condition of the `[xdeep]` upgrade checklist: re-tag
@@ -202,7 +216,7 @@ takes:
   supported way to update a subagent's title after dispatch.
 - `subagent_type` — `"generalPurpose"` for these waves.
 - `model` — the slug from the model picker
-  (`"claude-sonnet-5-5-medium"` for `[exec]`).
+  (`"grok-4-7[effort=high]"` for `[exec]`).
 - `prompt` — the full subagent prompt assembled per the
   "Subagent context contract" below, scoped to that working directory.
 
@@ -220,7 +234,7 @@ decision in repo A and a sibling decision in repo B. The orchestrator-parent
 **does not** take either inline; both go out as opus subagents in parallel.
 
 Issue these as real `Task` tool calls in a single assistant message — two
-invocations of `Task`, both with `model="claude-opus-5-5-xhigh"`,
+invocations of `Task`, both with `model="claude-opus-5-5[effort=high]"`,
 one scoped to each working directory. The subagent context contract still
 applies: quote the spec excerpt verbatim, pass the full standards-pointer
 set (architecture work, do not skimp), and include the disk-backed output
@@ -285,8 +299,9 @@ line, and end the turn. Never dispatch subagents while blocked.
    misunderstood the plan" or a bad subagent prompt before cascading the
    mistake.
 6. **Model step-up on retry** — when retrying a failed subagent on a
-   stronger model (composer → sonnet, sonnet → opus, or opus → fable), STOP
-   first so the user confirms the budget impact and the diagnosis.
+   stronger model (composer → the `[exec]` model, the `[exec]` model →
+   opus, or opus → fable), STOP first so the user confirms the budget
+   impact and the diagnosis.
 7. **Fable budget gate** — STOP before every `[xdeep]` dispatch, including
    `[deep] -> [xdeep]` and `[xdeep] -> [xdeep]` across waves. Name the
    steps, the checklist condition each one met, and a rough cost from the
@@ -350,10 +365,10 @@ At every STOP gate, print a per-model running breakdown:
 
 ```
 tokens so far:
-  orchestrator  (claude-opus-5-5-xhigh):     input ~Xo / output ~Yo | ~$Co
-  wave-1 <id>   (claude-sonnet-5-5-medium):  input ~Xs / output ~Ys | ~$Cs
+  orchestrator  (claude-opus-5-5):  input ~Xo / output ~Yo | ~$Co
+  wave-1 <id>   (grok-4-7):         input ~Xs / output ~Ys | ~$Cs
   …
-  RUNNING TOTAL:                             input ~Xt / output ~Yt | ~$Ct (heuristic)
+  RUNNING TOTAL:                    input ~Xt / output ~Yt | ~$Ct (heuristic)
 ```
 
 Review work is parent-side — include its tokens in the orchestrator row,
@@ -370,7 +385,7 @@ At plan completion, print a per-wave breakdown table:
 
 | wave | model | ~input | ~output | ~total | ~cost |
 |------|-------|--------|---------|--------|-------|
-| orchestrator | claude-opus-5-5-xhigh | … | … | … | … |
+| orchestrator | claude-opus-5-5 | … | … | … | … |
 | wave-1 (task-id) | <slug> | … | … | … | … |
 | … | | | | | |
 | **GRAND TOTAL** | | | | | … |
@@ -419,7 +434,7 @@ authoritative usage data.
 4. **Write the Kickoff block to the top of the plan file** using the
    **active** variant of the Kickoff template from
    `../personal-standards/standards/plan-execution.md` §"Kickoff
-   template". The model row is **always** `claude-opus-5-5-xhigh`
+   template". The model row is **always** `claude-opus-5-5[effort=high]`
    / `/model opus` xhigh because the orchestrator-parent always runs at
    `[deep]` (see "Orchestrator-parent invariant" above). The prompt body
    references the resolved absolute plan path from step 1 and names this
@@ -455,7 +470,7 @@ authoritative usage data.
 
    Otherwise, ask:
 
-   > Continue orchestrating in this chat, or hand off to a new Opus xhigh
+   > Continue orchestrating in this chat, or hand off to a new Opus
    > chat for clean context? (default: new chat)
 
    Wait for the answer. Treat any non-affirmative reply (silence,
@@ -477,22 +492,22 @@ authoritative usage data.
    **never** takes plan work inline — every row below ends in a `Task`
    dispatch (after a STOP gate where applicable):
    - `[deep] -> [exec]`, single working dir → one
-     `Task(model="claude-sonnet-5-5-medium", ...)`.
+     `Task(model="grok-4-7[effort=high]", ...)`.
    - `[deep] -> [exec]`, multiple working dirs → batched `Task(...)`,
-     one invocation per working dir, all on sonnet-medium.
+     one invocation per working dir, all on the `[exec]` model.
    - `[deep] -> [fast]`, no-thrash satisfied (≥ 3 contiguous fast) →
-     `Task(model="composer-2.5-fast", ...)`, one per working dir.
+     `Task(model="composer-2.5[fast=false]", ...)`, one per working dir.
    - `[deep] -> [fast]`, no-thrash failed (< 3 fast) → the fast run was
      folded into the adjacent `[exec]` wave (its `[fast]` tags stay in the
      plan); treat as the `[deep] -> [exec]` row.
    - `[exec] -> [fast]` → same no-thrash logic: ≥ 3 fast dispatches a
-     `composer-2.5-fast` wave; < 3 folds into the `[exec]` wave, tags
+     `composer-2.5[fast=false]` wave; < 3 folds into the `[exec]` wave, tags
      unchanged.
    - `[exec] -> [deep]` or `[fast] -> [deep]` → STOP (gate 2/3) for the
      user to review the just-finished cheaper-tier output. Fail-closed:
      if no explicit answer is received, re-post the review question,
      write `BLOCKED at gate 2` (or `3`) to the `Status:` line, and end
-     the turn. **Then dispatch** `Task(model="claude-opus-5-5-xhigh", ...)`, one
+     the turn. **Then dispatch** `Task(model="claude-opus-5-5[effort=high]", ...)`, one
      per working directory. The parent does not execute the next group
      itself.
    - **Any boundary into `[xdeep]`** → STOP (gate 7, plus gate 2/3 when
@@ -504,7 +519,7 @@ authoritative usage data.
      `personal-plan-model-tiers` with a manual model swap.
    - **Leaving `[xdeep]`** → same rows as leaving `[deep]`.
    - `[deep] -> [deep]` → dispatch
-     `Task(model="claude-opus-5-5-xhigh", ...)`, one per working
+     `Task(model="claude-opus-5-5[effort=high]", ...)`, one per working
      directory. Always dispatch, even on a single working dir; the
      parent's context never holds the diffs or full reasoning of a deep
      wave.
@@ -558,7 +573,7 @@ authoritative usage data.
     received, re-post the error gate question, write `BLOCKED at gate 1`
     to the `Status:` line, and end the turn. Stepping up tiers triggers
     gate 6, and the re-attempt itself is **dispatched** as a subagent on
-    the higher tier's model — composer → sonnet, sonnet → opus — never
+    the higher tier's model — composer → `[exec]` model → opus → fable — never
     executed inline.
 14. **Advance** to the next boundary. Repeat from step 7 until the plan
     is complete, stopping at every gate. When the plan is complete,
