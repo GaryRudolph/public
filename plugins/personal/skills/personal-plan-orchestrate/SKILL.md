@@ -246,7 +246,9 @@ Substitute:
 The orchestrator's own context holds only: subagent summaries, the active
 plan section (current group + next), and a rolling "state so far" updated
 at every STOP gate. Re-read artifacts only when needed. Artifacts under
-`.scratch/` are gitignored and ephemeral.
+`.scratch/` are gitignored and ephemeral, on a runner too: there only the
+plan and the handoff survive, in `specs/handoffs/`, per core.md "Runner
+scratch rides the branch".
 
 ## Mandatory STOP gates
 
@@ -375,8 +377,8 @@ authoritative usage data.
 ## Procedure
 
 1. **Identify the plan** using the same priority order as the sibling
-   skill (named path → most recent `.scratch/plan-*.md` → in-conversation
-   plan). Remember the resolved path.
+   skill (named path → most recent `.scratch/plan-*.md`, or
+   `specs/handoffs/plan-*.md` on a runner → in-conversation plan). Remember the resolved path.
 2. **Run the harness gate** above. STOP and ask if not Cursor.
 3. **Tag the plan, group into waves, and write wave markers.** If the plan
    is not already tagged, run

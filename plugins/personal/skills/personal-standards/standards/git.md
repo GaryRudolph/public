@@ -44,13 +44,16 @@ See **[versioning.md](versioning.md)** for the full standard, including BNF gram
 
 - **Do not auto-commit** — only commit when explicitly asked, except on a runner (below)
 - **Do not auto-push** — only push when explicitly asked, never from a subagent that wasn't told to, except on a runner (below)
-- **Runners commit and push their branch** — a session on a cloud runner (Claude Code on the web, or another vendor's cloud agents) or a self-hosted runner commits each finished step and pushes it to the branch it was given, without asking, as long as that branch isn't `main` or another shared branch. The container is ephemeral and no one is watching to say "commit", so the pushed branch is the deliverable. Signs of a runner: the harness says the session is remote or assigns a branch to push, or `CLAUDE_CODE_REMOTE=true`. The other rules here still apply: stay on that branch, atomic commits in the usual format, and the force-push rule below. The runner sets its own committer identity; accept it. On `main` or another shared branch, fall back to ask-first: leave the work uncommitted, report it, and propose a branch
+- **Runners commit and push their branch** — a session on a cloud runner (Claude Code on the web, or another vendor's cloud agents) or a self-hosted runner commits each finished step and pushes it to the current branch, without asking. The container is ephemeral and no one is watching to say "commit", so the pushed branch is the deliverable. Signs of a runner: the harness says the session is remote or assigns a branch to push, or `CLAUDE_CODE_REMOTE=true`. The other rules here still apply: atomic commits in the usual format, and the force-push rule below. The runner sets its own committer identity; accept it
+- **Runners branch off `main`** — a runner that finds `main`, another shared branch, or a detached HEAD checked out cuts a branch before its first change, with the `--no-track` recipe below: `fix/<slug>` for a bug, otherwise `feature/<slug>` (`feature/m{N}-<slug>` for milestone work). `<slug>` is the kebab-case topic the handoff would use, two to four words naming the object of the work, not the verb; if `git ls-remote --heads origin <branch>` shows it taken, append the handoff `{word}`. Push with `git push -u origin <branch>`, and say in the first report and in the handoff that the name was a guess. Never push `main`, even if the branch push is refused. This is the one carve-out from "Do not auto-branch" and "Propose branch changes, then wait", and it never applies on a workstation
+- **Runners save before they stop** — before ending any turn that waits for a human (a question, a STOP gate, a blocker, done, running low on context), in this order: update the plan's `(done)` markers and `Status:` line; write or refresh the handoff with the pending question verbatim, the branch, and how to resume; commit everything in the tree, a half-finished step included, with an honest subject (`m2.s3 wire results view (partial, see handoff)`); push; only then ask. The asking turn may be the container's last. Gate semantics don't change; the push makes the stall harmless
+- **Runner scratch rides the branch** — `.scratch/` dies with the container, and only the plan and the session handoff in it can't be rebuilt from the pushed branch plus the original ask. On a runner those two go to `specs/handoffs/plan-{topic}-{word}.md` and `specs/handoffs/handoff-{topic}-{word}.md` (create the folder if needed), committed with the step that changed them, as ordinary tracked files: no `git add -f`, no second scratch directory, nothing `.gitignore` hides. Everything else in `.scratch/` may die; a conclusion the tree lacks goes into the handoff as prose. Remove or promote them before merge (see [Creating](#creating) under Pull Requests)
 - **Never force-push `main`** (or any shared branch); on your own branch prefer `--force-with-lease`
 - **Cut feature branches with `--no-track`** (`git switch -c feature/<name> origin/main --no-track`) so they don't track `main` and a bare `git push` can't land there; first push with `git push -u origin feature/<name>`
 - **No co-authored-by** — do not add `Co-Authored-By` trailers for AI agents
-- **Do not auto-branch** — never create or switch branches on your own. Default to the branch already checked out; if none was specified, that means `main`. Multi-agent work on one repo especially must not silently move branches.
+- **Do not auto-branch** — never create or switch branches on your own. Default to the branch already checked out; if none was specified, that means `main`. Multi-agent work on one repo especially must not silently move branches. The one exception is a runner that starts on `main` (above).
 - **Worktrees only when asked** — create a worktree only on explicit request (see [Worktrees](#worktrees) for layout/naming). Do not spin one up proactively.
-- **Propose branch changes, then wait** — if you believe a new branch, branch switch, or worktree is warranted, propose it and wait for explicit confirmation before acting. Silence, a dismissed/skipped prompt, or an ambiguous reply is not confirmation (fail closed).
+- **Propose branch changes, then wait** — if you believe a new branch, branch switch, or worktree is warranted, propose it and wait for explicit confirmation before acting. Silence, a dismissed/skipped prompt, or an ambiguous reply is not confirmation (fail closed). On a runner the only branch you may cut without asking is the one "Runners branch off `main`" describes.
 
 ## Commit Messages
 
@@ -89,6 +92,7 @@ Each commit = one logical change. Makes reverting and reviewing straightforward.
 ### Creating
 
 - Rebase on latest `main` before opening
+- Remove the runner's `specs/handoffs/plan-*.md` and session `handoff-{topic}-{word}.md` in the last commit before opening, or first promote what's durable to `specs/` or a milestone handoff. Milestone handoffs (`handoff-m{N}-…`) stay. A forgotten removal lands plain markdown on `main`; one `git rm` fixes it
 - One feature or fix per PR; keep PRs < 400 lines changed
 - PR titles follow commit message format: `PROJ-123 add user authentication`
 
@@ -129,6 +133,7 @@ dist/
 build/
 .idea/
 .vscode/
+.scratch/
 *.key
 *.pem
 ```
