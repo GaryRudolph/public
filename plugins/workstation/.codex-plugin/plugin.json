@@ -1,6 +1,6 @@
 {
   "name": "workstation",
-  "description": "Skills that need Gary's Mac: MacWhisper database and transcript tooling, and agent allowlist scouting across local repos.",
+  "description": "Skills that need Gary's Mac: agent allowlist scouting across local repos.",
   "author": {
     "name": "Gary Rudolph"
   },
@@ -13,7 +13,7 @@
   "skills": "./skills/",
   "interface": {
     "displayName": "workstation",
-    "shortDescription": "MacWhisper and allowlist skills for Gary's Mac",
+    "shortDescription": "Allowlist scouting for Gary's Mac",
     "developerName": "Gary Rudolph",
     "category": "Productivity",
     "websiteURL": "https://github.com/GaryRudolph/public"

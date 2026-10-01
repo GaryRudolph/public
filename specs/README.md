@@ -13,4 +13,7 @@ ALL_CAPS filename allowed here. Throwaway drafts and research go to `.scratch/`
 
 | Spec | What it covers |
 |---|---|
-| [macwhisper-database.md](macwhisper-database.md) | MacWhisper's on-disk SQLite schema + `ExternalMedia/` layout, conventions (BLOB-UUID/hex, time model, soft-delete), the FTS5 mirror + triggers, media-file naming/`type` enums, schema-drift handling, and the read-only/write safety contract for the whisper tooling. |
+| [agent-distribution.md](agent-distribution.md) | How the personal standards and skills reach every agent (Claude surfaces, Codex, Cursor, Gemini, Muse Code): the plugin layout, the home-directory installer, and the milestones that built them. |
+
+The MacWhisper database spec moved to the notes repo with the whisper skills
+that use it (`specs/macwhisper-database.md` there).

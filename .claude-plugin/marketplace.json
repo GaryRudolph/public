@@ -15,7 +15,7 @@
     {
       "name": "workstation",
       "source": "./plugins/workstation",
-      "description": "Mac workstation skills: MacWhisper transcript tooling and agent allowlist scouting. Needs local files, so enable it only where those exist."
+      "description": "Mac workstation skills: agent allowlist scouting across local repos. Needs local files, so enable it only where those exist."
     }
   ]
 }
