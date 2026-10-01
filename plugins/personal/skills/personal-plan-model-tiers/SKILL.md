@@ -105,12 +105,17 @@ every-wave` (see step 5).
 
 **REVIEW markers first, then STOP markers** at each inter-wave boundary.
 For each wave N, insert an inline-complete `--- REVIEW: wave-N [deep] ---`
-block immediately after that wave's last executable heading and **before**
+block (`--- REVIEW: wave-N [xdeep] ---` after an `[xdeep]` wave, so Opus at
+max effort reviews it) immediately after that wave's last executable
+heading and **before**
 the next `--- STOP …` or `--- WAVE …` marker (for the final wave, after
 its last heading and before end-of-file or the Completion section). Use
 the REVIEW template from standards §"Review beat" — fill in wave number,
 total wave count, `<group-id>`, and the resolved absolute plan path so
-the prompt is self-contained. **Idempotent:** skip a REVIEW write when
+the prompt is self-contained. After an `[xdeep]` wave, also apply the
+`[xdeep]` note under that template: `[xdeep]` in the marker, title, and
+prompt, its Opus max-effort rows, and no ultracode. **Idempotent:** skip a
+REVIEW write when
 `--- REVIEW: wave-N` already exists for that wave (re-entry).
 
 Then insert STOP markers at tier transitions as before.
@@ -141,6 +146,13 @@ include:
    pasted chat usually does not re-load this skill, so that inline reminder
    is the only thing that tells the wave to update plan state — never omit
    it, and do not move it into a separate checklist block in the plan.
+5. For a STOP into an `[xdeep]` wave, the extras from the standards'
+   `[xdeep]` escalation note: start the prompt with the keyword `ultracode`
+   so that turn runs under ultracode (for a wave that may take more than
+   one turn, run `/effort ultracode` in that chat instead), and add one
+   line naming the `[xdeep]` upgrade checklist condition each step met. Cursor has no
+   ultracode equivalent; its `[xdeep]` row is Opus at max effort alone.
+   Name the Fable alt only when Opus at max has already failed the step.
 
 Use `->` ASCII arrows in the marker so it stays safe in terminals and grep.
 
@@ -164,7 +176,8 @@ after the no-thrash folding pass. Add a `review: every-wave` line
 - The prompt body references the resolved absolute plan path from step 1 and
   uses the matching body for the tier (the `[fast]` body adds the
   "mechanical edits, do not refactor" reminder; `[deep]` and `[exec]`
-  use the standard body).
+  use the standard body; an `[xdeep]` first wave uses the standard body
+  plus the step 4 `[xdeep]` extras: the `ultracode` opt-in and the checklist line).
 - Include a `Suggested chat title:` line in the Wave title format for the
   first wave (`Wave 1 of N [<tier>] <first group>`) — the same advisory
   title as the STOP markers (step 4). Emit it even though a foreground chat

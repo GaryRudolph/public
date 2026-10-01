@@ -89,10 +89,14 @@ cheaper-tier output are all `[deep]` work; weakening the orchestrator caps
 review quality at the level of the work being reviewed. The Kickoff block
 written in step 4 hardcodes Opus for the same reason.
 
-- `[xdeep]` waves go to a Fable subagent; the parent stays on Opus. A
-  Fable parent would bill Fable rates for every summary it reads, and the
-  parent's job (dispatch, gates, summary review) is `[deep]` work. Reviews
-  of `[xdeep]` waves are the exception; see step 12.
+- `[xdeep]` waves go to a max-effort Opus subagent; the parent stays on
+  Opus high. The parent's job (dispatch, gates, summary review) is
+  `[deep]` work, and max effort on every summary it reads is waste.
+  Reviews of `[xdeep]` waves are the exception; see step 12.
+- Cursor has no ultracode equivalent, so an orchestrated `[xdeep]` wave
+  gets max effort without ultracode's multi-agent fan-out. When a wave
+  needs that, run it through `personal-plan-model-tiers` in Claude Code
+  instead.
 - Want a cheaper supervisor on a mostly-mechanical plan? Use
   [`personal-plan-model-tiers`](../personal-plan-model-tiers/SKILL.md)
   instead and let the human drive the model swaps. Same tagging, no opus
@@ -103,7 +107,7 @@ written in step 4 hardcodes Opus for the same reason.
 This skill assumes **Cursor's `Task` tool with a per-invocation `model`
 parameter** and the Cursor slugs from the standards model picker:
 
-- `[xdeep]`: `claude-fable-5-1[effort=max]`
+- `[xdeep]`: `claude-opus-5-5[effort=max]` (alt: `claude-fable-5-1[effort=max]`)
 - `[deep]` and the parent: `claude-opus-5-5[effort=high]`
 - `[exec]`: `grok-4-7[effort=high]` (alt: `claude-sonnet-5-5[effort=high]`)
 - `[fast]`: `composer-2.5[fast=false]`
@@ -132,8 +136,9 @@ Only STOP and ask the user when one of these is true:
 
 - `Task` is absent from your tool list entirely.
 - `Task` is present but has no `model` parameter, or its enum is missing
-  Opus, Composer, or both Grok and Sonnet. (A missing Fable entry blocks
-  only `[xdeep]` waves; see step 8.)
+  Opus, Composer, or both Grok and Sonnet. (A missing Fable entry only
+  removes the `[xdeep]` alt; a missing max-effort Opus entry is handled in
+  step 8.)
 - You can tell you are running on **Claude Code**. `Task` there accepts
   `model` on paper, but
   [anthropics/claude-code#43869](https://github.com/anthropics/claude-code/issues/43869)
@@ -160,23 +165,30 @@ The `[xdeep]` / `[deep]` / `[exec]` / `[fast]` definitions, default-up bias,
 Claude Code model picker live in the standards section above. Cursor picks
 for orchestrator subagents, repeated here for reading clarity only:
 
-- `[xdeep]` subagent (after gate 7): `claude-fable-5-1[effort=max]`
+- `[xdeep]` subagent (after gate 7): `claude-opus-5-5[effort=max]`; alt
+  `claude-fable-5-1[effort=max]` only as a different-model second opinion
+  after Opus max has already failed the step
 - `[deep]` subagent or parent: `claude-opus-5-5[effort=high]`
 - `[exec]` subagent (default for delegated work): `grok-4-7[effort=high]`,
   or `claude-sonnet-5-5[effort=high]` once included Cursor-pool usage runs
   out (see the standards model picker notes)
 - `[fast]` subagent (only when no-thrash criterion met): `composer-2.5[fast=false]`
 
-If the standards section and this list disagree, the standards section
-wins.
+As of 2026-10-01, `[xdeep]` on Opus max is a for-the-moment mapping: Opus
+5.5 beats Fable 5.1 on every benchmark Anthropic published, at 40% of the
+per-token price. Revisit when the next Fable ships. If the standards
+section and this list disagree, the standards section wins.
 
 **Step-up on subagent failure**: composer → the `[exec]` model (grok, or
-sonnet) → opus → fable. Stepping up to opus usually means the step was
+sonnet) → opus high → opus max as `[xdeep]`; fable is the different-model
+alt after that. Stepping up to opus usually means the step was
 mistagged; STOP, re-tag as `[deep]`, and
 dispatch an opus subagent for the re-attempt — the orchestrator-parent
-never executes plan work inline (see STOP gates below). Stepping up from opus
-to fable is the first condition of the `[xdeep]` upgrade checklist: re-tag
-as `[xdeep]` and pass gates 6 and 7 before dispatching.
+never executes plan work inline (see STOP gates below). Stepping up from
+opus high to opus max is the first condition of the `[xdeep]` upgrade
+checklist (a `[deep]` attempt already failed): re-tag as `[xdeep]` and pass
+gates 6 and 7 before dispatching. If opus max fails too, a fable
+re-attempt (the different-model alt) also goes through gates 6 and 7.
 
 ## Parallel-eligibility rule — one subagent per git working directory
 
@@ -288,8 +300,8 @@ line, and end the turn. Never dispatch subagents while blocked.
 2. **`[exec] -> [deep]` or `[exec] -> [xdeep]` boundary** — review gate. STOP so the user can
    review the just-finished `[exec]` output before any opus tokens are
    spent on the next group. After review, the orchestrator-parent
-   dispatches an opus subagent for the next `[deep]` group; it does
-   **not** execute that group inline.
+   dispatches an opus subagent for the next group (high effort for
+   `[deep]`, max for `[xdeep]`); it does **not** execute that group inline.
 3. **`[fast] -> [deep]` or `[fast] -> [xdeep]` boundary** — same as above.
 4. **Milestone boundary** (`m{N}` → `m{N+1}`) — universal review per the
    standards section. Fires even on `[exec] -> [exec]` across a milestone
@@ -299,13 +311,19 @@ line, and end the turn. Never dispatch subagents while blocked.
    misunderstood the plan" or a bad subagent prompt before cascading the
    mistake.
 6. **Model step-up on retry** — when retrying a failed subagent on a
-   stronger model (composer → the `[exec]` model, the `[exec]` model →
-   opus, or opus → fable), STOP first so the user confirms the budget
-   impact and the diagnosis.
-7. **Fable budget gate** — STOP before every `[xdeep]` dispatch, including
-   `[deep] -> [xdeep]` and `[xdeep] -> [xdeep]` across waves. Name the
-   steps, the checklist condition each one met, and a rough cost from the
-   Model price table, so the user approves Fable spend wave by wave. When
+   stronger model or effort, or on the Fable alt as a different-model
+   second opinion (composer → the `[exec]` model, the `[exec]` model →
+   opus high, opus high → opus max, or opus max → the fable alt),
+   STOP first so the user confirms the budget impact and the diagnosis.
+7. **`[xdeep]` budget gate** — STOP before every `[xdeep]` dispatch,
+   including `[deep] -> [xdeep]` and `[xdeep] -> [xdeep]` across waves.
+   Name the steps, the checklist condition each one met, and a rough cost,
+   so the user approves `[xdeep]` spend wave by wave. The premium is token
+   volume, not rate: use the standards' CursorBench 4.0 table as the
+   volume proxy (Opus 5.5 at max costs $13.43 a task vs $3.97 at high,
+   about 3.4× a `[deep]` wave), and the Model price table for Fable-alt
+   rates. The read-only review subagent after an `[xdeep]` wave (step 12)
+   is covered by that wave's gate-7 approval and does not STOP again. When
    gate 2 or 3 also fires, ask both in one question.
 
 Deliberately **not** STOP gates: per-wave success on the same tier,
@@ -374,8 +392,8 @@ tokens so far:
 Review work is parent-side — include its tokens in the orchestrator row,
 not as separate `review-wave-N` rows (contrast the passive driver's
 separate review-beat chats in `personal-plan-model-tiers`). The one
-exception is the Fable review subagent after an `[xdeep]` wave, which gets
-its own `review-wave-N` row at Fable rates.
+exception is the max-effort Opus review subagent after an `[xdeep]` wave,
+which gets its own `review-wave-N` row.
 
 Each row's cost uses **that row's model rates** from the Model price table.
 The RUNNING TOTAL cost is the **sum of per-row costs**, not a blended rate
@@ -418,7 +436,7 @@ authoritative usage data.
 
    **Validate the ≤ constraint before writing wave markers.** For each wave,
    verify that every step's tag is ≤ the wave's execution tier
-   (`[deep]` > `[exec]` > `[fast]`). If any step's tag is *greater* than its
+   (`[xdeep]` > `[deep]` > `[exec]` > `[fast]`). If any step's tag is *greater* than its
    wave's execution tier, that is a tagging error — do not write wave markers.
    Surface the violation, halt (STOP gate 0, a pre-dispatch error), and ask
    the user to re-tag the step or widen the wave.
@@ -435,8 +453,8 @@ authoritative usage data.
    **active** variant of the Kickoff template from
    `../personal-standards/standards/plan-execution.md` §"Kickoff
    template". The model row is **always** `claude-opus-5-5[effort=high]`
-   / `/model opus` xhigh because the orchestrator-parent always runs at
-   `[deep]` (see "Orchestrator-parent invariant" above). The prompt body
+   / `/model opus` + `/effort high` because the orchestrator-parent always
+   runs at `[deep]` (see "Orchestrator-parent invariant" above). The prompt body
    references the resolved absolute plan path from step 1 and names this
    skill (`personal-plan-orchestrate`). The Kickoff block is
    **idempotent**: if a Kickoff block already exists at the top of the
@@ -513,10 +531,11 @@ authoritative usage data.
    - **Any boundary into `[xdeep]`** → STOP (gate 7, plus gate 2/3 when
      coming from `[exec]`/`[fast]`). Fail-closed: if no explicit answer is
      received, write `BLOCKED at gate 7` to the `Status:` line and end the
-     turn. Then dispatch `Task(model=<the `[xdeep]` Cursor slug from the standards Model picker>, ...)`, one per working
-     directory. If the `Task` enum has no Fable entry, do not substitute
-     opus: STOP and recommend running that wave through
-     `personal-plan-model-tiers` with a manual model swap.
+     turn. Then dispatch `Task(model=<[xdeep] Cursor slug>, ...)`
+     (`claude-opus-5-5[effort=max]` today), one per working directory. If
+     the `Task` enum has no max-effort Opus entry, dispatch the
+     highest-effort Opus entry and tell the user. Dispatch the Fable alt
+     only on a gate-6 step-up after Opus max has already failed the step.
    - **Leaving `[xdeep]`** → same rows as leaving `[deep]`.
    - `[deep] -> [deep]` → dispatch
      `Task(model="claude-opus-5-5[effort=high]", ...)`, one per working
@@ -564,17 +583,18 @@ authoritative usage data.
       it adds **no new human STOP gate** (gates 1–7 unchanged). Review
       tokens count toward the orchestrator-parent row in the token tally,
       not a separate per-wave row. **Exception: an `[xdeep]` wave** is
-      reviewed by a read-only `Task(model=<the `[xdeep]` Cursor slug from the standards Model picker>, ...)` subagent, not
-      inline, because an Opus parent would cap the review at `[deep]`. The
-      parent writes that subagent's verdict to the Review log and gives its
-      tokens their own `review-wave-N` row.
+      reviewed by a read-only max-effort Opus subagent
+      (`Task(model=<[xdeep] Cursor slug>, ...)`), not inline, because the
+      high-effort parent would cap the review at `[deep]`. The parent
+      writes that subagent's verdict to the Review log and gives its tokens
+      their own `review-wave-N` row.
 13. **Handle errors / low-quality output** — STOP (gate 1) and offer
     retry / step-up / re-plan. Fail-closed: if no explicit answer is
     received, re-post the error gate question, write `BLOCKED at gate 1`
     to the `Status:` line, and end the turn. Stepping up tiers triggers
     gate 6, and the re-attempt itself is **dispatched** as a subagent on
-    the higher tier's model — composer → `[exec]` model → opus → fable — never
-    executed inline.
+    the next model in the step-up chain — composer → `[exec]` model → opus
+    high → opus max, then the fable alt — never executed inline.
 14. **Advance** to the next boundary. Repeat from step 7 until the plan
     is complete, stopping at every gate. When the plan is complete,
     print the final per-wave + orchestrator + grand-total token table
