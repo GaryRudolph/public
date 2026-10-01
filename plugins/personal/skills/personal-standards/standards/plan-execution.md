@@ -4,22 +4,34 @@ How multi-step plans are executed across models of different cost and capability
 
 ## Model-tier stop points
 
-Plans are executed by agents of different cost and capability. To make the most of both, tag every executable step with one of three tiers, group consecutive same-tier steps into execution waves, and emit a STOP marker at every tier boundary so the model can be swapped (or the wave delegated to a subagent) before continuing.
+Plans are executed by agents of different cost and capability. To make the most of both, tag every executable step with one of four tiers, group consecutive same-tier steps into execution waves, and emit a STOP marker at every tier boundary so the model can be swapped (or the wave delegated to a subagent) before continuing.
 
 This section is the canonical reference for the convention. The work splits into two responsibilities:
 
-- **Tagging** — assigning each executable step its honest `[deep]` / `[exec]` / `[fast]` tier. This is owned by `personal-plan-tag-tiers`, a small shared skill. Tags reflect true complexity and are **never** rewritten for thrash reasons, so a tagged plan always shows how hard the work actually is. Run it first when you just want to see the complexity of a plan before deciding how to execute it.
+- **Tagging** — assigning each executable step its honest `[xdeep]` / `[deep]` / `[exec]` / `[fast]` tier. This is owned by `personal-plan-tag-tiers`, a small shared skill. Tags reflect true complexity and are **never** rewritten for thrash reasons, so a tagged plan always shows how hard the work actually is. Run it first when you just want to see the complexity of a plan before deciding how to execute it.
 - **Execution** — grouping the tagged steps into waves (the no-thrash rule), then either emitting STOP markers for a human-driven model swap or dispatching subagents. This is owned by the two driver skills, which call `personal-plan-tag-tiers` automatically when a plan is not tagged yet.
 
 `personal-plan-model-tiers` is the passive driver (any harness that supports skills — Cursor, Claude Code — stopping at each tier boundary for a human model swap); `personal-plan-orchestrate` is the active Cursor counterpart where the `[deep]` parent delegates each wave via `Task(model=...)` subagents.
 
 ### Tiers
 
+- `[xdeep]` — frontier reasoning, one rung above `[deep]`. For steps where a strong `[deep]` model at `xhigh` is likely to be wrong, or already was: novel designs with nothing to copy from, security and correctness arguments (auth, crypto, concurrency, distributed consistency), migrations that can't be rolled back, and long-horizon analysis over a very large context. Runs on Claude Fable, which costs 2.5× Opus per token and takes longer turns, so the tag has to pass the [upgrade checklist](#xdeep-upgrade-checklist).
 - `[deep]` — top-tier reasoning. Architecture decisions, ambiguous requirements, non-obvious debugging, security-sensitive review, library/stack trade-offs, anywhere the cost of getting it wrong is high.
 - `[exec]` — standard implementation. Multi-file changes with cross-file reasoning, refactors with a clear target but real judgment, test writing where cases need thought, work that must read repo patterns first to extend them.
 - `[fast]` — mechanical, fully-specified, single-concern work. Renames, format changes, applying a decided design line-by-line, doc updates, well-bounded ports.
 
-**Default-up bias**: when in doubt, tag `[deep]` > `[exec]` > `[fast]`. A misclassified `[fast]` produces bad output; a misclassified `[deep]` wastes a little money.
+**Default-up bias**: when in doubt, tag `[deep]` > `[exec]` > `[fast]`. A misclassified `[fast]` produces bad output; a misclassified `[deep]` wastes a little money. The bias stops at `[deep]`: doubt between `[deep]` and `[xdeep]` resolves to `[deep]`. A misclassified `[xdeep]` wastes real money, and a `[deep]` review beat or a failed attempt escalates the step anyway.
+
+### `[xdeep]` upgrade checklist
+
+A step only earns `[xdeep]` if it is clearly `[deep]` work **and** at least one of these is true:
+
+- A `[deep]` attempt already failed it, or its review beat returned `CONCERNS` on the same design question twice.
+- A mistake would be expensive and quiet: a security boundary, auth or crypto design, a data migration that can't be rolled back, concurrency or consistency correctness.
+- The design is novel: nothing in the repo, the standards, or the dependencies to copy from, and it spans more than one system.
+- The step needs sustained reasoning over a very large context (a whole-codebase audit, a cross-repo plan) where a `[deep]` model loses the thread.
+
+None true → tag `[deep]`.
 
 ### `[fast]` downgrade checklist
 
@@ -50,6 +62,7 @@ is the recommended naming shape for new plans (see "Steps within a milestone"
 in [documentation.md](documentation.md)), but the skill adapts to whatever
 structure already exists.
 
+    #### s1 - [xdeep] Design token-revocation protocol
     #### s1 - [deep] Decide debounce strategy
     #### s2 - [exec] Wire search results to view model
     #### s3 - [fast] Bump search-event version string
@@ -66,7 +79,7 @@ Edge cases:
   the first separator wins; the tag slots after the `-`.
 - **No prefix, no separator**: tag goes right after `####`.
 
-To find tagged headings use the regex: `^#+\s+.*\[(deep|exec|fast)\]`
+To find tagged headings use the regex: `^#+\s+.*\[(xdeep|deep|exec|fast)\]`
 
 ### No-thrash rule
 
@@ -74,12 +87,13 @@ The no-thrash rule runs at the **execution-grouping layer**, not the tagging lay
 
 Walk the tagged steps in order and collect consecutive same-tier steps into candidate waves. (A "wave" is the same unit the Status line and todo list call a *group*; the terms are interchangeable. "Wave" is used here to stress that a wave's execution tier can differ from a folded step's tag.) Then decide wave boundaries:
 
-1. Always split (insert a STOP / dispatch boundary) at any `[deep]` ↔ `[exec]` boundary.
-2. Always split at any `[deep]` ↔ `[fast]` boundary.
-3. **Conditionally** split at an `[exec]` ↔ `[fast]` boundary:
+1. Always split (insert a STOP / dispatch boundary) at any boundary involving `[xdeep]`. Fable work stays in its own waves, so its premium is spent only on the steps that earned the tag.
+2. Always split at any `[deep]` ↔ `[exec]` boundary.
+3. Always split at any `[deep]` ↔ `[fast]` boundary.
+4. **Conditionally** split at an `[exec]` ↔ `[fast]` boundary:
    - If the `[fast]` block has **≥ 3 contiguous fast steps**, keep it as its own wave and split.
    - Otherwise, **fold those fast steps into the adjacent `[exec]` wave** (no split): they execute on the `[exec]` model so you don't spend more time swapping models than working — but their `[fast]` tags stay in the plan untouched. Folding is an execution-grouping decision, never a re-tag.
-4. After folding, re-merge adjacent waves of the same **execution tier** before placing STOPs / dispatch boundaries.
+5. After folding, re-merge adjacent waves of the same **execution tier** before placing STOPs / dispatch boundaries.
 
 **Execution tier vs. tag.** A wave's *execution tier* is the model it runs on; a step's *tag* is its honest complexity. They usually match. They differ only when a short `[fast]` run is folded into a neighboring `[exec]` wave: those steps keep their `[fast]` tags but execute at `[exec]`. The Kickoff "first wave tier", STOP markers, and `Task(model=...)` dispatches all key off the **execution tier** — never off a tag that has been folded.
 
@@ -106,24 +120,26 @@ Example after grouping a plan with a folded `[fast]` run and a later `[deep]` wa
 
 No closing marker is needed — the next `--- WAVE …` marker, `--- STOP: …` marker, or end-of-file delimits the wave.
 
-**The ≤ constraint.** For every executable step inside a wave, the step's tag must be **equal to or lesser than** the wave's execution tier. Tier ordering (most to least capable): `[deep]` > `[exec]` > `[fast]`.
+**The ≤ constraint.** For every executable step inside a wave, the step's tag must be **equal to or lesser than** the wave's execution tier. Tier ordering (most to least capable): `[xdeep]` > `[deep]` > `[exec]` > `[fast]`.
 
 | Wave execution tier | Permitted step tags |
 |---|---|
+| `[xdeep]` | `[xdeep]` only (rule 1 never folds into or out of it) |
 | `[deep]` | `[deep]`, `[exec]`, `[fast]` |
 | `[exec]` | `[exec]`, `[fast]` |
 | `[fast]` | `[fast]` |
 
-The folded-step case (`[fast]` steps inside an `[exec]` wave) always satisfies the constraint. If a step's tag is *greater* than the wave tier — for example, a `[deep]` step inside an `[exec]` wave — that is a tagging error. The driver must **flag the violation and refuse to write wave markers** until the tagging is corrected. The user must either re-tag the step downward or widen the wave to `[deep]` by re-running the no-thrash pass.
+The folded-step case (`[fast]` steps inside an `[exec]` wave) always satisfies the constraint. If a step's tag is *greater* than the wave tier — for example, a `[deep]` step inside an `[exec]` wave — that is a tagging error. The driver must **flag the violation and refuse to write wave markers** until the tagging is corrected. The user must either re-tag the step downward or widen the wave to `[deep]` by re-running the no-thrash pass. A lower-tagged step inside an `[xdeep]` wave is also an error, since rule 1 always splits there: re-run the no-thrash pass.
 
 **Idempotence.** If wave markers are already present in the plan (re-entry into a partially-executed plan), the driver skips the wave-marker-writing pass but still validates the ≤ constraint for any unmarked waves. Do not add duplicate markers.
 
-**Regex to find wave markers:** `^--- WAVE \d+ \[(deep|exec|fast)\] ---$`
+**Regex to find wave markers:** `^--- WAVE \d+ \[(xdeep|deep|exec|fast)\] ---$`
 
 ### Model picker
 
 | Tier | Cursor | Claude Code | Effort level |
 |---|---|---|---|
+| `[xdeep]` | `claude-fable-5-1` (slug pending the Cursor refresh) | `/model fable` | xhigh |
 | `[deep]` | `claude-opus-5-5-xhigh` (alt: `gpt-5.5`) | `/model opus` | xhigh / max |
 | `[exec]` | `claude-sonnet-5-5-medium` (alt: `gpt-5.3-codex`) | `/model sonnet` | medium |
 | `[fast]` | `composer-2.5` (standard) (OpenAI alt: `gpt-5.3-codex`) | `/model haiku` | off / none |
@@ -152,7 +168,7 @@ Cursor usage-based rates for the three planning tiers. Refresh alongside the Mod
 
 *As of 2026-10-01. Source: [cursor.com/docs/models-and-pricing](https://cursor.com/docs/models-and-pricing). `composer-2.5` (standard) and `composer-2.5-fast` are the same model at different inference throughput; `[fast]` uses standard, while orchestrate Task subagents are currently limited to fast (see the Model picker notes above).*
 
-On Claude Code, price by the model the alias resolved to (read it from `message.usage`'s model): `opus` is Opus 5.5 ($4.00 / $20.00), `sonnet` is Sonnet 5.5 ($2.00 / $10.00), and `haiku` is Haiku 4.5 ($1.00 / $5.00).
+On Claude Code, price by the model the alias resolved to (read it from `message.usage`'s model): `fable` is Fable 5.1 ($10.00 / $50.00), `opus` is Opus 5.5 ($4.00 / $20.00), `sonnet` is Sonnet 5.5 ($2.00 / $10.00), and `haiku` is Haiku 4.5 ($1.00 / $5.00).
 
 Cache-aware cost formula used by the `tokens:` tally:
 
@@ -208,7 +224,7 @@ For example, `Wave 2 of 3 [exec] repo-A m2 s1-s3`. Fill it in as:
 
 - `{n}` — the 1-based wave number the title refers to (the wave a STOP marker is launching is the *next* wave; a Kickoff always refers to wave 1).
 - `{t}` — the total wave count after the no-thrash folding pass (the same `N` as the Kickoff `Status:` line).
-- `{tier}` — that wave's execution tier (`[deep]` / `[exec]` / `[fast]`).
+- `{tier}` — that wave's execution tier (`[xdeep]` / `[deep]` / `[exec]` / `[fast]`).
 - `{group-id}` — the group identifier: heading IDs when the plan has them (e.g. `m2 s1-s3`), otherwise exact title text. For a parallel orchestrate wave, prefix each subagent's title with its working directory (repo or worktree name), e.g. `repo-B m2 s4-s6`.
 
 Where the title surfaces:
@@ -282,9 +298,12 @@ For an escalation back to `[deep]` (after `[exec]` or `[fast]`):
 
     ---
 
+For an escalation to `[xdeep]` (from any tier), use the `[deep]` escalation body above with the `[xdeep]` model row from the [Model picker](#model-picker), and add one line to the prompt naming the [upgrade checklist](#xdeep-upgrade-checklist) condition each step met.
+
 Rules for filling in the template:
 
 - `<absolute path to the plan file>` is the **fully-qualified absolute path** to the plan file, resolved when the plan was identified — for example: `/Users/gary/Projects/personal/public/.scratch/plan-topic-word.md`. Never emit a bare filename or a repo-relative path — the next chat may start from a different working directory.
+- The `Next model` block names Cursor and Claude Code. When the plan runs in Codex, Gemini CLI, or Muse Code, replace the Cursor row with that harness's row from the [Model picker](#model-picker).
 - Name the next group using whatever identifiers the plan uses: if headings
   carry IDs, use those (e.g. `m2 s1-s4`); if not, use exact title text
   (e.g. `the "Wire Redis client" through "Write integration tests" steps`).
@@ -296,7 +315,7 @@ Rules for filling in the template:
 
 ### Review beat
 
-A **review beat** is a dedicated, read-only `[deep]` pass over the work a wave just produced, run **after every wave** before the next one starts. It exists so cheaper-tier output (`[exec]`/`[fast]`) — and even `[deep]` output — is checked by a top-tier model against the spec before the plan builds further on it. Reviewing is `[deep]` work (catching architectural drift, broken contracts, security smells), so a review beat always pins the `[deep]` model regardless of the tier of the wave it reviews.
+A **review beat** is a dedicated, read-only `[deep]` pass over the work a wave just produced, run **after every wave** before the next one starts. It exists so cheaper-tier output (`[exec]`/`[fast]`) — and even `[deep]` output — is checked by a top-tier model against the spec before the plan builds further on it. Reviewing is `[deep]` work (catching architectural drift, broken contracts, security smells), so a review beat pins the `[deep]` model for any `[deep]`, `[exec]`, or `[fast]` wave. A wave that ran at `[xdeep]` gets an `[xdeep]` review (`--- REVIEW: wave-N [xdeep] ---`, with the `[xdeep]` model row): a reviewer below the author's tier caps the review at its own level.
 
 Cadence is recorded in the Kickoff block as a `review:` line. The default is `review: every-wave` — a beat follows every wave, including same-tier `[exec] -> [exec]` boundaries. (Contrast `personal-plan-orchestrate`, whose Opus parent reviews every returned subagent summary inline and writes the same verdict to the [Review log](#review-log) — it participates **log-only** and adds no new human review gate; see [Who updates progress, and how](#who-updates-progress-and-how).)
 
@@ -416,7 +435,7 @@ Passive variant — `[fast]` first wave (prompt body adds the "no refactor" remi
 
     ---
 
-For a `[deep]` first wave, use the same body as the `[exec]` example with the `[deep]` model row from the [Model picker](#model-picker) above (`claude-opus-5-5-xhigh` / `/model opus` xhigh).
+For a `[deep]` or `[xdeep]` first wave, use the same body as the `[exec]` example with that tier's model row from the [Model picker](#model-picker) above.
 
 Active variant — orchestrate (always `[deep]` / Opus xhigh):
 
@@ -475,7 +494,7 @@ When a group finishes, append ` (done)` to the end of every executable heading i
     #### s1 - [exec] Wire search results to view model  (done)
 
 Rules:
-- The marker goes at the **end of the heading line**, after all other content, so it never collides with the tier-tag regex `^#+\s+.*\[(deep|exec|fast)\]`.
+- The marker goes at the **end of the heading line**, after all other content, so it never collides with the tier-tag regex `^#+\s+.*\[(xdeep|deep|exec|fast)\]`.
 - Done-step regex: `\(done\)\s*$`
 - Incomplete steps: any tagged heading that does **not** match the done-step regex.
 - This is the **only** sanctioned heading mutation besides the tier tag itself. The "do not rename/renumber" rule has an explicit carve-out for appending ` (done)`.

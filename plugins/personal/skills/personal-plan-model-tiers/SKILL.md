@@ -1,11 +1,11 @@
 ---
 name: personal-plan-model-tiers
 description: >-
-  Evaluate each step in a plan and tag it as [deep], [exec], or [fast] so the
+  Evaluate each step in a plan and tag it as [xdeep], [deep], [exec], or [fast] so the
   user can swap to the right model (or delegate to a subagent) at every tier
   boundary. Each STOP marker emits the next model for both Cursor and Claude
   Code plus a copy-pasteable handoff prompt. Use when the user asks to
-  "evaluate each step", "tag deep / exec / fast", "split a plan by model
+  "evaluate each step", "tag xdeep / deep / exec / fast", "split a plan by model
   tier", "stop when the model should change", or wants to know which steps
   need a stronger vs. cheaper model.
 ---
@@ -15,7 +15,7 @@ description: >-
 Passive execution driver. This skill owns the **execution** layer — grouping
 tagged steps into waves (the no-thrash rule), inserting STOP markers, writing
 the passive Kickoff block, and handing each model swap off to you. It does
-**not** own tagging: the honest `[deep]` / `[exec]` / `[fast]` tags come from
+**not** own tagging: the honest `[xdeep]` / `[deep]` / `[exec]` / `[fast]` tags come from
 the shared [`personal-plan-tag-tiers`](../personal-plan-tag-tiers/SKILL.md)
 skill, which this skill invokes automatically when a plan is not tagged yet.
 
@@ -52,12 +52,13 @@ assume native todos from a prior session still exist.
 ### 2. Ensure the plan is tagged
 
 Check whether the plan's executable headings already carry tiers (regex
-`^#+\s+.*\[(deep|exec|fast)\]`).
+`^#+\s+.*\[(xdeep|deep|exec|fast)\]`).
 
 - **Not tagged** → run [`personal-plan-tag-tiers`](../personal-plan-tag-tiers/SKILL.md)
   (the shared tagging skill) to tag every executable step, then return here.
 - **Already tagged** → keep the existing tags. Do a light sanity pass against
-  the `[fast]` downgrade checklist and default-up bias, but do not churn tags.
+  the `[fast]` downgrade checklist, the `[xdeep]` upgrade checklist, and
+  default-up bias, but do not churn tags.
 
 Tags reflect honest complexity and stay as-is from here on. This skill never
 rewrites a tag for thrash reasons — that happens only at the wave-grouping
@@ -66,7 +67,7 @@ step below, and it changes the *execution wave*, not the tag.
 ### 3. Group tagged steps into execution waves (no-thrash) and write wave markers
 
 Walk the tagged steps and collect consecutive same-tier steps into execution
-waves. Always STOP at any boundary involving `[deep]`. STOP at `[exec]` ↔
+waves. Always STOP at any boundary involving `[xdeep]` or `[deep]`. STOP at `[exec]` ↔
 `[fast]` boundaries only when the `[fast]` block has ≥ 3 contiguous fast
 steps; otherwise **fold those `[fast]` steps into the adjacent `[exec]` wave**
 so they execute on the `[exec]` model with no model swap — but leave their
@@ -75,7 +76,7 @@ so they execute on the `[exec]` model with no model swap — but leave their
 
 **Validate the ≤ constraint before writing wave markers.** For each wave,
 check that every step's tag is ≤ the wave's execution tier
-(`[deep]` > `[exec]` > `[fast]`). If any step's tag is *greater* than its
+(`[xdeep]` > `[deep]` > `[exec]` > `[fast]`). If any step's tag is *greater* than its
 wave's execution tier, that is a tagging error — do not write wave markers.
 Surface the violation (e.g. "`[deep]` step s3 is inside an `[exec]` wave"),
 halt, and ask the user to re-tag the step or widen the wave before continuing.
