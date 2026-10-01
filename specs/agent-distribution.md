@@ -7,7 +7,7 @@ Gemini CLI, and Muse Code. Setup steps live in
 
 Status: m1, m3, m5, and m6 implemented on branch
 `claude/standards-skills-evaluation-0lf34z`; m2 is manual setup; m4 (model-tier
-refresh) is a proposal.
+refresh) is done except for the Claude Code orchestrate decision.
 
 ## Evaluation of the previous setup
 
@@ -42,7 +42,7 @@ absolute `~/Projects/personal/public/standards/...` paths.
 | 6 | **Three whisper skills linked to `../../../../specs/`**, one level above the repo. | `personal-whisper-{split,combine,split-combine}-db/SKILL.md` |
 | 7 | **The Go standards weren't listed** in `AGENTS.md`. | `AGENTS.md` language list |
 | 8 | **Cowork setup for the whisper skills relied on `~/.claude/skills/...`** existing. | `COWORK.md` file-access tables |
-| 9 | **The model names in the plan-tier rules are behind** (Opus 4.8, Sonnet 4.6); the current family is Opus 5.5, Sonnet 5, and Haiku 4.5. | `core.md`, `standards/plan-execution.md` (not changed here; see m4) |
+| 9 | **The model names in the plan-tier rules were behind** (Opus 4.8, Sonnet 4.6); the current family is Opus 5.5, Sonnet 5.5, and Haiku 4.5. | `standards/plan-execution.md`, `personal-plan-orchestrate`, `personal-plan-model-tiers` (fixed in m4) |
 
 ### What changed in the platforms
 
@@ -170,12 +170,19 @@ descriptions, or marketplace listings drift apart.
   extensions use `gemini extensions link <path>`.
 - **Muse Code has no plugin format** that I found; it imports skills.
 
-### m4 - Refresh the model-tier table
+### m4 - Refresh the model-tier table (mostly done)
 
-Update the tier-to-model mapping in `core.md` and
-`standards/plan-execution.md` to the current models, and decide whether
-`personal-plan-orchestrate` should also drive Claude Code subagents, which
-now take a per-agent model.
+The tier-to-model mapping in `standards/plan-execution.md`, and the slugs in
+`personal-plan-orchestrate` and `personal-plan-model-tiers`, now name Opus 5.5
+and Sonnet 5.5 (`core.md` carries no model names). The Claude Code column uses
+the version-less aliases `opus`, `sonnet`, and `haiku`, which resolve to the
+newest model of each tier, so only the Cursor column needs future bumps. Thinking
+is set with `/effort`, since Opus 5.5 and Sonnet 5.5 can't turn thinking off.
+
+Still open: whether `personal-plan-orchestrate` should drive Claude Code
+subagents. Their `model` parameter takes aliases, but
+[anthropics/claude-code#43869](https://github.com/anthropics/claude-code/issues/43869)
+is still open and reports it is ignored, so the harness gate stays.
 
 ### m5 - Turn procedures into skills (done)
 

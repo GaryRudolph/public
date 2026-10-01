@@ -295,9 +295,9 @@ wave):
 
 | wave | group | model | ~input | ~output | ~cost |
 |------|-------|-------|--------|---------|-------|
-| wave-1 | m1-s1-s3 | claude-opus-4-8-thinking-xhigh | … | … | … |
-| review-wave-1 | m1-s1-s3 | claude-opus-4-8-thinking-xhigh | … | … | … |
-| wave-2 | m2-s4-s6 | claude-4.6-sonnet-medium-thinking | … | … | … |
+| wave-1 | m1-s1-s3 | claude-opus-5-5-xhigh | … | … | … |
+| review-wave-1 | m1-s1-s3 | claude-opus-5-5-xhigh | … | … | … |
+| wave-2 | m2-s4-s6 | claude-sonnet-5-5-medium | … | … | … |
 | **GRAND TOTAL** | | | | | … |
 
 The GRAND TOTAL cost is the **sum of per-wave costs** (each priced at its own
