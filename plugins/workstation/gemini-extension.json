@@ -1,5 +1,5 @@
 {
   "name": "workstation",
   "version": "1.0.0",
-  "description": "Skills that need Gary's Mac: MacWhisper database and transcript tooling, and agent allowlist scouting across local repos."
+  "description": "Skills that need Gary's Mac: agent allowlist scouting across local repos."
 }

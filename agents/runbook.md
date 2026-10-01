@@ -58,10 +58,10 @@ default for marketplaces added this way.
 #### s4 - Install the plugins on the account
 
 - Install **`personal`**. This is the one that has to be on the account.
-- Install **`workstation`** on the account only if you run the
-  whisper skills from Cowork (see its `COWORK.md`). If you don't, leave it
-  off the account and install it locally in m3.s4, so cloud and runner
-  sessions don't carry seven Mac-only skill descriptions.
+- Leave **`workstation`** off the account and install it locally in m3.s4,
+  so cloud and runner sessions don't carry a Mac-only skill description.
+  The whisper skills Cowork runs now live in the notes repo (see their
+  `COWORK.md` there).
 
 #### s5 - Optional: a nudge for chat
 
@@ -140,7 +140,7 @@ claude plugin list        # personal@personal enabled; personal@synced "not load
 In a new session, ask "What is the personal canary phrase?" and
 "Which personal- skills do you have?" Expect
 `personal-public-canary-3e8d41`, plus the nine `personal` skills and the
-seven `workstation` skills.
+one `workstation` skill.
 
 ### m4 - Self-hosted runner
 

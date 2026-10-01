@@ -40,17 +40,15 @@ plugins/
   workstation/             <- needs this Mac's files
     .claude-plugin/  .codex-plugin/  .cursor-plugin/  gemini-extension.json
     skills/
-      personal-whisper-*/ personal-allowlist-scout/
-      lib/                          <- shared Python for the whisper skills
+      personal-allowlist-scout/
 ```
 
 ## Why two plugins
 
 `personal` only needs what's inside it, so it works in a cloud VM, on the
-self-hosted runner, in Cowork, and in chat. `workstation` reads the
-MacWhisper database, notes under `~/Projects/personal/notes`, and local
-harness config files. Anywhere else it would only add skill descriptions to
-every session's context, so enable it only on this Mac.
+self-hosted runner, in Cowork, and in chat. `workstation` reads local repos
+and harness config files. Anywhere else it would only add skill descriptions
+to every session's context, so enable it only on this Mac.
 
 ## Rules a plugin has to follow
 
@@ -104,7 +102,10 @@ of a skill with the same name, so installing their plugin on top of the
 1. Create `plugins/personal/skills/personal-<name>/SKILL.md` with `name` and
    `description` frontmatter. The name is lowercase with hyphens and starts
    with `personal-`. Use `workstation` instead if the skill needs
-   local files.
+   local files. A skill that only makes sense inside one repo belongs in
+   that repo's `.agents/skills/` instead, with no prefix: the prefix only
+   keeps home-directory installs apart from other installers. The notes
+   repo's MacWhisper skills work this way.
 2. Keep everything the skill reads inside its own folder or its plugin.
 3. Run `make -C agents validate test install`. A new plugin also needs an
    entry in all three marketplaces and all four manifests.
@@ -128,10 +129,6 @@ cleaned up, then push.
 | `personal` | `personal-plan-model-tiers` | Passive driver: group tagged steps into waves (no-thrash) and insert STOP markers with handoff blocks at tier boundaries |
 | `personal` | `personal-plan-orchestrate` | Active driver: same tagging and waves, but delegates each wave to a subagent on the right model and pauses only at mandatory STOP gates. Cursor-only today |
 | `personal` | `personal-makefile` | Audit and align Makefiles to the personal standard. Dry-run first; apply repo by repo with confirmation |
-| `workstation` | `personal-whisper-to-markdown` | Convert MacWhisper `.whisper` exports into dated Markdown notes (incremental, idempotent) |
-| `workstation` | `personal-whisper-db-markdown` | Same output, sourced from MacWhisper's live SQLite DB |
-| `workstation` | `personal-whisper-db-split` | Split a MacWhisper recording into two sessions in `main.sqlite` |
-| `workstation` | `personal-whisper-db-combine` | Combine two MacWhisper recordings into one new session |
-| `workstation` | `personal-whisper-db-split-combine` | Split-then-combine for overlapping recordings; never deletes |
-| `workstation` | `personal-whisper-md-consolidation` | Split a rendered whisper note that covers several meetings |
 | `workstation` | `personal-allowlist-scout` | Propose safe build commands missing from the per-harness allowlists, repo by repo |
+
+The MacWhisper skills (`whisper-*`) live in the notes repo's `.agents/skills/`.
