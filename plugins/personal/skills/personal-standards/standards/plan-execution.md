@@ -122,22 +122,22 @@ The folded-step case (`[fast]` steps inside an `[exec]` wave) always satisfies t
 
 ### Model picker
 
-| Tier | Cursor | Claude Code | Thinking level |
+| Tier | Cursor | Claude Code | Effort level |
 |---|---|---|---|
-| `[deep]` | `claude-opus-4-8-thinking-xhigh` (alt: `gpt-5.5`) | `/model opus` | xhigh / max |
-| `[exec]` | `claude-4.6-sonnet-medium-thinking` (alt: `gpt-5.3-codex`) | `/model sonnet` | medium |
+| `[deep]` | `claude-opus-5-5-xhigh` (alt: `gpt-5.5`) | `/model opus` | xhigh / max |
+| `[exec]` | `claude-sonnet-5-5-medium` (alt: `gpt-5.3-codex`) | `/model sonnet` | medium |
 | `[fast]` | `composer-2.5` (standard) (OpenAI alt: `gpt-5.3-codex`) | `/model haiku` | off / none |
 
 Notes:
-- For Claude Code, toggle extended thinking with `/think` (or the equivalent in the version installed). Haiku doesn't meaningfully benefit from extended thinking on bounded mechanical tasks — it just adds latency.
+- **Claude Code uses version-less aliases.** `/model opus`, `/model sonnet`, and `/model haiku` always resolve to the newest model of that tier, so the Claude Code column never needs a version bump. Set the effort level with `/effort <level>`. Opus 5.5 and Sonnet 5.5 default to `medium` and can't turn thinking off, so `[deep]` needs `/effort xhigh` set explicitly. Haiku takes no effort level and doesn't meaningfully benefit from extended thinking on bounded mechanical tasks — it just adds latency.
 - Cursor's Auto mode tends to pick Composer for routine and Sonnet for ambiguous; Auto is fine inside an `[exec]` block but pin the model explicitly inside `[deep]` blocks.
 - **Cursor cost model — two pools, and it drives Auto-vs-pin.** Cursor bills from two separate monthly pools: an **Auto/Composer pool** that is included and effectively unmetered on paid plans, and a **frontier-credit pool** (the $20 Pro / ~$70 Pro+ / ~$400 Ultra allowance) that pinned frontier models — Opus, Sonnet, `gpt-5.5` — draw down before on-demand billing kicks in. Auto usage does **not** draw the frontier credit. So the cost-optimal default is: **let Auto own `[exec]` and `[fast]` execution waves** (Auto routes Sonnet-for-ambiguous / Composer-for-routine well, from the free pool), and **pin the model explicitly for `[deep]` waves and review beats** — Auto may silently downgrade a `[deep]` task to Sonnet/Composer, and review/architecture quality is capped by the model doing it. Rule of thumb: let Auto drive everything below `[deep]`; spend frontier credit only at `[deep]`.
-- **Review beats are a high-ROI place to pin Opus.** A [review beat](#review-beat) reads the prior wave's diff (input-heavy) and emits a short verdict (output-light). Because Opus output is the expensive half ($25/Mtok vs. $5 input), an input-heavy/output-light review is one of the cheapest ways to spend `[deep]` credit — pin Opus for it rather than letting Auto downgrade the review.
+- **Review beats are a high-ROI place to pin Opus.** A [review beat](#review-beat) reads the prior wave's diff (input-heavy) and emits a short verdict (output-light). Because Opus output is the expensive half ($20/Mtok vs. $4 input), an input-heavy/output-light review is one of the cheapest ways to spend `[deep]` credit — pin Opus for it rather than letting Auto downgrade the review.
 - `[fast]` uses **Composer 2.5 standard** ($0.50/$2.50): same intelligence as the Fast variant ($3/$15) at ~6× lower cost and tuned for unattended/background runs — prefer it for mechanical `[fast]` work, since Fast's premium only pays back when a human is watching tokens stream live. Caveat: `personal-plan-orchestrate` dispatches `[fast]` groups via `Task(model=...)`, whose enum currently exposes only `composer-2.5-fast`, so orchestrated `[fast]` subagents run on Fast until Cursor adds a standard Task slug; the manual `personal-plan-model-tiers` flow can pick standard directly in the model picker.
 - **OpenAI in Cursor — Codex does double duty.** `gpt-5.3-codex` is the right OpenAI pick for both `[exec]` and `[fast]` in Cursor; there is no cheaper dedicated OpenAI model in Cursor's current lineup that would justify a separate `[fast]` slot. On Anthropic the Sonnet → Composer gap is a ~6× cost drop worth a model swap; on OpenAI today Codex is already the low end. Use it for both tiers and skip the swap. If a cheaper OpenAI model appears in Cursor's picker, add it to `[fast]` and revisit.
 - **Haiku vs Composer.** Haiku is Claude Code's `[fast]` model and Composer is Cursor's — they are platform-specific choices, not alternatives to each other. Do not substitute one for the other; each harness uses its own native fast model.
 - For `[deep]`, the ChatGPT alt is `gpt-5.5` (xhigh) — it leads terminal/agentic and computer-use work and emits far fewer output tokens than Opus on long loops; keep Opus as the primary for multi-file architecture and tool-heavy MCP orchestration.
-- This table will need periodic refresh as Cursor and Anthropic ship new versions; that maintenance cost is the price of having one source of truth for tier-to-model mapping.
+- The Cursor column pins versions, so it needs a refresh whenever Cursor adds a newer Opus or Sonnet (check `cursor-agent --list-models`); the Claude Code column tracks the latest through its aliases.
 
 ### Model price table
 
@@ -145,12 +145,14 @@ Cursor usage-based rates for the three planning tiers. Refresh alongside the Mod
 
 | Cursor slug | Input ($/Mtok) | Output ($/Mtok) |
 |---|---|---|
-| `claude-opus-4-8-thinking-xhigh` | $5.00 | $25.00 |
-| `claude-4.6-sonnet-medium-thinking` | $3.00 | $15.00 |
+| `claude-opus-5-5-xhigh` | $4.00 | $20.00 |
+| `claude-sonnet-5-5-medium` | $2.00 | $10.00 |
 | `composer-2.5` (standard) | $0.50 | $2.50 |
 | `composer-2.5-fast` | $3.00 | $15.00 |
 
-*As of 2026-05-29. Source: [cursor.com/docs/models-and-pricing](https://cursor.com/docs/models-and-pricing). `composer-2.5` (standard) and `composer-2.5-fast` are the same model at different inference throughput; `[fast]` uses standard, while orchestrate Task subagents are currently limited to fast (see the Model picker notes above).*
+*As of 2026-10-01. Source: [cursor.com/docs/models-and-pricing](https://cursor.com/docs/models-and-pricing). `composer-2.5` (standard) and `composer-2.5-fast` are the same model at different inference throughput; `[fast]` uses standard, while orchestrate Task subagents are currently limited to fast (see the Model picker notes above).*
+
+On Claude Code, price by the model the alias resolved to (read it from `message.usage`'s model): `opus` is Opus 5.5 ($4.00 / $20.00), `sonnet` is Sonnet 5.5 ($2.00 / $10.00), and `haiku` is Haiku 4.5 ($1.00 / $5.00).
 
 Cache-aware cost formula used by the `tokens:` tally:
 
@@ -162,9 +164,9 @@ Cache-aware cost formula used by the `tokens:` tally:
 
 `output_tokens` already includes extended-thinking/reasoning tokens. Cache
 multipliers are Anthropic API semantics (cache read = 0.10×, 5-min write =
-1.25×, 1-hour write = 2.00× the base input rate). When no cache split is
-available, set the cache terms to 0 and the formula collapses to
-`input × in_rate + output × out_rate`.
+1.25×, 1-hour write = 2.00× the base input rate; Opus 5.5 reads bill at
+0.05×, not 0.10×). When no cache split is available, set the cache terms
+to 0 and the formula collapses to `input × in_rate + output × out_rate`.
 
 ### Token accounting — source precedence
 
@@ -225,8 +227,8 @@ Template (a `[deep] -> [exec]` transition):
       Suggested chat title: Wave <n> of <t> [exec] <next group>
 
       Next model
-        Cursor:      claude-4.6-sonnet-medium-thinking   (or gpt-5.3-codex)
-        Claude Code: /model sonnet                       (extended thinking: medium)
+        Cursor:      claude-sonnet-5-5-medium   (or gpt-5.3-codex)
+        Claude Code: /model sonnet              (/effort medium)
 
       Prompt to paste into the next chat:
         Wave <n> of <t> [exec] <next group>
@@ -246,7 +248,7 @@ For an `[exec] -> [fast]` transition, the prompt should also remind the model no
 
       Next model
         Cursor:      composer-2.5 (standard)
-        Claude Code: /model haiku                        (no extended thinking)
+        Claude Code: /model haiku               (no extended thinking)
 
       Prompt to paste into the next chat:
         Wave <n> of <t> [fast] <next group>
@@ -266,8 +268,8 @@ For an escalation back to `[deep]` (after `[exec]` or `[fast]`):
       Suggested chat title: Wave <n> of <t> [deep] <next group>
 
       Next model
-        Cursor:      claude-opus-4-8-thinking-xhigh      (or gpt-5.5)
-        Claude Code: /model opus                         (extended thinking: xhigh)
+        Cursor:      claude-opus-5-5-xhigh      (or gpt-5.5)
+        Claude Code: /model opus                (/effort xhigh)
 
       Prompt to paste into the next chat:
         Wave <n> of <t> [deep] <next group>
@@ -314,8 +316,8 @@ Template:
       Suggested chat title: Review wave <n> of <t> [deep] <just-finished group>
 
       Next model
-        Cursor:      claude-opus-4-8-thinking-xhigh      (or gpt-5.5)
-        Claude Code: /model opus                         (extended thinking: xhigh)
+        Cursor:      claude-opus-5-5-xhigh      (or gpt-5.5)
+        Claude Code: /model opus                (/effort xhigh)
 
       Prompt to paste into the next chat:
         Review wave <n> of <t> [deep] <just-finished group>
@@ -377,8 +379,8 @@ Passive variant — `[exec]` first wave (the most common shape):
       Suggested chat title: Wave 1 of N [exec] <first group>
 
       Next model
-        Cursor:      claude-4.6-sonnet-medium-thinking   (or gpt-5.3-codex)
-        Claude Code: /model sonnet                       (extended thinking: medium)
+        Cursor:      claude-sonnet-5-5-medium   (or gpt-5.3-codex)
+        Claude Code: /model sonnet              (/effort medium)
 
       Prompt to paste into the next chat:
         Read <absolute path to the plan file>. Begin execution at the top
@@ -402,7 +404,7 @@ Passive variant — `[fast]` first wave (prompt body adds the "no refactor" remi
 
       Next model
         Cursor:      composer-2.5 (standard)
-        Claude Code: /model haiku                        (no extended thinking)
+        Claude Code: /model haiku               (no extended thinking)
 
       Prompt to paste into the next chat:
         Read <absolute path to the plan file>. Begin execution at the top
@@ -414,7 +416,7 @@ Passive variant — `[fast]` first wave (prompt body adds the "no refactor" remi
 
     ---
 
-For a `[deep]` first wave, use the same body as the `[exec]` example with the `[deep]` model row from the [Model picker](#model-picker) above (`claude-opus-4-8-thinking-xhigh` / `/model opus` xhigh).
+For a `[deep]` first wave, use the same body as the `[exec]` example with the `[deep]` model row from the [Model picker](#model-picker) above (`claude-opus-5-5-xhigh` / `/model opus` xhigh).
 
 Active variant — orchestrate (always `[deep]` / Opus xhigh):
 
@@ -425,8 +427,8 @@ Active variant — orchestrate (always `[deep]` / Opus xhigh):
       review: every-wave (log-only — parent writes Review log; no human review gate)
 
       Next model
-        Cursor:      claude-opus-4-8-thinking-xhigh      (or gpt-5.5)
-        Claude Code: /model opus                         (extended thinking: xhigh)
+        Cursor:      claude-opus-5-5-xhigh      (or gpt-5.5)
+        Claude Code: /model opus                (/effort xhigh)
 
       Prompt to paste into the next chat:
         Read <absolute path to the plan file>. The plan is already tagged.
@@ -444,7 +446,7 @@ Rules for filling in the template:
 
 - `<absolute path to the plan file>` is the **fully-qualified absolute path** to the plan file, resolved when the plan was identified — for example: `/Users/gary/Projects/personal/public/.scratch/plan-topic-word.md`. Never emit a bare filename or a repo-relative path — the next chat may start from a different working directory.
 - For the passive variant, the `<tier>` is the **execution tier of the first wave** after the no-thrash folding pass (see [No-thrash rule](#no-thrash-rule)). This is normally the tag on the first executable heading, walking top-down — higher-level grouping headings (milestones, phases) are untagged and ignored, per [Tag placement](#tag-placement). The one exception: when a short leading `[fast]` run (< 3 steps) is folded into the following `[exec]` wave, the first wave executes at `[exec]`, so the Kickoff shows `[exec]` even though those headings keep their honest `[fast]` tags.
-- For the active variant, the model is **always** `claude-opus-4-8-thinking-xhigh` / `/model opus` xhigh, regardless of what the first wave's tier is. The orchestrator-parent always runs at `[deep]`.
+- For the active variant, the model is **always** `claude-opus-5-5-xhigh` / `/model opus` xhigh, regardless of what the first wave's tier is. The orchestrator-parent always runs at `[deep]`.
 - Use `->` ASCII arrows rather than Unicode em-dash arrows so the marker is safe in terminals and grep.
 - Fill in the `Status:` line with the total group count (`N`), the first group's identifier, and today's date. Update it as execution progresses (see [Progress tracking](#progress-tracking) below).
 - For the passive variants, include the `Suggested chat title:` line in the [Wave title format](#wave-title-format) for the first wave (`Wave 1 of N [<tier>] <first group>`). It is advisory — a foreground chat cannot set its own title, so emit it for the user to paste even though the harness may ignore it. The active orchestrate variant has no such line: its per-wave titles are the `Task` subagent descriptions.

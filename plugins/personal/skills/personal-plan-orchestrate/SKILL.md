@@ -83,7 +83,7 @@ Read that section first when in doubt. This file does not duplicate it.
 ## Orchestrator-parent invariant
 
 The orchestrator-parent **always runs at `[deep]` /
-`claude-opus-4-8-thinking-xhigh`**. Tagging decisions, subagent-summary
+`claude-opus-5-5-xhigh`**. Tagging decisions, subagent-summary
 review, re-tagging on failure, and the gate-2/3 architectural review of
 cheaper-tier output are all `[deep]` work; weakening the orchestrator caps
 review quality at the level of the work being reviewed. The Kickoff block
@@ -99,17 +99,24 @@ written in step 4 hardcodes Opus xhigh for the same reason.
 This skill assumes **Cursor's `Task` tool with a per-invocation `model`
 parameter** and the documented Cursor model slugs:
 
-- `claude-opus-4-8-thinking-xhigh`
-- `claude-4.6-sonnet-medium-thinking`
+- `claude-opus-5-5-xhigh`
+- `claude-sonnet-5-5-medium`
 - `composer-2.5-fast`
 
 **Default for Cursor: proceed.** Inspect your tool list. If you see a
 `Task` tool whose `model` parameter accepts the slugs above — a quick
-check is that the schema enumerates `claude-opus-4-8-thinking-xhigh`,
-`claude-4.6-sonnet-medium-thinking`, and `composer-2.5-fast` — assume it
+check is that the schema enumerates `claude-opus-5-5-xhigh`,
+`claude-sonnet-5-5-medium`, and `composer-2.5-fast` — assume it
 works and continue. The schema is sufficient evidence; you do not need
 explicit user confirmation, and you do not need to verify the parameter
 "actually takes effect" beyond the schema.
+
+**Use the newest version of each family.** Cursor has no version-less
+alias, so the slugs above go stale. If the enum offers a newer Opus or
+Sonnet entry than the one listed (same family, same effort level), dispatch
+that one instead, and tell the user to refresh the standards model picker.
+Missing the exact listed slug is not a reason to STOP when a newer entry of
+the same family is present.
 
 Only STOP and ask the user when one of these is true:
 
@@ -120,7 +127,10 @@ Only STOP and ask the user when one of these is true:
   `model` on paper, but
   [anthropics/claude-code#43869](https://github.com/anthropics/claude-code/issues/43869)
   reports it is silently ignored; subagents inherit the parent model.
-  Recommend `personal-plan-model-tiers` with `/model` swaps instead.
+  Recommend `personal-plan-model-tiers` with `/model` swaps instead. (Once
+  that is fixed, dispatch with the version-less aliases `opus`, `sonnet`,
+  and `haiku`, which always resolve to the newest model of the tier, rather
+  than pinned slugs.)
 - You can tell you are running on **Codex CLI** or **Gemini CLI**. No
   subagent tool with per-invocation model selection exists there.
   Recommend `personal-plan-model-tiers`.
@@ -136,8 +146,8 @@ downgrade checklist, tag placement rule, no-thrash rule, and the Cursor /
 Claude Code model picker live in the standards section above. Cursor picks
 for orchestrator subagents, repeated here for reading clarity only:
 
-- `[deep]` subagent or parent: `claude-opus-4-8-thinking-xhigh`
-- `[exec]` subagent (default for delegated work): `claude-4.6-sonnet-medium-thinking`
+- `[deep]` subagent or parent: `claude-opus-5-5-xhigh`
+- `[exec]` subagent (default for delegated work): `claude-sonnet-5-5-medium`
 - `[fast]` subagent (only when no-thrash criterion met): `composer-2.5-fast`
 
 If the standards section and this list disagree, the standards section
@@ -186,7 +196,7 @@ takes:
   supported way to update a subagent's title after dispatch.
 - `subagent_type` — `"generalPurpose"` for these waves.
 - `model` — the slug from the model picker
-  (`"claude-4.6-sonnet-medium-thinking"` for `[exec]`).
+  (`"claude-sonnet-5-5-medium"` for `[exec]`).
 - `prompt` — the full subagent prompt assembled per the
   "Subagent context contract" below, scoped to that working directory.
 
@@ -204,7 +214,7 @@ decision in repo A and a sibling decision in repo B. The orchestrator-parent
 **does not** take either inline; both go out as opus subagents in parallel.
 
 Issue these as real `Task` tool calls in a single assistant message — two
-invocations of `Task`, both with `model="claude-opus-4-8-thinking-xhigh"`,
+invocations of `Task`, both with `model="claude-opus-5-5-xhigh"`,
 one scoped to each working directory. The subagent context contract still
 applies: quote the spec excerpt verbatim, pass the full standards-pointer
 set (architecture work, do not skimp), and include the disk-backed output
@@ -329,10 +339,10 @@ At every STOP gate, print a per-model running breakdown:
 
 ```
 tokens so far:
-  orchestrator  (claude-opus-4-8-thinking-xhigh):     input ~Xo / output ~Yo | ~$Co
-  wave-1 <id>   (claude-4.6-sonnet-medium-thinking):  input ~Xs / output ~Ys | ~$Cs
+  orchestrator  (claude-opus-5-5-xhigh):     input ~Xo / output ~Yo | ~$Co
+  wave-1 <id>   (claude-sonnet-5-5-medium):  input ~Xs / output ~Ys | ~$Cs
   …
-  RUNNING TOTAL:                                        input ~Xt / output ~Yt | ~$Ct (heuristic)
+  RUNNING TOTAL:                             input ~Xt / output ~Yt | ~$Ct (heuristic)
 ```
 
 Review work is parent-side — include its tokens in the orchestrator row,
@@ -347,7 +357,7 @@ At plan completion, print a per-wave breakdown table:
 
 | wave | model | ~input | ~output | ~total | ~cost |
 |------|-------|--------|---------|--------|-------|
-| orchestrator | claude-opus-4-8-thinking-xhigh | … | … | … | … |
+| orchestrator | claude-opus-5-5-xhigh | … | … | … | … |
 | wave-1 (task-id) | <slug> | … | … | … | … |
 | … | | | | | |
 | **GRAND TOTAL** | | | | | … |
@@ -396,7 +406,7 @@ authoritative usage data.
 4. **Write the Kickoff block to the top of the plan file** using the
    **active** variant of the Kickoff template from
    `../personal-standards/standards/plan-execution.md` §"Kickoff
-   template". The model row is **always** `claude-opus-4-8-thinking-xhigh`
+   template". The model row is **always** `claude-opus-5-5-xhigh`
    / `/model opus` xhigh because the orchestrator-parent always runs at
    `[deep]` (see "Orchestrator-parent invariant" above). The prompt body
    references the resolved absolute plan path from step 1 and names this
@@ -454,7 +464,7 @@ authoritative usage data.
    **never** takes plan work inline — every row below ends in a `Task`
    dispatch (after a STOP gate where applicable):
    - `[deep] -> [exec]`, single working dir → one
-     `Task(model="claude-4.6-sonnet-medium-thinking", ...)`.
+     `Task(model="claude-sonnet-5-5-medium", ...)`.
    - `[deep] -> [exec]`, multiple working dirs → batched `Task(...)`,
      one invocation per working dir, all on sonnet-medium.
    - `[deep] -> [fast]`, no-thrash satisfied (≥ 3 contiguous fast) →
@@ -469,11 +479,11 @@ authoritative usage data.
      user to review the just-finished cheaper-tier output. Fail-closed:
      if no explicit answer is received, re-post the review question,
      write `BLOCKED at gate 2` (or `3`) to the `Status:` line, and end
-     the turn. **Then dispatch** `Task(model="claude-opus-4-8-thinking-xhigh", ...)`, one
+     the turn. **Then dispatch** `Task(model="claude-opus-5-5-xhigh", ...)`, one
      per working directory. The parent does not execute the next group
      itself.
    - `[deep] -> [deep]` → dispatch
-     `Task(model="claude-opus-4-8-thinking-xhigh", ...)`, one per working
+     `Task(model="claude-opus-5-5-xhigh", ...)`, one per working
      directory. Always dispatch, even on a single working dir; the
      parent's context never holds the diffs or full reasoning of a deep
      wave.
@@ -549,7 +559,8 @@ authoritative usage data.
 - Auto-executing `Task` calls without user approval at the gates above.
 - Re-enabling this skill on Claude Code. Flip the harness gate once
   [anthropics/claude-code#43869](https://github.com/anthropics/claude-code/issues/43869)
-  closes.
+  closes, and use the version-less `opus` / `sonnet` / `haiku` aliases for
+  the `model` parameter there.
 - Merging with `personal-plan-model-tiers`. The passive-vs-active split is
   intentional; users pick oversight level by picking which skill they
   invoke.
