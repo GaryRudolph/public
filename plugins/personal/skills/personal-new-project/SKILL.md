@@ -112,4 +112,4 @@ Don't copy a stack snapshot from an older sibling project. Re-run step 3
 for every new repo.
 
 Follow the core working agreements throughout: pause after each step,
-and don't commit unless asked.
+and commit only when asked (or on a runner, per `core.md`).

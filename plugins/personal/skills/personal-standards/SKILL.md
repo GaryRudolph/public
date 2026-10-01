@@ -2,13 +2,14 @@
 name: personal-standards
 description: >-
   Gary Rudolph's personal engineering standards: core working agreements
-  (never commit unless asked, stay on the current branch, pause after each
-  step), plus code style, architecture, testing, documentation, git,
-  versioning, security, secrets, Makefile, and plan-execution standards, with
-  Python, Swift, Kotlin, and Go specifics. Use whenever writing, reviewing,
-  refactoring, planning, or documenting code, specs, commits, or PRs for
-  Gary, whenever another personal-* skill cites a standards file, and
-  whenever asked for the personal canary phrase.
+  (never commit or push unless asked, except on a cloud or self-hosted
+  runner; stay on the current branch; pause after each step), plus code
+  style, architecture, testing, documentation, git, versioning, security,
+  secrets, Makefile, and plan-execution standards, with Python, Swift,
+  Kotlin, and Go specifics. Use whenever writing, reviewing, refactoring,
+  planning, or documenting code, specs, commits, or PRs for Gary, whenever
+  another personal-* skill cites a standards file, and whenever asked for
+  the personal canary phrase.
 ---
 
 # Personal standards

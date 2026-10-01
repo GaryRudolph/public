@@ -42,8 +42,9 @@ See **[versioning.md](versioning.md)** for the full standard, including BNF gram
 
 ## AI Agent Behavior
 
-- **Do not auto-commit** — only commit when explicitly asked
-- **Do not auto-push** — only push when explicitly asked, never from an unattended session or a subagent that wasn't told to
+- **Do not auto-commit** — only commit when explicitly asked, except on a runner (below)
+- **Do not auto-push** — only push when explicitly asked, never from a subagent that wasn't told to, except on a runner (below)
+- **Runners commit and push their branch** — a session on a cloud runner (Claude Code on the web, or another vendor's cloud agents) or a self-hosted runner commits each finished step and pushes it to the branch it was given, without asking, as long as that branch isn't `main` or another shared branch. The container is ephemeral and no one is watching to say "commit", so the pushed branch is the deliverable. Signs of a runner: the harness says the session is remote or assigns a branch to push, or `CLAUDE_CODE_REMOTE=true`. The other rules here still apply: stay on that branch, atomic commits in the usual format, and the force-push rule below. The runner sets its own committer identity; accept it. On `main` or another shared branch, fall back to ask-first: leave the work uncommitted, report it, and propose a branch
 - **Never force-push `main`** (or any shared branch); on your own branch prefer `--force-with-lease`
 - **Cut feature branches with `--no-track`** (`git switch -c feature/<name> origin/main --no-track`) so they don't track `main` and a bare `git push` can't land there; first push with `git push -u origin feature/<name>`
 - **No co-authored-by** — do not add `Co-Authored-By` trailers for AI agents
