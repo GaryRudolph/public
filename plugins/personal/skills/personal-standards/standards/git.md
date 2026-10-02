@@ -9,7 +9,7 @@ We follow **GitHub Flow** — short-lived feature branches merged frequently to 
 - **Bugfix**: `fix/issue-description` or `fix/TICKET-123-description`
 - **Release**: `release/v2` (a major line: `2.*` patches and minors) or `release/v2.4` (a minor line: `2.4.*` patches only). For hotfixes to a released line; ideally not needed. See [versioning.md](versioning.md#hotfix-flow)
 
-These naming conventions apply when a branch is intentionally created (by me or on request) — they are not license for an agent to auto-branch.
+These naming conventions apply when a branch is intentionally created (by me or on request) — they are not license for an agent to auto-branch. The one exception is a runner that starts on `main` (see [AI Agent Behavior](#ai-agent-behavior)).
 
 ## Worktrees
 
@@ -42,14 +42,18 @@ See **[versioning.md](versioning.md)** for the full standard, including BNF gram
 
 ## AI Agent Behavior
 
-- **Do not auto-commit** — only commit when explicitly asked
-- **Do not auto-push** — only push when explicitly asked, never from an unattended session or a subagent that wasn't told to
+- **Do not auto-commit** — only commit when explicitly asked, except on a runner (below)
+- **Do not auto-push** — only push when explicitly asked, never from a subagent that wasn't told to, except on a runner (below)
+- **Runners commit and push their branch** — a session on a cloud runner (Claude Code on the web, or another vendor's cloud agents) or a self-hosted runner commits each finished step and pushes it to the current branch, without asking. The container is ephemeral and no one is watching to say "commit", so the pushed branch is the deliverable. Signs of a runner: the harness says the session is remote or assigns a branch to push, or `CLAUDE_CODE_REMOTE=true`. The other rules here still apply: atomic commits in the usual format, and the force-push rule below. The runner sets its own committer identity; accept it
+- **Runners branch off `main`** — a runner that finds `main`, another shared branch, or a detached HEAD checked out cuts a branch from the checked-out commit before its first change. If the harness assigned a branch, that's the branch and nothing is a guess. Otherwise guess: `fix/<slug>` for a bug, else `feature/<slug>` (`feature/m{N}-<slug>` for milestone work), where `<slug>` is the kebab-case topic the handoff would use, two to four words naming the object of the work, not the verb; if `git ls-remote --heads origin <branch>` shows it taken, append the handoff `{word}`. `git switch -c <branch> --no-track` (no start point, so uncommitted edits and a detached HEAD's base come along; the `origin/main` recipe below is for workstations), then `git push -u origin <branch>`. Say in the first report and in the handoff that the name was a guess. Never push `main`, even if the branch push is refused. This is the one carve-out from "Do not auto-branch" and "Propose branch changes, then wait", and it never applies on a workstation
+- **Runners save before they stop** — before ending any turn that waits for a human (a question, a STOP gate, a blocker, done, running low on context), in this order: update the plan's `(done)` markers and `Status:` line; write or refresh the handoff with the pending question verbatim, the branch, and how to resume; commit everything in the tree, a half-finished step included, with an honest subject (`m2.s3 wire results view (partial, see handoff)`); push; only then ask. The asking turn may be the container's last. Gate semantics don't change; the push makes the stall harmless. A permission prompt waits for a human too, mid-turn, and the harness parks it until someone answers: before a tool call likely to trip one, commit what's done and push first
+- **Runner scratch rides the branch** — `.scratch/` dies with the container, so on a runner ask of each file in it: could the next session rebuild this from the pushed branch plus the original ask? Script output can; judgment can't. The plan, the session handoff, and any draft or research that was asked for can't, so they go to `specs/handoffs/` under their usual names (`plan-{topic}-{word}.md`, `handoff-{topic}-{word}.md`, a draft under its own kebab-case name; create the folder if needed), committed with the step that changed them, as ordinary tracked files: no `git add -f`, no second scratch directory. Orchestrate outputs, spikes, and anything a command regenerates may die; a conclusion the tree lacks goes into the handoff as prose. Remove or promote them before merge (see [Merging](#merging) under Pull Requests); that turn skips the handoff step in "Runners save before they stop", and the report and the PR say what's pending
 - **Never force-push `main`** (or any shared branch); on your own branch prefer `--force-with-lease`
 - **Cut feature branches with `--no-track`** (`git switch -c feature/<name> origin/main --no-track`) so they don't track `main` and a bare `git push` can't land there; first push with `git push -u origin feature/<name>`
 - **No co-authored-by** — do not add `Co-Authored-By` trailers for AI agents
-- **Do not auto-branch** — never create or switch branches on your own. Default to the branch already checked out; if none was specified, that means `main`. Multi-agent work on one repo especially must not silently move branches.
+- **Do not auto-branch** — never create or switch branches on your own. Default to the branch already checked out; if none was specified, that means `main`. Multi-agent work on one repo especially must not silently move branches. The one exception is a runner that starts on `main` (above).
 - **Worktrees only when asked** — create a worktree only on explicit request (see [Worktrees](#worktrees) for layout/naming). Do not spin one up proactively.
-- **Propose branch changes, then wait** — if you believe a new branch, branch switch, or worktree is warranted, propose it and wait for explicit confirmation before acting. Silence, a dismissed/skipped prompt, or an ambiguous reply is not confirmation (fail closed).
+- **Propose branch changes, then wait** — if you believe a new branch, branch switch, or worktree is warranted, propose it and wait for explicit confirmation before acting. Silence, a dismissed/skipped prompt, or an ambiguous reply is not confirmation (fail closed). On a runner the only branch you may cut without asking is the one "Runners branch off `main`" describes.
 
 ## Commit Messages
 
@@ -112,6 +116,7 @@ Brief description of changes
 
 ### Merging
 
+- Before merging, remove the runner's files from `specs/handoffs/` (`plan-*.md`, the session `handoff-{topic}-{word}.md`, drafts) in the last commit on the branch, promoting anything durable to `specs/` or a milestone handoff first. Milestone handoffs (`handoff-m{N}-…`) stay. A forgotten removal lands plain markdown on `main`; one `git rm` fixes it
 - **Squash and merge** (default for features) — single commit on main
 - **Rebase and merge** — for clean branches with good commit history
 - Delete feature branches after merging
@@ -128,6 +133,7 @@ dist/
 build/
 .idea/
 .vscode/
+.scratch/
 *.key
 *.pem
 ```

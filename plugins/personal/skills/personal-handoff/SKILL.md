@@ -3,7 +3,8 @@ name: personal-handoff
 description: >-
   Write Gary's handoff and plan files with the right name, place, and
   contents: session handoffs and saved agent plans in
-  .scratch/{handoff|plan}-{topic}-{word}.md, and milestone handoffs in
+  .scratch/{handoff|plan}-{topic}-{word}.md (specs/handoffs/ on a cloud or
+  self-hosted runner), and milestone handoffs in
   specs/handoffs/handoff-m{N+1}-{topic}.md. Use when asked to "handoff",
   "write a handoff", "save the plan", or "write the plan to a file", when
   plan mode produces a plan, or when moving from milestone m{N} to m{N+1}.
@@ -24,6 +25,7 @@ those facts; decide the topic and the contents yourself.
 | "handoff", "write a handoff" | `.scratch/handoff-{topic}-{word}.md` | No |
 | A plan from plan mode, or "write the plan to a file" | `.scratch/plan-{topic}-{word}.md` | No |
 | Moving from `m{N}` to `m{N+1}` on a project with `specs/` | `{project-root}/specs/handoffs/handoff-m{N+1}-{topic}.md` | Yes |
+| Either of the first two on a cloud or self-hosted runner | `{project-root}/specs/handoffs/handoff-{topic}-{word}.md` or `plan-{topic}-{word}.md` | Yes, until the branch is readied for merge |
 
 ## Naming
 
@@ -45,6 +47,18 @@ If `.scratch/` doesn't exist, create it. If the script reports it isn't
 ignored, add `.scratch/` to `.gitignore` first. Never commit `.scratch/`
 files.
 
+## On a runner
+
+`.scratch/` dies with the container. When the script prints
+`claude_code_remote: true`, or the harness says the session is remote,
+write the handoff and the plan to `specs/handoffs/` instead (create the
+folder if needed), along with any draft or research Gary asked for, commit
+them with the work, and push. Commit and push before every turn that waits
+for Gary; that turn may be the last one the container runs. Remove or
+promote them before the branch merges.
+The rules are in core.md under "Runner scratch rides the branch" and
+"Runners save before they stop".
+
 ## Contents
 
 **Session handoff** (`.scratch/handoff-…`). Keep it short and actionable:
@@ -53,6 +67,8 @@ files.
 - What's pending
 - Key decisions made
 - Gotchas for the next session
+- On a runner: the branch (and that it was a guess, if it was), the pending
+  question verbatim, and how to resume
 
 **Saved plan** (`.scratch/plan-…`). The plan as produced. If it becomes
 durable, promote it to a spec in `specs/` or to a milestone handoff.

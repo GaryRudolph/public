@@ -343,7 +343,7 @@ Start the prompt with the keyword `ultracode` so that turn runs under ultracode;
 
 Rules for filling in the template:
 
-- `<absolute path to the plan file>` is the **fully-qualified absolute path** to the plan file, resolved when the plan was identified — for example: `/Users/gary/Projects/personal/public/.scratch/plan-topic-word.md`. Never emit a bare filename or a repo-relative path — the next chat may start from a different working directory.
+- `<absolute path to the plan file>` is the **fully-qualified absolute path** to the plan file, resolved when the plan was identified — for example: `/Users/gary/Projects/personal/public/.scratch/plan-topic-word.md`. Never emit a bare filename or a repo-relative path — the next chat may start from a different working directory. The one exception is a plan tracked in `specs/handoffs/` on a runner: give its repo-relative path and the branch it's on, because the branch is reopened on another machine where the container's absolute path means nothing.
 - The `Next model` block names Cursor and Claude Code. When the plan runs in Codex, Gemini CLI, Muse Code, or Grok Build, replace the Cursor row with that harness's row from the [Model picker](#model-picker).
 - Name the next group using whatever identifiers the plan uses: if headings
   carry IDs, use those (e.g. `m2 s1-s4`); if not, use exact title text
@@ -512,7 +512,7 @@ Active variant — orchestrate (always `[deep]` / Opus):
 
 Rules for filling in the template:
 
-- `<absolute path to the plan file>` is the **fully-qualified absolute path** to the plan file, resolved when the plan was identified — for example: `/Users/gary/Projects/personal/public/.scratch/plan-topic-word.md`. Never emit a bare filename or a repo-relative path — the next chat may start from a different working directory.
+- `<absolute path to the plan file>` is the **fully-qualified absolute path** to the plan file, resolved when the plan was identified — for example: `/Users/gary/Projects/personal/public/.scratch/plan-topic-word.md`. Never emit a bare filename or a repo-relative path — the next chat may start from a different working directory. The one exception is a plan tracked in `specs/handoffs/` on a runner: give its repo-relative path and the branch it's on, because the branch is reopened on another machine where the container's absolute path means nothing.
 - For the passive variant, the `<tier>` is the **execution tier of the first wave** after the no-thrash folding pass (see [No-thrash rule](#no-thrash-rule)). This is normally the tag on the first executable heading, walking top-down — higher-level grouping headings (milestones, phases) are untagged and ignored, per [Tag placement](#tag-placement). The one exception: when a short leading `[fast]` run (< 3 steps) is folded into the following `[exec]` wave, the first wave executes at `[exec]`, so the Kickoff shows `[exec]` even though those headings keep their honest `[fast]` tags.
 - For the active variant, the model is **always** `claude-opus-5-5[effort=high]` / `/model opus` at `/effort high`, regardless of what the first wave's tier is. The orchestrator-parent always runs at `[deep]`.
 - Use `->` ASCII arrows rather than Unicode em-dash arrows so the marker is safe in terminals and grep.
@@ -534,7 +534,7 @@ Plans span multiple chat sessions, which means native harness todos (Cursor Plan
 ### Two surfaces
 
 - **Harness todo list** (live, in-session): one todo per *execution wave* (consecutive same-tier block after the no-thrash folding pass; a short folded `[fast]` run rides inside its neighbor's wave). The current wave is `in_progress`; it flips to `completed` the moment the wave finishes. Seeded by the driver skill that writes the Kickoff block.
-- **Plan markdown file** (durable, cross-session): updated at every STOP boundary and at plan completion. Survives chat handoffs because the `.scratch/` file is on disk.
+- **Plan markdown file** (durable, cross-session): updated at every STOP boundary and at plan completion. Survives chat handoffs because the `.scratch/` file is on disk. On a runner the plan lives in `specs/handoffs/` instead and is committed and pushed at every STOP boundary, since the container's disk doesn't survive (core.md "Runner scratch rides the branch").
 
 ### Marking steps done
 
@@ -603,6 +603,7 @@ When the last group finishes:
          Status: 2/5 groups done | last review: wave-2 CONCERNS | BLOCKED at gate review-wave-2 | updated 2026-05-28
 
      On re-entry, an agent that sees a `BLOCKED at gate` status re-posts that exact question and waits — it never assumes the gate was approved. A `BLOCKED at gate review-wave-N` means the wave-N review found a concern that a human must resolve (re-tag, add a fix-up wave, or waive) before the next wave starts.
+- **On a runner, push before you wait.** The blocked-gate turn may be the container's last: update the `Status:` line, write the handoff, commit, push, then re-post the question (core.md "Runners save before they stop").
 - Cross-references: [Progress tracking](#progress-tracking) (the Status line) and the AGENTS.md "Wait for approval" workflow rule.
 
 ## Delegating execution to subagents

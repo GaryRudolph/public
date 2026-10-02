@@ -35,12 +35,16 @@ Read that section first when in doubt. This file does not duplicate it.
 In priority order:
 
 1. File path the user names explicitly.
-2. The most recent `.scratch/plan-*.md` in the workspace.
+2. The most recent `plan-*.md` in `.scratch/` or `specs/handoffs/` (a
+   runner session leaves it in the latter).
 3. The plan visible in the current conversation.
 
 Read it fully before tagging anything. Remember the resolved plan path as
 its **fully-qualified absolute path** — every STOP handoff prompt must
 reference it by absolute path, never a bare filename or repo-relative path.
+The one exception is a plan tracked in `specs/handoffs/` on a runner: use
+its repo-relative path and name the branch, since the branch is reopened on
+another machine (plan-execution.md, template fill-in rules).
 
 If the plan file already has a Kickoff block with a `Status:` line and
 ` (done)` markers on some headings, this is a re-entry into a partially-
@@ -111,7 +115,7 @@ heading and **before**
 the next `--- STOP …` or `--- WAVE …` marker (for the final wave, after
 its last heading and before end-of-file or the Completion section). Use
 the REVIEW template from standards §"Review beat" — fill in wave number,
-total wave count, `<group-id>`, and the resolved absolute plan path so
+total wave count, `<group-id>`, and the resolved plan path from step 1 so
 the prompt is self-contained. After an `[xdeep]` wave, also apply the
 `[xdeep]` note under that template: `[xdeep]` in the marker, title, and
 prompt, its Opus max-effort rows, and no ultracode. **Idempotent:** skip a
@@ -138,7 +142,7 @@ include:
    place of Cursor's.
 4. A copy-pasteable prompt that names the next group using whatever
    identifiers the plan uses (IDs like `m2 s1-s4` if present, or exact
-   title text if not), references the resolved absolute plan path, carries
+   title text if not), references the resolved plan path from step 1, carries
    the **progress-update reminder spelled out inline** (before stopping:
    append ` (done)` to finished headings, update the Status line, flip
    todos), and ends with "Stop at the next STOP marker and report back" so
@@ -173,7 +177,7 @@ after the no-thrash folding pass. Add a `review: every-wave` line
   headings (milestones, phases) are untagged and ignored.
 - The "Next model" rows come from the model picker in the same standards
   section. Include both Cursor and Claude Code rows.
-- The prompt body references the resolved absolute plan path from step 1 and
+- The prompt body references the resolved plan path from step 1 and
   uses the matching body for the tier (the `[fast]` body adds the
   "mechanical edits, do not refactor" reminder; `[deep]` and `[exec]`
   use the standard body; an `[xdeep]` first wave uses the standard body

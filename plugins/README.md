@@ -121,7 +121,7 @@ cleaned up, then push.
 | Plugin | Skill | What it does |
 | --- | --- | --- |
 | `personal` | `personal-standards` | Index of the personal standards; loads core rules and topic standards on demand |
-| `personal` | `personal-handoff` | Write session handoffs and saved plans to `.scratch/`, and milestone handoffs to `specs/handoffs/`, with the right names and contents |
+| `personal` | `personal-handoff` | Write session handoffs and saved plans to `.scratch/` (`specs/handoffs/` on a runner), and milestone handoffs to `specs/handoffs/`, with the right names and contents |
 | `personal` | `personal-new-project` | Start a new project on a boring stack at current stable versions (looked up from each registry, with EOL dates), laid out to the standards |
 | `personal` | `personal-secrets` | Run a SOPS + age secrets repo: set up from a tested kit, add secrets, grant access, mint and rotate consumer keys, wire consumer CI with least privilege |
 | `personal` | `personal-release` | Cut SemVer releases and hotfixes: propose the level from what changed, bump every version in lock-step, move the changelog, tag; set up version.txt and a Release workflow |

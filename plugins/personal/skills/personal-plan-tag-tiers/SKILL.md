@@ -51,7 +51,8 @@ it ends up being executed.
 In priority order:
 
 1. File path the user names explicitly.
-2. The most recent `.scratch/plan-*.md` in the workspace.
+2. The most recent `plan-*.md` in `.scratch/` or `specs/handoffs/` (a
+   runner session leaves it in the latter).
 3. The plan visible in the current conversation.
 
 Read it fully before tagging anything.
