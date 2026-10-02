@@ -4,22 +4,34 @@ How multi-step plans are executed across models of different cost and capability
 
 ## Model-tier stop points
 
-Plans are executed by agents of different cost and capability. To make the most of both, tag every executable step with one of three tiers, group consecutive same-tier steps into execution waves, and emit a STOP marker at every tier boundary so the model can be swapped (or the wave delegated to a subagent) before continuing.
+Plans are executed by agents of different cost and capability. To make the most of both, tag every executable step with one of four tiers, group consecutive same-tier steps into execution waves, and emit a STOP marker at every tier boundary so the model can be swapped (or the wave delegated to a subagent) before continuing.
 
 This section is the canonical reference for the convention. The work splits into two responsibilities:
 
-- **Tagging** — assigning each executable step its honest `[deep]` / `[exec]` / `[fast]` tier. This is owned by `personal-plan-tag-tiers`, a small shared skill. Tags reflect true complexity and are **never** rewritten for thrash reasons, so a tagged plan always shows how hard the work actually is. Run it first when you just want to see the complexity of a plan before deciding how to execute it.
+- **Tagging** — assigning each executable step its honest `[xdeep]` / `[deep]` / `[exec]` / `[fast]` tier. This is owned by `personal-plan-tag-tiers`, a small shared skill. Tags reflect true complexity and are **never** rewritten for thrash reasons, so a tagged plan always shows how hard the work actually is. Run it first when you just want to see the complexity of a plan before deciding how to execute it.
 - **Execution** — grouping the tagged steps into waves (the no-thrash rule), then either emitting STOP markers for a human-driven model swap or dispatching subagents. This is owned by the two driver skills, which call `personal-plan-tag-tiers` automatically when a plan is not tagged yet.
 
 `personal-plan-model-tiers` is the passive driver (any harness that supports skills — Cursor, Claude Code — stopping at each tier boundary for a human model swap); `personal-plan-orchestrate` is the active Cursor counterpart where the `[deep]` parent delegates each wave via `Task(model=...)` subagents.
 
 ### Tiers
 
+- `[xdeep]` — frontier reasoning, one rung above `[deep]`. For steps where a strong `[deep]` model is likely to be wrong, or already was: novel designs with nothing to copy from, security and correctness arguments (auth, crypto, concurrency, distributed consistency), migrations that can't be rolled back, and long-horizon analysis over a very large context. For now it runs Opus 5.5 at max effort, with ultracode in Claude Code (see [Model picker](#model-picker)). Max effort (plus many agents in Claude Code) spends far more tokens than a `[deep]` wave, so the tag has to pass the [upgrade checklist](#xdeep-upgrade-checklist).
 - `[deep]` — top-tier reasoning. Architecture decisions, ambiguous requirements, non-obvious debugging, security-sensitive review, library/stack trade-offs, anywhere the cost of getting it wrong is high.
 - `[exec]` — standard implementation. Multi-file changes with cross-file reasoning, refactors with a clear target but real judgment, test writing where cases need thought, work that must read repo patterns first to extend them.
 - `[fast]` — mechanical, fully-specified, single-concern work. Renames, format changes, applying a decided design line-by-line, doc updates, well-bounded ports.
 
-**Default-up bias**: when in doubt, tag `[deep]` > `[exec]` > `[fast]`. A misclassified `[fast]` produces bad output; a misclassified `[deep]` wastes a little money.
+**Default-up bias**: when in doubt, tag `[deep]` > `[exec]` > `[fast]`. A misclassified `[fast]` produces bad output; a misclassified `[deep]` wastes a little money. The bias stops at `[deep]`: doubt between `[deep]` and `[xdeep]` resolves to `[deep]`. A misclassified `[xdeep]` wastes real money, and a `[deep]` review beat or a failed attempt escalates the step anyway.
+
+### `[xdeep]` upgrade checklist
+
+A step only earns `[xdeep]` if it is clearly `[deep]` work **and** at least one of these is true:
+
+- A `[deep]` attempt already failed it, or its review beat returned `CONCERNS` on the same design question twice.
+- A mistake would be expensive and quiet: a security boundary, auth or crypto design, a data migration that can't be rolled back, concurrency or consistency correctness.
+- The design is novel: nothing in the repo, the standards, or the dependencies to copy from, and it spans more than one system.
+- The step needs sustained reasoning over a very large context (a whole-codebase audit, a cross-repo plan) where a `[deep]` model loses the thread.
+
+None true → tag `[deep]`.
 
 ### `[fast]` downgrade checklist
 
@@ -50,6 +62,7 @@ is the recommended naming shape for new plans (see "Steps within a milestone"
 in [documentation.md](documentation.md)), but the skill adapts to whatever
 structure already exists.
 
+    #### s1 - [xdeep] Design token-revocation protocol
     #### s1 - [deep] Decide debounce strategy
     #### s2 - [exec] Wire search results to view model
     #### s3 - [fast] Bump search-event version string
@@ -66,7 +79,7 @@ Edge cases:
   the first separator wins; the tag slots after the `-`.
 - **No prefix, no separator**: tag goes right after `####`.
 
-To find tagged headings use the regex: `^#+\s+.*\[(deep|exec|fast)\]`
+To find tagged headings use the regex: `^#+\s+.*\[(xdeep|deep|exec|fast)\]`
 
 ### No-thrash rule
 
@@ -74,12 +87,13 @@ The no-thrash rule runs at the **execution-grouping layer**, not the tagging lay
 
 Walk the tagged steps in order and collect consecutive same-tier steps into candidate waves. (A "wave" is the same unit the Status line and todo list call a *group*; the terms are interchangeable. "Wave" is used here to stress that a wave's execution tier can differ from a folded step's tag.) Then decide wave boundaries:
 
-1. Always split (insert a STOP / dispatch boundary) at any `[deep]` ↔ `[exec]` boundary.
-2. Always split at any `[deep]` ↔ `[fast]` boundary.
-3. **Conditionally** split at an `[exec]` ↔ `[fast]` boundary:
+1. Always split (insert a STOP / dispatch boundary) at any boundary involving `[xdeep]`. `[xdeep]` work stays in its own waves, so its premium is spent only on the steps that earned the tag.
+2. Always split at any `[deep]` ↔ `[exec]` boundary.
+3. Always split at any `[deep]` ↔ `[fast]` boundary.
+4. **Conditionally** split at an `[exec]` ↔ `[fast]` boundary:
    - If the `[fast]` block has **≥ 3 contiguous fast steps**, keep it as its own wave and split.
    - Otherwise, **fold those fast steps into the adjacent `[exec]` wave** (no split): they execute on the `[exec]` model so you don't spend more time swapping models than working — but their `[fast]` tags stay in the plan untouched. Folding is an execution-grouping decision, never a re-tag.
-4. After folding, re-merge adjacent waves of the same **execution tier** before placing STOPs / dispatch boundaries.
+5. After folding, re-merge adjacent waves of the same **execution tier** before placing STOPs / dispatch boundaries.
 
 **Execution tier vs. tag.** A wave's *execution tier* is the model it runs on; a step's *tag* is its honest complexity. They usually match. They differ only when a short `[fast]` run is folded into a neighboring `[exec]` wave: those steps keep their `[fast]` tags but execute at `[exec]`. The Kickoff "first wave tier", STOP markers, and `Task(model=...)` dispatches all key off the **execution tier** — never off a tag that has been folded.
 
@@ -106,67 +120,105 @@ Example after grouping a plan with a folded `[fast]` run and a later `[deep]` wa
 
 No closing marker is needed — the next `--- WAVE …` marker, `--- STOP: …` marker, or end-of-file delimits the wave.
 
-**The ≤ constraint.** For every executable step inside a wave, the step's tag must be **equal to or lesser than** the wave's execution tier. Tier ordering (most to least capable): `[deep]` > `[exec]` > `[fast]`.
+**The ≤ constraint.** For every executable step inside a wave, the step's tag must be **equal to or lesser than** the wave's execution tier. Tier ordering (most to least capable): `[xdeep]` > `[deep]` > `[exec]` > `[fast]`.
 
 | Wave execution tier | Permitted step tags |
 |---|---|
+| `[xdeep]` | `[xdeep]` only (rule 1 never folds into or out of it) |
 | `[deep]` | `[deep]`, `[exec]`, `[fast]` |
 | `[exec]` | `[exec]`, `[fast]` |
 | `[fast]` | `[fast]` |
 
-The folded-step case (`[fast]` steps inside an `[exec]` wave) always satisfies the constraint. If a step's tag is *greater* than the wave tier — for example, a `[deep]` step inside an `[exec]` wave — that is a tagging error. The driver must **flag the violation and refuse to write wave markers** until the tagging is corrected. The user must either re-tag the step downward or widen the wave to `[deep]` by re-running the no-thrash pass.
+The folded-step case (`[fast]` steps inside an `[exec]` wave) always satisfies the constraint. If a step's tag is *greater* than the wave tier — for example, a `[deep]` step inside an `[exec]` wave — that is a tagging error. The driver must **flag the violation and refuse to write wave markers** until the tagging is corrected. The user must either re-tag the step downward or widen the wave to `[deep]` by re-running the no-thrash pass. A lower-tagged step inside an `[xdeep]` wave is also an error, since rule 1 always splits there: re-run the no-thrash pass.
 
 **Idempotence.** If wave markers are already present in the plan (re-entry into a partially-executed plan), the driver skips the wave-marker-writing pass but still validates the ≤ constraint for any unmarked waves. Do not add duplicate markers.
 
-**Regex to find wave markers:** `^--- WAVE \d+ \[(deep|exec|fast)\] ---$`
+**Regex to find wave markers:** `^--- WAVE \d+ \[(xdeep|deep|exec|fast)\] ---$`
 
 ### Model picker
 
-| Tier | Cursor | Claude Code | Effort level |
-|---|---|---|---|
-| `[deep]` | `claude-opus-5-5-xhigh` (alt: `gpt-5.5`) | `/model opus` | xhigh / max |
-| `[exec]` | `claude-sonnet-5-5-medium` (alt: `gpt-5.3-codex`) | `/model sonnet` | medium |
-| `[fast]` | `composer-2.5` (standard) (OpenAI alt: `gpt-5.3-codex`) | `/model haiku` | off / none |
+One row per harness, one column per tier, effort in parentheses. "Switch harness" means the harness has nothing at that tier: run that wave in Claude Code, Codex, or Cursor.
+
+| Harness | `[xdeep]` | `[deep]` | `[exec]` | `[fast]` |
+|---|---|---|---|---|
+| Claude Code | `/model opus` (max) + ultracode (alt: `/model fable` (max)) | `/model opus` (high) | `/model sonnet` (high) | `/model haiku` (none) |
+| Cursor | `claude-opus-5-5[effort=max]` (alt: `claude-fable-5-1[effort=max]`) | `claude-opus-5-5[effort=high]` | `grok-4-7[effort=high]` (alt: `claude-sonnet-5-5[effort=high]`) | `composer-2.5[fast=false]` |
+| Codex | `gpt-6-astra` (xhigh) | `gpt-6.1-sol` (xhigh) | `gpt-6.1-sol` (medium) | `gpt-6-luna` (low) |
+| Gemini CLI | switch harness | `gemini-3.1-pro-preview` (high) | `gemini-3.8-flash` (high) | `gemini-3.5-flash-lite` (low) |
+| Muse Code | switch harness | `muse-spark-1.3` (xhigh) | `muse-spark-1.3` (medium) | `muse-spark-1.3` (low) |
+| Grok Build | switch harness | `grok-4.7` (xhigh) | `grok-4.7` (high) | `grok-build-0.1` |
+
+*As of 2026-10-01.* Refresh the rows that pin versions (everything but Claude Code) when a harness adds a model.
 
 Notes:
-- **Claude Code uses version-less aliases.** `/model opus`, `/model sonnet`, and `/model haiku` always resolve to the newest model of that tier, so the Claude Code column never needs a version bump. Set the effort level with `/effort <level>`. Opus 5.5 and Sonnet 5.5 default to `medium` and can't turn thinking off, so `[deep]` needs `/effort xhigh` set explicitly. Haiku takes no effort level and doesn't meaningfully benefit from extended thinking on bounded mechanical tasks — it just adds latency.
-- Cursor's Auto mode tends to pick Composer for routine and Sonnet for ambiguous; Auto is fine inside an `[exec]` block but pin the model explicitly inside `[deep]` blocks.
-- **Cursor cost model — two pools, and it drives Auto-vs-pin.** Cursor bills from two separate monthly pools: an **Auto/Composer pool** that is included and effectively unmetered on paid plans, and a **frontier-credit pool** (the $20 Pro / ~$70 Pro+ / ~$400 Ultra allowance) that pinned frontier models — Opus, Sonnet, `gpt-5.5` — draw down before on-demand billing kicks in. Auto usage does **not** draw the frontier credit. So the cost-optimal default is: **let Auto own `[exec]` and `[fast]` execution waves** (Auto routes Sonnet-for-ambiguous / Composer-for-routine well, from the free pool), and **pin the model explicitly for `[deep]` waves and review beats** — Auto may silently downgrade a `[deep]` task to Sonnet/Composer, and review/architecture quality is capped by the model doing it. Rule of thumb: let Auto drive everything below `[deep]`; spend frontier credit only at `[deep]`.
-- **Review beats are a high-ROI place to pin Opus.** A [review beat](#review-beat) reads the prior wave's diff (input-heavy) and emits a short verdict (output-light). Because Opus output is the expensive half ($20/Mtok vs. $4 input), an input-heavy/output-light review is one of the cheapest ways to spend `[deep]` credit — pin Opus for it rather than letting Auto downgrade the review.
-- `[fast]` uses **Composer 2.5 standard** ($0.50/$2.50): same intelligence as the Fast variant ($3/$15) at ~6× lower cost and tuned for unattended/background runs — prefer it for mechanical `[fast]` work, since Fast's premium only pays back when a human is watching tokens stream live. Caveat: `personal-plan-orchestrate` dispatches `[fast]` groups via `Task(model=...)`, whose enum currently exposes only `composer-2.5-fast`, so orchestrated `[fast]` subagents run on Fast until Cursor adds a standard Task slug; the manual `personal-plan-model-tiers` flow can pick standard directly in the model picker.
-- **OpenAI in Cursor — Codex does double duty.** `gpt-5.3-codex` is the right OpenAI pick for both `[exec]` and `[fast]` in Cursor; there is no cheaper dedicated OpenAI model in Cursor's current lineup that would justify a separate `[fast]` slot. On Anthropic the Sonnet → Composer gap is a ~6× cost drop worth a model swap; on OpenAI today Codex is already the low end. Use it for both tiers and skip the swap. If a cheaper OpenAI model appears in Cursor's picker, add it to `[fast]` and revisit.
-- **Haiku vs Composer.** Haiku is Claude Code's `[fast]` model and Composer is Cursor's — they are platform-specific choices, not alternatives to each other. Do not substitute one for the other; each harness uses its own native fast model.
-- For `[deep]`, the ChatGPT alt is `gpt-5.5` (xhigh) — it leads terminal/agentic and computer-use work and emits far fewer output tokens than Opus on long loops; keep Opus as the primary for multi-file architecture and tool-heavy MCP orchestration.
-- The Cursor column pins versions, so it needs a refresh whenever Cursor adds a newer Opus or Sonnet (check `cursor-agent --list-models`); the Claude Code column tracks the latest through its aliases.
+- **`[xdeep]` is Opus 5.5 at max effort plus ultracode, for now.** Opus 5.5 shipped after Fable 5.1 and beats it on every benchmark Anthropic published: Terminal-Bench 4.0 66.4% vs 55.8%, CursorBench 4.0 57.8% vs 51.8% at max effort (and $13.43 vs $17.28 a task), at 40% of Fable's per-token price. Anthropic says the real-world gap is narrower than those scores. So `[xdeep]` buys depth with max effort and multi-agent fan-out rather than a pricier model; its premium is token volume, not per-token rate. A `[deep]` attempt that already failed escalates to exactly this. `[deep]` drops to `high`: on CursorBench 4.0, Opus 5.5 high scores 56.0% at $3.97 a task against max's 57.8% at $13.43. Fable 5.1 at max effort stays as the alt when a different model is wanted, a second opinion with different failure modes after Opus has already failed the step. Revisit when the next Fable ships.
+- **Ultracode** is Claude Code's multi-agent orchestration mode: Claude writes and runs workflow scripts that fan the work out to many subagents in parallel, keeping intermediate results in script variables instead of its context. Turn it on for one prompt with the keyword `ultracode`, for a session with `/effort ultracode` (or launch with `claude --effort ultracode`), and off with `/effort ultracode off`. It needs Claude Code v2.1.203+; on Pro, enable it once from `/config` first. It composes with `/effort max` from v2.1.284 on; earlier versions forced `xhigh` under ultracode. It opts into large runs (no 25-agent warning, no approval prompts in auto mode, up to 1,000 agents a run), so keep it off by default and use it only on `[xdeep]` waves: don't leave `"ultracode": true` on in settings for every session. It fans out inside one wave, so the plan's wave boundaries still hold. Cursor has no ultracode equivalent; Cursor `[xdeep]` is Opus 5.5 at max effort alone.
+- **Claude Code uses version-less aliases.** `opus`, `sonnet`, `haiku`, and `fable` (the `[xdeep]` alt) resolve to the newest model of each tier, so the row never needs a version bump. Set effort with `/effort <level>`. `/effort max` applies to the current session only, so each fresh `[xdeep]` chat needs it again. Opus 5.5 and Sonnet 5.5 default to `medium` and can't turn thinking off, so set it explicitly; Fable defaults to `high` and always thinks. Haiku takes no effort level and gains nothing from thinking on bounded mechanical work. On Pro, Max, and Team plans Fable bills to usage credits and asks for consent first.
+- **`[exec]` runs Sonnet at `high`, not `medium`.** On CursorBench 4.0, Sonnet 5.5 scores 47.8% at high and 39.2% at medium, for $1.67 vs $0.70 a task. That gap is worth a dollar.
+- **Cursor billing has two pools, and Auto no longer protects the expensive one.** "Cursor Models" (Composer, Grok) carries much more included usage. "Other Models" (Anthropic, OpenAI, Google) bills at provider list price. Every Auto request bills the routed model's list price from that model's pool, and a subagent that names a third-party model bills Other Models even under an Auto or Grok parent. Teams and Enterprise add $0.25/Mtok on third-party models; Cursor's own models are exempt. Pin the model at every tier.
+- **In Cursor, prefer the Cursor pool when it's close.** Take Grok or Composer over a third-party model when it scores within about 5 points on CursorBench 4.0 (table below). That puts `[exec]` on Grok 4.7 (43.9% vs Sonnet 5.5's 47.8%, both at high) and keeps `[deep]` on Opus 5.5 (Grok 4.7 at xhigh is 46.3% vs Opus 5.5 at high 56.0%). The pool is the saving, not the per-task price: at list, Grok 4.7 high costs $4.69 a task against Sonnet 5.5 high's $1.67. Once included Cursor usage runs out and on-demand billing starts, move `[exec]` to the Sonnet alt.
+- **Cursor `[fast]` is Composer 2.5 standard** ($0.50/$2.50). Fast is the product default and costs 6×; `[fast=false]` or empty brackets (`composer-2.5[]`) select standard. Composer scores 27.7% on CursorBench 4.0, which is enough for steps that pass the [`[fast]` checklist](#fast-downgrade-checklist) and nothing more.
+- **Cursor slugs** use the bracket parameters from Cursor's subagent docs (`[effort=...]`, `[fast=false]`). Cursor publishes no full ID list, so confirm with `agent --list-models`. The Fable alt in Cursor needs the data-retention opt-in under Privacy Mode, and Cursor reroutes guardrail-tripped Fable requests to Opus. Cursor doesn't offer GPT-6, and GPT-5.6 Sol scores 41.7%, so the Cursor row has no OpenAI alt.
+- **Review beats are a high-ROI place to pin the top model.** A [review beat](#review-beat) reads the prior wave's diff (input-heavy) and emits a short verdict (output-light). Output is the expensive half ($20/Mtok vs $4 input on Opus), so a review is one of the cheapest ways to spend `[deep]` credit. Pin it rather than letting Auto downgrade it.
+- **Haiku vs Composer.** Haiku is Claude Code's `[fast]` model and Composer is Cursor's. They are platform-specific choices, not alternatives to each other; each harness uses its own native fast model.
+- **Codex** runs the GPT-6 family. Set effort with `/model` → "More reasoning…", `model_reasoning_effort` in `config.toml`, or `-c model_reasoning_effort='"xhigh"'`. Skip `ultra`: it hands delegation to the model, and these plans do their own delegation (Claude Code's `[xdeep]` ultracode is the one exception, and it fans out only inside one wave). Astra costs the same as Fable. `gpt-5.5` leaves Codex for ChatGPT sign-ins on 2026-10-14.
+- **Gemini CLI** defaults to `auto`, which routes between Pro and Flash; pin a model with `-m` or `/model` → Manual. Thinking is set only through `modelConfigs.overrides` in `settings.json`, and the CLI sends `HIGH` to every 3.x model by default. Since 2026-06-18 Gemini CLI needs a paid API key, Vertex, or a Code Assist licence; Google AI Pro and Ultra sign-ins moved to Antigravity CLI.
+- **Muse Code** runs only Meta's Muse Spark, so its tiers differ by effort (`--reasoning-effort` or `/effort`). Skip `ultra`, as in Codex. Don't use the `-contributor` models on private code: they cost a tenth as much because Meta trains on your data.
+- **Grok Build** (`grok`, xAI's CLI) sets model and effort with `/model <id> [effort]`. It can call other providers' models through `[model.<id>]` config, which is the only way to reach an `[xdeep]` model there.
+- **`[deep]` outside Claude Code, Codex, and Cursor.** Grok 4.7 trails Opus 5.5 by about 10 points on CursorBench 4.0, and Gemini 3.1 Pro predates the current benchmark versions. Muse Spark 1.3 reports 75.4% on DeepSWE against Opus 5's 74.0% but has no Opus 5.5 comparison. Prefer one of the three for `[deep]` waves until that changes.
+
+**CursorBench 4.0**, the evidence behind the Cursor row (score, and list price per task, from [cursor.com/evals](https://cursor.com/evals)):
+
+| Model (effort) | Score | Cost/task |
+|---|---|---|
+| Opus 5.5 (max) | 57.8% | $13.43 |
+| Opus 5.5 (high) | 56.0% | $3.97 |
+| Sonnet 5.5 (xhigh) | 53.1% | $3.88 |
+| Opus 5.5 (medium) | 52.5% | $2.91 |
+| Fable 5.1 (max) | 51.8% | $17.28 |
+| Sonnet 5.5 (high) | 47.8% | $1.67 |
+| Grok 4.7 (xhigh) | 46.3% | $6.01 |
+| Grok 4.7 (high) | 43.9% | $4.69 |
+| Sonnet 5.5 (medium) | 39.2% | $0.70 |
+| Composer 2.5 | 27.7% | $0.68 |
 
 ### Model price table
 
-Cursor usage-based rates for the three planning tiers. Refresh alongside the Model picker above when rates change.
+Standard list rates in USD per million tokens for every model in the picker. Cursor charges provider list price with no markup, apart from the Teams and Enterprise surcharge above. Effort and bracket parameters don't change the rate; Fast variants do.
 
-| Cursor slug | Input ($/Mtok) | Output ($/Mtok) |
-|---|---|---|
-| `claude-opus-5-5-xhigh` | $4.00 | $20.00 |
-| `claude-sonnet-5-5-medium` | $2.00 | $10.00 |
-| `composer-2.5` (standard) | $0.50 | $2.50 |
-| `composer-2.5-fast` | $3.00 | $15.00 |
+| Model | Used by | Input | Cached input | Output |
+|---|---|---|---|---|
+| `claude-fable-5-1` | `[xdeep]` alt: Claude Code `fable`, Cursor | $10.00 | $0.25 | $50.00 |
+| `claude-opus-5-5` | Claude Code `opus`, Cursor | $4.00 | $0.20 | $20.00 |
+| `claude-sonnet-5-5` | Claude Code `sonnet`, Cursor alt | $2.00 | $0.20 | $10.00 |
+| `claude-haiku-4-5` | Claude Code `haiku` | $1.00 | $0.10 | $5.00 |
+| `composer-2.5` (standard) | Cursor | $0.50 | $0.20 | $2.50 |
+| `composer-2.5` (Fast) | Cursor default | $3.00 | $0.50 | $15.00 |
+| `grok-4-7` / `grok-4.7` | Cursor, Grok Build | $2.00 | $0.50 | $6.00 |
+| `grok-build-0.1` | Grok Build | $1.00 | $0.20 | $2.00 |
+| `gpt-6-astra` | Codex | $10.00 | $1.00 | $50.00 |
+| `gpt-6.1-sol` | Codex | $2.00 | $0.10 | $10.00 |
+| `gpt-6-luna` | Codex | $0.10 | $0.01 | $0.50 |
+| `gemini-3.1-pro-preview` | Gemini CLI | $2.00 | $0.20 | $12.00 |
+| `gemini-3.8-flash` | Gemini CLI | $0.75 | $0.075 | $3.75 |
+| `gemini-3.5-flash-lite` | Gemini CLI | $0.30 | $0.03 | $2.50 |
+| `muse-spark-1.3` | Muse Code | $1.25 | $0.15 | $4.25 |
 
-*As of 2026-10-01. Source: [cursor.com/docs/models-and-pricing](https://cursor.com/docs/models-and-pricing). `composer-2.5` (standard) and `composer-2.5-fast` are the same model at different inference throughput; `[fast]` uses standard, while orchestrate Task subagents are currently limited to fast (see the Model picker notes above).*
+Long-context surcharges: Grok 4.7 doubles every rate above 256k input in Cursor (200k on xAI's API). GPT-6 doubles input and cached input and charges 1.5× output above 272k. Gemini 3.1 Pro is $4.00 / $0.40 / $18.00 above 200k. Anthropic models have none. Gemini 3.8 Flash's rates double on 2027-01-01.
 
-On Claude Code, price by the model the alias resolved to (read it from `message.usage`'s model): `opus` is Opus 5.5 ($4.00 / $20.00), `sonnet` is Sonnet 5.5 ($2.00 / $10.00), and `haiku` is Haiku 4.5 ($1.00 / $5.00).
+*As of 2026-10-01. Sources: [Claude pricing](https://platform.claude.com/docs/en/about-claude/pricing), [Cursor models and pricing](https://cursor.com/docs/models-and-pricing), [OpenAI pricing](https://developers.openai.com/api/docs/pricing), [Gemini pricing](https://ai.google.dev/gemini-api/docs/pricing), [Meta pricing](https://dev.meta.ai/docs/pricing-rate-limits), [xAI pricing](https://docs.x.ai/developers/pricing).*
+
+On Claude Code, price by the model the alias resolved to (read it from `message.usage`'s model).
 
 Cache-aware cost formula used by the `tokens:` tally:
 
     cost_usd ≈ ( uncached_input      × in_rate
-               + cache_read_input    × in_rate × 0.10
+               + cache_read_input    × cached_rate
                + cache_write_5m      × in_rate × 1.25
                + cache_write_1h      × in_rate × 2.00
                + output_tokens       × out_rate ) / 1_000_000
 
-`output_tokens` already includes extended-thinking/reasoning tokens. Cache
-multipliers are Anthropic API semantics (cache read = 0.10×, 5-min write =
-1.25×, 1-hour write = 2.00× the base input rate; Opus 5.5 reads bill at
-0.05×, not 0.10×). When no cache split is available, set the cache terms
-to 0 and the formula collapses to `input × in_rate + output × out_rate`.
+`output_tokens` already includes extended-thinking/reasoning tokens. `cached_rate` is the table's cached-input column. The write multipliers are Anthropic's (5-minute write = 1.25×, 1-hour write = 2.00× the input rate); GPT-6 also bills writes at 1.25×, and the other providers don't charge for them, so set those terms to 0. When no cache split is available, set the cache terms to 0 and the formula collapses to `input × in_rate + output × out_rate`.
 
 ### Token accounting — source precedence
 
@@ -194,9 +246,8 @@ Tally token cost from the most accurate source available, in this order:
    cache terms to 0. If the user pastes real input/output/cache numbers from
    the Cursor usage UI, prefer those and price with the cache-aware formula.
 
-When run outside Cursor you may substitute the provider's published per-model
-rates for `in_rate`/`out_rate`; the cache multipliers are unchanged. No
-estimate here is authoritative billing data.
+The Model price table covers every harness in the picker; use its row for
+the model the wave ran on. No estimate here is authoritative billing data.
 
 ### Wave title format
 
@@ -208,7 +259,7 @@ For example, `Wave 2 of 3 [exec] repo-A m2 s1-s3`. Fill it in as:
 
 - `{n}` — the 1-based wave number the title refers to (the wave a STOP marker is launching is the *next* wave; a Kickoff always refers to wave 1).
 - `{t}` — the total wave count after the no-thrash folding pass (the same `N` as the Kickoff `Status:` line).
-- `{tier}` — that wave's execution tier (`[deep]` / `[exec]` / `[fast]`).
+- `{tier}` — that wave's execution tier (`[xdeep]` / `[deep]` / `[exec]` / `[fast]`).
 - `{group-id}` — the group identifier: heading IDs when the plan has them (e.g. `m2 s1-s3`), otherwise exact title text. For a parallel orchestrate wave, prefix each subagent's title with its working directory (repo or worktree name), e.g. `repo-B m2 s4-s6`.
 
 Where the title surfaces:
@@ -227,8 +278,8 @@ Template (a `[deep] -> [exec]` transition):
       Suggested chat title: Wave <n> of <t> [exec] <next group>
 
       Next model
-        Cursor:      claude-sonnet-5-5-medium   (or gpt-5.3-codex)
-        Claude Code: /model sonnet              (/effort medium)
+        Cursor:      grok-4-7[effort=high]      (or claude-sonnet-5-5[effort=high])
+        Claude Code: /model sonnet              (/effort high)
 
       Prompt to paste into the next chat:
         Wave <n> of <t> [exec] <next group>
@@ -247,7 +298,7 @@ For an `[exec] -> [fast]` transition, the prompt should also remind the model no
       Suggested chat title: Wave <n> of <t> [fast] <next group>
 
       Next model
-        Cursor:      composer-2.5 (standard)
+        Cursor:      composer-2.5[fast=false]
         Claude Code: /model haiku               (no extended thinking)
 
       Prompt to paste into the next chat:
@@ -268,8 +319,8 @@ For an escalation back to `[deep]` (after `[exec]` or `[fast]`):
       Suggested chat title: Wave <n> of <t> [deep] <next group>
 
       Next model
-        Cursor:      claude-opus-5-5-xhigh      (or gpt-5.5)
-        Claude Code: /model opus                (/effort xhigh)
+        Cursor:      claude-opus-5-5[effort=high]
+        Claude Code: /model opus                (/effort high)
 
       Prompt to paste into the next chat:
         Wave <n> of <t> [deep] <next group>
@@ -282,9 +333,18 @@ For an escalation back to `[deep]` (after `[exec]` or `[fast]`):
 
     ---
 
+For an escalation to `[xdeep]` (from any tier), use the `[deep]` escalation body above with the `[xdeep]` model row from the [Model picker](#model-picker):
+
+      Next model
+        Cursor:      claude-opus-5-5[effort=max]   (Cursor has no ultracode)
+        Claude Code: /model opus                (/effort max, plus ultracode)
+
+Start the prompt with the keyword `ultracode` so that turn runs under ultracode; for a wave that may take more than one turn, run `/effort ultracode` in that chat instead. Add one line naming the [upgrade checklist](#xdeep-upgrade-checklist) condition each step met. When Opus at max has already failed the step and a different model is wanted, swap in the Fable alt (`claude-fable-5-1[effort=max]` / `/model fable` + `/effort max`).
+
 Rules for filling in the template:
 
 - `<absolute path to the plan file>` is the **fully-qualified absolute path** to the plan file, resolved when the plan was identified — for example: `/Users/gary/Projects/personal/public/.scratch/plan-topic-word.md`. Never emit a bare filename or a repo-relative path — the next chat may start from a different working directory. The one exception is a plan tracked in `specs/handoffs/` on a runner: give its repo-relative path and the branch it's on, because the branch is reopened on another machine where the container's absolute path means nothing.
+- The `Next model` block names Cursor and Claude Code. When the plan runs in Codex, Gemini CLI, Muse Code, or Grok Build, replace the Cursor row with that harness's row from the [Model picker](#model-picker).
 - Name the next group using whatever identifiers the plan uses: if headings
   carry IDs, use those (e.g. `m2 s1-s4`); if not, use exact title text
   (e.g. `the "Wire Redis client" through "Write integration tests" steps`).
@@ -296,7 +356,7 @@ Rules for filling in the template:
 
 ### Review beat
 
-A **review beat** is a dedicated, read-only `[deep]` pass over the work a wave just produced, run **after every wave** before the next one starts. It exists so cheaper-tier output (`[exec]`/`[fast]`) — and even `[deep]` output — is checked by a top-tier model against the spec before the plan builds further on it. Reviewing is `[deep]` work (catching architectural drift, broken contracts, security smells), so a review beat always pins the `[deep]` model regardless of the tier of the wave it reviews.
+A **review beat** is a dedicated, read-only `[deep]` pass over the work a wave just produced, run **after every wave** before the next one starts. It exists so cheaper-tier output (`[exec]`/`[fast]`) — and even `[deep]` output — is checked by a top-tier model against the spec before the plan builds further on it. Reviewing is `[deep]` work (catching architectural drift, broken contracts, security smells), so a review beat pins the `[deep]` model for any `[deep]`, `[exec]`, or `[fast]` wave. A wave that ran at `[xdeep]` gets an `[xdeep]` review (`--- REVIEW: wave-N [xdeep] ---`, Opus 5.5 at max effort without ultracode; see the note after the template): a reviewer below the author's tier caps the review at its own level.
 
 Cadence is recorded in the Kickoff block as a `review:` line. The default is `review: every-wave` — a beat follows every wave, including same-tier `[exec] -> [exec]` boundaries. (Contrast `personal-plan-orchestrate`, whose Opus parent reviews every returned subagent summary inline and writes the same verdict to the [Review log](#review-log) — it participates **log-only** and adds no new human review gate; see [Who updates progress, and how](#who-updates-progress-and-how).)
 
@@ -316,8 +376,8 @@ Template:
       Suggested chat title: Review wave <n> of <t> [deep] <just-finished group>
 
       Next model
-        Cursor:      claude-opus-5-5-xhigh      (or gpt-5.5)
-        Claude Code: /model opus                (/effort xhigh)
+        Cursor:      claude-opus-5-5[effort=high]
+        Claude Code: /model opus                (/effort high)
 
       Prompt to paste into the next chat:
         Review wave <n> of <t> [deep] <just-finished group>
@@ -333,6 +393,14 @@ Template:
         On PASS, update the Status line `last review:` field and report back.
 
     ---
+
+For a wave that ran at `[xdeep]`, change `[deep]` to `[xdeep]` in the marker, the chat title, and the prompt's first line, and use these rows:
+
+      Next model
+        Cursor:      claude-opus-5-5[effort=max]
+        Claude Code: /model opus                (/effort max)
+
+Leave ultracode off for the review, in Claude Code too: a review is one read-only verdict, and fan-out would multiply its tokens. The reviewer still matches the author's model and effort.
 
 ### Review log
 
@@ -366,7 +434,7 @@ Ask-user rule (after writing the Kickoff):
 
 Treat any non-affirmative answer (silence, dismissal, ambiguous reply) as **new chat**. On new chat, halt and let the user copy the Kickoff into a fresh session. On current chat, continue per the skill's procedure.
 
-Two variants. The **passive** variant (used by `personal-plan-model-tiers`) picks the model from the first tagged group's tier; the **active** variant (used by `personal-plan-orchestrate`) is always Opus xhigh because the orchestrator-parent always runs at `[deep]`.
+Two variants. The **passive** variant (used by `personal-plan-model-tiers`) picks the model from the first tagged group's tier; the **active** variant (used by `personal-plan-orchestrate`) is always the `[deep]` Opus row because the orchestrator-parent always runs at `[deep]`.
 
 Passive variant — `[exec]` first wave (the most common shape):
 
@@ -379,8 +447,8 @@ Passive variant — `[exec]` first wave (the most common shape):
       Suggested chat title: Wave 1 of N [exec] <first group>
 
       Next model
-        Cursor:      claude-sonnet-5-5-medium   (or gpt-5.3-codex)
-        Claude Code: /model sonnet              (/effort medium)
+        Cursor:      grok-4-7[effort=high]      (or claude-sonnet-5-5[effort=high])
+        Claude Code: /model sonnet              (/effort high)
 
       Prompt to paste into the next chat:
         Read <absolute path to the plan file>. Begin execution at the top
@@ -403,7 +471,7 @@ Passive variant — `[fast]` first wave (prompt body adds the "no refactor" remi
       Suggested chat title: Wave 1 of N [fast] <first group>
 
       Next model
-        Cursor:      composer-2.5 (standard)
+        Cursor:      composer-2.5[fast=false]
         Claude Code: /model haiku               (no extended thinking)
 
       Prompt to paste into the next chat:
@@ -416,9 +484,9 @@ Passive variant — `[fast]` first wave (prompt body adds the "no refactor" remi
 
     ---
 
-For a `[deep]` first wave, use the same body as the `[exec]` example with the `[deep]` model row from the [Model picker](#model-picker) above (`claude-opus-5-5-xhigh` / `/model opus` xhigh).
+For a `[deep]` or `[xdeep]` first wave, use the same body as the `[exec]` example with that tier's model row from the [Model picker](#model-picker) above. An `[xdeep]` first wave also takes the additions from the [STOP marker](#stop-marker-template) `[xdeep]` note: the `ultracode` opt-in and the checklist line.
 
-Active variant — orchestrate (always `[deep]` / Opus xhigh):
+Active variant — orchestrate (always `[deep]` / Opus):
 
     --- KICKOFF: begin orchestration at [deep] ---
 
@@ -427,8 +495,8 @@ Active variant — orchestrate (always `[deep]` / Opus xhigh):
       review: every-wave (log-only — parent writes Review log; no human review gate)
 
       Next model
-        Cursor:      claude-opus-5-5-xhigh      (or gpt-5.5)
-        Claude Code: /model opus                (/effort xhigh)
+        Cursor:      claude-opus-5-5[effort=high]
+        Claude Code: /model opus                (/effort high)
 
       Prompt to paste into the next chat:
         Read <absolute path to the plan file>. The plan is already tagged.
@@ -446,7 +514,7 @@ Rules for filling in the template:
 
 - `<absolute path to the plan file>` is the **fully-qualified absolute path** to the plan file, resolved when the plan was identified — for example: `/Users/gary/Projects/personal/public/.scratch/plan-topic-word.md`. Never emit a bare filename or a repo-relative path — the next chat may start from a different working directory. The one exception is a plan tracked in `specs/handoffs/` on a runner: give its repo-relative path and the branch it's on, because the branch is reopened on another machine where the container's absolute path means nothing.
 - For the passive variant, the `<tier>` is the **execution tier of the first wave** after the no-thrash folding pass (see [No-thrash rule](#no-thrash-rule)). This is normally the tag on the first executable heading, walking top-down — higher-level grouping headings (milestones, phases) are untagged and ignored, per [Tag placement](#tag-placement). The one exception: when a short leading `[fast]` run (< 3 steps) is folded into the following `[exec]` wave, the first wave executes at `[exec]`, so the Kickoff shows `[exec]` even though those headings keep their honest `[fast]` tags.
-- For the active variant, the model is **always** `claude-opus-5-5-xhigh` / `/model opus` xhigh, regardless of what the first wave's tier is. The orchestrator-parent always runs at `[deep]`.
+- For the active variant, the model is **always** `claude-opus-5-5[effort=high]` / `/model opus` at `/effort high`, regardless of what the first wave's tier is. The orchestrator-parent always runs at `[deep]`.
 - Use `->` ASCII arrows rather than Unicode em-dash arrows so the marker is safe in terminals and grep.
 - Fill in the `Status:` line with the total group count (`N`), the first group's identifier, and today's date. Update it as execution progresses (see [Progress tracking](#progress-tracking) below).
 - For the passive variants, include the `Suggested chat title:` line in the [Wave title format](#wave-title-format) for the first wave (`Wave 1 of N [<tier>] <first group>`). It is advisory — a foreground chat cannot set its own title, so emit it for the user to paste even though the harness may ignore it. The active orchestrate variant has no such line: its per-wave titles are the `Task` subagent descriptions.
@@ -475,7 +543,7 @@ When a group finishes, append ` (done)` to the end of every executable heading i
     #### s1 - [exec] Wire search results to view model  (done)
 
 Rules:
-- The marker goes at the **end of the heading line**, after all other content, so it never collides with the tier-tag regex `^#+\s+.*\[(deep|exec|fast)\]`.
+- The marker goes at the **end of the heading line**, after all other content, so it never collides with the tier-tag regex `^#+\s+.*\[(xdeep|deep|exec|fast)\]`.
 - Done-step regex: `\(done\)\s*$`
 - Incomplete steps: any tagged heading that does **not** match the done-step regex.
 - This is the **only** sanctioned heading mutation besides the tier tag itself. The "do not rename/renumber" rule has an explicit carve-out for appending ` (done)`.

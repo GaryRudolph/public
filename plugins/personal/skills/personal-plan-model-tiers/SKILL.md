@@ -1,11 +1,11 @@
 ---
 name: personal-plan-model-tiers
 description: >-
-  Evaluate each step in a plan and tag it as [deep], [exec], or [fast] so the
+  Evaluate each step in a plan and tag it as [xdeep], [deep], [exec], or [fast] so the
   user can swap to the right model (or delegate to a subagent) at every tier
   boundary. Each STOP marker emits the next model for both Cursor and Claude
   Code plus a copy-pasteable handoff prompt. Use when the user asks to
-  "evaluate each step", "tag deep / exec / fast", "split a plan by model
+  "evaluate each step", "tag xdeep / deep / exec / fast", "split a plan by model
   tier", "stop when the model should change", or wants to know which steps
   need a stronger vs. cheaper model.
 ---
@@ -15,7 +15,7 @@ description: >-
 Passive execution driver. This skill owns the **execution** layer — grouping
 tagged steps into waves (the no-thrash rule), inserting STOP markers, writing
 the passive Kickoff block, and handing each model swap off to you. It does
-**not** own tagging: the honest `[deep]` / `[exec]` / `[fast]` tags come from
+**not** own tagging: the honest `[xdeep]` / `[deep]` / `[exec]` / `[fast]` tags come from
 the shared [`personal-plan-tag-tiers`](../personal-plan-tag-tiers/SKILL.md)
 skill, which this skill invokes automatically when a plan is not tagged yet.
 
@@ -56,12 +56,13 @@ assume native todos from a prior session still exist.
 ### 2. Ensure the plan is tagged
 
 Check whether the plan's executable headings already carry tiers (regex
-`^#+\s+.*\[(deep|exec|fast)\]`).
+`^#+\s+.*\[(xdeep|deep|exec|fast)\]`).
 
 - **Not tagged** → run [`personal-plan-tag-tiers`](../personal-plan-tag-tiers/SKILL.md)
   (the shared tagging skill) to tag every executable step, then return here.
 - **Already tagged** → keep the existing tags. Do a light sanity pass against
-  the `[fast]` downgrade checklist and default-up bias, but do not churn tags.
+  the `[fast]` downgrade checklist, the `[xdeep]` upgrade checklist, and
+  default-up bias, but do not churn tags.
 
 Tags reflect honest complexity and stay as-is from here on. This skill never
 rewrites a tag for thrash reasons — that happens only at the wave-grouping
@@ -70,7 +71,7 @@ step below, and it changes the *execution wave*, not the tag.
 ### 3. Group tagged steps into execution waves (no-thrash) and write wave markers
 
 Walk the tagged steps and collect consecutive same-tier steps into execution
-waves. Always STOP at any boundary involving `[deep]`. STOP at `[exec]` ↔
+waves. Always STOP at any boundary involving `[xdeep]` or `[deep]`. STOP at `[exec]` ↔
 `[fast]` boundaries only when the `[fast]` block has ≥ 3 contiguous fast
 steps; otherwise **fold those `[fast]` steps into the adjacent `[exec]` wave**
 so they execute on the `[exec]` model with no model swap — but leave their
@@ -79,7 +80,7 @@ so they execute on the `[exec]` model with no model swap — but leave their
 
 **Validate the ≤ constraint before writing wave markers.** For each wave,
 check that every step's tag is ≤ the wave's execution tier
-(`[deep]` > `[exec]` > `[fast]`). If any step's tag is *greater* than its
+(`[xdeep]` > `[deep]` > `[exec]` > `[fast]`). If any step's tag is *greater* than its
 wave's execution tier, that is a tagging error — do not write wave markers.
 Surface the violation (e.g. "`[deep]` step s3 is inside an `[exec]` wave"),
 halt, and ask the user to re-tag the step or widen the wave before continuing.
@@ -108,12 +109,17 @@ every-wave` (see step 5).
 
 **REVIEW markers first, then STOP markers** at each inter-wave boundary.
 For each wave N, insert an inline-complete `--- REVIEW: wave-N [deep] ---`
-block immediately after that wave's last executable heading and **before**
+block (`--- REVIEW: wave-N [xdeep] ---` after an `[xdeep]` wave, so Opus at
+max effort reviews it) immediately after that wave's last executable
+heading and **before**
 the next `--- STOP …` or `--- WAVE …` marker (for the final wave, after
 its last heading and before end-of-file or the Completion section). Use
 the REVIEW template from standards §"Review beat" — fill in wave number,
 total wave count, `<group-id>`, and the resolved plan path from step 1 so
-the prompt is self-contained. **Idempotent:** skip a REVIEW write when
+the prompt is self-contained. After an `[xdeep]` wave, also apply the
+`[xdeep]` note under that template: `[xdeep]` in the marker, title, and
+prompt, its Opus max-effort rows, and no ultracode. **Idempotent:** skip a
+REVIEW write when
 `--- REVIEW: wave-N` already exists for that wave (re-entry).
 
 Then insert STOP markers at tier transitions as before.
@@ -131,7 +137,9 @@ include:
    name if their harness supports it. Emit it even though there is no
    guarantee it will be used. See the standards §"Wave title format".
 3. The next model + thinking level for **both** Cursor and Claude Code
-   (look up from the model picker in standards).
+   (look up from the model picker in standards). When the plan runs in
+   Codex, Gemini CLI, Muse Code, or Grok Build, use that harness's row in
+   place of Cursor's.
 4. A copy-pasteable prompt that names the next group using whatever
    identifiers the plan uses (IDs like `m2 s1-s4` if present, or exact
    title text if not), references the resolved plan path from step 1, carries
@@ -142,6 +150,13 @@ include:
    pasted chat usually does not re-load this skill, so that inline reminder
    is the only thing that tells the wave to update plan state — never omit
    it, and do not move it into a separate checklist block in the plan.
+5. For a STOP into an `[xdeep]` wave, the extras from the standards'
+   `[xdeep]` escalation note: start the prompt with the keyword `ultracode`
+   so that turn runs under ultracode (for a wave that may take more than
+   one turn, run `/effort ultracode` in that chat instead), and add one
+   line naming the `[xdeep]` upgrade checklist condition each step met. Cursor has no
+   ultracode equivalent; its `[xdeep]` row is Opus at max effort alone.
+   Name the Fable alt only when Opus at max has already failed the step.
 
 Use `->` ASCII arrows in the marker so it stays safe in terminals and grep.
 
@@ -165,7 +180,8 @@ after the no-thrash folding pass. Add a `review: every-wave` line
 - The prompt body references the resolved plan path from step 1 and
   uses the matching body for the tier (the `[fast]` body adds the
   "mechanical edits, do not refactor" reminder; `[deep]` and `[exec]`
-  use the standard body).
+  use the standard body; an `[xdeep]` first wave uses the standard body
+  plus the step 4 `[xdeep]` extras: the `ultracode` opt-in and the checklist line).
 - Include a `Suggested chat title:` line in the Wave title format for the
   first wave (`Wave 1 of N [<tier>] <first group>`) — the same advisory
   title as the STOP markers (step 4). Emit it even though a foreground chat
@@ -299,9 +315,9 @@ wave):
 
 | wave | group | model | ~input | ~output | ~cost |
 |------|-------|-------|--------|---------|-------|
-| wave-1 | m1-s1-s3 | claude-opus-5-5-xhigh | … | … | … |
-| review-wave-1 | m1-s1-s3 | claude-opus-5-5-xhigh | … | … | … |
-| wave-2 | m2-s4-s6 | claude-sonnet-5-5-medium | … | … | … |
+| wave-1 | m1-s1-s3 | claude-opus-5-5 | … | … | … |
+| review-wave-1 | m1-s1-s3 | claude-opus-5-5 | … | … | … |
+| wave-2 | m2-s4-s6 | grok-4-7 | … | … | … |
 | **GRAND TOTAL** | | | | | … |
 
 The GRAND TOTAL cost is the **sum of per-wave costs** (each priced at its own
