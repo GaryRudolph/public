@@ -1,0 +1,366 @@
+diff --git a/plugins/personal/cursor/rules/personal-core.mdc b/plugins/personal/cursor/rules/personal-core.mdc
+index 7feec07..5e6b221 100644
+--- a/plugins/personal/cursor/rules/personal-core.mdc
++++ b/plugins/personal/cursor/rules/personal-core.mdc
+@@ -37,7 +37,7 @@ A project or organization rule can override a personal preference if there's a d
+ 
+ ## Git Conventions
+ 
+-- **Branching**: GitHub Flow — `feature/name`, `fix/name`, `release/vN` or `release/vN.M` (release lines for hotfixes); agents default to the current branch (see `~/Projects/personal/public/standards/git.md` "AI Agent Behavior")
++- **Branching**: GitHub Flow — `feature/name`, `fix/name`, `release/vN` or `release/vN.M` (release lines for hotfixes); agents commit and push freely only on a task branch and otherwise stay on the current branch (see `~/Projects/personal/public/standards/git.md` "AI Agent Behavior")
+ - **Versioning**: artifacts use SemVer tags `vMAJOR.MINOR.PATCH`, bumped only at release time (`version.txt` holds the last release; no pre-release suffixes; dev builds are `<release>+<sha>`); contracts (API paths, wire and file formats) use integer majors `v1`, `v2`, with `v2.1` only for hotfixes. See `~/Projects/personal/public/standards/versioning.md`, or the `personal-release` skill
+ - **Commits**: imperative mood, optional ticket prefix, 72-char subject, no period
+   - `add login endpoint` or `PROJ-123 add login endpoint`
+@@ -45,16 +45,18 @@ A project or organization rule can override a personal preference if there's a d
+ 
+ ## Workflow
+ 
+-- **Never commit unless asked** — do not create commits unless I explicitly ask you to; this applies even during multi-step plans. The one exception is a runner session (next rule)
+-- **Never push unless asked** — no `git push` or other remote-writing git command unless I explicitly ask, and never from a subagent that wasn't told to. Same exception: a runner session. Never force-push `main`; cut feature branches with `--no-track` so they don't inherit `main` as upstream
+-- **Runner sessions commit and push their branch** — when the session runs on a cloud runner (Claude Code on the web, or another vendor's cloud agents) or a self-hosted runner, commit each finished step and push it to the current branch without asking. The container is ephemeral and nobody is there to say "commit", so the pushed branch is the only record of the work. Signs you're on a runner: the harness says the session is remote or assigns a branch to push, or `CLAUDE_CODE_REMOTE=true`. Everything else still holds: atomic commits in the usual format, never force-push `main` (`--force-with-lease` on your own branch is fine). The runner sets its own committer identity, so the email check below doesn't block there. The three rules that follow cover branching, stopping, and scratch on a runner; `~/Projects/personal/public/standards/git.md` "AI Agent Behavior" has the same rules
+-- **Runners branch off `main`** — a runner that finds `main`, another shared branch, or a detached HEAD checked out cuts a branch from the checked-out commit before its first change. If the harness assigned a branch, that's the branch and nothing is a guess. Otherwise guess: `fix/<slug>` for a bug, else `feature/<slug>` (`feature/m{N}-<slug>` for milestone work), where `<slug>` is the kebab-case topic the handoff would use, two to four words naming the object of the work; if `git ls-remote --heads origin <branch>` shows the name taken, append the handoff `{word}`. `git switch -c <branch> --no-track` (no start point, so uncommitted edits and a detached HEAD's base come along), then `git push -u origin <branch>`. Say in the first report and in the handoff that the name was a guess. Never push `main`, even if the branch push is refused. This is the one carve-out from "Stay on the current branch", and it never applies on a workstation
+-- **Runners save before they stop** — before ending any turn that waits for me (a question, a STOP gate, a blocker, done, running low on context), in this order: update the plan's `(done)` markers and `Status:` line; write or refresh the handoff with the pending question verbatim, the branch, and how to resume; commit everything in the tree, a half-finished step included, with an honest subject (`m2.s3 wire results view (partial, see handoff)`); push; only then ask. The turn that asks may be the container's last. Gates still block and a non-answer is still not approval; the push just makes the stall harmless. A permission prompt waits for me too, mid-turn, and the harness parks it until I answer: before a tool call likely to trip one, commit what's done and push first
+-- **Runner scratch rides the branch** — `.scratch/` dies with the container, so on a runner ask of each file in it: could the next session rebuild this from the pushed branch plus the original ask? Script output can; judgment can't. The plan, the session handoff, and any draft or research I asked for can't, so write those to `specs/handoffs/` instead, under their usual names (`plan-{topic}-{word}.md`, `handoff-{topic}-{word}.md`, a draft under its own kebab-case name; create the folder if needed) and commit them with the step that changed them, as ordinary tracked files: no `git add -f`, no second scratch directory. Orchestrate outputs, spikes, and anything a command regenerates may die; a conclusion the tree lacks goes into the handoff as prose. Before the PR merges, remove those files or promote what's durable to `specs/` or a milestone handoff, as the last commit on the branch; that turn skips the handoff step in "Runners save before they stop", and the report and the PR say what's pending. If that's forgotten, plain markdown lands on `main` and one `git rm` fixes it
+-- **Stay on the current branch** — never auto-create or switch branches; default to the current branch (or `main`). The one exception is a runner that starts on `main` (above). Worktrees only when I ask. If you think the branch should change, propose it and wait for explicit confirmation (skipping is not confirmation). See `~/Projects/personal/public/standards/git.md` "AI Agent Behavior"
+-- **Verify git email** — before any commit, run `git config user.email` and confirm it matches the expected email for this repo's organization; flag a mismatch and wait for me to fix it. On a runner the harness sets the identity; accept it rather than block
+-- **Pause after each step** — stop and show me what changed before moving on
+-- **Wait for approval** — do not proceed to the next step until I confirm. A one-time "yes / continue / go ahead" approves only the single step or question it answers; it is NEVER a blanket approval for subsequent steps or future decisions — ask again at the next decision point. A missing, timed-out, dismissed, skipped, or ambiguous response is never approval (fail closed): hold and re-ask rather than assume. Skipping or dismissing a prompt is never a yes. If you want me to run multiple steps unattended, say so explicitly (e.g. "run unattended" / "auto-approve the next N steps"). For tagged-plan execution, the per-gate mechanics live in `~/Projects/personal/public/standards/plan-execution.md` §"Model-tier stop points" -> "STOP gate semantics".
++- **Task branches and shared branches** — a shared branch is `main`, the remote's default branch, `release/*`, a branch GitHub won't let change without a PR, a branch an open PR targets, or a branch with someone else's open PR. Any other branch is a task branch: one you cut, one the harness assigned, or one I named for the work. A detached HEAD is neither. `~/Projects/personal/public/standards/git.md` "Task branches and shared branches" has the checks
++- **On a shared branch, commit and push only when asked** — no commits unless I explicitly ask, even during multi-step plans; no `git push` or other remote-writing git command unless I ask. Never force-push a shared branch, and never push `main` on your own, not even when a branch push is refused
++- **On a task branch, commit and push without asking** — commit each finished step, atomic and in the usual format, and push at least before any turn or permission prompt that waits for me. Stage only what you changed (`git add <paths>`): on a workstation my own edits may share the tree, and a file that mixes yours and mine stays uncommitted until I say. A rejected push means the remote moved: rebase onto it, never force over it, and ask on a conflict. Rewrite only your own commits, with `--force-with-lease --force-if-includes`. Opening or merging a PR, pushing a tag, and deleting a remote branch still wait for me, and a project or skill that asks before a push wins
++- **Subagents commit only when told, and never push** — a subagent commits only when its prompt says to, never pushes, and never cuts or switches branches; the parent reviews and pushes. A subagent may not see these rules (Claude Code subagents don't get SessionStart output, which is how runners load them), so the dispatch prompt spells out the git instructions
++- **Runners** — a runner is a cloud session (Claude Code on the web, or another vendor's cloud agents) or a self-hosted runner. Signs: the harness says the session is remote or assigns a branch to push, or `CLAUDE_CODE_REMOTE=true`. Its VM can be reclaimed while the session idles, and a resumed session starts from a fresh clone, so unpushed work is gone: on a runner, push after every commit. The runner sets its own committer identity; accept it
++- **Cut a task branch off a shared branch** — when `main`, another shared branch, or a detached HEAD is checked out, the work goes on a task branch cut from the checked-out commit. A runner cuts it before its first change, without asking. A workstation keeps working and proposes the name at its first pause, with that pause's question; `git switch -c` carries uncommitted edits along, so waiting loses nothing. Without a yes, stay where you are and commit nothing. If the harness assigned a branch, that's the branch and nothing is a guess. Otherwise guess: `fix/<slug>` for a bug, else `feature/<slug>` (`feature/m{N}-<slug>` for milestone work), where `<slug>` is the kebab-case topic the handoff would use, two to four words naming the object of the work; if `git ls-remote --heads origin <branch>` shows the name taken, append the handoff `{word}`. `git switch -c <branch> --no-track` (no start point, so uncommitted edits and a detached HEAD's base come along), then `git push -u origin <branch>`. A runner says in its first report and in the handoff that the name was a guess. This is the one carve-out from "Stay on the current branch"
++- **Save before you wait** — on a task branch, before ending any turn that waits for me (a question, a STOP gate, a blocker, done, running low on context), in this order: update the plan's `(done)` markers and `Status:` line; commit; push; only then ask. A runner also writes or refreshes the handoff first, with the pending question verbatim, the branch, and how to resume, and commits everything in the tree, a half-finished step included, with an honest subject (`m2.s3 wire results view (partial, see handoff)`): the turn that asks may be the container's last. On a workstation a half-finished step can stay uncommitted. Gates still block and a non-answer is still not approval; the push just makes the stall harmless. A permission prompt waits for me too, mid-turn: before a tool call likely to trip one, commit what's done and push first
++- **Runner scratch rides the branch** — `.scratch/` dies with the container, so on a runner ask of each file in it: could the next session rebuild this from the pushed branch plus the original ask? Script output can; judgment can't. The plan, the session handoff, and any draft or research I asked for can't, so write those to `specs/handoffs/` instead, under their usual names (`plan-{topic}-{word}.md`, `handoff-{topic}-{word}.md`, a draft under its own kebab-case name; create the folder if needed) and commit them with the step that changed them, as ordinary tracked files: no `git add -f`, no second scratch directory. Orchestrate outputs, spikes, and anything a command regenerates may die; a conclusion the tree lacks goes into the handoff as prose. Before the PR merges, remove those files or promote what's durable to `specs/` or a milestone handoff, as the last commit on the branch; that turn skips the handoff step in "Save before you wait", and the report and the PR say what's pending. If that's forgotten, plain markdown lands on `main` and one `git rm` fixes it
++- **Stay on the current branch** — never switch branches or create a worktree on your own; the one branch you may cut is a task branch off a shared branch (above). A branch or worktree the harness started the session in is the current branch. Worktrees only when I ask. If you think the branch should change, propose it and wait for explicit confirmation (skipping is not confirmation). Cut every branch with `--no-track`, so it doesn't inherit `main` as upstream. See `~/Projects/personal/public/standards/git.md` "AI Agent Behavior"
++- **Verify git email** — before the first commit of a session, run `git config user.email` and confirm it matches the expected email for this repo's organization; on a mismatch, flag it and commit nothing until I fix it. On a runner the harness sets the identity; accept it rather than block
++- **Pause after each step** — stop and show me what changed before moving on; on a task branch, that's the step's commit
++- **Wait for approval** — do not proceed to the next step until I confirm. Approval is for the next step, not for git: on a task branch the finished step is already committed and pushed when you ask, and on a shared branch a yes covers a commit or push only when the question named it. A one-time "yes / continue / go ahead" approves only the single step or question it answers; it is NEVER a blanket approval for subsequent steps or future decisions — ask again at the next decision point. A missing, timed-out, dismissed, skipped, or ambiguous response is never approval (fail closed): hold and re-ask rather than assume. Skipping or dismissing a prompt is never a yes. If you want me to run multiple steps unattended, say so explicitly (e.g. "run unattended" / "auto-approve the next N steps"). For tagged-plan execution, the per-gate mechanics live in `~/Projects/personal/public/standards/plan-execution.md` §"Model-tier stop points" -> "STOP gate semantics".
+ - **Wait for answers** — if you ask a question, always wait for a response before proceeding; never assume an answer and continue
+ - **Always use virtual environments** — when installing Python packages, use the project's existing venv (or create one with `python -m venv .venv`) from the start; never install with global or user-level pip
+ - **Use project-local package management** — for Node, prefer `npx` over `npm install -g`; for Ruby, use `bundle exec` and never bare `gem install`
+diff --git a/plugins/personal/skills/personal-handoff/SKILL.md b/plugins/personal/skills/personal-handoff/SKILL.md
+index 71d522e..651e513 100644
+--- a/plugins/personal/skills/personal-handoff/SKILL.md
++++ b/plugins/personal/skills/personal-handoff/SKILL.md
+@@ -57,7 +57,7 @@ them with the work, and push. Commit and push before every turn that waits
+ for Gary; that turn may be the last one the container runs. Remove or
+ promote them before the branch merges.
+ The rules are in core.md under "Runner scratch rides the branch" and
+-"Runners save before they stop".
++"Save before you wait".
+ 
+ ## Contents
+ 
+diff --git a/plugins/personal/skills/personal-new-project/SKILL.md b/plugins/personal/skills/personal-new-project/SKILL.md
+index d0d6886..b1911c7 100644
+--- a/plugins/personal/skills/personal-new-project/SKILL.md
++++ b/plugins/personal/skills/personal-new-project/SKILL.md
+@@ -112,4 +112,5 @@ Don't copy a stack snapshot from an older sibling project. Re-run step 3
+ for every new repo.
+ 
+ Follow the core working agreements throughout: pause after each step,
+-and commit only when asked (or on a runner, per `core.md`).
++and commit per `core.md`: freely on a task branch, only when asked on
++`main`, which is where a brand-new repo starts.
+diff --git a/plugins/personal/skills/personal-plan-model-tiers/SKILL.md b/plugins/personal/skills/personal-plan-model-tiers/SKILL.md
+index bb8f59b..fe2853b 100644
+--- a/plugins/personal/skills/personal-plan-model-tiers/SKILL.md
++++ b/plugins/personal/skills/personal-plan-model-tiers/SKILL.md
+@@ -242,6 +242,9 @@ In whichever chat executes a group, **before halting at the STOP marker**:
+ 3. Update the `Status:` line in the Kickoff block: increment the done
+    count, set `current:` to the next group's identifier, and refresh
+    the date.
++4. On a task branch, commit and push (core.md "Save before you wait"). The
++   STOP question is then only about the next wave; on a shared branch,
++   offer the commit as its own choice (standards §"STOP gate semantics").
+ 
+ **Review beat (separate chat).** After a wave finishes, the human runs
+ the REVIEW marker for that wave before starting the next wave. When
+@@ -333,8 +336,10 @@ delegating to a subagent on the cheaper model from the picker rather than
+ burning the deep context on mechanical work. Pass: the spec section, the
+ exact files to touch, acceptance criteria, and a hard scope limit naming
+ the exact steps to implement and instructing the subagent to stop and report
+-back after completing them. The deep parent reviews the
+-subagent output before moving to the next STOP marker. See the standards
++back after completing them. Spell out the git instruction too: on a task
++branch, commit each finished step and don't push or switch branches; on a
++shared branch, don't commit. The deep parent reviews the
++subagent output, then pushes, before moving to the next STOP marker. See the standards
+ section "Delegating execution to subagents" for the full guidance.
+ 
+ ## See also
+diff --git a/plugins/personal/skills/personal-plan-orchestrate/SKILL.md b/plugins/personal/skills/personal-plan-orchestrate/SKILL.md
+index 8b0288d..db2f7e8 100644
+--- a/plugins/personal/skills/personal-plan-orchestrate/SKILL.md
++++ b/plugins/personal/skills/personal-plan-orchestrate/SKILL.md
+@@ -297,6 +297,14 @@ waiver); if no explicit affirmative answer is received, re-post the exact
+ gate question, write `BLOCKED at gate <N>` into the Kickoff `Status:`
+ line, and end the turn. Never dispatch subagents while blocked.
+ 
++**Gate questions are about the plan.** On a task branch, every wave is
++committed (by its subagents) and pushed (by the parent) before any gate
++asks, so a gate never asks for commit or push permission; it names the
++wave's commit range so the user can review it. On a shared branch,
++nothing is committed: a gate that wants the wave committed offers that as
++its own choice in the same question. See standards §"STOP gate semantics
++(fail closed)".
++
+ 1. **Subagent error or self-reported low-quality output** — surface to the
+    user; decide retry on same model, step up one tier, or re-plan.
+ 2. **`[exec] -> [deep]` or `[exec] -> [xdeep]` boundary** — review gate. STOP so the user can
+@@ -334,7 +342,7 @@ the one-subagent-per-working-dir rule).
+ 
+ ## Subagent context contract
+ 
+-Every `Task` prompt the orchestrator dispatches **must** include all seven of
++Every `Task` prompt the orchestrator dispatches **must** include all eight of
+ these. The contract applies equally to `[deep]` and `[xdeep]` subagents — opus subagents
+ dispatched at `[deep] -> [deep]`, `[exec] -> [deep]`, or `[fast] -> [deep]`
+ boundaries are doing architecture work, so quote the spec excerpt verbatim
+@@ -370,6 +378,12 @@ parent is.
+    model's rates from the same standards section. Cursor Task subagent
+    transcripts expose no usage, so the heuristic normally applies here —
+    label the line `(heuristic)` and treat it as ±40%.
++8. **Git instruction** — on a task branch: "Commit each finished step on
++   the current branch as `m{N}.s{K} <imperative subject>`, staging only
++   the paths you changed. Do not push, create, or switch branches." On a
++   shared branch: "Do not commit, push, or switch branches." Spell it out
++   every time: a subagent may not have core.md (Claude Code subagents
++   don't get SessionStart output, which is how runners load it).
+ 
+ ## Token tally
+ 
+@@ -425,7 +439,12 @@ authoritative usage data.
+ 1. **Identify the plan** using the same priority order as the sibling
+    skill (named path → most recent `plan-*.md` in `.scratch/` or
+    `specs/handoffs/` → in-conversation plan). Remember the resolved path.
+-2. **Run the harness gate** above. STOP and ask if not Cursor.
++2. **Run the harness gate** above. STOP and ask if not Cursor. Then
++   **check the branch** (standards `git.md` §"Task branches and shared
++   branches"). On a shared branch, a runner cuts a task branch; on a
++   workstation, propose one before the first dispatch and wait (core.md
++   "Cut a task branch off a shared branch"). Without a yes, orchestrate on
++   the shared branch with nothing committed.
+ 3. **Tag the plan, group into waves, and write wave markers.** If the plan
+    is not already tagged, run
+    [`personal-plan-tag-tiers`](../personal-plan-tag-tiers/SKILL.md) to tag
+@@ -579,8 +598,8 @@ authoritative usage data.
+       returned subagent summary against the plan spec (read artifacts when
+       needed). Append one line to `## Review log` in the plan file (create
+       the section if absent) using the grammar from standards §"Review log":
+-      `review wave-N (<group-id>): PASS|CONCERNS - <one-line note> -
+-      <YYYY-MM-DD>`. This is orchestrate's **log-only** participation in
++      `review wave-N (<group-id>) <from>..<to>: PASS|CONCERNS - <one-line
++      note> - <YYYY-MM-DD>`. This is orchestrate's **log-only** participation in
+       the [review beat](../personal-standards/standards/plan-execution.md) —
+       it adds **no new human STOP gate** (gates 1–7 unchanged). Review
+       tokens count toward the orchestrator-parent row in the token tally,
+@@ -590,6 +609,10 @@ authoritative usage data.
+       high-effort parent would cap the review at `[deep]`. The parent
+       writes that subagent's verdict to the Review log and gives its tokens
+       their own `review-wave-N` row.
++    - **Push (task branch).** After the review, whatever the verdict,
++      commit the plan file if it's tracked (on a runner, in
++      `specs/handoffs/`) and push. A `CONCERNS` verdict adds a fix-up
++      wave on top; it never resets pushed commits.
+ 13. **Handle errors / low-quality output** — STOP (gate 1) and offer
+     retry / step-up / re-plan. Fail-closed: if no explicit answer is
+     received, re-post the error gate question, write `BLOCKED at gate 1`
+@@ -617,7 +640,8 @@ authoritative usage data.
+   produces diffs in its own context. If you find yourself doing plan
+   work directly, dispatch a `Task` subagent for the current group
+   instead. The orchestrator's job is tagging, dispatching, reviewing
+-  summaries, and advancing — nothing else.
++  summaries, and advancing — nothing else. Committing the plan file and
++  pushing the task branch are bookkeeping, not plan work.
+ - Auto-executing `Task` calls without user approval at the gates above.
+ - Re-enabling this skill on Claude Code. Flip the harness gate once
+   [anthropics/claude-code#43869](https://github.com/anthropics/claude-code/issues/43869)
+diff --git a/plugins/personal/skills/personal-standards/SKILL.md b/plugins/personal/skills/personal-standards/SKILL.md
+index f6ebde8..269c24e 100644
+--- a/plugins/personal/skills/personal-standards/SKILL.md
++++ b/plugins/personal/skills/personal-standards/SKILL.md
+@@ -2,8 +2,9 @@
+ name: personal-standards
+ description: >-
+   Gary Rudolph's personal engineering standards: core working agreements
+-  (never commit or push unless asked, except on a cloud or self-hosted
+-  runner; stay on the current branch; pause after each step), plus code
++  (commit and push freely on a task branch, only when asked on main or
++  another shared branch; stay on the current branch; pause after each
++  step), plus code
+   style, architecture, testing, documentation, git, versioning, security,
+   secrets, Makefile, and plan-execution standards, with Python, Swift,
+   Kotlin, and Go specifics. Use whenever writing, reviewing, refactoring,
+diff --git a/plugins/personal/skills/personal-standards/core.md b/plugins/personal/skills/personal-standards/core.md
+index 197e073..1cb53fc 100644
+--- a/plugins/personal/skills/personal-standards/core.md
++++ b/plugins/personal/skills/personal-standards/core.md
+@@ -32,7 +32,7 @@ A project or organization rule can override a personal preference if there's a d
+ 
+ ## Git Conventions
+ 
+-- **Branching**: GitHub Flow — `feature/name`, `fix/name`, `release/vN` or `release/vN.M` (release lines for hotfixes); agents default to the current branch (see `~/Projects/personal/public/standards/git.md` "AI Agent Behavior")
++- **Branching**: GitHub Flow — `feature/name`, `fix/name`, `release/vN` or `release/vN.M` (release lines for hotfixes); agents commit and push freely only on a task branch and otherwise stay on the current branch (see `~/Projects/personal/public/standards/git.md` "AI Agent Behavior")
+ - **Versioning**: artifacts use SemVer tags `vMAJOR.MINOR.PATCH`, bumped only at release time (`version.txt` holds the last release; no pre-release suffixes; dev builds are `<release>+<sha>`); contracts (API paths, wire and file formats) use integer majors `v1`, `v2`, with `v2.1` only for hotfixes. See `~/Projects/personal/public/standards/versioning.md`, or the `personal-release` skill
+ - **Commits**: imperative mood, optional ticket prefix, 72-char subject, no period
+   - `add login endpoint` or `PROJ-123 add login endpoint`
+@@ -40,16 +40,18 @@ A project or organization rule can override a personal preference if there's a d
+ 
+ ## Workflow
+ 
+-- **Never commit unless asked** — do not create commits unless I explicitly ask you to; this applies even during multi-step plans. The one exception is a runner session (next rule)
+-- **Never push unless asked** — no `git push` or other remote-writing git command unless I explicitly ask, and never from a subagent that wasn't told to. Same exception: a runner session. Never force-push `main`; cut feature branches with `--no-track` so they don't inherit `main` as upstream
+-- **Runner sessions commit and push their branch** — when the session runs on a cloud runner (Claude Code on the web, or another vendor's cloud agents) or a self-hosted runner, commit each finished step and push it to the current branch without asking. The container is ephemeral and nobody is there to say "commit", so the pushed branch is the only record of the work. Signs you're on a runner: the harness says the session is remote or assigns a branch to push, or `CLAUDE_CODE_REMOTE=true`. Everything else still holds: atomic commits in the usual format, never force-push `main` (`--force-with-lease` on your own branch is fine). The runner sets its own committer identity, so the email check below doesn't block there. The three rules that follow cover branching, stopping, and scratch on a runner; `~/Projects/personal/public/standards/git.md` "AI Agent Behavior" has the same rules
+-- **Runners branch off `main`** — a runner that finds `main`, another shared branch, or a detached HEAD checked out cuts a branch from the checked-out commit before its first change. If the harness assigned a branch, that's the branch and nothing is a guess. Otherwise guess: `fix/<slug>` for a bug, else `feature/<slug>` (`feature/m{N}-<slug>` for milestone work), where `<slug>` is the kebab-case topic the handoff would use, two to four words naming the object of the work; if `git ls-remote --heads origin <branch>` shows the name taken, append the handoff `{word}`. `git switch -c <branch> --no-track` (no start point, so uncommitted edits and a detached HEAD's base come along), then `git push -u origin <branch>`. Say in the first report and in the handoff that the name was a guess. Never push `main`, even if the branch push is refused. This is the one carve-out from "Stay on the current branch", and it never applies on a workstation
+-- **Runners save before they stop** — before ending any turn that waits for me (a question, a STOP gate, a blocker, done, running low on context), in this order: update the plan's `(done)` markers and `Status:` line; write or refresh the handoff with the pending question verbatim, the branch, and how to resume; commit everything in the tree, a half-finished step included, with an honest subject (`m2.s3 wire results view (partial, see handoff)`); push; only then ask. The turn that asks may be the container's last. Gates still block and a non-answer is still not approval; the push just makes the stall harmless. A permission prompt waits for me too, mid-turn, and the harness parks it until I answer: before a tool call likely to trip one, commit what's done and push first
+-- **Runner scratch rides the branch** — `.scratch/` dies with the container, so on a runner ask of each file in it: could the next session rebuild this from the pushed branch plus the original ask? Script output can; judgment can't. The plan, the session handoff, and any draft or research I asked for can't, so write those to `specs/handoffs/` instead, under their usual names (`plan-{topic}-{word}.md`, `handoff-{topic}-{word}.md`, a draft under its own kebab-case name; create the folder if needed) and commit them with the step that changed them, as ordinary tracked files: no `git add -f`, no second scratch directory. Orchestrate outputs, spikes, and anything a command regenerates may die; a conclusion the tree lacks goes into the handoff as prose. Before the PR merges, remove those files or promote what's durable to `specs/` or a milestone handoff, as the last commit on the branch; that turn skips the handoff step in "Runners save before they stop", and the report and the PR say what's pending. If that's forgotten, plain markdown lands on `main` and one `git rm` fixes it
+-- **Stay on the current branch** — never auto-create or switch branches; default to the current branch (or `main`). The one exception is a runner that starts on `main` (above). Worktrees only when I ask. If you think the branch should change, propose it and wait for explicit confirmation (skipping is not confirmation). See `~/Projects/personal/public/standards/git.md` "AI Agent Behavior"
+-- **Verify git email** — before any commit, run `git config user.email` and confirm it matches the expected email for this repo's organization; flag a mismatch and wait for me to fix it. On a runner the harness sets the identity; accept it rather than block
+-- **Pause after each step** — stop and show me what changed before moving on
+-- **Wait for approval** — do not proceed to the next step until I confirm. A one-time "yes / continue / go ahead" approves only the single step or question it answers; it is NEVER a blanket approval for subsequent steps or future decisions — ask again at the next decision point. A missing, timed-out, dismissed, skipped, or ambiguous response is never approval (fail closed): hold and re-ask rather than assume. Skipping or dismissing a prompt is never a yes. If you want me to run multiple steps unattended, say so explicitly (e.g. "run unattended" / "auto-approve the next N steps"). For tagged-plan execution, the per-gate mechanics live in `~/Projects/personal/public/standards/plan-execution.md` §"Model-tier stop points" -> "STOP gate semantics".
++- **Task branches and shared branches** — a shared branch is `main`, the remote's default branch, `release/*`, a branch GitHub won't let change without a PR, a branch an open PR targets, or a branch with someone else's open PR. Any other branch is a task branch: one you cut, one the harness assigned, or one I named for the work. A detached HEAD is neither. `~/Projects/personal/public/standards/git.md` "Task branches and shared branches" has the checks
++- **On a shared branch, commit and push only when asked** — no commits unless I explicitly ask, even during multi-step plans; no `git push` or other remote-writing git command unless I ask. Never force-push a shared branch, and never push `main` on your own, not even when a branch push is refused
++- **On a task branch, commit and push without asking** — commit each finished step, atomic and in the usual format, and push at least before any turn or permission prompt that waits for me. Stage only what you changed (`git add <paths>`): on a workstation my own edits may share the tree, and a file that mixes yours and mine stays uncommitted until I say. A rejected push means the remote moved: rebase onto it, never force over it, and ask on a conflict. Rewrite only your own commits, with `--force-with-lease --force-if-includes`. Opening or merging a PR, pushing a tag, and deleting a remote branch still wait for me, and a project or skill that asks before a push wins
++- **Subagents commit only when told, and never push** — a subagent commits only when its prompt says to, never pushes, and never cuts or switches branches; the parent reviews and pushes. A subagent may not see these rules (Claude Code subagents don't get SessionStart output, which is how runners load them), so the dispatch prompt spells out the git instructions
++- **Runners** — a runner is a cloud session (Claude Code on the web, or another vendor's cloud agents) or a self-hosted runner. Signs: the harness says the session is remote or assigns a branch to push, or `CLAUDE_CODE_REMOTE=true`. Its VM can be reclaimed while the session idles, and a resumed session starts from a fresh clone, so unpushed work is gone: on a runner, push after every commit. The runner sets its own committer identity; accept it
++- **Cut a task branch off a shared branch** — when `main`, another shared branch, or a detached HEAD is checked out, the work goes on a task branch cut from the checked-out commit. A runner cuts it before its first change, without asking. A workstation keeps working and proposes the name at its first pause, with that pause's question; `git switch -c` carries uncommitted edits along, so waiting loses nothing. Without a yes, stay where you are and commit nothing. If the harness assigned a branch, that's the branch and nothing is a guess. Otherwise guess: `fix/<slug>` for a bug, else `feature/<slug>` (`feature/m{N}-<slug>` for milestone work), where `<slug>` is the kebab-case topic the handoff would use, two to four words naming the object of the work; if `git ls-remote --heads origin <branch>` shows the name taken, append the handoff `{word}`. `git switch -c <branch> --no-track` (no start point, so uncommitted edits and a detached HEAD's base come along), then `git push -u origin <branch>`. A runner says in its first report and in the handoff that the name was a guess. This is the one carve-out from "Stay on the current branch"
++- **Save before you wait** — on a task branch, before ending any turn that waits for me (a question, a STOP gate, a blocker, done, running low on context), in this order: update the plan's `(done)` markers and `Status:` line; commit; push; only then ask. A runner also writes or refreshes the handoff first, with the pending question verbatim, the branch, and how to resume, and commits everything in the tree, a half-finished step included, with an honest subject (`m2.s3 wire results view (partial, see handoff)`): the turn that asks may be the container's last. On a workstation a half-finished step can stay uncommitted. Gates still block and a non-answer is still not approval; the push just makes the stall harmless. A permission prompt waits for me too, mid-turn: before a tool call likely to trip one, commit what's done and push first
++- **Runner scratch rides the branch** — `.scratch/` dies with the container, so on a runner ask of each file in it: could the next session rebuild this from the pushed branch plus the original ask? Script output can; judgment can't. The plan, the session handoff, and any draft or research I asked for can't, so write those to `specs/handoffs/` instead, under their usual names (`plan-{topic}-{word}.md`, `handoff-{topic}-{word}.md`, a draft under its own kebab-case name; create the folder if needed) and commit them with the step that changed them, as ordinary tracked files: no `git add -f`, no second scratch directory. Orchestrate outputs, spikes, and anything a command regenerates may die; a conclusion the tree lacks goes into the handoff as prose. Before the PR merges, remove those files or promote what's durable to `specs/` or a milestone handoff, as the last commit on the branch; that turn skips the handoff step in "Save before you wait", and the report and the PR say what's pending. If that's forgotten, plain markdown lands on `main` and one `git rm` fixes it
++- **Stay on the current branch** — never switch branches or create a worktree on your own; the one branch you may cut is a task branch off a shared branch (above). A branch or worktree the harness started the session in is the current branch. Worktrees only when I ask. If you think the branch should change, propose it and wait for explicit confirmation (skipping is not confirmation). Cut every branch with `--no-track`, so it doesn't inherit `main` as upstream. See `~/Projects/personal/public/standards/git.md` "AI Agent Behavior"
++- **Verify git email** — before the first commit of a session, run `git config user.email` and confirm it matches the expected email for this repo's organization; on a mismatch, flag it and commit nothing until I fix it. On a runner the harness sets the identity; accept it rather than block
++- **Pause after each step** — stop and show me what changed before moving on; on a task branch, that's the step's commit
++- **Wait for approval** — do not proceed to the next step until I confirm. Approval is for the next step, not for git: on a task branch the finished step is already committed and pushed when you ask, and on a shared branch a yes covers a commit or push only when the question named it. A one-time "yes / continue / go ahead" approves only the single step or question it answers; it is NEVER a blanket approval for subsequent steps or future decisions — ask again at the next decision point. A missing, timed-out, dismissed, skipped, or ambiguous response is never approval (fail closed): hold and re-ask rather than assume. Skipping or dismissing a prompt is never a yes. If you want me to run multiple steps unattended, say so explicitly (e.g. "run unattended" / "auto-approve the next N steps"). For tagged-plan execution, the per-gate mechanics live in `~/Projects/personal/public/standards/plan-execution.md` §"Model-tier stop points" -> "STOP gate semantics".
+ - **Wait for answers** — if you ask a question, always wait for a response before proceeding; never assume an answer and continue
+ - **Always use virtual environments** — when installing Python packages, use the project's existing venv (or create one with `python -m venv .venv`) from the start; never install with global or user-level pip
+ - **Use project-local package management** — for Node, prefer `npx` over `npm install -g`; for Ruby, use `bundle exec` and never bare `gem install`
+diff --git a/plugins/personal/skills/personal-standards/standards/git.md b/plugins/personal/skills/personal-standards/standards/git.md
+index e28a98f..4cdd29a 100644
+--- a/plugins/personal/skills/personal-standards/standards/git.md
++++ b/plugins/personal/skills/personal-standards/standards/git.md
+@@ -9,7 +9,7 @@ We follow **GitHub Flow** — short-lived feature branches merged frequently to
+ - **Bugfix**: `fix/issue-description` or `fix/TICKET-123-description`
+ - **Release**: `release/v2` (a major line: `2.*` patches and minors) or `release/v2.4` (a minor line: `2.4.*` patches only). For hotfixes to a released line; ideally not needed. See [versioning.md](versioning.md#hotfix-flow)
+ 
+-These naming conventions apply when a branch is intentionally created (by me or on request) — they are not license for an agent to auto-branch. The one exception is a runner that starts on `main` (see [AI Agent Behavior](#ai-agent-behavior)).
++These naming conventions apply when a branch is intentionally created (by me or on request) — they are not license for an agent to auto-branch. The one exception is a task branch cut off a shared branch (see [AI Agent Behavior](#ai-agent-behavior)).
+ 
+ ## Worktrees
+ 
+@@ -42,18 +42,34 @@ See **[versioning.md](versioning.md)** for the full standard, including BNF gram
+ 
+ ## AI Agent Behavior
+ 
+-- **Do not auto-commit** — only commit when explicitly asked, except on a runner (below)
+-- **Do not auto-push** — only push when explicitly asked, never from a subagent that wasn't told to, except on a runner (below)
+-- **Runners commit and push their branch** — a session on a cloud runner (Claude Code on the web, or another vendor's cloud agents) or a self-hosted runner commits each finished step and pushes it to the current branch, without asking. The container is ephemeral and no one is watching to say "commit", so the pushed branch is the deliverable. Signs of a runner: the harness says the session is remote or assigns a branch to push, or `CLAUDE_CODE_REMOTE=true`. The other rules here still apply: atomic commits in the usual format, and the force-push rule below. The runner sets its own committer identity; accept it
+-- **Runners branch off `main`** — a runner that finds `main`, another shared branch, or a detached HEAD checked out cuts a branch from the checked-out commit before its first change. If the harness assigned a branch, that's the branch and nothing is a guess. Otherwise guess: `fix/<slug>` for a bug, else `feature/<slug>` (`feature/m{N}-<slug>` for milestone work), where `<slug>` is the kebab-case topic the handoff would use, two to four words naming the object of the work, not the verb; if `git ls-remote --heads origin <branch>` shows it taken, append the handoff `{word}`. `git switch -c <branch> --no-track` (no start point, so uncommitted edits and a detached HEAD's base come along; the `origin/main` recipe below is for workstations), then `git push -u origin <branch>`. Say in the first report and in the handoff that the name was a guess. Never push `main`, even if the branch push is refused. This is the one carve-out from "Do not auto-branch" and "Propose branch changes, then wait", and it never applies on a workstation
+-- **Runners save before they stop** — before ending any turn that waits for a human (a question, a STOP gate, a blocker, done, running low on context), in this order: update the plan's `(done)` markers and `Status:` line; write or refresh the handoff with the pending question verbatim, the branch, and how to resume; commit everything in the tree, a half-finished step included, with an honest subject (`m2.s3 wire results view (partial, see handoff)`); push; only then ask. The asking turn may be the container's last. Gate semantics don't change; the push makes the stall harmless. A permission prompt waits for a human too, mid-turn, and the harness parks it until someone answers: before a tool call likely to trip one, commit what's done and push first
+-- **Runner scratch rides the branch** — `.scratch/` dies with the container, so on a runner ask of each file in it: could the next session rebuild this from the pushed branch plus the original ask? Script output can; judgment can't. The plan, the session handoff, and any draft or research that was asked for can't, so they go to `specs/handoffs/` under their usual names (`plan-{topic}-{word}.md`, `handoff-{topic}-{word}.md`, a draft under its own kebab-case name; create the folder if needed), committed with the step that changed them, as ordinary tracked files: no `git add -f`, no second scratch directory. Orchestrate outputs, spikes, and anything a command regenerates may die; a conclusion the tree lacks goes into the handoff as prose. Remove or promote them before merge (see [Merging](#merging) under Pull Requests); that turn skips the handoff step in "Runners save before they stop", and the report and the PR say what's pending
+-- **Never force-push `main`** (or any shared branch); on your own branch prefer `--force-with-lease`
++### Task branches and shared branches
++
++An agent commits and pushes freely on a task branch, and only when asked on a shared branch. A branch is **shared** if any row below is true; every other branch is a **task branch**. A detached HEAD is neither: cut a branch first.
++
++| Shared if | Check |
++|---|---|
++| It's `main` or the remote's default branch | `git ls-remote --symref origin HEAD` |
++| It's a release line | the name matches `release/*` |
++| GitHub requires a PR to change it | `gh api repos/{owner}/{repo}/rules/branches/{branch} --jq '.[].type'` lists `pull_request`, or `gh api repos/{owner}/{repo}/branches/{branch} --jq .protected` is `true` |
++| An open PR targets it | `gh api "repos/{owner}/{repo}/pulls?base={branch}&state=open" --jq length` isn't `0` |
++| Someone else's open PR comes from it | an author in `gh api "repos/{owner}/{repo}/pulls?head={owner}:{branch}&state=open" --jq '.[].user.login'` isn't `gh api user --jq .login` |
++
++A branch the harness assigned (a Claude Code cloud session's `claude/…`, another cloud agent's own branch, a `claude --worktree` session's `worktree-<name>`) or that I named for the work is a task branch without the checks; a ruleset that only restricts who may push `claude/**` doesn't make it shared. Use `gh api` (REST): `gh pr view` and `gh pr list` go through GraphQL, which Claude Code's cloud proxy refuses. If the GitHub rows can't be answered, the branch counts as a task branch only if you cut it this session.
++
++### Rules
++
++- **Shared branch: commit and push only when asked** — commit only when explicitly asked, during multi-step plans too; push only when asked. Never force-push a shared branch. Never push `main` on your own, not even when a branch push is refused
++- **Task branch: commit and push without asking** — commit each finished step and push at least before any turn or permission prompt that waits for a human; a runner pushes after every commit. Stage the paths you changed, not `git add -A`: on a workstation the tree may hold someone else's edits, and a file that mixes theirs and yours stays uncommitted until they say. A rejected push means the remote moved: rebase onto it (`git pull --rebase`), never force over it, and stop and ask on a conflict. Rewrite only your own commits, and only with `git push --force-with-lease --force-if-includes`: a bare `--force-with-lease` is defeated by background fetches, which editors run. Opening or merging a PR, pushing a tag, and deleting a remote branch still need an ask, and a project or skill rule that asks before a push wins
++- **Subagents commit only when told, and never push** — a subagent commits only when its prompt says to, never pushes, and never creates or switches branches. The parent reviews and pushes. Claude Code subagents load CLAUDE.md files but not SessionStart hook output, so on a runner a subagent never sees these rules; the dispatch prompt spells out the git instructions
++- **Runners** — a session on a cloud runner (Claude Code on the web, or another vendor's cloud agents) or a self-hosted runner. Signs: the harness says the session is remote or assigns a branch to push, or `CLAUDE_CODE_REMOTE=true`. The VM can be reclaimed while the session idles, and a resumed session clones again, so unpushed work is gone and the pushed branch is the deliverable. The runner sets its own committer identity; accept it
++- **Cut a task branch off a shared branch** — when `main`, another shared branch, or a detached HEAD is checked out, the work goes on a task branch cut from the checked-out commit. A runner cuts it before its first change, without asking. A workstation keeps working and proposes the name at its first pause, with that pause's question; `git switch -c` carries uncommitted edits along, so waiting loses nothing. Without a yes, stay put and commit nothing. If the harness assigned a branch, that's the branch and nothing is a guess. Otherwise guess: `fix/<slug>` for a bug, else `feature/<slug>` (`feature/m{N}-<slug>` for milestone work), where `<slug>` is the kebab-case topic the handoff would use, two to four words naming the object of the work, not the verb; if `git ls-remote --heads origin <branch>` shows it taken, append the handoff `{word}`. `git switch -c <branch> --no-track` (no start point, so uncommitted edits and a detached HEAD's base come along; the `origin/main` recipe below is for a fresh branch off `main`), then `git push -u origin <branch>`. A runner says in its first report and in the handoff that the name was a guess. This is the one carve-out from "Do not auto-branch" and "Propose branch changes, then wait"
++- **Save before you wait** — on a task branch, before ending any turn that waits for a human (a question, a STOP gate, a blocker, done, running low on context), in this order: update the plan's `(done)` markers and `Status:` line; commit; push; only then ask. A runner first writes or refreshes the handoff with the pending question verbatim, the branch, and how to resume, and commits everything in the tree, a half-finished step included, with an honest subject (`m2.s3 wire results view (partial, see handoff)`); the asking turn may be the container's last. On a workstation a half-finished step can stay uncommitted. Gate semantics don't change; the push makes the stall harmless. A permission prompt waits for a human too, mid-turn: before a tool call likely to trip one, commit what's done and push first
++- **Runner scratch rides the branch** — `.scratch/` dies with the container, so on a runner ask of each file in it: could the next session rebuild this from the pushed branch plus the original ask? Script output can; judgment can't. The plan, the session handoff, and any draft or research that was asked for can't, so they go to `specs/handoffs/` under their usual names (`plan-{topic}-{word}.md`, `handoff-{topic}-{word}.md`, a draft under its own kebab-case name; create the folder if needed), committed with the step that changed them, as ordinary tracked files: no `git add -f`, no second scratch directory. Orchestrate outputs, spikes, and anything a command regenerates may die; a conclusion the tree lacks goes into the handoff as prose. Remove or promote them before merge (see [Merging](#merging) under Pull Requests); that turn skips the handoff step in "Save before you wait", and the report and the PR say what's pending
+ - **Cut feature branches with `--no-track`** (`git switch -c feature/<name> origin/main --no-track`) so they don't track `main` and a bare `git push` can't land there; first push with `git push -u origin feature/<name>`
+ - **No co-authored-by** — do not add `Co-Authored-By` trailers for AI agents
+-- **Do not auto-branch** — never create or switch branches on your own. Default to the branch already checked out; if none was specified, that means `main`. Multi-agent work on one repo especially must not silently move branches. The one exception is a runner that starts on `main` (above).
+-- **Worktrees only when asked** — create a worktree only on explicit request (see [Worktrees](#worktrees) for layout/naming). Do not spin one up proactively.
+-- **Propose branch changes, then wait** — if you believe a new branch, branch switch, or worktree is warranted, propose it and wait for explicit confirmation before acting. Silence, a dismissed/skipped prompt, or an ambiguous reply is not confirmation (fail closed). On a runner the only branch you may cut without asking is the one "Runners branch off `main`" describes.
++- **Do not auto-branch** — never create or switch branches on your own. Default to the branch already checked out. Multi-agent work on one repo especially must not silently move branches. The one exception is a runner cutting a task branch off a shared branch (above); on a workstation that cut is proposed first. A branch or worktree the harness started the session in is the branch already checked out.
++- **Worktrees only when asked** — create a worktree only on explicit request (see [Worktrees](#worktrees) for layout/naming). Do not spin one up proactively. A session the harness started in a worktree (`claude --worktree`, a Cursor or Codex worktree agent) was asked for.
++- **Propose branch changes, then wait** — if you believe a new branch, branch switch, or worktree is warranted, propose it and wait for explicit confirmation before acting. Silence, a dismissed/skipped prompt, or an ambiguous reply is not confirmation (fail closed). The only branch you may cut without asking is a runner's task branch off a shared branch.
+ 
+ ## Commit Messages
+ 
+diff --git a/plugins/personal/skills/personal-standards/standards/plan-execution.md b/plugins/personal/skills/personal-standards/standards/plan-execution.md
+index 6df9f5b..e06f45a 100644
+--- a/plugins/personal/skills/personal-standards/standards/plan-execution.md
++++ b/plugins/personal/skills/personal-standards/standards/plan-execution.md
+@@ -382,12 +382,15 @@ Template:
+       Prompt to paste into the next chat:
+         Review wave <n> of <t> [deep] <just-finished group>
+         Read <absolute path to the plan file>. Review the work completed in
+-        wave <n> (<group-id>) against its spec: read the diff in git status /
+-        diff and check it against the plan steps and any acceptance criteria.
+-        This is READ-ONLY -- do not fix anything yourself and do not start
+-        the next wave. Append one line to the "## Review log" section of the
+-        plan file (create the section if absent):
+-          review wave-<n> (<group-id>): PASS|CONCERNS - <one-line note> - <YYYY-MM-DD>
++        wave <n> (<group-id>) against its spec: read `git diff <from>` and
++        `git status`, where <from> is the commit after `..` on the last
++        Review log line (for the first review, `git merge-base HEAD
++        origin/<default branch>`), and check it against the plan steps and
++        any acceptance criteria. This is READ-ONLY -- do not fix anything
++        yourself and do not start the next wave. Append one line to the
++        "## Review log" section of the plan file (create the section if
++        absent), with <to> from `git rev-parse --short HEAD`:
++          review wave-<n> (<group-id>) <from>..<to>: PASS|CONCERNS - <one-line note> - <YYYY-MM-DD>
+         If the verdict is CONCERNS, also set the Kickoff Status line to
+         `BLOCKED at gate review-wave-<n>`, re-post the concern, and stop.
+         On PASS, update the Status line `last review:` field and report back.
+@@ -408,12 +411,14 @@ The **Review log** is a durable `## Review log` section at the bottom of the pla
+ 
+ One line per reviewed wave:
+ 
+-    review wave-<n> (<group-id>): PASS|CONCERNS - <one-line note> - <YYYY-MM-DD>
++    review wave-<n> (<group-id>) <from>..<to>: PASS|CONCERNS - <one-line note> - <YYYY-MM-DD>
+ 
+ For example:
+ 
+-    review wave-1 (m1-s1-s5): PASS - standards wording is internally consistent - 2026-06-07
+-    review wave-2 (m2-s1-s2): CONCERNS - s2 skips the orchestrate log-only note - 2026-06-07
++    review wave-1 (m1-s1-s5) 3f2a9c1..8d0e4b7: PASS - standards wording is internally consistent - 2026-06-07
++    review wave-2 (m2-s1-s2) 8d0e4b7..c41f0a2: CONCERNS - s2 skips the orchestrate log-only note - 2026-06-07
++
++- `<from>..<to>` is the commit range the review read (`git diff <from>` also covers uncommitted work). The next review starts from this line's `<to>`. On a shared branch, where waves stay uncommitted, both ends are the same commit.
+ 
+ - `PASS` verdicts let the next wave proceed; `CONCERNS` is fail-closed (see [Review beat](#review-beat) above).
+ - The verdict also surfaces in the Kickoff `Status:` line `last review:` field (see [Updating the Status line](#updating-the-status-line)) so re-entry sees the latest result without scanning the log.
+@@ -524,7 +529,7 @@ Rules for filling in the template:
+ 
+ The two tracking surfaces — the in-harness todo list and the durable plan markdown file (both defined under [Progress tracking](#progress-tracking) below) — are kept in sync differently by each driver, because only one flow has a coordinator:
+ 
+-- `personal-plan-orchestrate` **has an orchestrator-parent**. After each wave's subagent returns, the parent applies the [Progress tracking](#progress-tracking) updates itself (mark ` (done)`, update the `Status:` line, flip todos). Subagents do mechanical work in their own working directory and never touch the plan file. This is handled by the skill procedure, so it does not need to ride in any prompt. The parent also **reviews every returned summary** as part of that step and writes the verdict to the [Review log](#review-log) (`review wave-N (<group-id>): PASS|CONCERNS - … - <date>`) — this is the orchestrate **log-only** participation in the [review beat](#review-beat) convention. It adds **no new human review gate**: orchestrate's existing gates (the `[exec]/[fast] -> [deep]` review gate and the milestone gate) are unchanged, and the every-wave review beat that the passive driver runs as a separate human-driven chat is, in orchestrate, just the parent's inline review plus the log write.
++- `personal-plan-orchestrate` **has an orchestrator-parent**. After each wave's subagent returns, the parent applies the [Progress tracking](#progress-tracking) updates itself (mark ` (done)`, update the `Status:` line, flip todos). Subagents do mechanical work in their own working directory and never touch the plan file; on a task branch they commit each finished step and the parent pushes after its review (subagents never push). This is handled by the skill procedure, so it does not need to ride in any prompt. The parent also **reviews every returned summary** as part of that step and writes the verdict to the [Review log](#review-log) (`review wave-N (<group-id>) <from>..<to>: PASS|CONCERNS - … - <date>`) — this is the orchestrate **log-only** participation in the [review beat](#review-beat) convention. It adds **no new human review gate**: orchestrate's existing gates (the `[exec]/[fast] -> [deep]` review gate and the milestone gate) are unchanged, and the every-wave review beat that the passive driver runs as a separate human-driven chat is, in orchestrate, just the parent's inline review plus the log write.
+ - `personal-plan-model-tiers` **has no orchestrator**. Each wave runs in its own pasted chat, and that chat usually does **not** re-load the driver skill — it just reads the plan, executes, and stops. So the progress-update instruction is **baked inline into every Kickoff/STOP prompt body** (see the templates above). The pasted prompt is the only place the convention can reach a fresh chat, which is why the reminder is spelled out in full there rather than referenced. Do **not** add a separate checklist block to the plan file to carry this — it is noise for the human and burns context; the inline prompt reminder is the mechanism.
+ 
+ ## Progress tracking
+@@ -603,7 +608,8 @@ When the last group finishes:
+          Status: 2/5 groups done | last review: wave-2 CONCERNS | BLOCKED at gate review-wave-2 | updated 2026-05-28
+ 
+      On re-entry, an agent that sees a `BLOCKED at gate` status re-posts that exact question and waits — it never assumes the gate was approved. A `BLOCKED at gate review-wave-N` means the wave-N review found a concern that a human must resolve (re-tag, add a fix-up wave, or waive) before the next wave starts.
+-- **On a runner, push before you wait.** The blocked-gate turn may be the container's last: update the `Status:` line, write the handoff, commit, push, then re-post the question (core.md "Runners save before they stop").
++- **The gate asks about the plan, not git.** On a task branch the finished wave is already committed and pushed when the gate asks, so the question is only the plan decision, and it names the commit range for review (`m2 s1-s3 is in 8d0e4b7..c41f0a2, pushed. Start wave 3 [deep] m3 s1?`). Never ask "approve, commit, push?" there. On a shared branch the wave stays uncommitted unless the question offers the commit as its own choice (`Commit wave 2 to main and start wave 3? yes / commit only / start only / neither`); any other reply is ambiguous: re-ask.
++- **On a task branch, push before you wait.** Update the `Status:` line, commit, push, then re-post the question; a runner writes the handoff first, since the blocked-gate turn may be the container's last (core.md "Save before you wait").
+ - Cross-references: [Progress tracking](#progress-tracking) (the Status line) and the AGENTS.md "Wait for approval" workflow rule.
+ 
+ ## Delegating execution to subagents
+@@ -613,5 +619,6 @@ When a `[deep]` agent finishes a deep step and the next step is `[exec]` or `[fa
+ - Use the harness's subagent/Task tool (Cursor `Task` with `subagent_type` and optional `model`; Claude Code `Task`; other harnesses use the equivalent).
+ - Pass the cheapest model that can plausibly complete the step (see the model picker in "Model-tier stop points" above). Step up only if the subagent fails or returns low-quality output.
+ - Give the subagent: the spec section, the exact files to touch, acceptance criteria, and a hard scope limit. Subagents do not see the parent conversation, so be explicit.
++- Give it the git instruction too. On a task branch: commit each finished step on the current branch (`m{N}.s{K} <imperative subject>`, only the paths it changed), and don't push, branch, or switch. On a shared branch: don't commit. A subagent may not have core.md (Claude Code subagents don't get SessionStart output, which is how runners load it), so spell it out. The parent pushes after reviewing.
+ - The deep parent stays responsible for reviewing the subagent's output and deciding the next stop point.
+ - If the harness does not support per-subagent model selection, stop at the boundary instead and let the user start a fresh session on a cheaper model using the STOP marker's handoff prompt.

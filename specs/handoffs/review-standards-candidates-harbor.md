@@ -44,9 +44,10 @@ All 2026-10-05.
 - **JSON keys are lowerCamel on the wire**, acronyms as words (`photoUrl`), whatever the server language. Python uses a shared base model with `alias_generator=to_camel` (plus `serialize_by_alias`, `validate_by_name`). See `research-json-key-casing.md`.
 - **Protobuf is a supported second payload format, with JSON/protobuf interop.** Enum values on the wire are unprefixed `UPPER_SNAKE` (`"ACTIVE"`), matching ProtoJSON value names. See `research-aep-and-enum-interop.md`.
 - **Lifecycle state is always an enum**, never a boolean, so future states can be added without breaking the contract.
-- **Custom headers are `{Namespace}-Header-Name`, never `X-`.** The namespace is usually the app name (`Nowline-Request-Id`). A standard header wins when one exists. Exact text pending the headers research.
+- **Custom headers are `{Product}-Name`, never `X-`** (RFC 9110 §16.3.2.1, RFC 6648 §3). The namespace is the product name (`Nowline-Request-Id`), and a standard header wins when one exists. Proposed text and renames are in `research-round-two.md` §5.
+- **Timestamps are `createdAt` / `updatedAt`**, with `<verb>At` for every instant, as an RFC 3339 UTC `Z` string. This is the industry norm (house convention). See `research-round-two.md` §2.
 - **Hidden resources are 404.** A caller who may not read a resource gets `404`; it isn't available to them, and existence doesn't leak. `403` only when the resource is visible but the action isn't allowed. Authorization runs before 412/409/422 checks.
-- **Soft delete.** `DELETED` is a `state` value; there's a single `updateTime` and no `deleteTime`. A deleted resource is `404` unless a more specific status applies; it's returned only with `showDeleted=true`. (410 doesn't apply while the resource can still be restored: RFC 9110 §15.5.11 says to use 404 when permanence isn't known.)
+- **Soft delete.** `DELETED` is a `state` value; there's a single `updatedAt` and no `deleteTime` (the `DELETED` revision's time is the delete time). A deleted resource is `404` unless a more specific status applies; it's returned only with `showDeleted=true`. (410 doesn't apply while the resource can still be restored: RFC 9110 §15.5.11 says to use 404 when permanence isn't known.)
 - **Ids are random (UUIDv4), never time-ordered.** Any node can mint them with negligible collision risk. Time ordering comes from explicit fields or business codes, not ids. architecture.md:71's "UUIDv7 when time ordering matters" goes.
 - **`/me` is a read-only lookup.** It identifies the caller's ids for that user context; all reads and writes then go through `/accounts/{id}`. Nothing nests under `/me`.
 - **Custom methods** use colon syntax for operations that aren't CRUD, with the Go ServeMux note.
@@ -55,7 +56,7 @@ All 2026-10-05.
 - **Firestore denormalization:** C4's ban is dropped.
 - **Build string:** a service publishes its own build on its health endpoint; third-party versions never.
 
-Pending research (run 2026-10-05): history and versioning pattern, `*At` vs `*Time` (go with the industry norm), admin bootstrap practice, branch-based commit/push policy for agents, and AI attribution mechanics (human author, `Assisted-by:`).
+Recommendations awaiting your OK, in `research-round-two.md`: resource history (head plus immutable revisions, §1), admin bootstrap (§3), AI attribution (§4), and the branch-based commit/push policy (§6, draft in `draft-branch-commit-policy.diff`).
 
 ## Incorporate (no decision needed)
 
