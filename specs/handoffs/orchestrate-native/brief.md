@@ -42,7 +42,7 @@ Gary, this page is the short form of `proposal.md` (v6, revised after review). S
 5. One wave per run, about $0.5-1 of parent cost a wave: keep? Keep; the gates and git checks need the plan updated between waves.
 7. One Opus reviewer per repo per wave, about 0.6x a medium step: keep? Keep; it replaces the parent's inline review.
 8. Port the kit to the Agerpoint bok? Yes, after phase 1 runs live; it is namespace-safe.
-9. Does a bare "yes" confirm unattended? No; keep requiring the word, as core.md's "say so explicitly" does.
+9. Does a bare "yes" confirm unattended? Yes, when it answers a kickoff question that says `Proposed mode: unattended`; you asked for "at least asks the user to confirm". It needs a one-line core.md "Wait for approval" change naming the kickoff answer as an explicit instruction. Until you decide, the kit re-asks.
 10. Scope breach, unattended: stop or fix up? Stop at gate 1; no fix-up can repair it.
 11. Nowhere to push (no repo, or no remote): allow gated only? Yes; unattended needs a remote.
 12. Unreviewed commits at a stop on a workstation: push them labeled `UNREVIEWED`? Yes, as on a runner, so a resume elsewhere sees them; `plan-execution.md` gains the exception.
