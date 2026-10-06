@@ -1,36 +1,32 @@
 #!/usr/bin/env python3
 """Deterministic git checks around one orchestrate dispatch unit.
 
-  check_wave.py snapshot DIR...                 before the launch: HEAD, dirty paths and a working-tree
-                                                tree object per working directory (a shared branch's `from`)
+  check_wave.py snapshot DIR...                 before the launch: HEAD and dirty paths per working directory
   check_wave.py check --snapshot S --run R      after it, from a Claude Code workflow run record
-  check_wave.py diff DIR TREE                   a shared-branch review: every change since TREE, untracked files included
   check_wave.py check --snapshot S --group J    after it, one JSON group per flag (any harness):
-      {"id","workdir","steps","from","git","trailers"}
+      {"id","workdir","steps","from","trailers"}
   check options:
       --plan P       the plan file (default: the run record's args.plan.path)
       --baseline B   for a fix-up: the snapshot taken before the wave it fixes, kept until the
                      streak ends, so a path that wave left behind is checked again
 
-check verifies, per group: `from` is an ancestor of HEAD; on a task branch every
-commit in from..HEAD has a first line `<step-id> <subject>` for one of the
-group's steps, a blank second line, no Co-authored-by or Signed-off-by line,
-and the required trailers in its last paragraph, and every step has a commit;
-on a shared branch nothing was committed; no new dirty paths on a task branch
-(new since the baseline too, when one is given); and every snapshotted
-directory without a group is unchanged. A commit that touches only the plan
-and its session handoff (handoff-{topic}-{word}.md beside plan-{topic}-{word}.md),
-under a subject that doesn't start with a step ID, is the parent's bookkeeping
+check verifies, per group (orchestrate runs only on a task branch): `from` is
+an ancestor of HEAD; every commit in from..HEAD has a first line
+`<step-id> <subject>` for one of the group's steps, a blank second line, no
+Co-authored-by or Signed-off-by line, and the required trailers in its last
+paragraph; every step has a commit; no new dirty paths (new since the
+baseline too, when one is given); and every snapshotted directory without a
+group is unchanged. A commit that touches only the plan and its session
+handoff (handoff-{topic}-{word}.md beside plan-{topic}-{word}.md), under a
+subject that doesn't start with a step ID, is the parent's bookkeeping
 commit: it is listed and skipped. Any other commit that touches either file
 fails. It prints JSON with each group's `to` (the reviewed HEAD) and exits 1 on
 any problem.
 """
 
 import json
-import os
 import re
 import subprocess
-import tempfile
 import sys
 from pathlib import Path
 
@@ -49,22 +45,11 @@ def dirty(d):
     return sorted(line[3:] for line in out.splitlines() if line)
 
 
-def worktree_tree(d):
-    """A tree object of the whole working tree (untracked included, ignored not), built in a
-    throwaway index so the real index, HEAD and files are untouched. A shared-branch review
-    diffs against it, so it sees only its own wave."""
-    with tempfile.NamedTemporaryFile(prefix="cw-index-") as idx:
-        env = {**os.environ, "GIT_INDEX_FILE": idx.name}
-        for a in (["read-tree", "HEAD"], ["add", "-A"], ["write-tree"]):
-            r = subprocess.run(["git", "-C", d, *a], capture_output=True, text=True, env=env, check=True)
-        return r.stdout.strip()
-
-
 def snapshot(dirs):
     snap, problems = {}, []
     for d in dirs:
         d = str(Path(d).resolve())
-        snap[d] = {"head": git(d, "rev-parse", "HEAD").stdout.strip(), "dirty": dirty(d), "tree": worktree_tree(d)}
+        snap[d] = {"head": git(d, "rev-parse", "HEAD").stdout.strip(), "dirty": dirty(d)}
         if git(d, "check-ignore", "-q", ".scratch/x", check=False).returncode:
             problems.append(f"{d}: .scratch/ is not gitignored, so worker artifacts would show as untracked")
         settings = Path(d, ".claude/settings.json")
@@ -88,10 +73,6 @@ def plan_files(d, plan):
 
 def check_group(g, base, plan=None, baseline=None):
     d, problems = g["workdir"], []
-    if g["git"] == "shared":
-        n = int(git(d, "rev-list", "--count", f"{base['head']}..HEAD").stdout.strip()) if base else 0
-        return {"id": g["id"], "workdir": d, "to": git(d, "rev-parse", "--short", "HEAD").stdout.strip(),
-                "problems": [f"{n} commit(s) on a shared branch, where the wave must stay uncommitted"] if n else []}
     if git(d, "merge-base", "--is-ancestor", g["from"], "HEAD", check=False).returncode:
         return {"id": g["id"], "workdir": d, "to": None, "problems": [f"from {g['from']} is not an ancestor of HEAD"]}
     to = git(d, "rev-parse", "--short", "HEAD").stdout.strip()
@@ -134,12 +115,8 @@ def check_group(g, base, plan=None, baseline=None):
 
 
 def main():
-    if len(sys.argv) < 2 or sys.argv[1] not in ("snapshot", "check", "diff"):
+    if len(sys.argv) < 2 or sys.argv[1] not in ("snapshot", "check"):
         sys.exit(__doc__)
-    if sys.argv[1] == "diff":
-        d, tree = sys.argv[2], sys.argv[3]
-        sys.stdout.write(subprocess.run(["git", "-C", d, "diff", tree, worktree_tree(d)], capture_output=True, text=True, check=True).stdout)
-        return
     if sys.argv[1] == "snapshot":
         out = snapshot(sys.argv[2:])
         print(json.dumps(out, indent=1))

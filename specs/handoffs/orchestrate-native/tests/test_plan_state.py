@@ -4,7 +4,7 @@
 import sys
 
 sys.path.insert(0, sys.argv[1])
-from plan_state import state  # noqa: E402
+from plan_state import kickoff_prompt, state  # noqa: E402
 
 KICK = """```
 --- KICKOFF: begin orchestration at [deep] ---
@@ -186,7 +186,7 @@ def a_plan_with_no_confirmed_mode_dispatches_nothing():
 def the_mode_line_keeps_the_words_verbatim():
     m = state(plan(marked(0), mode="  mode: unattended | proposed gated (no runner signal) | guard 3x | confirmed 2026-10-06 session ab-12: unattended | no stops, thanks"))["mode"]
     assert m == {"value": "unattended", "proposed": "gated", "signal": "no runner signal", "guard": 3.0, "guard_min": 50.0, "fixups": 2,
-                 "date": "2026-10-06", "session": "ab-12", "words": "unattended | no stops, thanks"}
+                 "date": "2026-10-06", "session": "ab-12", "via": "answer", "words": "unattended | no stops, thanks"}
     m = state(plan(marked(0), mode="  mode: gated | guard 2x | fixups 3 | confirmed 2026-10-06 session s1: gated, guard 9x, fixups 9"))["mode"]
     assert (m["guard"], m["fixups"]) == (2.0, 3)  # fields come only from before "confirmed"
 
@@ -414,6 +414,45 @@ def fix_up_labels_outside_the_grammar_are_gate_0():
     assert s["stops"][0] == "gate-0" and any("doesn't parse" in e for e in s["errors"]), s["errors"]
     s = state(plan(body.replace("2-fix1 [exec]", "2-fix10 [exec]")))
     assert s["errors"] == [] and s["next"]["label"] == "2-fix10", s["errors"]
+
+
+# ---- v6: the Kickoff prompt carries the confirmed mode ----
+
+def prompted(mode_line, prompt_mode):
+    """A Kickoff block with its prompt; prompt_mode None leaves the prompt's mode line out, as before the kickoff answer."""
+    lines = ["Read specs/handoffs/plan-x.md. The plan is already tagged.",
+             "On branch feature/x (task branch): subagents commit each finished step."]
+    lines += [f"Run in {prompt_mode} mode."] if prompt_mode else []
+    lines += ["Run the personal-plan-orchestrate skill from the top."]
+    return mode_line + "\n\n  Prompt to paste into the next chat:\n" + "".join(f"    {x}\n" for x in lines) + "\n---"
+
+
+BY_PROMPT = "  mode: unattended | proposed unattended (CLAUDE_CODE_REMOTE=true) | guard 2x | confirmed 2026-10-07 session b2 by Kickoff prompt: Run in unattended mode."
+
+
+@test
+def the_kickoff_prompt_carries_the_confirmed_mode():
+    s = state(plan(marked(0), mode=prompted(UNATTENDED, "unattended")))
+    assert s["errors"] == [] and s["prompt_mode"] == "unattended" and s["mode"]["via"] == "answer", s["errors"]
+    text = plan(marked(0), mode=prompted(BY_PROMPT, "unattended"))
+    s = state(text)
+    assert s["errors"] == [] and (s["mode"]["via"], s["mode"]["session"], s["mode"]["words"]) == ("prompt", "b2", "Run in unattended mode.")
+    assert kickoff_prompt(text).splitlines()[2] == "Run in unattended mode." and len(kickoff_prompt(text).splitlines()) == 4
+    pending = "  mode: pending | proposed unattended (CLAUDE_CODE_REMOTE=true) | guard 2x"
+    s = state(plan(marked(0), mode=prompted(pending, None)))
+    assert s["errors"] == [] and s["prompt_mode"] is None and s["stops"] == ["gate-mode"]
+    assert state(plan(marked(0)))["prompt_mode"] is None and kickoff_prompt(plan(marked(0))) is None
+
+
+@test
+def a_kickoff_prompt_that_disagrees_with_the_mode_line_is_gate_0():
+    for mode_line, prompt_mode, why in ((UNATTENDED, "gated", "names gated mode, but the confirmed mode is unattended"),
+                                        (GATED, None, "has no mode line, but the confirmed mode is gated"),
+                                        ("  mode: pending | proposed gated (no runner signal)", "gated", "no mode is confirmed yet")):
+        s = state(plan(marked(0), mode=prompted(mode_line, prompt_mode)))
+        assert s["stops"][0] == "gate-0" and any(why in e for e in s["errors"]), s["errors"]
+    s = state(plan(marked(0), mode=prompted(GATED, "gated").replace("Run in gated mode.", "Run in gated mode, please.")))
+    assert s["prompt_mode"] is None and s["stops"][0] == "gate-0"  # only the exact line counts
 
 
 failed = 0

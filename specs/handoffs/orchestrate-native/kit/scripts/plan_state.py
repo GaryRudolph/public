@@ -6,8 +6,8 @@ Claude Code the plan-segment workflow refuses to spawn unless the approvals
 cover the gates it reports (the PreToolUse hook re-runs it from disk).
 
 Reads only the plan file: wave markers, tagged headings and their (done)
-markers, the Kickoff Status and mode lines, the Cost table, the Review log
-and the Token log.
+markers, the Kickoff Status and mode lines and its prompt, the Cost table,
+the Review log and the Token log.
 
 Every gate derives from the plan in every mode. The mode only splits them:
 in gated mode every gate stops; in unattended mode gates 2, 3, 4, a planned
@@ -22,6 +22,11 @@ a CONCERNS line whose note starts "check_wave.py:", so it starts or extends
 the same streak, and it is gate 1. A streak of two or more is gate 1 too.
 A PASS ends the streak, and so does a WAIVED line, which carries Gary's
 answer to that gate 1 verbatim (the hook checks the words).
+
+The Kickoff prompt carries the confirmed mode on a line of its own, "Run in
+unattended mode." or "Run in gated mode.", so pasting it confirms the mode in
+a new session ("by Kickoff prompt" on the mode line). A prompt whose mode line
+doesn't match the confirmed mode is gate 0.
 
 Usage: plan_state.py <plan.md>     prints one JSON object
 """
@@ -47,8 +52,12 @@ REVIEW_RE = re.compile(
 REVIEW_START_RE = re.compile(r"^\s*(?:[-*]\s+)?`?review wave-")
 # Kickoff mode line. Gary's words come last, verbatim, so they may hold any character:
 #   mode: unattended | proposed unattended (CLAUDE_CODE_REMOTE=true) | guard 3x min $50 | fixups 2 | confirmed 2026-10-06 session <id>: <words>
+# A new session that Gary started by pasting the Kickoff prompt records the prompt's mode line as the words:
+#   ... | confirmed 2026-10-07 session <id> by Kickoff prompt: Run in unattended mode.
 MODE_RE = re.compile(r"^mode:\s*(gated|unattended|pending)\b(.*)$")
-CONFIRMED_RE = re.compile(r"\|\s*confirmed (\d{4}-\d\d-\d\d) session (\S+?): (.*)$")
+CONFIRMED_RE = re.compile(r"\|\s*confirmed (\d{4}-\d\d-\d\d) session (\S+?)( by Kickoff prompt)?: (.*)$")
+PROMPT_START = "Prompt to paste into the next chat:"
+PROMPT_MODE_RE = re.compile(r"^Run in (gated|unattended) mode\.$")
 PROPOSED_RE = re.compile(r"\|\s*proposed (gated|unattended)(?: \(([^)]*)\))?")
 GUARD_RE = re.compile(r"\|\s*guard (\d+(?:\.\d+)?)x(?: min \$(\d+(?:\.\d+)?))?(?=\s|\||$)")
 FIXUPS_RE = re.compile(r"\|\s*fixups (\d+)\b")
@@ -81,12 +90,14 @@ def mode_of(line):
     return {"value": m.group(1) if c else "pending", "proposed": p and p.group(1), "signal": p and p.group(2),
             "guard": float(g.group(1)) if g else DEFAULT_GUARD,
             "guard_min": float(g.group(2)) if g and g.group(2) else DEFAULT_GUARD_MIN, "fixups": int(f.group(1)) if f else DEFAULT_FIXUPS,
-            "date": c and c.group(1), "session": c and c.group(2), "words": c and c.group(3).strip()}
+            "date": c and c.group(1), "session": c and c.group(2), "via": c and ("prompt" if c.group(3) else "answer"),
+            "words": c and c.group(4).strip()}
 
 
 def parse(text):
     errors, steps, reviews = [], [], []
     status, mode, wave, fence, kickoff_fence = None, None, None, False, False
+    prompt, in_prompt = None, False  # the Kickoff prompt's lines, stripped
     enclosing = {}  # heading level -> milestone of the latest heading at that level
     markers = []
     section = None  # the current "## " section, lowercased
@@ -94,10 +105,17 @@ def parse(text):
     in_cost = False
     for no, line in enumerate(text.splitlines(), 1):
         if line.lstrip().startswith("```"):
-            fence, kickoff_fence = not fence, False
+            fence, kickoff_fence, in_prompt = not fence, False, False
             continue
         if fence:
             kickoff_fence = kickoff_fence or "--- KICKOFF:" in line
+            if kickoff_fence and in_prompt:
+                if line.strip() == "---":
+                    in_prompt = False
+                elif line.strip():
+                    prompt.append(line.strip())
+            elif kickoff_fence and prompt is None and line.strip() == PROMPT_START:
+                prompt, in_prompt = [], True
             if kickoff_fence and status is None and line.strip().startswith("Status:"):
                 status = line.strip()
             if kickoff_fence and mode is None:
@@ -158,7 +176,13 @@ def parse(text):
             continue
         steps.append({"id": sid, "tag": tag.group(1), "done": bool(DONE_RE.search(body)), "wave": wave["n"],
                       "label": wave["label"], "tier": wave["tier"], "milestone": ms, "line": no})
-    return status, mode, cost, markers, steps, reviews, errors
+    return status, mode, cost, markers, steps, reviews, errors, prompt
+
+
+def kickoff_prompt(text):
+    """The Kickoff block's prompt to paste into the next chat, one stripped line per line, or None."""
+    prompt = parse(text)[-1]
+    return "\n".join(prompt) if prompt is not None else None
 
 
 def units_of(steps):
@@ -174,7 +198,7 @@ def units_of(steps):
 
 
 def state(text):
-    status, mode, cost, markers, steps, reviews, errors = parse(text)
+    status, mode, cost, markers, steps, reviews, errors, prompt = parse(text)
     ns = [w["n"] for w in markers if not w["fix"]]  # a fix-up marker reuses its wave's number
     if ns != list(range(1, len(ns) + 1)):
         errors.append(f"wave markers are numbered {ns}, expected 1..{len(ns)} in order")
@@ -194,7 +218,14 @@ def state(text):
     out = {"version": 3, "t": len(ns), "done": sum(s["done"] for s in steps), "total": len(steps),
            "status": status, "mode": mode, "blocked": None, "concerns": [], "prev": None, "next": None, "gates": [],
            "stops": [], "checkpoints": [], "waivers": [], "cost": None, "milestones": any(s["milestone"] for s in steps),
-           "errors": errors}
+           "prompt_mode": None, "errors": errors}
+    if prompt is not None:  # the prompt carries the confirmed mode, and nothing before it is confirmed
+        out["prompt_mode"] = next((m.group(1) for m in map(PROMPT_MODE_RE.match, prompt) if m), None)
+        confirmed = mode["value"] if mode and mode["value"] != "pending" else None
+        if out["prompt_mode"] != confirmed:
+            has = f"names {out['prompt_mode']} mode" if out["prompt_mode"] else "has no mode line"
+            errors.append(f"the Kickoff prompt {has}, but " + (f"the confirmed mode is {confirmed}: write \"Run in {confirmed} mode.\""
+                          if confirmed else "no mode is confirmed yet: the mode line comes with the kickoff answer"))
     m = BLOCKED_RE.search(status or "")
     if m:
         out["blocked"] = "gate-" + m.group(1)

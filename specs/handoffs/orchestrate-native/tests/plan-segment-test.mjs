@@ -43,7 +43,7 @@ const GATED = { value: 'gated', proposed: 'gated', signal: 'no runner signal', g
 const UNATT = { value: 'unattended', proposed: 'unattended', signal: 'CLAUDE_CODE_REMOTE=true', guard: 2, fixups: 2, date: '2026-10-06', session: 's1', words: 'unattended' }
 const st = (next, gates = [], extra = {}) => ({ version: 3, t: 4, done: 0, total: 9, status: null, mode: GATED, blocked: null, concerns: [], prev: null, next, gates, stops: gates, checkpoints: [], cost: null, milestones: true, errors: [], ...extra })
 const un = (next, stops = [], checkpoints = [], extra = {}) => st(next, [...stops, ...checkpoints], { mode: UNATT, stops, checkpoints, ...extra })
-const G = (dir, steps, extra = {}) => ({ workdir: dir, steps, spec: 'spec', acceptance: 'ac', standards: [], git: 'task', branch: 'feature/x', from: 'aaa0000', ...extra })
+const G = (dir, steps, extra = {}) => ({ workdir: dir, steps, spec: 'spec', acceptance: 'ac', standards: [], branch: 'feature/x', from: 'aaa0000', ...extra })
 const base = { plugin: 'personal', plan: { name: 'plan-x', path: '/p/plan-x.md' }, canaryDone: true, approved: [], trailers: ['Assisted-by: Claude Code'] }
 const kinds = calls => calls.map(c => c.label.split(' ')[0])
 const tests = []
@@ -168,17 +168,20 @@ test('two groups on one working directory are gate 0', async () => {
   assert.deepEqual(result.gates, ['gate-0'])
 })
 
-test('task-branch groups need trailers, never Co-authored-by; shared ones review only their wave', async () => {
+test('every group commits on its task branch: trailers, never Co-authored-by, and no shared-branch mode (v6)', async () => {
   const s = st(unit(1, 'fast', ['m1.s1']))
   assert.deepEqual((await harness({ ...base, trailers: [], state: s, groups: [G('/r/a', ['m1.s1'])] })).result.gates, ['gate-0'])
   assert.deepEqual((await harness({ ...base, trailers: ['Co-Authored-By: Claude <noreply@anthropic.com>'], state: s, groups: [G('/r/a', ['m1.s1'])] })).result.gates, ['gate-0'])
-  const sg = [G('/r/a', ['m1.s1'], { git: 'shared', from: 'bbb1111' })]
-  assert.deepEqual((await harness({ ...base, trailers: undefined, state: s, groups: sg })).result.gates, ['gate-0'])
-  const shared = await harness({ ...base, trailers: undefined, checkWave: '/k/scripts/check_wave.py', state: s, groups: sg })
-  assert.equal(shared.result.stop, 'done')
-  assert.match(shared.calls[0].prompt, /Do not commit, push, or switch branches/)
-  assert.match(shared.calls[1].prompt, /check_wave\.py diff \/r\/a bbb1111/)
-  assert.doesNotMatch(shared.calls[0].prompt, /bbb1111\.\.HEAD/)
+  for (const extra of [{ branch: undefined }, { git: 'shared' }, { git: 'task' }]) {
+    const { result, calls } = await harness({ ...base, checkWave: '/k/scripts/check_wave.py', state: s, groups: [G('/r/a', ['m1.s1'], extra)] })
+    assert.deepEqual(result.gates, ['gate-0'], JSON.stringify(extra))
+    assert.equal(calls.length, 0)
+  }
+  const ok = await harness({ ...base, state: s, groups: [G('/r/a', ['m1.s1'], { from: 'bbb1111' })] })
+  assert.match(ok.calls[0].prompt, /Commit each finished step on the current branch \(feature\/x\)/)
+  assert.match(ok.calls[1].prompt, /git diff bbb1111/)
+  assert.doesNotMatch(ok.calls[1].prompt, /check_wave\.py diff/)
+  assert.equal(ok.result.groups[0].branch, 'feature/x')
 })
 
 const fixup = (k, extra = {}) => ({ kind: 'fixup', wave: 2, label: k === 1 ? '2-fix' : `2-fix${k}`, fix: k, tier: 'exec', milestone: 'm1', groups: ['repo-b m1 s3'], steps: [], start: false, ...extra })

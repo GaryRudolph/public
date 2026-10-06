@@ -33,11 +33,21 @@ handoff = plan.with_name("handoff-x.md")
 COST = "\n**Cost (API-equiv, Claude Code models)**\n\n| wave | expected tokens | expected $ |\n|---|---|---|\n| 1 [exec] m1 s1 | ~1.6M | ~$0.9 |\n| **Total** | ~3M | ~$2.0 |\n\n"
 
 
+def kickoff_prompt(mode):
+    """The Kickoff prompt to paste into the next chat, carrying the confirmed mode (plan-execution.md "Kickoff template")."""
+    return ["Read specs/handoffs/plan-x.md. The plan is already tagged.",
+            "On branch feature/x (task branch): subagents commit each finished step.",
+            f"Run in {mode} mode.",
+            "Run the personal-plan-orchestrate skill from the top and follow its procedure."]
+
+
 def write_plan(mode="gated | proposed gated (no runner signal) | guard 2x | fixups 2 | confirmed 2026-10-06 session s: gated",
-               save=True, log=""):
+               save=True, log="", prompt=None):
     """Write the plan and its handoff; with save, commit both in one commit and push, as each wave's bookkeeping does."""
+    paste = "".join(f"      {line}\n" for line in prompt) if prompt else ""
     plan.write_text("```\n--- KICKOFF: begin orchestration at [deep] ---\n  Status: 0/1 groups done | updated 2026-10-06\n"
-                    f"  mode: {mode}\n```\n" + COST + "## m1 - A\n--- WAVE 1 [exec] ---\n#### m1.s1 - [exec] One\n"
+                    f"  mode: {mode}\n" + (f"\n    Prompt to paste into the next chat:\n{paste}\n---\n" if prompt else "")
+                    + "```\n" + COST + "## m1 - A\n--- WAVE 1 [exec] ---\n#### m1.s1 - [exec] One\n"
                     + (f"\n## Review log\n\n{log}" if log else ""))
     handoff.write_text(f"# Handoff plan-x\n\nmode: {mode}\nNext: wave 1\n{log}")
     if save:
@@ -194,8 +204,6 @@ def a_hook_error_fails_closed():
 def a_confirmed_unattended_mode_passes():
     st = write_plan(UN + "unattended")
     assert hook(seg(args(state=st)), [human("orchestrate plan-x"), QUESTION, human("unattended")]) is None
-    st = write_plan(UN + "yes")
-    assert hook(seg(args(state=st)), [human("orchestrate plan-x"), QUESTION, human("yes")]) is None
     st = write_plan(UN + "orchestrate plan-x unattended")
     assert hook(seg(args(state=st)), [human("orchestrate plan-x unattended")]) is None
     write_plan()
@@ -216,10 +224,13 @@ def an_unattended_answer_from_a_notification_turn_is_denied():
 
 
 @case
-def a_bare_yes_counts_only_for_a_question_that_proposed_unattended():
-    st = write_plan(UN + "yes")
+def a_bare_yes_re_asks_even_when_the_question_proposed_unattended():
+    st = write_plan(UN + "yes")  # v6: the kit matches decision 9 as proposed, until Gary decides it
     gated_q = said("Plan plan-x: no runner signal. Proposed mode: gated. Reply gated or unattended.")
-    assert "neither names unattended" in hook(seg(args(state=st)), [human("orchestrate"), gated_q, human("yes")])
+    for q in (QUESTION, gated_q):
+        assert "does not name unattended" in hook(seg(args(state=st)), [human("orchestrate"), q, human("yes")])
+    st = write_plan(UN + "unattended, not gated")
+    assert "does not name unattended" in hook(seg(args(state=st)), [human("orchestrate"), QUESTION, human("unattended, not gated")])
     write_plan()
 
 
@@ -256,7 +267,7 @@ KICK = [human("orchestrate plan-x"), QUESTION, human("unattended")]
 
 
 GATED = "gated | proposed gated (no runner signal) | guard 2x | fixups 2 | confirmed 2026-10-06 session s: gated"
-TASK = [{"workdir": str(repo), "git": "task"}]
+TASK = [{"workdir": str(repo), "branch": "feature/x"}]
 
 
 def refreshed_handoff_sequence(mode):
@@ -306,7 +317,7 @@ def unattended_needs_the_handoff_file_and_the_specs_handoffs_folder():
     handoff_file_and_folder(UN + "unattended")
 
 
-# ---- v5: the per-wave handoff in both modes; a shared branch commits nothing ----
+# ---- v5: the per-wave handoff in both modes ----
 
 def init_repo(d, remote=None, branch="feature/x"):
     """A clone on branch; with remote, a bare origin to push to, and none without."""
@@ -326,43 +337,6 @@ def gated_on_a_task_branch_needs_a_refreshed_handoff_committed_and_pushed():
 @case
 def gated_on_a_task_branch_needs_the_handoff_file_and_the_specs_handoffs_folder():
     handoff_file_and_folder(GATED)
-
-
-@case
-def a_gated_launch_on_a_shared_branch_keeps_the_plan_in_scratch():
-    init_repo(tmp / "ws", tmp / "origin-ws.git", branch="main")  # a shared branch, with a remote
-    scratch = tmp / "ws" / ".scratch"
-    scratch.mkdir(parents=True, exist_ok=True)
-    loose = scratch / "plan-x.md"
-    loose.write_text(plan.read_text())  # gated; never committed, and no handoff commit to check
-    (scratch / "handoff-x.md").write_text("# Handoff plan-x\n")
-    st = state(loose.read_text())
-    shared = [{"workdir": str(tmp / "ws"), "git": "shared"}]
-
-    def at(groups, s=st):
-        a = args(state=s, groups=groups)
-        a["plan"]["path"] = str(loose)
-        return seg(a)
-    assert hook(at(shared), [human("orchestrate plan-x")]) is None
-    assert "specs/handoffs" in hook(at(shared + TASK), [human("orchestrate plan-x")])  # one task-branch group commits
-    assert "specs/handoffs" in hook(at([]), [human("orchestrate plan-x")])  # no groups: fail closed
-    assert "a runner always works on a task branch" in hook(at(shared), [human("orchestrate plan-x")], runner=True)
-    loose.write_text(plan.read_text().replace(f"mode: {GATED}", f"mode: {UN}unattended"))
-    un = state(loose.read_text())
-    assert "specs/handoffs" in hook(at(shared, un), KICK)  # unattended always runs on a task branch
-    st = write_plan(GATED, save=False)
-    plan.write_text(plan.read_text() + "\n")  # a tracked plan on a task branch, a wave only in a shared-branch repo
-    st = state(plan.read_text())
-    assert "uncommitted" in hook(seg(args(state=st, groups=shared)), [human("orchestrate plan-x")])
-    write_plan()
-
-
-@case
-def a_runner_denies_any_shared_branch_group_and_passes_task_ones():
-    st = write_plan(GATED)
-    shared = [{"workdir": str(tmp / "ws"), "git": "shared"}]
-    assert "runner always works on a task branch" in hook(seg(args(state=st, groups=TASK + shared)), KICK, runner=True)
-    assert hook(seg(args(state=st, groups=TASK)), KICK, runner=True) is None
 
 
 @case
@@ -391,7 +365,7 @@ def every_task_branch_workdir_of_the_last_run_is_pushed_in_both_modes():
     git("add", "-A", cwd=rb)
     git("commit", "-q", "-m", "m1.s2 Add b", cwd=rb)
     git("push", "-q", "-u", "origin", "feature/x", cwd=rb)
-    ran = [{"rid": "wf_1", "groups": [{"workdir": str(rb), "git": "task"}, {"workdir": str(tmp / "nowhere"), "git": "shared"}]}]
+    ran = [{"rid": "wf_1", "groups": [{"workdir": str(rb), "branch": "feature/x"}]}]
     assert hook(seg(args(state=st2, canaryDone=True)), t, ran) is None
     (rb / "c.txt").write_text("c\n")
     git("add", "-A", cwd=rb)
@@ -430,7 +404,7 @@ def gated_on_a_workstation_checks_no_push_where_there_is_no_remote():
     pc.parent.mkdir(parents=True)
     pc.write_text(text)
     pc.with_name("handoff-x.md").write_text("# Handoff plan-x\n")
-    cg = [{"workdir": str(rc), "git": "task"}]
+    cg = [{"workdir": str(rc), "branch": "feature/x"}]
     assert "uncommitted" in hook(at(pc, cg), go)
     git("add", "-A", cwd=rc)
     git("commit", "-q", "-m", "update plan-x and its handoff", cwd=rc)
@@ -453,6 +427,103 @@ def a_new_waiver_must_be_a_human_message_verbatim():
     assert hook(seg(args(state=st3, canaryDone=True)), t + [human("skip that fix, it's fine")], done) is None
     later = t + [human("skip that fix, it's fine")] + launch(args(state=st3, canaryDone=True), "t2") + [NOTIFY]
     assert hook(seg(args(state=st3, canaryDone=True)), later, [{"rid": "wf_1"}]) is None  # an older waiver isn't re-checked
+    write_plan()
+
+
+# ---- v6: always a task branch; the Kickoff prompt carries the confirmed mode ----
+
+@case
+def every_group_runs_on_its_task_branch_on_every_machine():
+    st = write_plan(GATED)
+    go = [human("orchestrate plan-x")]
+    for runner in (False, True):
+        assert hook(seg(args(state=st, groups=TASK)), go, runner=runner) is None
+    ws, ows = tmp / "ws6", tmp / "origin-ws6.git"
+    init_repo(ws, ows, branch="trunk")
+    (ws / "a.txt").write_text("a\n")
+    git("add", "-A", cwd=ws)
+    git("commit", "-q", "-m", "init", cwd=ws)
+    git("push", "-q", "-u", "origin", "trunk", cwd=ws)
+    git("remote", "set-head", "origin", "trunk", cwd=ws)  # trunk is the remote's default branch
+    on = lambda b: [{"workdir": str(ws), "branch": b}]  # noqa: E731
+    for runner in (False, True):
+        assert "trunk in" in hook(seg(args(state=st, groups=on("trunk"))), go, runner=runner)
+    git("switch", "-q", "-c", "main", "--no-track", cwd=ws)
+    assert "main in" in hook(seg(args(state=st, groups=on("main"))), go)
+    held = ws / "specs" / "handoffs" / "plan-x.md"  # the repo that holds the plan is on a shared branch too
+    held.parent.mkdir(parents=True)
+    held.write_text(plan.read_text())
+    a = args(state=st, groups=TASK)
+    a["plan"]["path"] = str(held)
+    assert "main in" in hook(seg(a), go)
+    shutil.rmtree(ws / "specs")
+    git("switch", "-q", "-c", "release/v2", "--no-track", cwd=ws)
+    assert "release/v2 in" in hook(seg(args(state=st, groups=on("release/v2"))), go)
+    git("switch", "-q", "-c", "feature/y", "--no-track", cwd=ws)
+    assert "not the group's branch feature/x" in hook(seg(args(state=st, groups=on("feature/x"))), go)
+    assert "not the group's branch (none given)" in hook(seg(args(state=st, groups=[{"workdir": str(ws)}])), go)
+    assert hook(seg(args(state=st, groups=TASK + on("feature/y"))), go) is None
+    git("switch", "-q", "--detach", cwd=ws)
+    assert "no branch checked out" in hook(seg(args(state=st, groups=on("feature/y"))), go)
+    loose = repo / ".scratch" / "plan-x.md"  # v5's gated shared-branch launch kept its plan here; v6 denies it
+    loose.parent.mkdir(exist_ok=True)
+    loose.write_text(plan.read_text())
+    a = args(state=st, groups=TASK)
+    a["plan"]["path"] = str(loose)
+    assert "specs/handoffs" in hook(seg(a), go)
+    shutil.rmtree(loose.parent)
+    write_plan()
+
+
+PROMPTED = "unattended | proposed unattended (CLAUDE_CODE_REMOTE=true) | guard 2x | fixups 2 | confirmed 2026-10-07 session s by Kickoff prompt: Run in unattended mode."
+
+
+def paste(mode="unattended", indent="  "):
+    """Gary pasting the Kickoff prompt as his first message in a new session, indented as the chat printed it."""
+    return human("\n".join(indent + line for line in kickoff_prompt(mode)) + "\n")
+
+
+@case
+def a_pasted_kickoff_prompt_confirms_unattended_in_the_new_session():
+    st = write_plan(PROMPTED, prompt=kickoff_prompt("unattended"))
+    assert st["errors"] == [] and st["mode"]["via"] == "prompt" and st["prompt_mode"] == "unattended", st
+    assert hook(seg(args(state=st, groups=TASK)), [paste()], runner=True) is None
+    assert hook(seg(args(state=st, groups=TASK)), [paste(indent="")], runner=True) is None
+    gone = [paste(), said("Running."), human("gated")]
+    assert "names gated" in hook(seg(args(state=st, groups=TASK)), gone, runner=True)
+    write_plan()
+
+
+@case
+def a_casual_mention_of_the_mode_is_not_a_pasted_kickoff_prompt():
+    st = write_plan(PROMPTED, prompt=kickoff_prompt("unattended"))
+    for text in ("Run in unattended mode.", "run unattended", "orchestrate plan-x. Run in unattended mode.",
+                 "\n".join(kickoff_prompt("unattended")) + "\nand skip the canary"):
+        assert "Kickoff prompt verbatim" in hook(seg(args(state=st, groups=TASK)), [human(text)], runner=True), text
+    assert "Kickoff prompt verbatim" in hook(seg(args(state=st, groups=TASK)), [NOTIFY], runner=True)
+    write_plan()
+
+
+@case
+def a_pasted_prompt_re_asks_when_the_environment_or_the_session_differs():
+    st = write_plan(PROMPTED, prompt=kickoff_prompt("unattended"))
+    assert "CLAUDE_CODE_REMOTE here is not true" in hook(seg(args(state=st, groups=TASK)), [paste()])  # pasted on a workstation
+    old = write_plan(PROMPTED.replace("session s by", "session old-1 by"), prompt=kickoff_prompt("unattended"))
+    assert "not this one" in hook(seg(args(state=old, groups=TASK)), [paste()], runner=True)
+    ws = write_plan(PROMPTED.replace("proposed unattended (CLAUDE_CODE_REMOTE=true)", "proposed gated (no runner signal)"),
+                    prompt=kickoff_prompt("unattended"))
+    assert "CLAUDE_CODE_REMOTE here is true" in hook(seg(args(state=ws, groups=TASK)), [paste()], runner=True)
+    write_plan()
+
+
+@case
+def a_prompt_confirmation_needs_the_prompts_own_mode_line():
+    st = write_plan(PROMPTED.replace("Run in unattended mode.", "unattended"), prompt=kickoff_prompt("unattended"))
+    assert "records its mode line" in hook(seg(args(state=st, groups=TASK)), [paste()], runner=True)
+    st = write_plan(PROMPTED, prompt=kickoff_prompt("gated"))  # the plan's prompt says gated: plan_state reports gate 0
+    assert st["errors"] and "records its mode line" in hook(seg(args(state=st, groups=TASK)), [paste("gated")], runner=True)
+    st = write_plan(GATED.replace("session s: gated", "session s by Kickoff prompt: Run in gated mode."), prompt=kickoff_prompt("gated"))
+    assert st["errors"] == [] and hook(seg(args(state=st, groups=TASK)), [human("go")]) is None  # gated needs no proof
     write_plan()
 
 

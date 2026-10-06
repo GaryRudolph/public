@@ -13,29 +13,31 @@ true, from disk and from the transcript, and fails closed:
 5. After a run that stopped at a gate, the next launch must approve that gate.
 6. plan-segment launches by name only, so the reviewed script is the one that runs.
 7. An unattended mode in args.state must be confirmed in this session: the
-   Kickoff mode line names this session, a human-started turn here is its
-   words verbatim, those words name unattended or answer a kickoff question
-   that proposed it, and no later human turn names gated. A gated mode needs
-   no proof, since it relaxes nothing.
+   Kickoff mode line names this session, and no later human turn names
+   gated. Confirmed by an answer, a human-started turn here is its words
+   verbatim and they name unattended and not gated: a bare yes re-asks
+   (decision 9). Confirmed by the Kickoff prompt, the words are its mode line
+   "Run in unattended mode.", a human turn here is the plan's whole Kickoff
+   prompt verbatim (whitespace collapsed), and CLAUDE_CODE_REMOTE matches the
+   recorded runner signal. A gated mode needs no proof, since it relaxes
+   nothing.
 8. A cost guard raised since this session's last launch needs this turn's
    human approval of gate-guard, and a raised fix-up cap one of gate-1
    (rule 2 then checks the words).
-9. On a task branch, in both modes, the plan and its session handoff sit
-   in specs/handoffs/ (plan-{topic}-{word}.md, handoff-{topic}-{word}.md),
-   have no uncommitted changes, the handoff's last commit is the plan's or a
-   later one, and it is on the branch's upstream; and the HEAD of every
-   task-branch working directory of this session's last finished run is on
-   its upstream: every wave's results and their handoff are committed and
-   pushed before the next launch. Only a gated launch whose every group is
-   on a shared branch, with its plan outside specs/handoffs/, skips the plan
-   check: nothing commits there, so the plan and handoff stay in gitignored
-   .scratch/. A runner
-   (CLAUDE_CODE_REMOTE=true) always works on a task branch, so a
-   shared-branch group is denied there. Gated on a workstation, where
-   nothing can be pushed: a plan in no git repo (a plain folder of sibling
-   repos) skips the plan check, a plan in a repo with no remote skips only
-   its push check, and a working directory with no remote is not checked.
-   Unattended needs the plan in a repo with a remote.
+9. Orchestrate runs only on a task branch, in both modes and on every
+   machine. Every group's working directory has its group's branch checked
+   out, and neither it nor the branch of the repo that holds the plan is
+   main, master, release/*, or the remote's default branch. The plan and
+   its session handoff sit in specs/handoffs/ (plan-{topic}-{word}.md,
+   handoff-{topic}-{word}.md), have no uncommitted changes, the handoff's
+   last commit is the plan's or a later one, and it is on the branch's
+   upstream; and the HEAD of every working directory of this session's last
+   finished run is on its upstream: every wave's results and their handoff
+   are committed and pushed before the next launch. Gated on a workstation,
+   where nothing can be pushed: a plan in no git repo (a plain folder of
+   sibling repos) skips the plan check, a plan in a repo with no remote
+   skips only its push check, and a working directory with no remote is not
+   checked. Unattended needs the plan in a repo with a remote.
 10. A WAIVED Review log line added since this session's last launch must be
    a human turn of this session, verbatim: a waiver is Gary's answer to a
    gate 1, never the parent's.
@@ -52,7 +54,10 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from plan_state import state  # noqa: E402
+from plan_state import kickoff_prompt, state  # noqa: E402
+
+SHARED_NAME = re.compile(r"^(main|master|release/.+)$")
+PROMPT_WORDS = "Run in unattended mode."  # the Kickoff prompt's mode line, recorded as the words of a pasted prompt
 
 
 def deny(reason):
@@ -87,7 +92,7 @@ def text_of(content):
 def turn_and_launches(path):
     """The record that started the current turn, every prompt turn, and earlier plan-segment launches."""
     turn, uses, launched = None, {}, []
-    run_ids, turns, said = [], [], ""
+    run_ids, turns = [], []
     for r in records(path):
         if r.get("isSidechain"):
             continue
@@ -96,8 +101,6 @@ def turn_and_launches(path):
             for b in msg.get("content") or []:
                 if isinstance(b, dict) and b.get("type") == "tool_use" and b.get("name") == "Workflow":
                     uses[b.get("id")] = b.get("input") or {}
-                if isinstance(b, dict) and b.get("type") == "text" and b.get("text"):
-                    said = b["text"]
         elif r.get("type") == "user":
             res = r.get("toolUseResult")
             if isinstance(res, dict) and res.get("runId") and not res.get("error"):
@@ -111,7 +114,7 @@ def turn_and_launches(path):
             if text is not None and not r.get("isMeta"):
                 origin = (r.get("origin") or {}).get("kind")
                 human = origin in (None, "human") and r.get("promptSource") != "system" and r.get("turnOrigin") != "task_notification"
-                turn = {"human": human, "text": text, "asked": said}
+                turn = {"human": human, "text": text}
                 turns.append(turn)
     return turn, launched, run_ids, turns
 
@@ -120,19 +123,28 @@ def names(word, text):
     return re.search(rf"\b{word}\b", text or "", re.I) is not None
 
 
-def unattended_proof(mode, session_id, turns):
+def unattended_proof(mode, session_id, turns, prompt, prompt_mode, runner):
     """None when the recorded unattended mode is confirmed in this session, else the reason it isn't."""
     if mode.get("session") != session_id:
         return f"the mode was confirmed in session {mode.get('session')}, not this one; ask the kickoff question again"
     words = norm(mode.get("words"))
-    hits = [i for i, t in enumerate(turns) if t["human"] and norm(t["text"]) == words]
-    if not words or not hits:
-        return "no human turn in this session is the recorded mode answer verbatim"
-    t = turns[hits[-1]]
-    named = names("unattended", t["text"]) and not names("gated", t["text"])
-    answered = not names("gated", t["text"]) and "Proposed mode: unattended" in (t["asked"] or "")
-    if not (named or answered):
-        return "the recorded answer neither names unattended nor answers a kickoff question that proposed it"
+    if mode.get("via") == "prompt":
+        # Pasting the Kickoff prompt is Gary's own message. Only the whole prompt counts, never a message that mentions the mode.
+        if words != PROMPT_WORDS or prompt_mode != "unattended" or not prompt:
+            return f'a confirmation by Kickoff prompt records its mode line, "{PROMPT_WORDS}", and the plan\'s prompt must carry it'
+        hits = [i for i, t in enumerate(turns) if t["human"] and norm(t["text"]) == norm(prompt)]
+        if not hits:
+            return "no human turn in this session is the plan's Kickoff prompt verbatim; ask the kickoff question"
+        if ("CLAUDE_CODE_REMOTE=true" in (mode.get("signal") or "")) != runner:
+            return (f"the mode was confirmed with runner signal ({mode.get('signal')}), and CLAUDE_CODE_REMOTE here "
+                    f"{'is' if runner else 'is not'} true; ask the kickoff question again")
+    else:
+        hits = [i for i, t in enumerate(turns) if t["human"] and norm(t["text"]) == words]
+        if not words or not hits:
+            return "no human turn in this session is the recorded mode answer verbatim"
+        t = turns[hits[-1]]
+        if not names("unattended", t["text"]) or names("gated", t["text"]):
+            return "the recorded answer does not name unattended (a bare yes re-asks, decision 9)"
     if any(u["human"] and names("gated", u["text"]) for u in turns[hits[-1] + 1:]):
         return "a later human turn names gated; record gated, or ask the kickoff question again"
     return None
@@ -153,13 +165,25 @@ def remote_of(d):
     return None if r.returncode else bool(r.stdout.strip())
 
 
+def branch_problem(d, want=None):
+    """None when d has a branch checked out (want, when given) that isn't main, master, release/* or the remote's default."""
+    head = git(d, "symbolic-ref", "--quiet", "--short", "HEAD").stdout.strip()
+    if not head:
+        return f"{d} has no branch checked out (a detached HEAD, or no git repo); cut a task branch"
+    if want is not None and head != want:
+        return f"{d} is on {head}, not the group's branch {want or '(none given)'}"
+    default = git(d, "symbolic-ref", "--quiet", "--short", "refs/remotes/origin/HEAD").stdout.strip()
+    if SHARED_NAME.match(head) or (default and default.split("/", 1)[-1] == head):
+        return f"{head} in {d} is a shared branch; orchestrate runs only on a task branch: cut one with --no-track"
+    return None
+
+
 def handoff_problem(plan_path, push=True):
-    """None when a task-branch plan and a handoff refreshed since its last change are committed (and pushed)."""
+    """None when the plan and a handoff refreshed since its last change are committed (and pushed)."""
     p = Path(plan_path).resolve()
     if not in_handoffs(p):
-        return ("on a task branch the plan lives in specs/handoffs/ as plan-{topic}-{word}.md, in both modes; move it there "
-                "and commit it (only a gated launch whose every group is on a shared branch, or whose plan is in no git "
-                "repo on a workstation, keeps it in .scratch/)")
+        return ("the plan lives in specs/handoffs/ as plan-{topic}-{word}.md, in both modes; move it there and commit it "
+                "(only a gated plan in no git repo on a workstation stays in .scratch/)")
     h = p.with_name("handoff-" + p.name[len("plan-"):])
     if not h.exists():
         return f"no session handoff at {h}; write it, and commit it with the plan"
@@ -177,9 +201,9 @@ def handoff_problem(plan_path, push=True):
 
 
 def unpushed(groups, local=False):
-    """None when every task-branch working directory of a run has its HEAD on its upstream (local: one with no remote is skipped)."""
+    """None when every working directory of a run has its HEAD on its upstream (local: one with no remote is skipped)."""
     for g in groups:
-        if isinstance(g, dict) and g.get("git") == "task":
+        if isinstance(g, dict):
             d = g.get("workdir") or ""
             if local and remote_of(d) is False:
                 continue
@@ -220,7 +244,8 @@ def main():
             deny("args must be a JSON object, not a string")
         path = args["plan"]["path"]
         with open(path) as f:
-            fresh = state(f.read())
+            text = f.read()
+        fresh = state(text)
         if fresh != args.get("state"):
             deny(f"args.state differs from plan_state.py on {path}; re-run it after your last plan edit and pass its output verbatim")
         turn, launched, run_ids, turns = turn_and_launches(inp["transcript_path"])
@@ -228,21 +253,21 @@ def main():
         mode = fresh.get("mode") or {}
         unattended = mode.get("value") == "unattended"
         groups = [g for g in args.get("groups") or [] if isinstance(g, dict)]
-        shared = [g.get("workdir") for g in groups if g.get("git") == "shared"]
         runner = os.environ.get("CLAUDE_CODE_REMOTE") == "true"
-        if shared and runner:
-            deny(f"{', '.join(map(str, shared))}: a runner always works on a task branch (core.md); cut one and launch with git: task")
+        home = remote_of(str(Path(path).resolve().parent))
+        for d, want in [(g.get("workdir") or "", g.get("branch") or "") for g in groups] + \
+                ([(str(Path(path).resolve().parent), None)] if home is not None else []):
+            why = branch_problem(d, want)
+            if why:
+                deny(f"task branch: {why}")
         if unattended:
-            why = unattended_proof(mode, inp.get("session_id"), turns)
+            why = unattended_proof(mode, inp.get("session_id"), turns, kickoff_prompt(text), fresh.get("prompt_mode"), runner)
             if why:
                 deny(f"unattended mode is not confirmed: {why}")
-        home = remote_of(str(Path(path).resolve().parent))
         if unattended and not home:
             deny("per-wave handoff: unattended needs the plan in a git repo with a remote, so each wave's handoff is pushed; run gated")
         local = not unattended and not runner  # gated on a workstation: where nothing can be pushed, nothing is checked for a push
-        # Fail closed: only a gated launch whose every group is on a shared branch, its plan in .scratch/, or a gated
-        # workstation launch whose plan is in no git repo, skips it.
-        if not (local and home is None) and (unattended or not groups or len(shared) < len(groups) or in_handoffs(path)):
+        if not (local and home is None):  # fail closed: only a gated workstation plan in no git repo skips it
             why = handoff_problem(path, push=not (local and home is False))
             if why:
                 deny(f"per-wave handoff: {why}")
@@ -255,7 +280,7 @@ def main():
         given = {a.get("gate") for a in args.get("approved") or [] if isinstance(a, dict)}
         if [g for g in owed if g not in given]:
             deny(f"the last run stopped at {', '.join(owed)}; this launch must carry the human's approval of each")
-        why = unpushed(last.get("groups") or [], local)  # both modes; a shared-branch group has nothing to push
+        why = unpushed(last.get("groups") or [], local)  # both modes
         if why:
             deny(f"per-wave handoff: {why}")
         segs = [u for u in launched if is_segment(u.get("name") or "")]

@@ -73,8 +73,8 @@ function title(g, t = tier) { return `${unitTitle(t)} ${g.id}` }
 function list(xs, none) { return xs.length ? xs.map(x => `- ${x}`).join('\n') : `- ${none}` }
 function quote(x) { return String(x).split('\n').map(l => `> ${l}`).join('\n') }
 
+// Orchestrate runs only on a task branch, so every group commits; the hook checks the branch at launch.
 function gitLine(g) {
-  if (g.git !== 'task') return 'Do not commit, push, or switch branches.'
   return [`Commit each finished step on the current branch (${g.branch}) as its own commit, staging only the paths you changed. Each commit message is:`,
     '1. a first line that is the step ID, a space, and an imperative subject (`m2.s3 Wire the results view`), and nothing else;',
     '2. a blank line, then an optional body;',
@@ -96,7 +96,7 @@ function workerPrompt(g, design, t = tier, earlier = null) {
     `## Scope\n\nExecute only: ${g.steps.join(', ')}. Stop at the end of this group; do not start the next group or any work not listed here.`)
   if (t === 'fast') parts.push('## Mechanical edits\n\nApply exactly what the plan specifies. Do not refactor, rename, or generalize.')
   parts.push(`## Standards to read first\n\n${list(g.standards, 'none beyond the always-on core')}`)
-  if (g.git === 'task') parts.push(`## Before you start\n\nRun \`git -C ${g.workdir} log --format=%s ${g.from}..HEAD\`. A step that already has a commit whose subject starts with its ID was done by an earlier attempt: check that commit against the acceptance criteria and skip the step if it holds. If a file you need to change already has uncommitted changes, do not touch it: return \`failed\` and name the file.`)
+  parts.push(`## Before you start\n\nRun \`git -C ${g.workdir} log --format=%s ${g.from}..HEAD\`. A step that already has a commit whose subject starts with its ID was done by an earlier attempt: check that commit against the acceptance criteria and skip the step if it holds. If a file you need to change already has uncommitted changes, do not touch it: return \`failed\` and name the file.`)
   parts.push('## When to ask\n\nIf the spec reads two ways that lead to materially different results, or you lack an access, credential or tool the step needs, stop: return `needs_info` with one question in `question`. Do not guess, and do not work around missing access.\n\nDo not open or merge a PR, push a tag, delete a remote branch, or deploy. If a step needs one, return `needs_info` naming it.',
     `## Output\n\nWrite your full output (diffs, decisions, surprises, follow-ups) to \`${artifactPath(g)}\`. Return the structured result: status, what changed, what was decided, any surprises, the artifact path, and the short SHA of every commit you made. Use \`failed\` or \`low_quality\` when you could not meet the acceptance criteria; never report partial work as \`done\`.`,
     `## Git\n\n${gitLine(g)}`)
@@ -118,11 +118,7 @@ function fixupSection(c) {
     before.length ? `Earlier failures on this group, oldest first (verbatim):\n\n${before.map(quote).join('\n\n')}` : '',
     how].filter(Boolean).join('\n\n')
 }
-function changes(g) {
-  return g.git === 'shared'
-    ? `run \`python3 ${args.checkWave} diff ${g.workdir} ${g.from}\` (this wave's changes only, untracked files included; the tree also holds earlier, already reviewed waves)`
-    : `read \`git diff ${g.from}\`, \`git log ${g.from}..HEAD\` and \`git status\``
-}
+function changes(g) { return `read \`git diff ${g.from}\`, \`git log ${g.from}..HEAD\` and \`git status\`` }
 function reviewPrompt(g, r, t = tier) {
   return [`Review ${title(g, t)}. READ-ONLY: do not edit files, commit, push, open or merge a PR, tag, deploy, or start other work.`,
     `In \`${g.workdir}\`, ${changes(g)}, then the worker's artifact \`${r.artifact}\`. Check the change against the spec excerpt, the acceptance criteria and the standards below: does it do what they ask, no more and no less, correctly, with tests where the repo expects them?`,
@@ -171,18 +167,15 @@ function validate() {
     if (!Array.isArray(g.standards)) e.push(`${at}: standards must be a list`)
     if (g.workdir && (!g.workdir.startsWith('/') || g.workdir.split('/').includes('..'))) e.push(`${at}: workdir must be absolute`)
     if (g.from && !/^[0-9a-f]{7,40}$/.test(g.from)) e.push(`${at}: from must be a commit SHA`)
-    if (g.git !== 'task' && g.git !== 'shared') e.push(`${at}: git must be task or shared`)
-    if (g.git === 'task' && !g.branch) e.push(`${at}: a task branch needs its name`)
+    if (!g.branch || typeof g.branch !== 'string') e.push(`${at}: missing branch, the task branch the group commits on`)
+    if ('git' in g) e.push(`${at}: there is no git mode; every group commits on its task branch`)
     if (dirs.has(g.workdir)) e.push(`two groups share ${g.workdir}; one subagent per working directory`)
     if (g.answer && (!g.answer.question || norm(g.answer.answer) !== norm(args.approval))) e.push(`${at}: answer must quote the question and carry the human answer verbatim, as approval does`)
     dirs.add(g.workdir)
   }
-  if (gs.some(g => g.git === 'shared') && !/^\/.*check_wave\.py$/.test(args.checkWave || '')) e.push('a shared-branch group needs args.checkWave, the absolute path of check_wave.py')
-  if (gs.some(g => g.git === 'task')) {
-    const t = args.trailers
-    if (!Array.isArray(t) || !t.length || t.some(x => typeof x !== 'string' || /^(co-authored-by|signed-off-by):/i.test(x) || !/^[\w-]+: \S/.test(x))) {
-      e.push('trailers must list the harness trailer lines, such as "Assisted-by: Claude Code", and never Co-authored-by or Signed-off-by')
-    }
+  const t = args.trailers
+  if (!Array.isArray(t) || !t.length || t.some(x => typeof x !== 'string' || /^(co-authored-by|signed-off-by):/i.test(x) || !/^[\w-]+: \S/.test(x))) {
+    e.push('trailers must list the harness trailer lines, such as "Assisted-by: Claude Code", and never Co-authored-by or Signed-off-by')
   }
   if (e.length) return e
   if (U.kind === 'fixup') {
@@ -250,7 +243,7 @@ const runs = await pipeline(groups,
   g => execute(g),
   (work, g) => (work && work.status === 'done' ? review(g, work).then(r => ({ work, review: r })) : { work, review: null }))
 
-let out = groups.map((g, i) => ({ id: g.id, workdir: g.workdir, steps: g.steps, from: g.from, git: g.git, tier,
+let out = groups.map((g, i) => ({ id: g.id, workdir: g.workdir, steps: g.steps, from: g.from, branch: g.branch, tier,
   work: (runs[i] && runs[i].work) || null, review: (runs[i] && runs[i].review) || null }))
 const isBroken = x => !x.work || x.work.status !== 'done' || !x.review
 

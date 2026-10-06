@@ -38,8 +38,8 @@ def run(*a):
     return r.returncode, json.loads(r.stdout)
 
 
-def group(d, steps, frm, git="task"):
-    return json.dumps({"id": f"{d.name} x", "workdir": str(d), "steps": steps, "from": frm, "git": git,
+def group(d, steps, frm):
+    return json.dumps({"id": f"{d.name} x", "workdir": str(d), "steps": steps, "from": frm,
                        "trailers": ["Assisted-by: Claude Code"]})
 
 
@@ -62,8 +62,6 @@ code, out = run("check", "--snapshot", tmp / "snap.json", "--group", group(a, ["
 cases.append(("a step with no commit fails", code == 1 and "m1.s3 has no commit" in " ".join(out["groups"][0]["problems"])))
 code, out = run("check", "--snapshot", tmp / "snap.json", "--group", group(a, ["m1.s9"], base_a), "--group", group(b, ["m1.s2"], base_b))
 cases.append(("a commit for another step fails (a stale from)", code == 1 and "does not start with one of m1.s9" in " ".join(out["groups"][0]["problems"])))
-code, out = run("check", "--snapshot", tmp / "snap.json", "--group", group(a, ["m1.s1"], base_a, git="shared"), "--group", group(b, ["m1.s2"], base_b))
-cases.append(("a commit on a shared branch fails", code == 1))
 (a / "stray.txt").write_text("x")
 code, out = run("check", "--snapshot", tmp / "snap.json", "--group", group(a, ["m1.s1"], base_a), "--group", group(b, ["m1.s2"], base_b))
 cases.append(("a new uncommitted path fails", code == 1 and "stray.txt" in " ".join(out["groups"][0]["problems"])))
@@ -75,13 +73,7 @@ nog = repo("noignore")
 (nog / ".gitignore").write_text("")
 code, out = run("snapshot", nog)
 cases.append(("snapshot flags a .scratch/ that is not ignored", code == 1 and out["problems"]))
-
-sh_ = repo("shared")
-(sh_ / "mine.txt").write_text("Gary's own edit\n")
-code, snap2 = run("snapshot", sh_)
-(sh_ / "wave.txt").write_text("from the wave\n")
-diff = subprocess.run([sys.executable, "-I", str(tool), "diff", str(sh_), snap2["dirs"][str(sh_.resolve())]["tree"]], capture_output=True, text=True).stdout
-cases.append(("a shared-branch diff shows only the wave's new file", "wave.txt" in diff and "mine.txt" not in diff and not sh(sh_, "diff", "--cached", "--name-only")))
+cases.append(("v6: a snapshot records HEAD and dirty paths only, no tree object", all(set(v) == {"head", "dirty", "attribution"} for v in snap["dirs"].values())))
 
 # ---- v4: fix-ups in the repo that holds a tracked plan, and a leftover path checked again ----
 
@@ -103,7 +95,7 @@ book = sh(pr, "rev-parse", "--short=7", "HEAD")
 code, snap3 = run("snapshot", pr)
 (tmp / "snap3.json").write_text(json.dumps(snap3))
 commit(pr, "b.txt", "m1.s5 Add b" + T)                       # the fix-up, exactly as told
-fix = json.dumps({"id": "planrepo m1 s4-s5", "workdir": str(pr), "steps": ["m1.s4", "m1.s5"], "from": frm, "git": "task"})
+fix = json.dumps({"id": "planrepo m1 s4-s5", "workdir": str(pr), "steps": ["m1.s4", "m1.s5"], "from": frm})
 rec = tmp / "run-fix.json"
 rec.write_text(json.dumps({"args": {"plan": {"name": "plan-x", "path": str(plan_p)}, "trailers": ["Assisted-by: Claude Code"]},
                            "result": {"groups": [json.loads(fix)]}}))
@@ -129,7 +121,7 @@ code, s0 = run("snapshot", lo)                                # before wave 2
 lo_from = sh(lo, "rev-parse", "--short", "HEAD")
 commit(lo, "a.txt", "m1.s4 Add a" + T)
 (lo / "out.log").write_text("junk\n")                        # wave 2 leaves a build output behind
-lg = json.dumps({"id": "leftover m1 s4", "workdir": str(lo), "steps": ["m1.s4"], "from": lo_from, "git": "task", "trailers": ["Assisted-by: Claude Code"]})
+lg = json.dumps({"id": "leftover m1 s4", "workdir": str(lo), "steps": ["m1.s4"], "from": lo_from, "trailers": ["Assisted-by: Claude Code"]})
 code, s1 = run("snapshot", lo)                                # the fresh snapshot before the fix-up
 (tmp / "s1.json").write_text(json.dumps(s1))
 code, out = run("check", "--snapshot", tmp / "s1.json", "--group", lg)
