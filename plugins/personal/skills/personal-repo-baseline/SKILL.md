@@ -195,7 +195,7 @@ matches its template. Report anything that didn't take.
 A new repo has no `.claude/settings.json`, so the merge writes the template as
 is, and it goes into the first commit (on `main`, when Gary asks). The GitHub
 item waits until the repo exists on GitHub: say so, and offer to run it after
-the first push.
+the first push. On a runner, hand Gary the command instead (Step 4).
 
 ## Safety invariants (always enforce)
 

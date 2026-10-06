@@ -226,7 +226,8 @@ for case in "yes|git@github.com:acme/widget.git|github.com" \
             "yes|git@gh-work:acme/widget.git|gh-work (ssh alias for github.com)" \
             "yes|git@broken:acme/widget.git|broken (ssh alias, not resolved: ssh -G gave no hostname)" \
             "no|git@github.com-agerpoint:acme/widget.git|github.com-agerpoint (ssh alias, not resolved: no ssh)" \
-            "no|git@gh-work:acme/widget.git|gh-work (ssh alias, not resolved: no ssh)"; do
+            "no|git@gh-work:acme/widget.git|gh-work (ssh alias, not resolved: no ssh)" \
+            "yes|git@github.com-nope:acme/widget.git|github.com-nope (ssh alias, not resolved: no Host entry)"; do
     has_ssh=${case%%|*} rest=${case#*|}
     url=${rest%%|*} want=${rest#*|}
     if [ "$has_ssh" = yes ]; then path="$stub:$PATH"; else path="$nossh"; fi
@@ -241,7 +242,8 @@ done
 for case in "yes|git@gitlab.com:acme/widget.git|gitlab.com" \
             "yes|https://gitlab.com/acme/widget.git|gitlab.com" \
             "yes|git@gl-work:acme/widget.git|gl-work (ssh -G hostname gitlab.example.com)" \
-            "yes|git@github.com-nope:acme/widget.git|github.com-nope" \
+            "yes|git@github.com-mirror.example.net:acme/widget.git|github.com-mirror.example.net" \
+            "no|git@github.com-mirror.example.net:acme/widget.git|github.com-mirror.example.net" \
             "yes|ssh://git@[::1]/acme/widget|[::1]" \
             "yes|git@[::1]:acme/widget.git|[::1]" \
             "no|git@gl.example.com:acme/widget.git|gl.example.com"; do

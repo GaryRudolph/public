@@ -205,7 +205,8 @@ read_github() {
 
 # Sets form and note for an ssh host: alias when ssh -G resolves it to
 # GitHub, other when it resolves elsewhere, and, when it can't be resolved,
-# unresolved for a host with no dot or a github.com-<ctx> alias, else other.
+# unresolved for a host with no dot or a dotless github.com-<ctx> alias
+# (also when ssh -G echoes it back with no Host entry), else other.
 classify_ssh_host() {
     local host="$1" resolved
     resolved=$(ssh_hostname "$host")
@@ -219,11 +220,17 @@ classify_ssh_host() {
                 note="ssh alias, not resolved: no ssh"
             fi
             case "$host" in
+                github.com-*.*) form=other note="" ;;
                 github.com-*) form=unresolved ;;
                 *.*) form=other note="" ;;
                 *) form=unresolved ;;
             esac ;;
-        "$host") form=other note="" ;;
+        "$host")
+            case "$host" in
+                github.com-*.*) form=other note="" ;;
+                github.com-*) form=unresolved note="ssh alias, not resolved: no Host entry" ;;
+                *) form=other note="" ;;
+            esac ;;
         *) form=other note="ssh -G hostname $resolved" ;;
     esac
 }
