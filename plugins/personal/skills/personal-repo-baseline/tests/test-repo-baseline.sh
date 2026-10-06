@@ -136,8 +136,23 @@ case "$1" in
         ;;
 esac
 EOF
-chmod +x "$stub/gh"
-export GH_ARGS_FILE="$work/gh-args"
+# ssh -G -- <host> prints what ~/.ssh/config would resolve it to.
+cat > "$stub/ssh" <<'EOF'
+#!/usr/bin/env bash
+[ "$1" = -G ] || exit 255
+shift
+[ "$1" = -- ] && shift
+printf '%s\n' "$1" >> "$SSH_ARGS_FILE"
+case "$1" in
+    github.com-lolay|github.com-agerpoint|gh-work) h=github.com ;;
+    gl-work) h=gitlab.example.com ;;
+    broken) exit 255 ;;
+    *) h=$1 ;;
+esac
+printf 'user git\nhostname %s\nport 22\n' "$h"
+EOF
+chmod +x "$stub/gh" "$stub/ssh"
+export GH_ARGS_FILE="$work/gh-args" SSH_ARGS_FILE="$work/ssh-args"
 
 repo="$work/widget"
 mkdir -p "$repo/.claude"
@@ -180,6 +195,12 @@ expect_ok "settings.json edited, not committed"  env PATH="$stub:$PATH" "$bash_b
 expect_grep "  ...differs from HEAD"             out 'differs from HEAD: yes'
 expect_grep "  ...differs from origin/main"      out 'same as origin/main (as of the last fetch): no'
 git -C "$repo" checkout -q -- .claude/settings.json
+git -C "$repo" rm -q --cached .claude/settings.json
+expect_ok "settings.json removed from the index" env PATH="$stub:$PATH" "$bash_bin" "$facts" "$repo"
+expect_grep "  ...untracked"                     out 'tracked by git: no'
+expect_grep "  ...still same as HEAD"            out 'differs from HEAD: no'
+expect_grep "  ...still same as origin/main"     out 'same as origin/main (as of the last fetch): yes'
+git -C "$repo" reset -q -- .claude/settings.json
 
 expect_ok "gh refused"                           env PATH="$stub:$PATH" GH_STUB_FAIL=1 "$bash_bin" "$facts" "$repo"
 expect_grep "  ...error reported"                out 'failed (exit 1): gh: Must have admin rights to Repository. (HTTP 403)'
@@ -190,34 +211,74 @@ for t in git python3 sed head tr mktemp rm dirname; do ln -s "$(command -v "$t")
 expect_ok "gh missing"                           env PATH="$nogh" "$bash_bin" "$facts" "$repo"
 expect_grep "  ...says so"                       out 'gh: missing'
 
-for case in 'git@github.com:acme/widget.git=github.com' 'ssh://git@github.com/acme/widget=github.com' \
-            'http://local_proxy@127.0.0.1:1234/git/acme/widget=127.0.0.1 (Claude Code cloud git proxy)' \
-            'git@gh-work:acme/widget.git=gh-work (ssh alias)'; do
-    url=${case%%=*}
+# PATH without ssh, for the unresolved-alias fallback.
+nossh="$work/nossh"
+mkdir -p "$nossh"
+for t in bash git python3 sed head tr mktemp rm dirname awk readlink; do ln -s "$(command -v "$t")" "$nossh/$t"; done
+ln -s "$stub/gh" "$nossh/gh"
+
+# Each case: <ssh on PATH>|<url>|<origin host line>
+for case in "yes|git@github.com:acme/widget.git|github.com" \
+            "yes|ssh://git@github.com/acme/widget|github.com" \
+            "yes|http://local_proxy@127.0.0.1:1234/git/acme/widget|127.0.0.1 (Claude Code cloud git proxy)" \
+            "yes|git@github.com-lolay:acme/widget.git|github.com-lolay (ssh alias for github.com)" \
+            "yes|ssh://git@github.com-agerpoint:22/acme/widget.git|github.com-agerpoint (ssh alias for github.com)" \
+            "yes|git@gh-work:acme/widget.git|gh-work (ssh alias for github.com)" \
+            "yes|git@broken:acme/widget.git|broken (ssh alias, not resolved: ssh -G gave no hostname)" \
+            "no|git@github.com-agerpoint:acme/widget.git|github.com-agerpoint (ssh alias, not resolved: no ssh)" \
+            "no|git@gh-work:acme/widget.git|gh-work (ssh alias, not resolved: no ssh)"; do
+    has_ssh=${case%%|*} rest=${case#*|}
+    url=${rest%%|*} want=${rest#*|}
+    if [ "$has_ssh" = yes ]; then path="$stub:$PATH"; else path="$nossh"; fi
     git -C "$repo" remote set-url origin "$url"
     rm -f "$GH_ARGS_FILE"
-    expect_ok "origin $url"                      env PATH="$stub:$PATH" "$bash_bin" "$facts" "$repo"
+    expect_ok "origin $url (ssh: $has_ssh)"      env PATH="$path" "$bash_bin" "$facts" "$repo"
     expect_grep "  ...owner/name parsed"         out 'owner/name from origin: acme/widget'
-    expect_grep "  ...host"                      out "origin host: ${case#*=}"
+    expect_grep "  ...host"                      out "origin host: $want"
     expect_grep "  ...GitHub read"               gh-args 'repos/acme/widget'
 done
 
-for case in 'git@gitlab.com:acme/widget.git=gitlab.com' 'https://gitlab.com/acme/widget.git=gitlab.com'; do
-    url=${case%%=*}
+for case in "yes|git@gitlab.com:acme/widget.git|gitlab.com" \
+            "yes|https://gitlab.com/acme/widget.git|gitlab.com" \
+            "yes|git@gl-work:acme/widget.git|gl-work (ssh -G hostname gitlab.example.com)" \
+            "yes|git@github.com-nope:acme/widget.git|github.com-nope" \
+            "yes|ssh://git@[::1]/acme/widget|[::1]" \
+            "yes|git@[::1]:acme/widget.git|[::1]" \
+            "no|git@gl.example.com:acme/widget.git|gl.example.com"; do
+    has_ssh=${case%%|*} rest=${case#*|}
+    url=${rest%%|*} want=${rest#*|}
+    if [ "$has_ssh" = yes ]; then path="$stub:$PATH"; else path="$nossh"; fi
+    git -C "$repo" remote set-url origin "$url"
+    rm -f "$GH_ARGS_FILE" "$SSH_ARGS_FILE"
+    expect_ok "origin $url (ssh: $has_ssh)"      env PATH="$path" "$bash_bin" "$facts" "$repo"
+    expect_grep "  ...host"                      out "origin host: $want"
+    expect_grep "  ...GitHub not read"           out "not read: origin host ${want%% (*} isn't github.com, the cloud git proxy, or an ssh alias for github.com"
+    expect_eq "  ...gh not called"               "$(test -e "$GH_ARGS_FILE" && echo called || echo not)" not
+    case "$want" in
+        \[*) expect_eq "  ...ssh -G not run for an IP" "$(test -e "$SSH_ARGS_FILE" && echo called || echo not)" not ;;
+    esac
+done
+
+for url in "$work/elsewhere/acme/widget.git" 'C:/repos/acme/widget.git' 'file:///srv/git/acme/widget.git'; do
     git -C "$repo" remote set-url origin "$url"
     rm -f "$GH_ARGS_FILE"
     expect_ok "origin $url"                      env PATH="$stub:$PATH" "$bash_bin" "$facts" "$repo"
-    expect_grep "  ...host"                      out "origin host: ${case#*=}"
-    expect_grep "  ...GitHub not read"           out "not read: origin host ${case#*=} isn't github.com, the cloud git proxy, or an ssh alias"
+    expect_grep "  ...host"                      out 'origin host: none (local path)'
+    expect_grep "  ...GitHub not read"           out 'not read: origin is a local path, not GitHub'
     expect_eq "  ...gh not called"               "$(test -e "$GH_ARGS_FILE" && echo called || echo not)" not
 done
 
-git -C "$repo" remote set-url origin "$work/elsewhere/acme/widget.git"
-rm -f "$GH_ARGS_FILE"
-expect_ok "origin a local path"                  env PATH="$stub:$PATH" "$bash_bin" "$facts" "$repo"
-expect_grep "  ...host"                          out 'origin host: none (local path)'
-expect_grep "  ...GitHub not read"               out 'not read: origin is a local path, not GitHub'
-expect_eq "  ...gh not called"                   "$(test -e "$GH_ARGS_FILE" && echo called || echo not)" not
+# Each case: <url>|<origin line>
+for case in 'https://gary:ghp_s3cr3t@github.com/acme/widget.git|https://***@github.com/acme/widget.git' \
+            'https://ghp_s3cr3t@github.com/acme/widget.git|https://***@github.com/acme/widget.git' \
+            'ssh://git:ghp_s3cr3t@github.com/acme/widget|ssh://git:***@github.com/acme/widget'; do
+    url=${case%%|*}
+    git -C "$repo" remote set-url origin "$url"
+    expect_ok "credentials in origin"            env PATH="$stub:$PATH" "$bash_bin" "$facts" "$repo"
+    expect_grep "  ...masked"                    out "origin: ${case#*|}"
+    expect_nogrep "  ...secret not printed"      out 'ghp_s3cr3t'
+    expect_grep "  ...owner/name parsed"         out 'owner/name from origin: acme/widget'
+done
 
 git -C "$repo" remote remove origin
 printf '{"a": 1,}\n' > "$repo/.claude/settings.json"
@@ -249,6 +310,23 @@ expect_ok "untracked settings.json"              env PATH="$stub:$PATH" "$bash_b
 expect_grep "  ...untracked"                     out 'tracked by git: no'
 expect_grep "  ...not in HEAD"                   out 'differs from HEAD: yes (not in HEAD)'
 expect_grep "  ...no default branch"             out "origin default branch: unknown (no local origin/HEAD, and GitHub didn't say)"
+
+linked="$work/linked"
+git init -q "$linked"
+git -C "$linked" config user.email t@example.com
+git -C "$linked" config user.name test
+git -C "$linked" config commit.gpgsign false
+mkdir -p "$linked/.claude" "$linked/shared"
+printf '{}\n' > "$linked/shared/settings.json"
+ln -s ../shared/settings.json "$linked/.claude/settings.json"
+git -C "$linked" add -A && git -C "$linked" commit -qm init
+expect_ok "tracked symlinked settings.json"      env PATH="$stub:$PATH" "$bash_bin" "$facts" "$linked"
+expect_grep "  ...symlink reported"              out 'symlink to: ../shared/settings.json'
+expect_grep "  ...same as HEAD"                  out 'differs from HEAD: no'
+ln -sf ../shared/other.json "$linked/.claude/settings.json"
+cp "$linked/shared/settings.json" "$linked/shared/other.json"
+expect_ok "symlink retargeted"                   env PATH="$stub:$PATH" "$bash_bin" "$facts" "$linked"
+expect_grep "  ...differs from HEAD"             out 'differs from HEAD: yes'
 
 if [ "$failures" -gt 0 ]; then
     printf 'test-repo-baseline: %d failed\n' "$failures" >&2

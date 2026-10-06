@@ -7,8 +7,10 @@
 # Needs bash (3.2 is fine), git, and python3. gh is optional; without it, or
 # without access, the GitHub section prints why it couldn't read anything.
 # GitHub is read only when origin is github.com, Claude Code's cloud git
-# proxy, or an ssh alias: on any other host, repos/<owner>/<name> on GitHub
-# would be some other repo.
+# proxy, or an ssh alias for github.com: on any other host,
+# repos/<owner>/<name> on GitHub would be some other repo. An ssh host is
+# resolved with `ssh -G`; without ssh, a host with no dot or a
+# github.com-<ctx> alias is taken as one, unresolved.
 #
 # Usage: repo-facts.sh [<repo> ...]    (default: the current directory)
 set -uo pipefail
@@ -45,18 +47,27 @@ print(m.group(1) + "/" + m.group(2) if m else "")
 
 # "<host> <form>" for a remote URL. form is github (github.com), proxy
 # (Claude Code's cloud git proxy, http://...@127.0.0.1:<port>/git/o/r),
-# alias (an ssh host with no dot, such as a ~/.ssh/config Host entry),
-# other, or local (a path or file:// URL, printed as "- local").
+# ssh (any other ssh host name, which may be a ~/.ssh/config Host alias),
+# other (including an IP address), or local (a path, a C:/ drive path, or
+# a file:// URL, printed as "- local").
 origin_host() {
     python3 -c '
-import re, sys
+import ipaddress, re, sys
 url = sys.argv[1]
+def is_ip(host):
+    try:
+        ipaddress.ip_address(host.strip("[]"))
+        return True
+    except ValueError:
+        return False
 m = re.match(r"^([A-Za-z][A-Za-z0-9+.-]*)://(?:[^@/]*@)?(\[[^\]]*\]|[^:/]*)(?::[0-9]*)?(/.*)?$", url)
 if m:
     scheme, host, path = m.group(1).lower(), m.group(2).lower(), m.group(3) or ""
     is_ssh = "ssh" in scheme
+elif re.match(r"^[A-Za-z]:[\\/]", url):
+    scheme, host, path, is_ssh = "file", "", "", False
 else:
-    m = re.match(r"^(?:[^@/:]+@)?([^/:]+):", url)
+    m = re.match(r"^(?:[^@/:]+@)?(\[[^\]]*\]|[^/:]+):", url)
     scheme, host, path, is_ssh = "scp", (m.group(1).lower() if m else ""), "", True
 if not host or scheme == "file":
     print("- local")
@@ -64,10 +75,39 @@ elif host in ("github.com", "www.github.com", "ssh.github.com"):
     print(host, "github")
 elif scheme in ("http", "https") and host in ("127.0.0.1", "localhost") and path.startswith("/git/"):
     print(host, "proxy")
-elif is_ssh and "." not in host and host != "localhost":
-    print(host, "alias")
+elif is_ssh and host != "localhost" and not is_ip(host):
+    print(host, "ssh")
 else:
     print(host, "other")
+' "$1"
+}
+
+# The hostname ssh would connect to for an ssh host, after ~/.ssh/config
+# Host entries (ssh -G reads the config and connects to nothing). Prints
+# nothing when ssh is missing or doesn't say.
+ssh_hostname() {
+    case "$1" in -*) return 0 ;; esac
+    command -v ssh >/dev/null 2>&1 || return 0
+    ssh -G -- "$1" </dev/null 2>/dev/null | awk '$1 == "hostname" { print tolower($2); exit }'
+}
+
+# The remote URL with credentials masked: all of an http(s) URL's userinfo
+# (a token can sit in the user part), and the password of any other URL.
+redact_url() {
+    python3 -c '
+import re, sys
+url = sys.argv[1]
+m = re.match(r"^([A-Za-z][A-Za-z0-9+.-]*://)([^/]*)(.*)$", url, re.S)
+if m and "@" in m.group(2):
+    scheme, authority, rest = m.groups()
+    userinfo, _, hostport = authority.rpartition("@")
+    if "ssh" in scheme.lower():
+        user, colon, _ = userinfo.partition(":")
+        userinfo = user + (":***" if colon else "")
+    else:
+        userinfo = "***"
+    url = scheme + userinfo + "@" + hostport + rest
+print(url)
 ' "$1"
 }
 
@@ -104,13 +144,24 @@ if len(sys.argv) > 2 and isinstance(data, dict):
 
 # Compares the working-tree file at <path> with <rev>: prints same,
 # differs, absent (not on <rev>), or norev (<rev> doesn't resolve here).
+# Hashes the file itself, so the index (a git rm --cached, say) doesn't
+# change the answer; a symlink hashes as its target path, as git stores it.
 compare_to() {
-    local root="$1" rev="$2" path="$3"
+    local root="$1" rev="$2" path="$3" want have
     if ! git -C "$root" rev-parse --verify --quiet "$rev^{commit}" >/dev/null 2>&1; then
         echo norev
-    elif ! git -C "$root" cat-file -e "$rev:$path" 2>/dev/null; then
+        return
+    fi
+    if ! want=$(git -C "$root" rev-parse --verify --quiet "$rev:$path" 2>/dev/null); then
         echo absent
-    elif git -C "$root" diff --quiet "$rev" -- "$path" 2>/dev/null; then
+        return
+    fi
+    if [ -L "$root/$path" ]; then
+        have=$(printf '%s' "$(readlink "$root/$path")" | git -C "$root" hash-object --stdin 2>/dev/null)
+    else
+        have=$(git -C "$root" hash-object -- "$path" 2>/dev/null)
+    fi
+    if [ -n "$have" ] && [ "$have" = "$want" ]; then
         echo same
     else
         echo differs
@@ -133,12 +184,12 @@ read_github() {
         return
     fi
     case "$form" in
-        github|proxy|alias) ;;
+        github|proxy|alias|unresolved) ;;
         local)
             printf '  not read: origin is a local path, not GitHub\n' >> "$ghf"
             return ;;
         *)
-            printf "  not read: origin host %s isn't github.com, the cloud git proxy, or an ssh alias\n" "$host" >> "$ghf"
+            printf "  not read: origin host %s isn't github.com, the cloud git proxy, or an ssh alias for github.com\n" "$host" >> "$ghf"
             return ;;
     esac
     printf '  request: gh api repos/%s\n' "$slug" >> "$ghf"
@@ -152,8 +203,33 @@ read_github() {
     fi
 }
 
+# Sets form and note for an ssh host: alias when ssh -G resolves it to
+# GitHub, other when it resolves elsewhere, and, when it can't be resolved,
+# unresolved for a host with no dot or a github.com-<ctx> alias, else other.
+classify_ssh_host() {
+    local host="$1" resolved
+    resolved=$(ssh_hostname "$host")
+    case "$resolved" in
+        github.com|www.github.com|ssh.github.com)
+            form=alias note="ssh alias for $resolved" ;;
+        "")
+            if command -v ssh >/dev/null 2>&1; then
+                note="ssh alias, not resolved: ssh -G gave no hostname"
+            else
+                note="ssh alias, not resolved: no ssh"
+            fi
+            case "$host" in
+                github.com-*) form=unresolved ;;
+                *.*) form=other note="" ;;
+                *) form=unresolved ;;
+            esac ;;
+        "$host") form=other note="" ;;
+        *) form=other note="ssh -G hostname $resolved" ;;
+    esac
+}
+
 facts_for() {
-    local dir="$1" root slug="" origin="" branch host="" form="" is_git=no line
+    local dir="$1" root slug="" origin="" branch host="" form="" note="" is_git=no line
     printf '\n### %s\n' "$dir"
 
     section repo
@@ -163,15 +239,21 @@ facts_for() {
         if [ -n "$origin" ]; then
             slug=$(slug_from_url "$origin")
             read -r host form <<<"$(origin_host "$origin")"
+            case "$form" in
+                proxy) note="Claude Code cloud git proxy" ;;
+                ssh) classify_ssh_host "$host" ;;
+            esac
         fi
         printf '  root: %s\n' "$root"
-        printf '  origin: %s\n' "${origin:-none}"
+        if [ -n "$origin" ]; then
+            printf '  origin: %s\n' "$(redact_url "$origin")"
+        else
+            printf '  origin: none\n'
+        fi
         case "$form" in
             "") ;;
             local) printf '  origin host: none (local path)\n' ;;
-            proxy) printf '  origin host: %s (Claude Code cloud git proxy)\n' "$host" ;;
-            alias) printf '  origin host: %s (ssh alias)\n' "$host" ;;
-            *) printf '  origin host: %s\n' "$host" ;;
+            *) printf '  origin host: %s%s\n' "$host" "${note:+ ($note)}" ;;
         esac
         printf '  owner/name from origin: %s\n' "${slug:-none}"
         branch=$(git -C "$root" branch --show-current 2>/dev/null || true)

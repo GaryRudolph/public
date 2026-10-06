@@ -67,8 +67,8 @@ The rules are in core.md under "Runner scratch rides the branch" and
 - What's pending
 - Key decisions made
 - Gotchas for the next session
-- The branch, and whether it's a task branch, so the next session doesn't
-  have to ask again
+- The branch, and whether it's a task branch, so the resume prompt can
+  name it
 - On a runner also: that the branch name was a guess, if it was, the pending
   question verbatim, and how to resume
 

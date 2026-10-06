@@ -115,11 +115,13 @@ heading and **before**
 the next `--- STOP …` or `--- WAVE …` marker (for the final wave, after
 its last heading and before end-of-file or the Completion section). Use
 the REVIEW template from standards §"Review beat" — fill in wave number,
-total wave count, `<group-id>`, the resolved plan path from step 1, and, on
-a task branch, its `On branch` line, so the prompt is self-contained. After an `[xdeep]` wave, also apply the
-`[xdeep]` note under that template: `[xdeep]` in the marker, title, and
-prompt, its Opus max-effort rows, and no ultracode. **Idempotent:** skip a
-REVIEW write when
+total wave count, `<group-id>`, and the resolved plan path from step 1, so
+the prompt is self-contained. Add its `On branch` line only on a task
+branch with the plan file tracked (`specs/handoffs/` on a runner): a plan
+in gitignored `.scratch/` isn't committed, and never `git add -f` it.
+After an `[xdeep]` wave, also apply the `[xdeep]` note under that
+template: `[xdeep]` in the marker, title, and prompt, its Opus max-effort
+rows, and no ultracode. **Idempotent:** skip a REVIEW write when
 `--- REVIEW: wave-N` already exists for that wave (re-entry).
 
 Then insert STOP markers at tier transitions as before.
@@ -147,12 +149,14 @@ include:
    append ` (done)` to finished headings, update the Status line, flip
    todos), carries `On branch <name> (task branch): commit each finished
    step.` on a task branch (Gary pasting it names the branch for that chat;
-   leave it out until a task branch exists), and ends with "Stop at the next
-   STOP marker and report back" so the cascade is preserved. There is no
-   orchestrator in this flow, and the pasted chat usually does not re-load
-   this skill, so that inline reminder is the only thing that tells the
-   wave to update plan state — never omit it, and do not move it into a
-   separate checklist block in the plan.
+   leave it out until a task branch exists; a chat on another branch
+   follows the standards' fill-in rule: a runner keeps its assigned branch
+   and says so, a workstation proposes switching and waits), and ends with
+   "Stop at the next STOP marker and report back" so the cascade is
+   preserved. There is no orchestrator in this flow, and the pasted chat
+   usually does not re-load this skill, so that inline reminder is the only
+   thing that tells the wave to update plan state — never omit it, and do
+   not move it into a separate checklist block in the plan.
 5. For a STOP into an `[xdeep]` wave, the extras from the standards'
    `[xdeep]` escalation note: start the prompt with the keyword `ultracode`
    so that turn runs under ultracode (for a wave that may take more than
@@ -254,7 +258,8 @@ In whichever chat executes a group, **before halting at the STOP marker**:
    its first pause (end of the first step), before anything is committed,
    whether to cut a task branch (core.md "Cut a task branch off a shared
    branch"). A chat that cuts one adds its `On branch` line to the
-   remaining STOP and REVIEW prompts with its first commit.
+   remaining STOP prompts (and REVIEW prompts, when the plan is tracked)
+   with its first commit.
 
 **Review beat (separate chat).** After a wave finishes, the human runs
 the REVIEW marker for that wave before starting the next wave. When

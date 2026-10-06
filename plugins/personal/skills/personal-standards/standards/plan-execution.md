@@ -353,7 +353,7 @@ Rules for filling in the template:
   (e.g. `the "Wire Redis client" through "Write integration tests" steps`).
 - Always include the `Suggested chat title:` line in the [Wave title format](#wave-title-format). `{n}` is the **next** wave (the one this STOP launches), `{t}` the total wave count, and `{group-id}` the same identifier used to name the next group above. It is advisory — a foreground chat cannot set its own title, so emit it for the user to paste even though there is no guarantee the harness will use it.
 - Always include the "Stop at the next STOP marker" hard limit so the cascade is preserved.
-- `On branch <name> (task branch)` names the task branch the plan runs on. Each wave is a new chat, so a branch cut in an earlier one isn't "cut this session"; Gary pasting the prompt names the branch for the work (git.md "Task branches and shared branches"), so the next chat commits there without asking again, on a workstation or a runner. With no task branch yet (a workstation on a shared branch), leave the line out; the chat that cuts one adds it to the remaining STOP and REVIEW prompts with its first commit. The REVIEW prompt carries it too, as `On branch <name> (task branch): commit the plan update before you stop.`
+- `On branch <name> (task branch)` names the task branch the plan runs on. Each wave is a new chat, so a branch cut in an earlier one isn't "cut this session"; Gary pasting the prompt names the branch for the work (git.md "Task branches and shared branches"), so a chat on `<name>` commits there without asking again. A chat on another branch: on a runner, the harness-assigned branch wins; the chat works there, says in its first report that it isn't `<name>`, and puts its own branch on the remaining prompts' `On branch` lines (the earlier wave's branch stays as is). On a workstation, it proposes switching to `<name>` and waits, committing nothing until Gary answers. With no task branch yet (a workstation on a shared branch), leave the line out; the chat that cuts one adds it to the remaining prompts with its first commit. The REVIEW prompt carries it only when the plan file is tracked (in `specs/handoffs/` on a runner), as `On branch <name> (task branch): commit the plan update before you stop.`; a plan in gitignored `.scratch/` stays uncommitted (never `git add -f`).
 - Always include the **progress-update reminder** spelled out inline in the prompt body (append ` (done)` to finished headings, update the Kickoff Status line, flip the matching todos). The pasted chat usually does **not** re-load the driver skill, so this inline reminder is the only way the [Progress tracking](#progress-tracking) convention reaches it — never drop it. Do not factor it out into a separate checklist block in the plan; keep it in the prompt.
 - Use `->` ASCII arrows rather than Unicode em-dash arrows so the marker is safe in terminals and grep.
 - If the next group is a `[deep]` block being delegated to a parent, the prompt should say "design only, do not implement"; if it's `[exec]` or `[fast]`, the prompt should say "implement <next group>, stop at next STOP marker."
@@ -402,6 +402,8 @@ Template:
         stop.
 
     ---
+
+Keep that last line only when the plan file is tracked (the [STOP fill-in rules](#stop-marker-template)); a plan in `.scratch/` isn't committed.
 
 For a wave that ran at `[xdeep]`, change `[deep]` to `[xdeep]` in the marker, the chat title, and the prompt's first line, and use these rows:
 

@@ -65,8 +65,8 @@ bash <skill-dir>/scripts/repo-facts.sh [<repo> ...]
 
 Per repo (default: the current directory) it prints:
 
-- the root, `origin`, its host, the `owner/name` parsed from it, the
-  branch, and the commit count
+- the root, `origin` (credentials masked), its host, the `owner/name`
+  parsed from it, the branch, and the commit count
 - for `.claude/settings.json`: whether it exists (and where a symlink
   points), whether git tracks it, whether it differs from `HEAD`, origin's
   default branch and whether the file matches it there (local refs, as of
@@ -81,11 +81,13 @@ Per repo (default: the current directory) it prints:
 
 It needs bash, git, and python3. Without `gh`, or without access, the GitHub
 section says why. It reads GitHub only when origin's host is github.com,
-Claude Code's cloud git proxy, or an ssh alias; any other host (GitLab, a
-local path) gets a "not read" line, since the same `owner/name` on GitHub
-would be another repo. A `null` GitHub value means GitHub didn't return it,
-usually because the token can't administer the repo; `permissions` shows
-what it can do.
+Claude Code's cloud git proxy, or an ssh alias for github.com, such as
+`github.com-lolay` (resolved with `ssh -G`; without ssh, a host with no dot
+or a `github.com-*` alias is read unresolved). Any other host (GitLab, an IP
+address, a local path) gets a "not read" line, since the same `owner/name`
+on GitHub would be another repo. A `null` GitHub value means GitHub didn't
+return it, usually because the token can't administer the repo;
+`permissions` shows what it can do.
 
 ### Step 2 — Audit (dry-run, always)
 
@@ -122,7 +124,8 @@ stop here.** Present the report; write nothing.
   the template would replace; the merge keeps them unless told.
 - **GitHub** — a remote, outward-facing change. Ask in this session, naming
   the repo and each value. A yes to the file isn't a yes to GitHub, and a yes
-  for one repo isn't a yes for the next.
+  for one repo isn't a yes for the next. A runner sends nothing, so it
+  doesn't ask; Step 4 hands Gary the command.
 - **Fail closed** — no response, a dismissed prompt, or an ambiguous reply
   means skip.
 
@@ -144,7 +147,8 @@ the link. Removing a key, such as
 `includeCoAuthoredBy`, is a hand edit after a yes. The file is an ordinary
 change: commit it per `core.md`.
 
-**GitHub.** With Gary's yes for this repo:
+**GitHub.** On a workstation, with Gary's yes for this repo (a runner can't
+send it; see below):
 
 ```
 gh api -X PATCH repos/<owner>/<name> --input <skill-dir>/templates/github-merge-settings.json --silent
@@ -157,6 +161,21 @@ together, as one of the pairs Settings offers (the baseline's `PR_TITLE`
 with `PR_BODY`; `COMMIT_OR_PR_TITLE` only with `COMMIT_MESSAGES`), and at
 least one merge method stays on. If his subset breaks either, say which and
 ask again. It needs admin on the repo.
+
+**On a runner, don't send the PATCH.** Claude Code's cloud GitHub proxy
+refuses repository settings writes (HTTP 403 "Repository settings writes
+are not permitted through this proxy."); reads go through. So when
+`CLAUDE_CODE_REMOTE=true`, or a PATCH already got that 403, don't attempt or
+retry it, with or without a yes. Give Gary the command to run on a
+workstation:
+
+```
+gh api -X PATCH repos/<owner>/<name> -F allow_squash_merge=true -F allow_merge_commit=false -F allow_rebase_merge=false -f squash_merge_commit_title=PR_TITLE -f squash_merge_commit_message=PR_BODY -F delete_branch_on_merge=true
+```
+
+plus the Settings path below (a subset he wants follows the limits above),
+and once he says it's done, re-run the audit (Step 5).
+
 If `gh` is missing or the call is refused, don't work around it: give Gary the
 values to set by hand in Settings → General → Pull Requests:
 

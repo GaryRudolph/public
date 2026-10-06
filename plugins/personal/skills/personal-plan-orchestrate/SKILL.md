@@ -449,7 +449,10 @@ authoritative usage data.
    (core.md "Cut a task branch off a shared branch"). Without a yes,
    orchestrate on the shared branch and tell subagents not to commit. On a
    workstation, a branch that's neither shared nor a task branch gets the
-   one-time ask, also before the first dispatch.
+   one-time ask, also before the first dispatch. If a pasted Kickoff names
+   another branch on its `On branch` line, a runner keeps its assigned
+   branch and says so in its first report; a workstation proposes
+   switching and waits, committing nothing until Gary answers.
 3. **Tag the plan, group into waves, and write wave markers.** If the plan
    is not already tagged, run
    [`personal-plan-tag-tiers`](../personal-plan-tag-tiers/SKILL.md) to tag
