@@ -76,14 +76,15 @@ If a `~/Projects/personal/public/...` path below doesn't exist (cloud, runner, o
 Load these only when the current task is relevant to the standard's topic:
 
 - `~/Projects/personal/public/standards/code-style.md` — naming, formatting, imports, anti-patterns
-- `~/Projects/personal/public/standards/architecture.md` — layering, DI, API design, error handling
+- `~/Projects/personal/public/standards/architecture.md` — layering, DI, API design, error handling, resource history, ops plane
 - `~/Projects/personal/public/standards/platform-parity.md` — cross-platform Swift/Kotlin naming and layer conventions
 - `~/Projects/personal/public/standards/testing.md` — coverage targets, test structure, mocking rules
 - `~/Projects/personal/public/standards/documentation.md` — what to document, ADR format, TODO conventions
 - `~/Projects/personal/public/standards/plan-execution.md` — model-tier tagging, STOP gates, kickoff/progress tracking, subagent delegation
 - `~/Projects/personal/public/standards/git.md` — branching, versioning, commit format, AI attribution, PR workflow
 - `~/Projects/personal/public/standards/makefile.md` — Makefile target vocabulary, self-documenting help, workspace/polyrepo delegation, danger guards
-- `~/Projects/personal/public/standards/security.md` — auth, encryption, input validation, checklists
+- `~/Projects/personal/public/standards/security.md` — auth, authorization, cookies, encryption, input validation, checklists
+- `~/Projects/personal/public/standards/gcp.md` — GCP/Firebase: IAP, Terraform access groups, Identity Platform, emulator guard
 
 ### Language-Specific Standards
 

@@ -118,6 +118,129 @@ class Order(Model):
     items = ListAttribute(of=OrderItem)
 ```
 
+## Resource History — PostgreSQL
+
+How a PostgreSQL table that opts in implements [Resource History](../architecture.md#resource-history):
+
+- **Tables** — the head table plus `<table>_revisions(id, revision, created_at, actor_type, actor_sub, request_id, schema_version, snapshot jsonb)`, keyed `(id, revision)`, with `id` referencing the head `ON DELETE CASCADE`
+- **jsonb snapshots, not typed mirror tables** — one generic trigger serves every table, history never needs a migration, and old rows stay truly immutable. Readers upcast by `schema_version`. `bytea` becomes a `"\\x…"` string inside jsonb, so store ciphertext as base64 text
+- **One generic trigger pair** — a `BEFORE` trigger stamps the timestamps and enforces the counter; an `AFTER` trigger writes the snapshot. An Alembic migration creates them with `op.execute`
+- **Hardening** — without these, the app role can bypass history:
+  - The functions set `search_path = pg_catalog, pg_temp` and schema-qualify the revisions table, or a temp table can capture the inserts ([Writing `SECURITY DEFINER` Functions Safely](https://www.postgresql.org/docs/current/sql-createfunction.html#SQL-CREATEFUNCTION-SECURITY))
+  - A non-login owner role owns the tables and functions, and migrations `SET ROLE` to it. The app role never owns a table, because an owner can disable its triggers
+  - `clock_timestamp()`, not `now()`: `now()` is the transaction's start, so concurrent writers can stamp revisions out of order
+  - An empty `app.actor_type` or `app.actor_sub` is rejected: on a pooled connection that set it in an earlier transaction, `current_setting` returns `''` instead of raising
+  - `REVOKE ALL ON FUNCTION … FROM PUBLIC`: new functions are executable by `PUBLIC`. The triggers still fire for the app role, but it can't attach the `SECURITY DEFINER` function to a table of its own
+- **Grants** — the app role gets `SELECT, INSERT, UPDATE` on the head (no `DELETE`; a delete sets `state`) and only `SELECT` on revisions. A separate purger role holds `DELETE` for purge (the foreign key cascades) and retention
+- **Actor** — a `Session` `after_begin` hook sets `app.actor_type`, `app.actor_sub` and `app.request_id` for each transaction with `set_config(…, true)`; the revisions response nests the two columns as `actor{type, sub}`. An async auth dependency sets the `ContextVar`: a sync dependency runs in a threadpool, so what it sets never reaches the handler. Sessions without an actor (health checks, jobs) set empty values, and the trigger rejects their writes
+- **Optimistic concurrency** — compare `If-Match` with the loaded `revision` (412 on mismatch), then let `version_id_col` guard the race between load and flush: SQLAlchemy writes `UPDATE … WHERE revision = :old` and raises `StaleDataError` when no row matches, also a 412. It emits no `UPDATE` when nothing changed, so a no-op write creates no revision
+- **Trigger-set columns** — `FetchedValue()` plus `eager_defaults` so the ORM reads back what the trigger wrote
+- **Snapshot keys** are snake_case column names, so the lowerCamel response model reads them with `validate_by_name=True`
+- **No native option** — PostgreSQL has no system-versioned tables; [the PostgreSQL 19 docs](https://www.postgresql.org/docs/19/ddl-temporal-tables.html) (in beta) say to emulate them with triggers
+
+```sql
+-- One generic pair serves every table with history; history_owner (NOLOGIN) owns everything
+CREATE FUNCTION rev_stamp() RETURNS trigger
+LANGUAGE plpgsql SET search_path = pg_catalog, pg_temp AS $$
+BEGIN
+  IF NULLIF(current_setting('app.actor_type', true), '') IS NULL
+     OR NULLIF(current_setting('app.actor_sub', true), '') IS NULL THEN
+    RAISE EXCEPTION 'app.actor_type and app.actor_sub must be set';
+  END IF;
+  NEW.updated_at := clock_timestamp();
+  IF TG_OP = 'INSERT' THEN
+    NEW.revision := 1;
+    NEW.created_at := NEW.updated_at;
+  ELSIF NEW.revision <> OLD.revision + 1 THEN
+    RAISE EXCEPTION 'revision must be %', OLD.revision + 1;
+  ELSE
+    NEW.created_at := OLD.created_at;
+  END IF;
+  RETURN NEW;
+END $$;
+
+CREATE FUNCTION rev_snapshot() RETURNS trigger
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog, pg_temp AS $$
+BEGIN
+  EXECUTE format('INSERT INTO %I.%I (id, revision, created_at, actor_type, actor_sub,
+                  request_id, schema_version, snapshot) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)',
+                 TG_TABLE_SCHEMA, TG_TABLE_NAME || '_revisions')
+  USING NEW.id, NEW.revision, NEW.updated_at, current_setting('app.actor_type'),
+        current_setting('app.actor_sub'), NULLIF(current_setting('app.request_id', true), ''),
+        TG_ARGV[0]::int, to_jsonb(NEW) - 'revision' - 'created_at' - 'updated_at';
+  RETURN NULL;
+END $$;
+
+CREATE TABLE books_revisions (
+  id             uuid NOT NULL REFERENCES books ON DELETE CASCADE,
+  revision       int NOT NULL,
+  created_at     timestamptz NOT NULL,
+  actor_type     text NOT NULL CHECK (actor_type IN ('USER', 'OPS', 'SERVICE')),
+  actor_sub      text NOT NULL,
+  request_id     text,
+  schema_version int NOT NULL,
+  snapshot       jsonb NOT NULL,
+  PRIMARY KEY (id, revision)
+);
+CREATE TRIGGER stamp BEFORE INSERT OR UPDATE ON books
+  FOR EACH ROW EXECUTE FUNCTION rev_stamp();
+CREATE TRIGGER snapshot AFTER INSERT OR UPDATE ON books
+  FOR EACH ROW EXECUTE FUNCTION rev_snapshot('1');  -- the snapshot's schema_version
+
+REVOKE ALL ON FUNCTION rev_stamp(), rev_snapshot() FROM PUBLIC;
+GRANT SELECT, INSERT, UPDATE ON books TO app;
+GRANT SELECT ON books_revisions TO app;
+GRANT SELECT, DELETE ON books, books_revisions TO purger;
+```
+
+```python
+# app/models/books.py
+class Book(Base):
+    __tablename__ = "books"
+    id: Mapped[UUID] = mapped_column(primary_key=True)
+    revision: Mapped[int] = mapped_column()
+    state: Mapped[str]
+    title: Mapped[str]
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=FetchedValue()
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=FetchedValue(), server_onupdate=FetchedValue()
+    )
+    __mapper_args__ = {"version_id_col": revision, "eager_defaults": True}
+
+# app/models/database.py
+# (type, sub), set by the async auth dependency; empty outside a request
+actor: ContextVar[tuple[str, str]] = ContextVar("actor", default=("", ""))
+request_id: ContextVar[str] = ContextVar("request_id", default="")
+
+@event.listens_for(Session, "after_begin")
+def _set_actor(session: Session, tx: SessionTransaction, conn: Connection) -> None:
+    actor_type, actor_sub = actor.get()
+    conn.execute(
+        text(
+            "SELECT set_config('app.actor_type', :t, true), set_config('app.actor_sub', :s, true),"
+            " set_config('app.request_id', :r, true)"
+        ),
+        {"t": actor_type, "s": actor_sub, "r": request_id.get()},
+    )
+
+# app/api/books/services.py
+async def rename_book(session: AsyncSession, book_id: UUID, if_match: int, title: str) -> Book:
+    async with session.begin():
+        book = await session.get(Book, book_id)
+        if book is None or book.state == "DELETED":
+            raise ProblemError(HTTPStatus.NOT_FOUND, "Book not found")
+        if book.revision != if_match:
+            raise ProblemError(HTTPStatus.PRECONDITION_FAILED, "Book has changed")
+        book.title = title
+        try:
+            await session.flush()
+        except StaleDataError:  # another write committed after the load
+            raise ProblemError(HTTPStatus.PRECONDITION_FAILED, "Book has changed") from None
+    return book
+```
+
 ## Error Catalog Pattern
 
 Every error is an RFC 9457 problem (see [Error Responses](../architecture.md#error-responses-rfc-9457)). `ProblemError` carries one; catalog classmethods raise it:

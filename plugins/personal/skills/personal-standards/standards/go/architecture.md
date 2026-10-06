@@ -229,6 +229,129 @@ func (s *BigQueryStore) QueryEvents(ctx context.Context, since time.Time) ([]Eve
 - Domain structs stay storage-agnostic — map Firestore/BigQuery types in the repository
 - GORM handles migrations via `AutoMigrate` in dev; use `golang-migrate` or goose for production
 
+## Resource History — Firestore
+
+How a Firestore resource type that opts in implements [Resource History](../architecture.md#resource-history):
+
+```
+books/{id}                 head: fields, revision, state, createdAt, updatedAt
+books/{id}/revisions/{n}   revision, createdAt, actor{type, sub}, requestId, schemaVersion, snapshot{…}
+```
+
+- **One `RunTransaction` per write** — `tx.Get` the head: missing or `DELETED` is `ErrNotFound` (404), and a `revision` that doesn't match `If-Match` is `ErrPreconditionFailed` (412). Then `tx.Set` the head and `tx.Create` the revision. `Create` fails if the document exists, so a revision is never overwritten. Skip both writes when nothing changed: `Book` is comparable, so `==` against a copy taken before the change works; a struct with slices or maps needs a field-by-field compare
+- **Commit time** — a zero `serverTimestamp` field resolves to the commit time, the same in both documents, so the head's `updatedAt` equals the revision's `createdAt`
+- **Order by the `revision` field**, never the document id, since string ids sort `"10"` before `"9"`: `OrderBy("revision", firestore.Desc)`
+- **Exempt `snapshot` from indexing** — a `fieldOverrides` entry in `firestore.indexes.json` with `"collectionGroup": "revisions"`, `"fieldPath": "snapshot"`, `"indexes": []`; a map's subfields inherit the exemption. Cross-resource history runs in BigQuery
+- **Immutability is enforced by code only** — IAM applies per database and server SDKs bypass Security Rules, so any identity that can write the database can rewrite history. The repository is the only writer and only ever calls `Create` on revisions
+- **Retention is a purge job, not TTL** — a revision's TTL field is fixed when it's written, so TTL would also expire the current revision's copy. The job deletes revisions past the type's cutoff and skips the head's current `revision`
+- **Purge** — deleting a document doesn't delete its subcollections, and Go has no recursive delete. Delete the revisions first with `BulkWriter`, check every job's result, list again until none are left, and only then delete the head. `BulkWriter` applies writes neither atomically nor in order, so an unchecked failure leaves orphaned revisions that still hold data
+
+Audit logs: [gcp.md](../gcp.md#resource-history-stores). The BigQuery export and backups: [gcp.md](../gcp.md#encryption-and-erasure).
+
+```go
+// internal/book/firestore.go
+var ErrPreconditionFailed = errors.New("precondition failed") // 412
+
+// Book holds the resource fields; a revision's snapshot is exactly this.
+type Book struct {
+    Title string `firestore:"title"`
+    State string `firestore:"state"`
+}
+
+type head struct {
+    Book                // embedded: its fields sit at the top level
+    Revision  int64     `firestore:"revision"`
+    CreatedAt time.Time `firestore:"createdAt"`
+    UpdatedAt time.Time `firestore:"updatedAt,serverTimestamp"` // zero = commit time
+}
+
+// Actor is who made the change; Type is USER, OPS or SERVICE.
+type Actor struct {
+    Type string `firestore:"type"`
+    Sub  string `firestore:"sub"`
+}
+
+type revision struct {
+    Revision      int64     `firestore:"revision"`
+    CreatedAt     time.Time `firestore:"createdAt,serverTimestamp"`
+    Actor         Actor     `firestore:"actor"`
+    RequestID     string    `firestore:"requestId"`
+    SchemaVersion int       `firestore:"schemaVersion"`
+    Snapshot      Book      `firestore:"snapshot"`
+}
+
+func (s *FirestoreStore) Update(ctx context.Context, id string, ifMatch int64,
+    actor Actor, requestID string, fn func(*Book)) (int64, error) {
+    ref := s.client.Collection("books").Doc(id)
+    var rev int64
+    err := s.client.RunTransaction(ctx, func(ctx context.Context, tx *firestore.Transaction) error {
+        snap, err := tx.Get(ref)
+        if status.Code(err) == codes.NotFound {
+            return ErrNotFound
+        } else if err != nil {
+            return err
+        }
+        var h head
+        if err := snap.DataTo(&h); err != nil {
+            return err
+        }
+        if h.State == "DELETED" {
+            return ErrNotFound
+        }
+        if h.Revision != ifMatch {
+            return ErrPreconditionFailed
+        }
+        before := h.Book
+        fn(&h.Book)
+        if h.Book == before { // no-op: no revision, same ETag
+            rev = h.Revision
+            return nil
+        }
+        h.Revision++
+        h.UpdatedAt = time.Time{}
+        rev = h.Revision
+        if err := tx.Set(ref, h); err != nil {
+            return err
+        }
+        return tx.Create(ref.Collection("revisions").Doc(strconv.FormatInt(rev, 10)), revision{
+            Revision: rev, Actor: actor, RequestID: requestID, SchemaVersion: 1, Snapshot: h.Book,
+        })
+    })
+    return rev, err
+}
+
+// Purge hard-deletes a book: every revision first, then the head.
+func (s *FirestoreStore) Purge(ctx context.Context, id string) error {
+    ref := s.client.Collection("books").Doc(id)
+    for {
+        refs, err := ref.Collection("revisions").DocumentRefs(ctx).GetAll()
+        if err != nil {
+            return err
+        }
+        if len(refs) == 0 {
+            break
+        }
+        bw := s.client.BulkWriter(ctx) // writes each document at most once
+        jobs := make([]*firestore.BulkWriterJob, 0, len(refs))
+        for _, r := range refs {
+            j, err := bw.Delete(r)
+            if err != nil {
+                return err
+            }
+            jobs = append(jobs, j)
+        }
+        bw.End()
+        for _, j := range jobs {
+            if _, err := j.Results(); err != nil {
+                return fmt.Errorf("purge revision: %w", err)
+            }
+        }
+    }
+    _, err := ref.Delete(ctx)
+    return err
+}
+```
+
 ## Error Catalog
 
 Centralize domain errors. Handlers map them to RFC 9457 problem responses (see [Error Responses](../architecture.md#error-responses-rfc-9457)):

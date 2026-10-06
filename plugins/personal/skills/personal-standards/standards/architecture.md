@@ -64,11 +64,11 @@ Build on the published HTTP and JSON standards; house conventions only fill the 
 | Concern | Rule | Spec |
 |---|---|---|
 | Methods and status codes | Use methods as defined (safe, idempotent); return the most specific status code | [RFC 9110] |
-| Optimistic concurrency | `ETag` on reads, `If-Match` on writes, `412` on mismatch | [RFC 9110] §13 |
+| Optimistic concurrency | `ETag` on reads, `If-Match` on writes, `412` on mismatch; a resource with history uses its `revision` ([Resource History](#resource-history)) | [RFC 9110] §13 |
 | Errors | `application/problem+json` — see [Error Responses](#error-responses-rfc-9457) | [RFC 9457] |
 | JSON | UTF-8, no duplicate keys; integers beyond ±2^53 and exact decimals (money) sent as strings | [RFC 8259], [RFC 7493] (I-JSON) |
 | Timestamps | UTC with `Z`: `2026-09-30T17:04:00Z` | [RFC 3339] |
-| IDs | UUIDs; UUIDv7 when time ordering matters | [RFC 9562] |
+| IDs | UUIDv4 (random), never time-ordered | [RFC 9562] |
 | Partial updates | `PATCH` with `application/merge-patch+json` | [RFC 7396] |
 | Field locations | JSON Pointer (`#/items/0/quantity`) | [RFC 6901] |
 | Retiring a contract version | `Deprecation` and `Sunset` headers on every response from the old version | [RFC 9745], [RFC 8594] |
@@ -119,9 +119,9 @@ Content-Type: application/problem+json
   "type": "https://api.example.com/problems/order-not-cancellable",
   "title": "Order can't be cancelled",
   "status": 409,
-  "detail": "Order 0192e4c1-7c5b-7d3e-9a41-3f1d2b6c8e10 has already shipped",
-  "instance": "urn:uuid:0192e4c1-8a10-7b2f-b3c4-5d6e7f8a9b0c",
-  "state": "shipped"
+  "detail": "Order d221cf76-2e34-4dc2-b6b0-99a61522eaef has already shipped",
+  "instance": "urn:uuid:180de92f-24c9-4f35-8c8f-372da5353e24",
+  "state": "SHIPPED"
 }
 ```
 
@@ -136,7 +136,7 @@ Content-Type: application/problem+json
   "title": "Request validation failed",
   "status": 422,
   "detail": "One or more fields are invalid",
-  "instance": "urn:uuid:0192e4c1-9b21-7c3a-8d4e-6f7a8b9c0d1e",
+  "instance": "urn:uuid:df6c8512-3986-4bab-a568-91e65e6c62a4",
   "errors": [
     { "detail": "must be at least 1", "pointer": "#/items/0/quantity" },
     { "detail": "must be an ISO 4217 currency code", "pointer": "#/currency" },
@@ -144,6 +144,62 @@ Content-Type: application/problem+json
   ]
 }
 ```
+
+## Resource History
+
+Opt in per resource type; most resources don't keep history. If a resource will need history, write revisions from its first release, because they can't be backfilled.
+
+A resource with history is a **head** record plus append-only, full-snapshot **revisions**, written in the same transaction as the change. It isn't event sourcing: a revision records a state, not an intent. [AIP-162], still a draft, has the same shape (a `snapshot` plus its create time, listed newest first). AIPs aren't authoritative and are cited only where they match; everything else here is house convention.
+
+- **Named "revisions"** — never "versions", which [versioning.md](versioning.md) uses for contracts and builds; AIP-162 avoids the word for the same reason
+- **Head** — the current state, plus `revision`, `state`, `createdAt` and `updatedAt`. `createdAt` stays on the head: with random ids it's the default sort key, and retention may purge revision 1
+- **Revision** — keyed `(id, revision)` and insert-only. It holds the full snapshot plus `revision`, `createdAt` (that commit's time), `actor`, `requestId` and `schemaVersion`; never per-field `{from, to}` pairs. `actor` is `{type, sub}`, the same shape as in the [activity log](#activity-log), never an email. Each `type` has one issuer per deployment, so `type` plus `sub` stands for `iss` plus `sub` ([security.md](security.md#authorization)), and a revision ops wrote can't be mistaken for one a tenant user wrote. The current state is a revision too, so `GET …/revisions/{n}` works the same for every `n`
+- **Counter** — an integer per resource: 1 on create, plus one per committed change, never reused. It lives on the head, so it survives purges, and it's allocated inside the head's transaction, so it doesn't conflict with random ids
+- **No-op writes** — a write that changes nothing creates no revision and keeps the ETag
+- **ETag** — the revision is the ETag (`ETag: "7"`, strong), and `revision` is also a `readOnly` body field. `If-Match` uses strong comparison, so a weak tag (`W/"7"`) never matches, and a mismatch is `412` ([RFC 9110] §8.8.1, §13.1.1). Each representation gets its own tag (`"7"` for JSON, `"7-pb"` for protobuf, likewise for in-app gzip; §8.8.3.3). House leniency over §13.1.1: servers match `If-Match` on the leading integer, so a tag from one representation is accepted for a write through another. Keep anything that weakens ETags, such as CDN dynamic compression, off write paths
+- **Delete** — `DELETE` writes a revision with `state` `DELETED`. Its `createdAt` is the delete time, so there's no `deleteTime`. A deleted resource is `404` unless the request sets `showDeleted=true`
+- **Undelete and restore** — undelete is a new `ACTIVE` revision; restore is a new revision that copies snapshot `n`. History is never rewound or edited
+- **Retention** — set per resource type. A purge job deletes revisions past it and never deletes the current revision. Old snapshots keep their `schemaVersion` and are upcast on read; old rows are never rewritten
+- **Encryption and erasure** — revisions are encrypted exactly like the head, and unchanged fields carry their ciphertext forward. Erasure is crypto-shredding, and its window is the longest backup retention of any copy ([security.md](security.md#encryption-and-erasure))
+- **Large fields** — immutable blob objects, referenced from the revision and carried forward when unchanged
+- **Cross-resource history** (as-of queries, everything one actor changed) runs in the warehouse. Change-data-capture and export streams feed analytics only, never the history API: they're asynchronous and carry no actor
+
+The API sits under the resource's own path:
+
+| Request | Result |
+|---|---|
+| `GET …/books/{id}/revisions` | Revisions, newest first, paginated in `meta` |
+| `GET …/books/{id}/revisions/{n}` | `{revision, createdAt, actor, snapshot}` |
+| `POST …/books/{id}/revisions/{n}:restore` | Requires `If-Match` on the head; returns the head with its new `ETag` (AIP-162's `:rollback` returns the revision instead) |
+
+- **Deleted parent** — every revisions route is `404` unless `showDeleted=true`
+- **Permission** — reading history needs at least read permission on the parent. Consider a separate permission, since history shows values that were later removed
+- **No diff endpoint** until a client needs one; clients compare snapshots. If one is added, choose deliberately between [RFC 7396] (the house `PATCH` format, so a diff can be replayed) and [RFC 6902] (precise for arrays and explicit nulls)
+
+Store specifics: [Go and Firestore](go/architecture.md#resource-history--firestore), [Python and PostgreSQL](python/architecture.md#resource-history--postgresql).
+
+## Activity Log
+
+Optional. Add one only when an application needs that kind of logging; most won't at first. Revisions already record who changed what, so an activity log mainly covers reads, exports and actions that create no revision. It's required for the [ops plane](#tenant-admin-and-ops). No standard defines the entry, so its shape is a house convention.
+
+- **Entry** — `time`; `actor` as `{type, sub}`, where `type` is `USER`, `OPS` or `SERVICE`; `organization`; `method` and `resource` (the operation and its target); `revision` when the write produced one; `requestId`; and `outcome` (`status`, plus the problem `type` on failure)
+- **Metadata only** — no field values, request or response bodies, tokens or credentials, so the log needs no field-level encryption. No IP addresses unless there's a concrete use for them
+- **Append-only sink** — the app's identity can only emit entries. A log router delivers them to append-only storage that identity can't modify, such as a retention-locked log store or a warehouse dataset it has no role on. The app never writes that storage directly: many stores can't grant insert without also granting delete, and a router keeps the app's identity out of the store entirely. GCP setup: [gcp.md](gcp.md#activity-log)
+- **Retention is a policy** — actor ids are pseudonymous personal data ([GDPR] Recital 26), so the log has a written retention period, restricted read access and a stated reason to keep it
+
+## Tenant Admin and Ops
+
+"Admin" means the customer's admin, as it does at Google Workspace, Slack, Atlassian and Shopify. The vendor's own staff work in a separate **ops** plane. Words that name customer roles elsewhere ("super admin", "staff", "system") are never used to name an ops role, API or UI. The term "ops" is a house convention: vendors call this plane different things, and no standard names it.
+
+- **Tenant admin is a role** — tenant roles (`owner`, `admin`, `editor`, `viewer`) apply to org-scoped resources in the product API (`/organizations/{org}/…`), and tenant settings live in the product app. There's no separate admin API
+- **Ops is its own service** — its own console and API at `ops.<product domain>` (`ops.nowline.io`, with `ops.nowline.dev` for dev), behind IAP
+- **One origin** — the console at `/`, the API at `/api/v1/…`. IAP authenticates with a session cookie, so a second host would add a second IAP session, CORS preflights that IAP blocks by default, and `fetch` calls that fail on IAP's sign-in redirect. The product splits `api.` from its app hosts only because its bearer tokens cross origins cleanly
+- **The host names the plane** — ops paths follow the product's convention without repeating the plane (`/api/v1/organizations/{org}`, not `/api/v1/ops/…`). The ops `v1` versions independently of the product API
+- **Roles** — a single `ops` role to start, split later when needed. An ops role never shares a name with a tenant role
+- **Audited** — every ops action writes an [activity log](#activity-log) entry with the actor's `sub` and the target organization, and ops reads of tenant data are logged too. Time-limited support sessions come later
+- **Same registrable domain** — ops cookies are host-only `__Host-` cookies, and state-changing ops requests must be same-origin, because sibling subdomains are same-site ([security.md](security.md#shared-domain-cookies))
+
+Identity, bootstrap, revocation and break-glass: [security.md](security.md#authorization). IAP, Terraform and load-balancer setup: [gcp.md](gcp.md#ops-plane-on-iap).
 
 ## State Management
 
@@ -162,6 +218,7 @@ Content-Type: application/problem+json
 [RFC 3339]: https://www.rfc-editor.org/rfc/rfc3339
 [RFC 6648]: https://www.rfc-editor.org/rfc/rfc6648
 [RFC 6901]: https://www.rfc-editor.org/rfc/rfc6901
+[RFC 6902]: https://www.rfc-editor.org/rfc/rfc6902
 [RFC 7396]: https://www.rfc-editor.org/rfc/rfc7396
 [RFC 7493]: https://www.rfc-editor.org/rfc/rfc7493
 [RFC 8259]: https://www.rfc-editor.org/rfc/rfc8259
@@ -172,5 +229,7 @@ Content-Type: application/problem+json
 [RFC 9745]: https://www.rfc-editor.org/rfc/rfc9745
 [OpenAPI]: https://spec.openapis.org/oas/
 [JSON:API]: https://jsonapi.org/format/
+[AIP-162]: https://google.aip.dev/162
+[GDPR]: https://eur-lex.europa.eu/eli/reg/2016/679/oj
 [draft-ietf-httpapi-idempotency-key-header]: https://datatracker.ietf.org/doc/draft-ietf-httpapi-idempotency-key-header/
 [draft-ietf-httpapi-ratelimit-headers]: https://datatracker.ietf.org/doc/draft-ietf-httpapi-ratelimit-headers/
