@@ -1,0 +1,12 @@
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Workflow",
+        "hooks": [
+          { "type": "command", "command": "python3 -I \"${CLAUDE_PLUGIN_ROOT}\"/skills/personal-plan-orchestrate/scripts/orchestrate_gate.py", "timeout": 30 }
+        ]
+      }
+    ]
+  }
+}
