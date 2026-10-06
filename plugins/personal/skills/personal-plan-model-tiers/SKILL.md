@@ -124,7 +124,7 @@ template: `[xdeep]` in the marker, title, and prompt, its Opus max-effort
 rows, and no ultracode. **Idempotent:** skip a REVIEW write when
 `--- REVIEW: wave-N` already exists for that wave (re-entry).
 
-Then insert STOP markers at tier transitions as before.
+Then insert STOP markers at tier transitions.
 
 Use the STOP-marker template from the standards section. Each STOP must
 include:
@@ -239,8 +239,7 @@ and the only way to authorize multiple unattended steps is an explicit
   start a fresh chat by copying the Kickoff prompt from the top of the
   plan file.
 - **Current chat.** Print the full modified plan. Then begin executing
-  the first group. Stop at the first STOP marker and report back, just
-  as the prior version of this skill did.
+  the first group. Stop at the first STOP marker and report back.
 
 In whichever chat executes a group, **before halting at the STOP marker**:
 

@@ -68,7 +68,7 @@ recommendation. Decide from these facts.
      the diff, commit `release vX.Y.Z`, `git tag -a vX.Y.Z -m vX.Y.Z`, and
      push the branch and the tag. Pushing is outward-facing, so confirm first.
 5. **After.** The tag push starts the per-platform publish jobs. Check they
-   ran. Dev builds now read `X.Y.Z+<sha>`.
+   ran. From then on, dev builds read `X.Y.Z+<sha>`.
 
 Never tag with a suffix (`-rc.1`, `-beta`) or put `+sha` into a published
 version field (`package.json`, `pyproject.toml`, `Info.plist`, the Play

@@ -18,7 +18,7 @@ Include from the workspace root Makefile with `include repos.mk`.
 | `REPOS_FOLLOW_ONLY` | Generated mirrors; skip push; tag in roster |
 | `REPOS_GH` | Repos with Actions workflows; typically `$(filter-out $(REPOS_FOLLOW_ONLY),$(REPOS))` |
 
-Variable names use dots and hyphens in the suffix (`REPO_URL.nowline-api`) — GNU Make
+Variable names use dots and hyphens in the suffix (`REPO_URL.acme-api`) — GNU Make
 permits this.
 
 Internal helper at parse time:
@@ -32,7 +32,7 @@ Parse in bash: `dir="${spec%%:*}"`, `rest="${spec#*:}"`, `url="${rest%:*}"`,
 
 ## Workspace doctor modes
 
-**Preferred (nowline pattern):** workspace root has `triage.yaml` with `delegate:`
+**Preferred:** workspace root has `triage.yaml` with `delegate:`
 entries. `make doctor` runs `triage --profile $(MODE)` once from the workspace root.
 
 **Fallback:** no root `triage.yaml`. Loop `$(MAKE) -C <r> doctor MODE=$(MODE)` for
@@ -40,7 +40,7 @@ each repo in `REPOS_MAKE_CI`.
 
 ## Workspace gh-runs fan-out
 
-Canon pattern (nowline):
+Canon pattern:
 
 - Iterate `REPOS_GH`, not raw `REPOS`
 - `$(MAKE) --no-print-directory -C "$$r" gh-runs-<verb> GH_LIMIT=$(GH_LIMIT) || true`
@@ -66,7 +66,7 @@ confirm = @if [ -z "$($(1))" ]; then \
 fi
 ```
 
-Two-tier prod guard (nowline-infra pattern): separate `CONFIRM_APPLY=1` (dev) from
+Two-tier prod guard: separate `CONFIRM_APPLY=1` (dev) from
 `CONFIRM_APPLY_PROD=1` (prod/org/platform stacks).
 
 ## Per-stack recipe expectations
@@ -77,7 +77,7 @@ aligning; only add stubs when a core verb is missing.
 Every stack's `lint` fails on drift in anything its `format` rewrites (see
 `makefile.md`). Flag a row whose `lint` can pass on unformatted code.
 
-### Go (nowline-api, triage)
+### Go (acme-api, triage)
 
 | Target | Typical recipe |
 |--------|----------------|
@@ -97,7 +97,7 @@ Every stack's `lint` fails on drift in anything its `format` rewrites (see
 - `govulncheck` runs as its own blocking PR check and on a schedule
   (`go/security.md`); the standard doesn't fix which target runs it.
 
-### pnpm / Node (nowline, nowline-app, nowline-site)
+### pnpm / Node (acme, acme-app, acme-site)
 
 | Target | Typical recipe |
 |--------|----------------|
@@ -109,10 +109,10 @@ Every stack's `lint` fails on drift in anything its `format` rewrites (see
 | `ci` | repo-specific gate chain |
 | `doctor` | `triage --profile $(MODE)` |
 
-Doesn't meet the drift rule yet: `biome lint` and eslint skip formatting.
+Doesn't meet the drift rule: `biome lint` and eslint skip formatting.
 `biome check` (no `--write`) or `prettier --check` in `lint` does.
 
-### Terraform (nowline-infra)
+### Terraform (acme-infra)
 
 | Target | Typical recipe |
 |--------|----------------|
@@ -136,7 +136,7 @@ checking inside `lint` — propose per repo, do not auto-rename without confirma
 | `format` | swiftformat |
 | `ci` | often absent — propose adding gate matching CI |
 
-Doesn't meet the drift rule yet: swiftlint doesn't check what swiftformat
+Doesn't meet the drift rule: swiftlint doesn't check what swiftformat
 rewrites. Add `swiftformat --lint .` to `lint`.
 
 Domain families (`assets-*`, `secrets-*`, `profiles-*`) stay under their own `##@`
@@ -232,8 +232,8 @@ Templates use `{{PLACEHOLDER}}` markers. Replace:
 
 | Placeholder | Example |
 |-------------|---------|
-| `{{ESTATE_NAME}}` | `nowline` |
-| `{{ESTATE_TITLE}}` | `nowline-workspace` |
+| `{{ESTATE_NAME}}` | `acme` |
+| `{{ESTATE_TITLE}}` | `acme-workspace` |
 | `{{REPOS}}` | space-separated dir list |
 | `{{INIT_SKIP_NOTES}}` | comments for repos skipped in workspace init |
 | `{{STACK_INIT_RECIPE}}` | leaf `init` recipe body |

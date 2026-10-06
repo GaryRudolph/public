@@ -69,9 +69,9 @@ Codex, Gemini, and Claude Code follow symlinks, so edits there are live.
 | `~/.cursor/hooks/personal-enforce-denylist.sh` | `beforeShellExecution` (`failClosed`), `preToolUse` | Every mode |
 | `~/.cursor/hooks/personal-refresh-skills.sh` | `sessionStart`, `afterFileEdit` | `CURSOR_MODE=home` |
 
-The Cursor IDE ignores `terminalDenylist` in `permissions.json`, so the
-denies the allowlists render (`sudo`, `rm -rf`, `dd`, `mkfs`, …) did nothing
-in the IDE until this hook. It's a copy of
+The Cursor IDE ignores `terminalDenylist` in `permissions.json`, so without
+this hook the denies the allowlists render (`sudo`, `rm -rf`, `dd`, `mkfs`,
+…) do nothing in the IDE. It's a copy of
 [`cursor/hooks/enforce-denylist.sh`](cursor/hooks/enforce-denylist.sh), not
 a symlink, because it runs `failClosed`. `hooks.json` is merged, never
 overwritten.
@@ -81,8 +81,8 @@ overwritten.
 Each tool has a mode, `home` or `plugin`. In `home` mode this installer
 writes the tool's block and skill entries. In `plugin` mode the tool gets
 standards and skills from its own plugin, so `make install` removes what
-this installer wrote for it before. The removal is idempotent, and leaves
-content outside the block and entries it didn't make alone.
+this installer writes for it in `home` mode. The removal is idempotent, and
+leaves content outside the block and entries it didn't make alone.
 
 | Mode | Default | `plugin` removes |
 | --- | --- | --- |
@@ -144,12 +144,11 @@ Re-run `make install` after editing `core.md`. The `@`-imported
 files refresh automatically; the inlined Codex block is re-rendered on
 each install. Push to `main` to update the Claude plugin everywhere else.
 
-## v1 → v2 migration
+## v1 cleanup
 
-The previous installer wrote per-project symlinks into `.cursor/rules/` of
-every repo under `~/Projects`, plus a matching `.gitignore` entry. The new
-installer does the migration as part of every install or uninstall — there
-is no separate "upgrade" step:
+The v1 installer wrote per-project symlinks into `.cursor/rules/` of every
+repo under `~/Projects`, plus a matching `.gitignore` entry. Every install
+and uninstall removes them — there is no separate "upgrade" step:
 
 - **Auto-removed**: `.cursor/rules/personal-*.mdc` symlinks and their
   matching `.gitignore` entries. Empty `.gitignore` files are deleted.
@@ -253,5 +252,5 @@ through `~`. That makes `~/AGENTS.md` work as a global Cursor configuration.
 Cursor does **not** expand `@`-imports inside `AGENTS.md`; the file is plain
 markdown, so a one-line `@~/...` stub reaches the agent as text and the core
 never loads. The installer inlines the core into `~/AGENTS.md`, the same way
-it does for Codex. (Found and fixed in the Agerpoint bok first; see its
-`specs/cursor-agents-md-import.md`.)
+it does for Codex. (The Agerpoint bok's `specs/cursor-agents-md-import.md`
+has the details.)

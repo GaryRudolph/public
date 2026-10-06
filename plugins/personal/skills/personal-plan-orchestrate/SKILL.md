@@ -151,8 +151,8 @@ Only STOP and ask the user when one of these is true:
 - You can tell you are running on **Codex CLI**, **Gemini CLI**, **Muse
   Code**, or **Grok Build**. Codex custom agents (`.codex/agents/*.toml`),
   Gemini CLI agents (`.gemini/agents/*.md`), and Grok Build's
-  `[subagents.models]` can each pin a model per subagent definition now,
-  but this skill is written against Cursor's `Task` and hasn't been ported.
+  `[subagents.models]` can each pin a model per subagent definition, but
+  this skill is written against Cursor's `Task` and doesn't drive them.
   Recommend `personal-plan-model-tiers`.
 
 When you do STOP, surface the specific concern, recommend the fallback,
@@ -175,10 +175,10 @@ for orchestrator subagents, repeated here for reading clarity only:
   out (see the standards model picker notes)
 - `[fast]` subagent (only when no-thrash criterion met): `composer-2.5[fast=false]`
 
-As of 2026-10-01, `[xdeep]` on Opus max is a for-the-moment mapping: Opus
-5.5 beats Fable 5.1 on every benchmark Anthropic published, at 40% of the
-per-token price. Revisit when the next Fable ships. If the standards
-section and this list disagree, the standards section wins.
+`[xdeep]` maps to Opus max because Opus 5.5 beats Fable 5.1 on every
+benchmark Anthropic published, at 40% of the per-token price. Revisit when
+the next Fable ships. If the standards section and this list disagree, the
+standards section wins.
 
 **Step-up on subagent failure**: composer → the `[exec]` model (grok, or
 sonnet) → opus high → opus max as `[xdeep]`; fable is the different-model
@@ -496,11 +496,12 @@ authoritative usage data.
    <first group> [deep] | updated <today>` where `N` is the total group
    count. Add `review: every-wave (log-only — parent writes Review log; no
    human review gate)`. Do not modify any other content. **Record whether
-   matching Kickoff block (`--- KICKOFF: begin orchestration at [deep]
-   ---`) or inserted a new one — this "kickoff-replaced" signal is used
-   in step 5.** Do not write any separate progress checklist block into
-   the plan; the orchestrator-parent applies the progress updates itself
-   in step 12, so no in-plan reminder is needed.
+   you replaced an existing matching Kickoff block (`--- KICKOFF: begin
+   orchestration at [deep] ---`) or inserted a new one — this
+   "kickoff-replaced" signal is used in step 5.** Do not write any
+   separate progress checklist block into the plan; the
+   orchestrator-parent applies the progress updates itself in step 12, so
+   no in-plan reminder is needed.
 
    After writing the Kickoff block, **seed the native todo list**: one
    todo per group (in order), first group `in_progress`, rest `pending`.
@@ -611,7 +612,7 @@ authoritative usage data.
       `review wave-N (<group-id>) <from>..<to>: PASS|CONCERNS - <one-line
       note> - <YYYY-MM-DD>`. This is orchestrate's **log-only** participation in
       the [review beat](../personal-standards/standards/plan-execution.md) —
-      it adds **no new human STOP gate** (gates 1–7 unchanged). Review
+      it adds **no human STOP gate** beyond gates 1–7. Review
       tokens count toward the orchestrator-parent row in the token tally,
       not a separate per-wave row. **Exception: an `[xdeep]` wave** is
       reviewed by a read-only max-effort Opus subagent
@@ -654,7 +655,7 @@ authoritative usage data.
   summaries, and advancing — nothing else. Committing the plan file and
   pushing the task branch are bookkeeping, not plan work.
 - Auto-executing `Task` calls without user approval at the gates above.
-- Re-enabling this skill on Claude Code. Flip the harness gate once
+- Running this skill on Claude Code. Flip the harness gate once
   [anthropics/claude-code#43869](https://github.com/anthropics/claude-code/issues/43869)
   closes, and use the version-less `opus` / `sonnet` / `haiku` aliases for
   the `model` parameter there.
