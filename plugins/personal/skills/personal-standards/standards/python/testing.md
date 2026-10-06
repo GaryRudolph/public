@@ -113,6 +113,29 @@ class FakeUserStore:
         return self._users.get(user_id)
 ```
 
+## Conformance Suites
+
+One suite runs against the fake and the real adapter ([testing.md](../testing.md#conformance-suites)). In pytest, a parametrized fixture does it: every test that takes `book_store` runs twice, and `-m "not integration"` skips the real one locally.
+
+```python
+# tests/conftest.py
+@pytest.fixture(
+    params=["fake", pytest.param("postgres", marks=pytest.mark.integration)]
+)
+async def book_store(request: pytest.FixtureRequest) -> AsyncIterator[BookStore]:
+    if request.param == "fake":
+        yield FakeBookStore()
+    else:
+        async with postgres_store() as store:  # a fresh schema per test
+            yield store
+
+
+# tests/test_book_store.py: the suite
+async def test_returns_none_for_missing_id(book_store: BookStore) -> None:
+    """Test that a missing id returns None."""
+    assert await book_store.find_by_id(uuid4()) is None
+```
+
 ## Parametrized Tests
 
 ```python

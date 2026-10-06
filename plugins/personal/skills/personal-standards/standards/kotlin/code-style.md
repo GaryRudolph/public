@@ -5,7 +5,7 @@ Follows [code-style.md](../code-style.md) and [Kotlin Official Coding Convention
 ## Naming
 
 - **camelCase** for functions, properties, locals: `userName`, `calculateTotal()`
-- **PascalCase** for classes, interfaces, objects, enum entries: `UserRepository`, `sealed class UiState`
+- **PascalCase** for classes, interfaces, objects, enum entries: `UserRepository`, `sealed class UiState`. Wire enums are the exception ([JSON](#json))
 - **SCREAMING_SNAKE_CASE** for `const val` and top-level constants: `const val MAX_RETRY_ATTEMPTS = 3`
 - **PascalCase** for file names matching top-level class: `UserService.kt`
 - Backing properties: `private val _state` / `val state`
@@ -59,6 +59,32 @@ sealed interface UiState {
     data object Loading : UiState
     data class Success(val data: List<Item>) : UiState
     data class Error(val message: String) : UiState
+}
+```
+
+## JSON
+
+- **No naming strategy** — properties are already lowerCamel, the wire casing ([API Design](../architecture.md#api-design)), so kotlinx, Moshi, Jackson and Gson need none. Write acronyms as words in the property too: `photoUrl`, not `photoURL`
+- **Wire enums use the wire spelling** — values are unprefixed `UPPER_SNAKE` strings ([Resource State](../architecture.md#resource-state)). Name the entries `ACTIVE`, which Kotlin's conventions allow, or keep PascalCase entries with `@SerialName("ACTIVE")` (Moshi: `@Json(name = "ACTIVE")`) on every one
+- **Unknown values fall back** — the server can add a value at any time, so every wire enum has an `UNKNOWN` entry, which is never sent
+  - **kotlinx** — `coerceInputValues = true` plus a default on the property. It doesn't reach list elements; an enum that appears in a list gets a serializer with the fallback (`@Serializable(with = …)`)
+  - **Moshi** — `EnumJsonAdapter.create(State::class.java).withUnknownFallback(State.UNKNOWN)` from `moshi-adapters`
+- **Unknown members are ignored** — `ignoreUnknownKeys = true` in kotlinx, since a new response member isn't a breaking change. Moshi and Gson ignore them already
+
+```kotlin
+@Serializable
+enum class OrderState { PENDING, SHIPPED, CANCELLED, UNKNOWN }
+
+@Serializable
+data class Order(
+    val id: String,
+    val photoUrl: String? = null,
+    val state: OrderState = OrderState.UNKNOWN,
+)
+
+val wireJson = Json {
+    coerceInputValues = true // "RETURNED" decodes to the default, UNKNOWN
+    ignoreUnknownKeys = true
 }
 ```
 

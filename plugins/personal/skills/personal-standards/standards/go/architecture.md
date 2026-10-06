@@ -2,7 +2,7 @@
 
 Follows [architecture.md](../architecture.md).
 
-Target **Go 1.26** for new projects.
+Target **Go 1.27** for new projects, the current stable release; re-check it per [Starting New Projects](../architecture.md#starting-new-projects).
 
 ## Technology Stack
 
@@ -12,6 +12,7 @@ Target **Go 1.26** for new projects.
 | ORM — PostgreSQL | GORM (`gorm.io/gorm`) with `gorm.io/driver/postgres` (pgx driver) |
 | Document store — Firestore | `cloud.google.com/go/firestore` |
 | Data warehouse — BigQuery | `cloud.google.com/go/bigquery` |
+| IDs | `uuid` (standard library, Go 1.27): `uuid.NewV4()` |
 | Validation | `github.com/go-playground/validator/v10` |
 | Configuration | `github.com/caarlos0/env/v11` |
 | Structured logging | `log/slog` |
@@ -97,6 +98,88 @@ r.Route("/api/v1", func(r chi.Router) {
 })
 ```
 
+### Router Errors
+
+`ServeMux` and chi answer an unknown path or a wrong method themselves: `ServeMux` with `text/plain` from `http.Error`, chi with `http.NotFound` and an empty `405`. Neither is a problem ([Error Responses](../architecture.md#error-responses-rfc-9457)). Both set `Allow` on the `405`, and a custom chi `MethodNotAllowed` handler replaces the one that sets it, so wrap the router instead of replacing its handlers:
+
+```go
+srv := &http.Server{Handler: requestID(routerProblems(mux))}
+
+r := chi.NewRouter()
+r.Use(requestID, routerProblems) // chi: ahead of every other middleware and route
+```
+
+```go
+// routerProblems turns an error status sent with no Content-Type or as
+// text/plain (ServeMux's and chi's 404 and 405, httprate's default 429) into
+// an about:blank problem. Any other type passes through, and headers already
+// set, such as the 405's Allow, are kept.
+func routerProblems(next http.Handler) http.Handler {
+    return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+        next.ServeHTTP(&problemWriter{ResponseWriter: w, r: r}, r)
+    })
+}
+
+type problemWriter struct {
+    http.ResponseWriter
+    r                 *http.Request
+    started, replaced bool
+}
+
+func (pw *problemWriter) WriteHeader(status int) {
+    ct := pw.Header().Get("Content-Type")
+    if pw.started || status < 400 || (ct != "" && !strings.HasPrefix(ct, "text/plain")) {
+        pw.started = true
+        pw.ResponseWriter.WriteHeader(status)
+        return
+    }
+    pw.started, pw.replaced = true, true
+    writeProblem(pw.ResponseWriter, pw.r, StatusProblem(status))
+}
+
+func (pw *problemWriter) Write(b []byte) (int, error) {
+    if pw.replaced {
+        return len(b), nil // drop the router's text body
+    }
+    pw.started = true
+    return pw.ResponseWriter.Write(b)
+}
+
+// Unwrap lets http.ResponseController reach Flush and the deadlines.
+func (pw *problemWriter) Unwrap() http.ResponseWriter { return pw.ResponseWriter }
+```
+
+A handler's own problem passes through untouched, since `writeProblem` sets `application/problem+json` before the status, and so does an error body another spec defines, such as an OAuth token endpoint's `application/json` error ([RFC 6749 §5.2](https://www.rfc-editor.org/rfc/rfc6749#section-5.2)). `requestID` is in [security.md](security.md#request-id), and `writeProblem` in its [Error Boundaries](security.md#error-boundaries).
+
+### Custom Methods
+
+A [custom method](../architecture.md#api-design) shares its path segment with the id (`POST /books/{id}:archive`). `ServeMux` wildcards must be whole segments, so registering that pattern panics. Route `POST /books/{name}` and split the segment on its last `:` with `strings.CutLast` (Go 1.27):
+
+```go
+mux.HandleFunc("POST /api/v1/books/{name}", h.Method) // name is {id}:{verb}
+
+func (h *Handler) Method(w http.ResponseWriter, r *http.Request) {
+    id, verb, ok := strings.CutLast(r.PathValue("name"), ":")
+    if !ok { // POST on the item itself
+        w.Header().Set("Allow", "GET, HEAD, PATCH, DELETE") // the item's routes
+        writeProblem(w, r, StatusProblem(http.StatusMethodNotAllowed))
+        return
+    }
+    switch verb {
+    case "archive":
+        h.archive(w, r, id)
+    case "undelete":
+        h.undelete(w, r, id)
+    default:
+        writeProblem(w, r, NotFound("method "+verb))
+    }
+}
+```
+
+- **Read-only methods** — a `GET` custom method makes the item's `GET` handler split its segment the same way
+- **`Allow`** — `ServeMux` can't tell the item from its methods, so its own `405` on the item lists `POST` too
+- **chi** matches a literal after a parameter: `r.Post("/books/{id}:archive", h.Archive)` routes directly
+
 ## Manual Constructor Injection
 
 All dependencies via constructor. A single **composition root** (`main.go`) wires everything. Packages never create their own collaborators.
@@ -133,7 +216,7 @@ func main() {
     mux := http.NewServeMux()
     mux.HandleFunc("GET /api/v1/users/{id}", userHandler.Get)
 
-    srv := &http.Server{Addr: fmt.Sprintf(":%d", cfg.Port), Handler: mux}
+    srv := &http.Server{Addr: fmt.Sprintf(":%d", cfg.Port), Handler: requestID(routerProblems(mux))}
     // graceful shutdown (see below)
 }
 ```
@@ -183,10 +266,11 @@ type FirestoreStore struct {
 }
 
 type Order struct {
-    ID    string    `firestore:"id"`
-    State string    `firestore:"state"`
-    Total float64   `firestore:"total"`
-    Items []Item    `firestore:"items"`
+    ID       string     `firestore:"id"`
+    State    OrderState `firestore:"state"`    // wire enum (code-style.md)
+    Total    int64      `firestore:"total"`    // minor units of Currency, never a float
+    Currency string     `firestore:"currency"` // ISO 4217
+    Items    []Item     `firestore:"items"`
 }
 
 func (s *FirestoreStore) FindByID(ctx context.Context, id string) (*Order, error) {
@@ -227,7 +311,63 @@ func (s *BigQueryStore) QueryEvents(ctx context.Context, since time.Time) ([]Eve
 
 - `context.Context` as the **first parameter** on every store/service method
 - Domain structs stay storage-agnostic — map Firestore/BigQuery types in the repository
+- Money is an exact decimal: an `int64` of minor units next to its currency code, or a decimal string, never `float64`. It's a string on the wire either way ([JSON](../architecture.md#api-design))
 - GORM handles migrations via `AutoMigrate` in dev; use `golang-migrate` or goose for production
+
+## Firestore Modeling
+
+Google's [best practices][fs-best] and [quotas and limits][fs-quotas] pages hold the numbers: document and id sizes, indexed-value limits, write rates. Link them; don't copy the numbers, which change.
+
+- **Random ids** — a document's id is its resource's UUIDv4, `uuid.NewV4().String()`. Call `NewV4`, not `New`, whose algorithm may change. `NewDoc` auto-ids are random too and suit documents the API never names. Never a time-ordered id (UUIDv7, ULID, a timestamp prefix) or a counter: sequential ids hotspot, and an indexed field that only grows, such as `createdAt`, caps a collection's write rate the same way ([best practices][fs-best])
+- **Opaque ids** — an id is never a business key (email, slug, SKU, name). A document can't be renamed, so changing that key would mean copying the document, its subcollections and every reference to it. Business keys are fields
+- **Uniqueness is a ledger document** — Firestore has no unique constraint. Claim a unique value with a document whose id is the value, normalized and then hashed or encoded to meet the [id rules][fs-quotas], read and created in the same transaction as the resource; a taken claim is a `409`. Changing the value deletes the old claim and creates the new one in one transaction; purging the resource deletes its claims
+- **Subcollections don't cascade** — deleting a document leaves its subcollections, still readable by path ([delete data][fs-delete]). Purge is recursive: every subcollection's documents, then the document. Go has no recursive delete; see [Purge](#resource-history--firestore)
+- **Indexes live in the repo** — composite indexes and field overrides are defined in `firestore.indexes.json`, or Terraform's `google_firestore_index` and `google_firestore_field`, and deploy from there ([manage indexes][fs-indexes]). The console link in a missing-index error is a hint: add the index to the file instead
+- **Denormalize when a read needs it** — copying fields into the documents that are read together is normal Firestore modeling. Each value still has one owning document; update the copies in the same transaction, or from a job that can re-run
+
+```go
+// internal/account/firestore.go
+var ErrConflict = errors.New("conflict") // 409
+
+type Account struct {
+    ID        string    `firestore:"id"`
+    Email     string    `firestore:"email"`
+    CreatedAt time.Time `firestore:"createdAt"`
+}
+
+// Create stores a new account and claims its email in one transaction.
+func (s *FirestoreStore) Create(ctx context.Context, email string) (*Account, error) {
+    a := &Account{
+        ID:        uuid.NewV4().String(),
+        Email:     email,
+        CreatedAt: time.Now().UTC().Truncate(time.Microsecond),
+    }
+    accountRef := s.client.Collection("accounts").Doc(a.ID)
+    claimRef := s.client.Collection("accountEmails").Doc(ledgerID(email))
+    err := s.client.RunTransaction(ctx, func(ctx context.Context, tx *firestore.Transaction) error {
+        if _, err := tx.Get(claimRef); err == nil {
+            return ErrConflict
+        } else if status.Code(err) != codes.NotFound {
+            return err
+        }
+        if err := tx.Create(claimRef, map[string]any{"accountId": a.ID}); err != nil {
+            return err
+        }
+        return tx.Create(accountRef, a)
+    })
+    if err != nil {
+        return nil, err
+    }
+    return a, nil
+}
+
+// ledgerID turns a unique value into a valid document id: normalized, so
+// case variants collide, then hashed, so any value meets the id rules.
+func ledgerID(email string) string {
+    sum := sha256.Sum256([]byte(strings.ToLower(strings.TrimSpace(email))))
+    return hex.EncodeToString(sum[:])
+}
+```
 
 ## Resource History — Firestore
 
@@ -252,15 +392,20 @@ Audit logs: [gcp.md](../gcp.md#resource-history-stores). The BigQuery export and
 // internal/book/firestore.go
 var ErrPreconditionFailed = errors.New("precondition failed") // 412
 
+// BookState is a wire enum: ACTIVE, ARCHIVED or DELETED.
+type BookState string
+
+const BookDeleted BookState = "DELETED"
+
 // Book holds the resource fields; a revision's snapshot is exactly this.
 type Book struct {
-    Title string `firestore:"title"`
-    State string `firestore:"state"`
+    Title string    `firestore:"title"`
+    State BookState `firestore:"state"`
 }
 
 type head struct {
     Book                // embedded: its fields sit at the top level
-    Revision  int64     `firestore:"revision"`
+    Revision  int32     `firestore:"revision"` // a JSON number on the wire
     CreatedAt time.Time `firestore:"createdAt"`
     UpdatedAt time.Time `firestore:"updatedAt,serverTimestamp"` // zero = commit time
 }
@@ -272,7 +417,7 @@ type Actor struct {
 }
 
 type revision struct {
-    Revision      int64     `firestore:"revision"`
+    Revision      int32     `firestore:"revision"`
     CreatedAt     time.Time `firestore:"createdAt,serverTimestamp"`
     Actor         Actor     `firestore:"actor"`
     RequestID     string    `firestore:"requestId"`
@@ -280,10 +425,10 @@ type revision struct {
     Snapshot      Book      `firestore:"snapshot"`
 }
 
-func (s *FirestoreStore) Update(ctx context.Context, id string, ifMatch int64,
-    actor Actor, requestID string, fn func(*Book)) (int64, error) {
+func (s *FirestoreStore) Update(ctx context.Context, id string, ifMatch int32,
+    actor Actor, requestID string, fn func(*Book)) (int32, error) {
     ref := s.client.Collection("books").Doc(id)
-    var rev int64
+    var rev int32
     err := s.client.RunTransaction(ctx, func(ctx context.Context, tx *firestore.Transaction) error {
         snap, err := tx.Get(ref)
         if status.Code(err) == codes.NotFound {
@@ -295,7 +440,7 @@ func (s *FirestoreStore) Update(ctx context.Context, id string, ifMatch int64,
         if err := snap.DataTo(&h); err != nil {
             return err
         }
-        if h.State == "DELETED" {
+        if h.State == BookDeleted {
             return ErrNotFound
         }
         if h.Revision != ifMatch {
@@ -313,7 +458,7 @@ func (s *FirestoreStore) Update(ctx context.Context, id string, ifMatch int64,
         if err := tx.Set(ref, h); err != nil {
             return err
         }
-        return tx.Create(ref.Collection("revisions").Doc(strconv.FormatInt(rev, 10)), revision{
+        return tx.Create(ref.Collection("revisions").Doc(strconv.Itoa(int(rev))), revision{
             Revision: rev, Actor: actor, RequestID: requestID, SchemaVersion: 1, Snapshot: h.Book,
         })
     })
@@ -384,13 +529,15 @@ type FieldError struct {
 
 func (p *Problem) Error() string { return p.Title + ": " + p.Detail }
 
+// StatusProblem is the about:blank problem for a status code alone.
+func StatusProblem(status int) *Problem {
+    return &Problem{Type: "about:blank", Title: http.StatusText(status), Status: status}
+}
+
 func NotFound(resource string) *Problem {
-    return &Problem{
-        Type:   "about:blank",
-        Title:  http.StatusText(http.StatusNotFound),
-        Status: http.StatusNotFound,
-        Detail: resource + " not found",
-    }
+    p := StatusProblem(http.StatusNotFound)
+    p.Detail = resource + " not found"
+    return p
 }
 
 func Validation(errs ...FieldError) *Problem {
@@ -404,10 +551,12 @@ func Validation(errs ...FieldError) *Problem {
 }
 ```
 
+Constructors leave `Instance` empty: `writeProblem` fills it with the request id as a URN (`urn:uuid:…`), the same id as the `{Product}-Request-Id` header ([security.md](security.md#request-id)).
+
 **Layers:**
 
 1. **Service** — returns domain errors (`ErrNotFound`, `*Problem`)
-2. **Handler** — maps errors to a `*Problem` and writes `application/problem+json` (see [security.md](security.md#error-boundaries))
+2. **Handler** — maps errors to a `*Problem` and writes it with `writeProblem(w, r, p)`, which sends `application/problem+json` with the request id as `instance` (see [security.md](security.md#error-boundaries))
 3. **Middleware** — catches unexpected panics/errors, logs, returns an `about:blank` 500 problem
 
 ## Graceful Shutdown
@@ -453,7 +602,12 @@ func NewApp(cfg config.Config) (*App, error) {
 
     return &App{
         UserHandler: userHandler,
-        Server:      &http.Server{Addr: fmt.Sprintf(":%d", cfg.Port), Handler: mux},
+        Server:      &http.Server{Addr: fmt.Sprintf(":%d", cfg.Port), Handler: requestID(routerProblems(mux))},
     }, nil
 }
 ```
+
+[fs-best]: https://docs.cloud.google.com/firestore/native/docs/best-practices
+[fs-delete]: https://docs.cloud.google.com/firestore/native/docs/manage-data/delete-data
+[fs-indexes]: https://firebase.google.com/docs/firestore/query-data/indexing
+[fs-quotas]: https://docs.cloud.google.com/firestore/quotas

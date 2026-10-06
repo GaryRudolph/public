@@ -139,8 +139,9 @@ Only STOP and ask the user when one of these is true:
   Opus, Composer, or both Grok and Sonnet. (A missing Fable entry only
   removes the `[xdeep]` alt; a missing max-effort Opus entry is handled in
   step 8.)
-- You can tell you are running on **Claude Code**. `Task` there accepts
-  `model` on paper, but
+- You can tell you are running on **Claude Code**. Its subagent tool is
+  `Agent` (renamed from `Task` in 2.1.63; `Task` still works as an alias).
+  It accepts `model` on paper, but
   [anthropics/claude-code#43869](https://github.com/anthropics/claude-code/issues/43869)
   reports it is silently ignored; subagents inherit the parent model.
   Recommend `personal-plan-model-tiers` with `/model` swaps instead. (Once
@@ -216,7 +217,7 @@ for the user to run; do not ask the user to dispatch them. Each call
 takes:
 
 - `description` — the subagent's **title** in the Cursor agents list. Use
-  the canonical [Wave title format](../../../standards/plan-execution.md)
+  the canonical [Wave title format](../personal-standards/standards/plan-execution.md#wave-title-format)
   `Wave {n} of {t} [{tier}] {group-id}` (e.g.
   `Wave 2 of 3 [exec] repo-A m2 s1-s3`) so each wave is scannable at a glance.
   `{n}` is the 1-based wave number (the same `{wave-n}` used in the

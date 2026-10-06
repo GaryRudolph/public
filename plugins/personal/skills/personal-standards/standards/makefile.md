@@ -36,7 +36,7 @@ Every child repo must remain fully usable on its own.
 | `init` | Idempotent bootstrap (deps, hooks, codegen) |
 | `doctor` | Read-only tool/environment check; `MODE=default\|release` |
 | `build` | Compile / bundle / render artifacts |
-| `lint` | Static check, no writes |
+| `lint` | Static check, no writes; fails on drift in anything `format` rewrites |
 | `format` | Auto-fix formatting; documented no-op when no formatter exists |
 | `test` | Run test suite |
 | `ci` | Full pre-push gate — what CI runs |
@@ -60,6 +60,11 @@ not replace, the core verbs.
 
 Every leaf defines the **full core verb set**. Where a verb does not apply, provide
 a documented no-op (e.g. `format: ## No-op: no formatter configured`).
+
+**`lint` checks what `format` writes.** Everything `format` rewrites (source
+formatting, import order, `go.mod` / `go.sum` tidiness) has a check-only twin in
+`lint` that fails on drift, so CI catches a commit made without `make format`.
+Per-stack commands: the `personal-makefile` skill's reference.
 
 ### Workspace repo (thin orchestrator)
 
@@ -126,7 +131,7 @@ errors.
 
 ## Documentation
 
-- Non-trivial Makefiles carry a companion [`Makefile.md`](../documentation.md) at the
+- Non-trivial Makefiles carry a companion [`Makefile.md`](documentation.md) at the
   repo root (same casing rule as other companion docs).
 - Narrative reference: target tables, mermaid overview, idempotent `init` behavior,
   delegation semantics, and workflow → target map for CI.

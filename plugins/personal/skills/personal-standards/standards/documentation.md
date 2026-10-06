@@ -65,7 +65,7 @@ Do not scatter spec-level docs across the repo root or language-specific folders
 
 ## Runbooks
 
-Operational procedures (environment setup, deploys, verification checks, incident and recovery steps) live in `{project-root}/runbooks/{topic}.md` (e.g. `runbooks/setup.md`, `runbooks/public-cache-check.md`). Not `ops/`: "ops" names the platform operations plane, meaning the ops console, ops API and `ops` role that staff use to run the product for customers. A runbook says what to do. The reasoning behind it belongs in a spec or ADR, linked from the runbook.
+Operational procedures (environment setup, deploys, verification checks, incident and recovery steps) live in `{project-root}/runbooks/{topic}.md` (e.g. `runbooks/setup.md`, `runbooks/public-cache-check.md`). Not `ops/`: "ops" names the platform operations plane, meaning the ops console, ops API and `OPS` role that staff use to run the product for customers. A runbook says what to do. The reasoning behind it belongs in a spec or ADR, linked from the runbook.
 
 ## Implementation Milestones
 

@@ -2,7 +2,7 @@
 
 Follows [code-style.md](../code-style.md), [Effective Go](https://go.dev/doc/effective_go), [Go Code Review Comments](https://go.dev/wiki/CodeReviewComments), and the [Google Go Style Guide](https://google.github.io/styleguide/go/).
 
-Target **Go 1.26** for new projects. Run `go fix ./...` after upgrading to mechanically adopt modern idioms.
+Target **Go 1.27** for new projects, the current stable release; re-check it per [Starting New Projects](../architecture.md#starting-new-projects). Run `go fix ./...` after upgrading to mechanically adopt modern idioms.
 
 ## Formatting
 
@@ -37,7 +37,7 @@ import (
 - **MixedCaps** / **mixedCaps** — no underscores in identifiers (`userID`, not `user_id`)
 - **Short receiver names** — one or two letters matching the type: `func (s *Server)`, `func (u *User)`
 - **Lowercase package names** — short, no underscores, no `util`/`common`/`helpers`
-- **Consistent acronym casing** — `ID`, `URL`, `HTTP`, `JSON` (not `Id`, `Url`)
+- **Consistent acronym casing** — `ID`, `URL`, `HTTP`, `JSON` in identifiers (not `Id`, `Url`); JSON tags spell them as words ([JSON](#json))
 - **Sentinel errors** — `Err` prefix: `ErrNotFound`, `ErrInvalidInput`
 - **Interfaces** — single-method interfaces named with `-er` suffix: `Reader`, `UserStore`
 - **File names** — lowercase, underscores allowed for test files: `user_service.go`, `user_service_test.go`
@@ -80,13 +80,76 @@ if errors.Is(err, ErrNotFound) { ... }
 if p, ok := errors.AsType[*Problem](err); ok { ... }
 ```
 
+## JSON
+
+The wire rules are in [architecture.md](../architecture.md#api-design), and Go's defaults miss several. `encoding/json` and `encoding/json/v2` treat the tags below the same way; decode request bodies as [security.md](security.md#input-validation) says.
+
+- **A lowerCamel tag on every field** — initialisms stay in the Go name and become words in the tag: `UserID` is `"userId"`, `PhotoURL` is `"photoUrl"`. Neither package has a naming strategy, and an untagged field goes out as `UserID`
+- **Wire enums are typed string constants** — a named `string` type whose constants hold the `UPPER_SNAKE` value; the Go names stay MixedCaps. Any string decodes into the type, so a server checks input against the constants (an unknown value or `*_UNSPECIFIED` is a `422`), and a client treats a value it doesn't know as unknown, not as an error
+- **Instants** — `.UTC()` before encoding, since the encoder writes the value's own offset; truncate to microseconds when the value is set. An optional instant is `omitzero` (Go 1.24+) or a `*time.Time`: `omitempty` never drops a zero `time.Time`
+- **64-bit integers** — the `string` option (`json:"sizeBytes,string"`), so an `int64` is a JSON string
+- **Money** — never `float64`: a decimal string, or an `int64` of minor units next to the currency code
+
+```go
+// OrderState is a wire enum: each constant holds the string the API sends.
+type OrderState string
+
+const (
+    OrderPending OrderState = "PENDING"
+    OrderShipped OrderState = "SHIPPED"
+)
+
+type Order struct {
+    ID         string     `json:"id"`
+    CustomerID string     `json:"customerId"`
+    ReceiptURL string     `json:"receiptUrl,omitempty"`
+    State      OrderState `json:"state"`
+    Total      string     `json:"total"`    // exact decimal, "12.34"
+    Currency   string     `json:"currency"` // ISO 4217
+    CreatedAt  time.Time  `json:"createdAt"`
+    ShippedAt  time.Time  `json:"shippedAt,omitzero"` // optional instant
+}
+
+o := Order{ID: id, State: OrderPending, CreatedAt: time.Now().UTC().Truncate(time.Microsecond)}
+```
+
 ## Logging
 
 Use **`log/slog`** (stdlib, Go 1.21+) — not logrus or zap for new code:
 
 ```go
-slog.Info("order created", "order_id", order.ID, "user_id", userID)
-slog.Error("payment failed", "err", err, "order_id", order.ID)
+slog.InfoContext(ctx, "order created", "order_id", order.ID)
+slog.ErrorContext(ctx, "payment failed", "err", err, "order_id", order.ID)
+```
+
+- **Every line carries the request id and the user id** ([security.md](../security.md#logging)) — log with the `…Context` functions and install `contextHandler`, which reads `RequestID(ctx)` ([security.md](security.md#request-id)) and the user id the auth middleware stores (`UserID(ctx)` here), so no call site passes them
+
+```go
+// contextHandler adds the request id and, once auth has run, the user id to
+// every record logged with a context.
+type contextHandler struct{ slog.Handler }
+
+func (h contextHandler) Handle(ctx context.Context, r slog.Record) error {
+    if id := RequestID(ctx); id != "" {
+        r.AddAttrs(slog.String("request_id", id))
+    }
+    if id := UserID(ctx); id != "" {
+        r.AddAttrs(slog.String("user_id", id))
+    }
+    return h.Handler.Handle(ctx, r)
+}
+
+// WithAttrs and WithGroup keep the wrapper, so slog.With loggers add the ids too.
+func (h contextHandler) WithAttrs(attrs []slog.Attr) slog.Handler {
+    return contextHandler{h.Handler.WithAttrs(attrs)}
+}
+
+func (h contextHandler) WithGroup(name string) slog.Handler {
+    return contextHandler{h.Handler.WithGroup(name)}
+}
+
+// main.go
+slog.SetDefault(slog.New(contextHandler{slog.NewJSONHandler(os.Stdout, nil)}))
 ```
 
 ## Modern Go (Invalidates Past Idioms)
@@ -109,6 +172,9 @@ Patterns below are **deprecated** on Go 1.22+. Run `go fix ./...` to migrate mec
 | `errors.As` with pointer boilerplate | `errors.AsType[*T](err)` | 1.26 |
 | `logrus` / `zap` as default | `log/slog` | 1.21 |
 | `strings.Split` + loop | `for part := range strings.SplitSeq(s, sep)` | 1.23 |
+| `omitempty` on a `time.Time` or struct field, which v1 never omits | `omitzero` | 1.24 |
+| `strings.LastIndex` + slicing | `strings.CutLast(s, sep)` | 1.27 |
+| `github.com/google/uuid` to mint ids | `uuid.NewV4()` | 1.27 |
 
 ## Generics
 

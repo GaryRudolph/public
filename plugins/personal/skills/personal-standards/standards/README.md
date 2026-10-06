@@ -5,7 +5,7 @@ This directory contains coding standards for consistent, maintainable, quality c
 ## Core Standards
 
 - **[Code Style](code-style.md)** — Naming conventions, formatting, imports, anti-patterns
-- **[Architecture](architecture.md)** — Layering, DI, RFC-based API design, RFC 9457 error responses, resource history, activity log, tenant admin vs ops
+- **[Architecture](architecture.md)** — Layering, DI, RFC-based API design, RFC 9457 error responses, hidden resources, custom headers, timestamps, resource state, protobuf, resource history, activity log, tenant admin vs ops
 - **[Platform Parity](platform-parity.md)** — Cross-platform Swift/Kotlin naming and layer conventions
 - **[Testing](testing.md)** — Coverage targets, test structure, mocking rules
 - **[Documentation](documentation.md)** — What to document, ADR format, TODO conventions
@@ -26,7 +26,7 @@ This directory contains coding standards for consistent, maintainable, quality c
 - **[Architecture](python/architecture.md)** — Patterns, DI, RFC 9457 error catalog
 - **[Testing](python/testing.md)** — pytest, Hypothesis, coverage, moto/AWS
 - **[Documentation](python/documentation.md)** — Google-style docstrings, Sphinx
-- **[Security](python/security.md)** — bcrypt, JWT, Flask security, Pydantic, Bandit
+- **[Security](python/security.md)** — argon2id, JWT, Flask security, Pydantic, Bandit
 
 ### Swift
 - **[Code Style](swift/code-style.md)** — Apple API Guidelines, SwiftLint, access control
@@ -48,7 +48,7 @@ This directory contains coding standards for consistent, maintainable, quality c
 - **[Architecture](go/architecture.md)** — stdlib net/http, GORM, GCP clients, manual DI, repository pattern
 - **[Testing](go/testing.md)** — testify, table-driven, httptest, testcontainers, fuzzing
 - **[Documentation](go/documentation.md)** — doc comments, doc.go, testable examples, pkg.go.dev
-- **[Security](go/security.md)** — bcrypt/argon2, JWT v5, validator, gosec, govulncheck
+- **[Security](go/security.md)** — argon2id, JWT v5, validator, gosec, govulncheck
 
 ## Principles
 

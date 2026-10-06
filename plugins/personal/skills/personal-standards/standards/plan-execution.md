@@ -630,7 +630,7 @@ When the last group finishes:
 
 When a `[deep]` agent finishes a deep step and the next step is `[exec]` or `[fast]`, prefer delegating the next group to a subagent on a smaller model rather than burning the deep context on mechanical work.
 
-- Use the harness's subagent/Task tool (Cursor `Task` with `subagent_type` and optional `model`; Claude Code `Task`; other harnesses use the equivalent).
+- Use the harness's subagent/Task tool (Cursor `Task` with `subagent_type` and optional `model`; Claude Code `Agent`, called `Task` before 2.1.63 and still accepted under that name; other harnesses use the equivalent).
 - Pass the cheapest model that can plausibly complete the step (see the model picker in "Model-tier stop points" above). Step up only if the subagent fails or returns low-quality output.
 - Give the subagent: the spec section, the exact files to touch, acceptance criteria, and a hard scope limit. Subagents do not see the parent conversation, so be explicit.
 - Check the branch and the git email first, in each working directory the subagents will touch (git.md "Task branches and shared branches", core.md "Verify git email"), since they commit there. A runner on any branch that isn't a task branch cuts one; a workstation on a shared branch asks whether to cut one before the first dispatch, and without a yes the subagents don't commit.

@@ -74,17 +74,28 @@ Two-tier prod guard (nowline-infra pattern): separate `CONFIRM_APPLY=1` (dev) fr
 These are **expectations**, not prescriptions — preserve existing recipes when
 aligning; only add stubs when a core verb is missing.
 
+Every stack's `lint` fails on drift in anything its `format` rewrites (see
+`makefile.md`). Flag a row whose `lint` can pass on unformatted code.
+
 ### Go (nowline-api, triage)
 
 | Target | Typical recipe |
 |--------|----------------|
 | `init` | `go mod download` |
 | `build` | `go build ./...` |
-| `lint` | `go vet ./...` + gofmt drift check |
-| `format` | `gofmt -w .` |
+| `lint` | `go tool golangci-lint run` + `go mod tidy -diff` |
+| `format` | `go tool golangci-lint fmt` + `go mod tidy` |
 | `test` | `go test ./...` |
 | `ci` | `build lint test` |
 | `doctor` | `triage --profile $(MODE)` |
+
+- `golangci-lint run` runs `go vet` and the formatters in `.golangci.yml`
+  (`gofmt`, `goimports`), reporting drift without rewriting; `fmt` rewrites
+  with the same formatters. Config: `../personal-standards/standards/go/code-style.md`.
+- `go mod tidy -diff` (Go 1.23+) prints the changes `go mod tidy` would make
+  and exits non-zero if there are any.
+- `govulncheck` runs as its own blocking PR check and on a schedule
+  (`go/security.md`); the standard doesn't fix which target runs it.
 
 ### pnpm / Node (nowline, nowline-app, nowline-site)
 
@@ -97,6 +108,9 @@ aligning; only add stubs when a core verb is missing.
 | `typecheck` | tsc / astro check (domain target, not core) |
 | `ci` | repo-specific gate chain |
 | `doctor` | `triage --profile $(MODE)` |
+
+Doesn't meet the drift rule yet: `biome lint` and eslint skip formatting.
+`biome check` (no `--write`) or `prettier --check` in `lint` does.
 
 ### Terraform (nowline-infra)
 
@@ -121,6 +135,9 @@ checking inside `lint` — propose per repo, do not auto-rename without confirma
 | `lint` | swiftlint |
 | `format` | swiftformat |
 | `ci` | often absent — propose adding gate matching CI |
+
+Doesn't meet the drift rule yet: swiftlint doesn't check what swiftformat
+rewrites. Add `swiftformat --lint .` to `lint`.
 
 Domain families (`assets-*`, `secrets-*`, `profiles-*`) stay under their own `##@`
 sections.

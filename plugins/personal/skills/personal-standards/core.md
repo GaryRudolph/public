@@ -24,7 +24,7 @@ A project or organization rule can override a personal preference if there's a d
 
 ## Code Style Quick Rules
 
-- PascalCase for types; snake_case or camelCase per language convention
+- PascalCase for types; snake_case or camelCase per language convention; JSON wire keys are lowerCamel (exceptions: architecture.md)
 - Prefix booleans: `is`, `has`, `can`, `should`
 - File name matches primary export; colocate related files
 - Imports ordered: stdlib, third-party, local
@@ -76,7 +76,7 @@ If a `~/Projects/personal/public/...` path below doesn't exist (cloud, runner, o
 Load these only when the current task is relevant to the standard's topic:
 
 - `~/Projects/personal/public/standards/code-style.md` — naming, formatting, imports, anti-patterns
-- `~/Projects/personal/public/standards/architecture.md` — layering, DI, API design, error handling, resource history, ops plane
+- `~/Projects/personal/public/standards/architecture.md` — layering, DI, API design, error handling, hidden resources, custom headers, timestamps, resource state, protobuf, resource history, ops plane
 - `~/Projects/personal/public/standards/platform-parity.md` — cross-platform Swift/Kotlin naming and layer conventions
 - `~/Projects/personal/public/standards/testing.md` — coverage targets, test structure, mocking rules
 - `~/Projects/personal/public/standards/documentation.md` — what to document, ADR format, TODO conventions
