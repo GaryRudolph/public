@@ -74,7 +74,14 @@ All 2026-10-05.
 - **AI attribution:** the person directing the agent is the author on `main`. Agents are disclosed with an `Assisted-by: Claude Code` trailer, naming the tool, not the model, and never with an agent `Co-authored-by`. Merges are squash-only, with the PR title and description as the message.
 - **Repo baseline:** the new `personal-repo-baseline` skill applies `.claude/settings.json` attribution and GitHub squash settings, and can be re-run on any repo.
 
-Still awaiting your OK, in `research-round-two.md`: resource history (head plus immutable revisions, §1). The rejected PreToolUse hook in §6 is superseded by the decisions above.
+- **Resource history, approved (2026-10-06):**
+  - **Pattern:** a head record plus append-only full-snapshot revisions, written in the same transaction. Named "revisions". The revision number is the ETag.
+  - **Scope:** opt-in per resource type, written from the resource's first release.
+  - **Lifecycle:** retention per type, never purging the current revision. No diff endpoint until a client needs one.
+  - **Postgres:** hardened generic triggers write jsonb snapshots.
+  - **Activity log:** optional, only for applications that need that kind of logging; required for the ops plane. It holds metadata only.
+
+Writing these, plus the ops plane text, into the standards is in progress.
 
 ## Incorporate (no decision needed)
 
