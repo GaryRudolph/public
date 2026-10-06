@@ -19,7 +19,10 @@ Rules:
 
 Without --write it changes nothing: it prints the merged file, or with
 --diff a unified diff against the current one. With --write it writes the
-target (creating its directory) only when the content changes.
+target (creating its directory) only when the merge changes a key, a value,
+or the key order. Formatting alone isn't a change: a file that already
+matches is reported unchanged and left as it is. A symlinked target is
+written through the link.
 
 Exit status: 0 on success, 1 when a file can't be read or isn't a JSON
 object without duplicate keys (the target is left untouched), 2 on a usage
@@ -88,8 +91,13 @@ def schema_first(data):
     return {SCHEMA_KEY: data[SCHEMA_KEY], **{k: v for k, v in data.items() if k != SCHEMA_KEY}}
 
 
+def same_order_dump(data):
+    return json.dumps(data, ensure_ascii=False, separators=(",", ":"))
+
+
 def write_atomic(path, text):
-    directory = os.path.dirname(os.path.abspath(path))
+    path = os.path.realpath(path)
+    directory = os.path.dirname(path)
     os.makedirs(directory, exist_ok=True)
     mode = os.stat(path).st_mode & 0o777 if os.path.exists(path) else 0o644
     fd, tmp = tempfile.mkstemp(dir=directory, prefix=".merge_settings.")
@@ -129,10 +137,12 @@ def main(argv=None):
         print(f"merge_settings: --take names no differing value: {', '.join(unused)}", file=sys.stderr)
         return 2
 
-    after = json.dumps(merged, indent=2, ensure_ascii=False) + "\n"
     for path, have, want in kept:
         print(f"kept: {path}: {json.dumps(have)} (template: {json.dumps(want)})", file=sys.stderr)
-    changed = after != before
+    # Compare parsed content, key order included, so a file that differs
+    # only in whitespace or indentation isn't rewritten.
+    changed = not os.path.exists(args.target) or same_order_dump(merged) != same_order_dump(target)
+    after = json.dumps(merged, indent=2, ensure_ascii=False) + "\n" if changed else before
     if args.write:
         if changed:
             write_atomic(args.target, after)

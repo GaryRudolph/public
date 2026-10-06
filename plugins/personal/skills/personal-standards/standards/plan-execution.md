@@ -284,6 +284,7 @@ Template (a `[deep] -> [exec]` transition):
       Prompt to paste into the next chat:
         Wave <n> of <t> [exec] <next group>
         Read <absolute path to the plan file>. Execute <next group>.
+        On branch <name> (task branch): commit each finished step.
         Before you stop, update plan progress: append ` (done)` to the
         headings you finished, update the Kickoff Status line, and flip the
         matching todos. Then stop at the next STOP marker and report what
@@ -304,6 +305,7 @@ For an `[exec] -> [fast]` transition, the prompt should also remind the model no
       Prompt to paste into the next chat:
         Wave <n> of <t> [fast] <next group>
         Read <absolute path to the plan file>. Execute <next group>.
+        On branch <name> (task branch): commit each finished step.
         These are mechanical edits -- apply exactly what the plan
         specifies; do not refactor, rename, or generalize. Before you
         stop, update plan progress (mark the headings you finished
@@ -326,8 +328,9 @@ For an escalation back to `[deep]` (after `[exec]` or `[fast]`):
         Wave <n> of <t> [deep] <next group>
         Read <absolute path to the plan file>. Design <next group> (do not
         implement). The previous wave is reviewed in its own REVIEW beat
-        (see the Review beat section), so do not re-review it here. Before
-        you stop, update plan progress (mark the headings you finished
+        (see the Review beat section), so do not re-review it here.
+        On branch <name> (task branch): commit each finished step.
+        Before you stop, update plan progress (mark the headings you finished
         ` (done)`, update the Status line, flip the matching todos). Stop
         after the design is written and report back.
 
@@ -343,13 +346,14 @@ Start the prompt with the keyword `ultracode` so that turn runs under ultracode;
 
 Rules for filling in the template:
 
-- `<absolute path to the plan file>` is the **fully-qualified absolute path** to the plan file, resolved when the plan was identified — for example: `/Users/gary/Projects/personal/public/.scratch/plan-topic-word.md`. Never emit a bare filename or a repo-relative path — the next chat may start from a different working directory. The one exception is a plan tracked in `specs/handoffs/` on a runner: give its repo-relative path and the branch it's on, because the branch is reopened on another machine where the container's absolute path means nothing.
+- `<absolute path to the plan file>` is the **fully-qualified absolute path** to the plan file, resolved when the plan was identified — for example: `/Users/gary/Projects/personal/public/.scratch/plan-topic-word.md`. Never emit a bare filename or a repo-relative path — the next chat may start from a different working directory. The one exception is a plan tracked in `specs/handoffs/` on a runner: give its repo-relative path, because the branch (named on the `On branch` line) is reopened on another machine where the container's absolute path means nothing.
 - The `Next model` block names Cursor and Claude Code. When the plan runs in Codex, Gemini CLI, Muse Code, or Grok Build, replace the Cursor row with that harness's row from the [Model picker](#model-picker).
 - Name the next group using whatever identifiers the plan uses: if headings
   carry IDs, use those (e.g. `m2 s1-s4`); if not, use exact title text
   (e.g. `the "Wire Redis client" through "Write integration tests" steps`).
 - Always include the `Suggested chat title:` line in the [Wave title format](#wave-title-format). `{n}` is the **next** wave (the one this STOP launches), `{t}` the total wave count, and `{group-id}` the same identifier used to name the next group above. It is advisory — a foreground chat cannot set its own title, so emit it for the user to paste even though there is no guarantee the harness will use it.
 - Always include the "Stop at the next STOP marker" hard limit so the cascade is preserved.
+- `On branch <name> (task branch)` names the task branch the plan runs on. Each wave is a new chat, so a branch cut in an earlier one isn't "cut this session"; Gary pasting the prompt names the branch for the work (git.md "Task branches and shared branches"), so the next chat commits there without asking again, on a workstation or a runner. With no task branch yet (a workstation on a shared branch), leave the line out; the chat that cuts one adds it to the remaining STOP and REVIEW prompts with its first commit. The REVIEW prompt carries it too, as `On branch <name> (task branch): commit the plan update before you stop.`
 - Always include the **progress-update reminder** spelled out inline in the prompt body (append ` (done)` to finished headings, update the Kickoff Status line, flip the matching todos). The pasted chat usually does **not** re-load the driver skill, so this inline reminder is the only way the [Progress tracking](#progress-tracking) convention reaches it — never drop it. Do not factor it out into a separate checklist block in the plan; keep it in the prompt.
 - Use `->` ASCII arrows rather than Unicode em-dash arrows so the marker is safe in terminals and grep.
 - If the next group is a `[deep]` block being delegated to a parent, the prompt should say "design only, do not implement"; if it's `[exec]` or `[fast]`, the prompt should say "implement <next group>, stop at next STOP marker."
@@ -394,6 +398,8 @@ Template:
         If the verdict is CONCERNS, also set the Kickoff Status line to
         `BLOCKED at gate review-wave-<n>`, re-post the concern, and stop.
         On PASS, update the Status line `last review:` field and report back.
+        On branch <name> (task branch): commit the plan update before you
+        stop.
 
     ---
 
@@ -457,7 +463,9 @@ Passive variant — `[exec]` first wave (the most common shape):
 
       Prompt to paste into the next chat:
         Read <absolute path to the plan file>. Begin execution at the top
-        of the plan. Before you stop, update plan progress: append
+        of the plan.
+        On branch <name> (task branch): commit each finished step.
+        Before you stop, update plan progress: append
         ` (done)` to the headings you finished, update the Kickoff Status
         line, and flip the matching todos. Then stop at the next STOP
         marker and report what you changed and any deviations from the
@@ -481,7 +489,9 @@ Passive variant — `[fast]` first wave (prompt body adds the "no refactor" remi
 
       Prompt to paste into the next chat:
         Read <absolute path to the plan file>. Begin execution at the top
-        of the plan. These are mechanical edits -- apply exactly what the
+        of the plan.
+        On branch <name> (task branch): commit each finished step.
+        These are mechanical edits -- apply exactly what the
         plan specifies; do not refactor, rename, or generalize. Before you
         stop, update plan progress (mark the headings you finished
         ` (done)`, update the Status line, flip the matching todos). Then
@@ -505,6 +515,7 @@ Active variant — orchestrate (always `[deep]` / Opus):
 
       Prompt to paste into the next chat:
         Read <absolute path to the plan file>. The plan is already tagged.
+        On branch <name> (task branch): subagents commit each finished step.
         Run the personal-plan-orchestrate skill from the top: walk to
         each tier boundary, dispatch Task subagents per the skill's
         procedure, and pause only at the mandatory STOP gates. Do not
@@ -517,8 +528,9 @@ Active variant — orchestrate (always `[deep]` / Opus):
 
 Rules for filling in the template:
 
-- `<absolute path to the plan file>` is the **fully-qualified absolute path** to the plan file, resolved when the plan was identified — for example: `/Users/gary/Projects/personal/public/.scratch/plan-topic-word.md`. Never emit a bare filename or a repo-relative path — the next chat may start from a different working directory. The one exception is a plan tracked in `specs/handoffs/` on a runner: give its repo-relative path and the branch it's on, because the branch is reopened on another machine where the container's absolute path means nothing.
+- `<absolute path to the plan file>` is the **fully-qualified absolute path** to the plan file, resolved when the plan was identified — for example: `/Users/gary/Projects/personal/public/.scratch/plan-topic-word.md`. Never emit a bare filename or a repo-relative path — the next chat may start from a different working directory. The one exception is a plan tracked in `specs/handoffs/` on a runner: give its repo-relative path, because the branch (named on the `On branch` line) is reopened on another machine where the container's absolute path means nothing.
 - For the passive variant, the `<tier>` is the **execution tier of the first wave** after the no-thrash folding pass (see [No-thrash rule](#no-thrash-rule)). This is normally the tag on the first executable heading, walking top-down — higher-level grouping headings (milestones, phases) are untagged and ignored, per [Tag placement](#tag-placement). The one exception: when a short leading `[fast]` run (< 3 steps) is folded into the following `[exec]` wave, the first wave executes at `[exec]`, so the Kickoff shows `[exec]` even though those headings keep their honest `[fast]` tags.
+- The `On branch <name> (task branch)` line follows the [STOP marker](#stop-marker-template) rule: the task branch when there is one, left out until a task branch exists. In the active variant the parent passes it to every dispatch as the git instruction.
 - For the active variant, the model is **always** `claude-opus-5-5[effort=high]` / `/model opus` at `/effort high`, regardless of what the first wave's tier is. The orchestrator-parent always runs at `[deep]`.
 - Use `->` ASCII arrows rather than Unicode em-dash arrows so the marker is safe in terminals and grep.
 - Fill in the `Status:` line with the total group count (`N`), the first group's identifier, and today's date. Update it as execution progresses (see [Progress tracking](#progress-tracking) below).
@@ -619,7 +631,7 @@ When a `[deep]` agent finishes a deep step and the next step is `[exec]` or `[fa
 - Use the harness's subagent/Task tool (Cursor `Task` with `subagent_type` and optional `model`; Claude Code `Task`; other harnesses use the equivalent).
 - Pass the cheapest model that can plausibly complete the step (see the model picker in "Model-tier stop points" above). Step up only if the subagent fails or returns low-quality output.
 - Give the subagent: the spec section, the exact files to touch, acceptance criteria, and a hard scope limit. Subagents do not see the parent conversation, so be explicit.
-- Check the branch and the git email first, in each working directory the subagents will touch (git.md "Task branches and shared branches", core.md "Verify git email"), since they commit there. On a shared branch, a runner cuts a task branch; a workstation asks whether to cut one before the first dispatch, and without a yes the subagents don't commit.
-- Give it the git instruction too. On a task branch: commit each finished step on the current branch (`m{N}.s{K} <imperative subject>`, only the paths it changed), and don't push, branch, or switch. On a shared branch: don't commit. A subagent may not get the always-on rules (Claude Code subagents don't get SessionStart output, which is how runners load core.md), so spell it out. The parent reviews, then pushes.
+- Check the branch and the git email first, in each working directory the subagents will touch (git.md "Task branches and shared branches", core.md "Verify git email"), since they commit there. A runner on any branch that isn't a task branch cuts one; a workstation on a shared branch asks whether to cut one before the first dispatch, and without a yes the subagents don't commit.
+- Give it the git instruction too. On a task branch: commit each finished step on the current branch (`m{N}.s{K} <imperative subject>`, only the paths it changed), and don't push, branch, or switch. On a shared branch: don't commit. A subagent may not get the always-on rules (Claude Code subagents don't get SessionStart output, which is how runners load core.md), so spell it out. The parent reviews, then pushes: the one exception to a runner pushing after every commit.
 - The deep parent stays responsible for reviewing the subagent's output and deciding the next stop point.
 - If the harness does not support per-subagent model selection, stop at the boundary instead and let the user start a fresh session on a cheaper model using the STOP marker's handoff prompt.

@@ -229,8 +229,9 @@ artifacts.
 `~/.claude/settings.json`) and GitHub's squash-only merge settings. It ships
 `repo-facts.sh` (facts only), `merge_settings.py` (adds keys, never drops
 one), and `tests/test-repo-baseline.sh`, and `personal-new-project` runs it
-last. Option D stays rejected: that was plugin config, which cloud sessions
-don't load.
+last. That doesn't revive option D (committing plugin config,
+`enabledPlugins`, to each repo's `.claude/settings.json`): cloud sessions
+read that file but still don't load the plugins it names.
 
 ### m6 - Retire the old way per tool (done on this branch)
 

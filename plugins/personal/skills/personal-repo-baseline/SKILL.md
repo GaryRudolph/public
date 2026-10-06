@@ -30,13 +30,17 @@ Behavior, and Merging) for the rules these settings serve.
 | **Agent attribution** | `.claude/settings.json` | [`templates/claude-settings.json`](templates/claude-settings.json): `$schema`, and `attribution.commit` and `attribution.pr` set to `Assisted-by: Claude Code` | Unset, Claude Code adds `Co-authored-by: Claude`. A plugin's settings carry only `agent` and `subagentStatusLine`, and cloud sessions read the repo's `.claude/settings.json`, never `~/.claude/settings.json` |
 | **Merge settings** | GitHub repo settings | [`templates/github-merge-settings.json`](templates/github-merge-settings.json): squash only, `PR_TITLE` and `PR_BODY`, head branches deleted | Squash makes the PR opener the author on `main` and the description, with its `Assisted-by` trailer, the commit message. GitHub's defaults (`COMMIT_OR_PR_TITLE` and `COMMIT_MESSAGES`, merge commits and rebase on) copy every branch trailer onto `main`, and a rebase merge puts the agent there as author |
 
-- **Leave `attribution.sessionUrl` unset** — git.md keeps `Claude-Session:` on
-  branch commits, and `true` drops it.
+- **Leave `attribution.sessionUrl` unset** (default `true`) so branch
+  commits keep `Claude-Session:`, as git.md wants; `false` drops the link. In
+  a PR description the link goes above the trailer paragraph (git.md, PR
+  Body), whatever the harness's placement.
 - **`includeCoAuthoredBy` is deprecated** — `attribution` replaces it. Propose
   removing a leftover one.
 - **Multi-repo cloud sessions don't apply it** — a session with several
   repositories reads only `enabledPlugins` and `extraKnownMarketplaces` from
-  each repo's file. `core.md`'s attribution rule still holds there.
+  each repo's file (Claude Code settings docs, "Settings in cloud sessions"),
+  and the plugins those name don't load in the cloud either. `core.md`'s
+  attribution rule still holds there.
 - **`.claude/settings.local.json` wins on its machine** — report a local
   `attribution` that differs; don't edit it (it's personal and untracked).
 
@@ -61,33 +65,44 @@ bash <skill-dir>/scripts/repo-facts.sh [<repo> ...]
 
 Per repo (default: the current directory) it prints:
 
-- the root, `origin`, the `owner/name` parsed from it, the branch, and the
-  commit count
-- for `.claude/settings.json`: whether it exists, whether git tracks it,
-  whether it parses, any duplicate keys, and its contents verbatim
+- the root, `origin`, its host, the `owner/name` parsed from it, the
+  branch, and the commit count
+- for `.claude/settings.json`: whether it exists (and where a symlink
+  points), whether git tracks it, whether it differs from `HEAD`, origin's
+  default branch and whether the file matches it there (local refs, as of
+  the last fetch), whether it parses, any duplicate keys, and its contents
+  verbatim
 - for `.claude/settings.local.json`: key names and its `attribution` value
   only
 - GitHub's value for every key in `templates/github-merge-settings.json`,
-  plus `permissions`, from `gh api repos/<owner>/<name>` (REST; Claude Code's
-  cloud proxy refuses GraphQL)
+  plus `full_name`, `default_branch`, and `permissions`, from
+  `gh api repos/<owner>/<name>` (REST; Claude Code's cloud proxy refuses
+  GraphQL)
 
 It needs bash, git, and python3. Without `gh`, or without access, the GitHub
-section says why. A `null` GitHub value means GitHub didn't return it, usually
-because the token can't administer the repo; `permissions` shows what it can
-do.
+section says why. It reads GitHub only when origin's host is github.com,
+Claude Code's cloud git proxy, or an ssh alias; any other host (GitLab, a
+local path) gets a "not read" line, since the same `owner/name` on GitHub
+would be another repo. A `null` GitHub value means GitHub didn't return it,
+usually because the token can't administer the repo; `permissions` shows
+what it can do.
 
 ### Step 2 — Audit (dry-run, always)
 
 Compare each repo's facts with the templates. Report one block per repo, with
 a row per baseline item: current value, target, and the change you propose
-(add, replace, or none). Call out:
+(add, replace, or none). First confirm GitHub's `full_name` is the
+`owner/name` from origin: an ssh alias can point anywhere, and a rename or
+transfer redirects. On a mismatch, say so and leave the GitHub item until
+Gary confirms the repo. Call out:
 
 - a `.claude/settings.json` that doesn't parse or has duplicate keys (it needs
   a hand fix first; the merge refuses it)
 - an existing `attribution` value that differs from the template,
-  `sessionUrl: true`, or a leftover `includeCoAuthoredBy`
-- a `.claude/settings.json` git doesn't track (cloud sessions see it only once
-  it's committed and pushed)
+  `sessionUrl: false`, or a leftover `includeCoAuthoredBy`
+- a `.claude/settings.json` git doesn't track, that differs from `HEAD`, or
+  that isn't the same on origin's default branch: cloud sessions see it once
+  it's on the branch they start from, usually after merge
 - a local `attribution` override
 - GitHub values that differ, and whether `permissions.admin` allows the change
 - a repo that isn't on GitHub yet: its GitHub item waits
@@ -123,7 +138,9 @@ python3 <skill-dir>/scripts/merge_settings.py <skill-dir>/templates/claude-setti
 It adds missing keys, merges objects key by key, and leaves every other
 existing value alone unless `--take <dotted.path>` names it. It never removes a
 key, puts `$schema` first, writes 2-space JSON, and refuses a file that isn't
-a JSON object or has duplicate keys. Removing a key, such as
+a JSON object or has duplicate keys. A file that already matches, whatever
+its formatting, is left as it is, and a symlinked file is written through
+the link. Removing a key, such as
 `includeCoAuthoredBy`, is a hand edit after a yes. The file is an ordinary
 change: commit it per `core.md`.
 
@@ -134,7 +151,12 @@ gh api -X PATCH repos/<owner>/<name> --input <skill-dir>/templates/github-merge-
 ```
 
 If he approved only some values, send just those (`-F key=true` for booleans,
-`-f key=VALUE` for strings) instead of `--input`. It needs admin on the repo.
+`-f key=VALUE` for strings) instead of `--input`, within two limits, since
+GitHub can refuse the PATCH with a 422: the two `squash_merge_*` values go
+together, as one of the pairs Settings offers (the baseline's `PR_TITLE`
+with `PR_BODY`; `COMMIT_OR_PR_TITLE` only with `COMMIT_MESSAGES`), and at
+least one merge method stays on. If his subset breaks either, say which and
+ask again. It needs admin on the repo.
 If `gh` is missing or the call is refused, don't work around it: give Gary the
 values to set by hand in Settings → General → Pull Requests:
 

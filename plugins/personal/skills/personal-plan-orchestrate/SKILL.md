@@ -443,12 +443,13 @@ authoritative usage data.
 2. **Run the harness gate** above. STOP and ask if not Cursor. Then
    **check the branch and the git email in each working directory** the
    plan touches (standards `git.md` §"Task branches and shared branches",
-   core.md "Verify git email"). On a shared branch, a runner cuts a task
-   branch without asking; a workstation asks whether to cut one before the
-   first dispatch, since subagents commit (core.md "Cut a task branch off
-   a shared branch"). Without a yes, orchestrate on the shared branch and
-   tell subagents not to commit. A branch that's neither shared nor a
-   task branch gets the same one-time ask.
+   core.md "Verify git email"). A runner on any branch that isn't a task
+   branch cuts one without asking; a workstation on a shared branch asks
+   whether to cut one before the first dispatch, since subagents commit
+   (core.md "Cut a task branch off a shared branch"). Without a yes,
+   orchestrate on the shared branch and tell subagents not to commit. On a
+   workstation, a branch that's neither shared nor a task branch gets the
+   one-time ask, also before the first dispatch.
 3. **Tag the plan, group into waves, and write wave markers.** If the plan
    is not already tagged, run
    [`personal-plan-tag-tiers`](../personal-plan-tag-tiers/SKILL.md) to tag
@@ -480,8 +481,9 @@ authoritative usage data.
    template". The model row is **always** `claude-opus-5-5[effort=high]`
    / `/model opus` + `/effort high` because the orchestrator-parent always
    runs at `[deep]` (see "Orchestrator-parent invariant" above). The prompt body
-   references the resolved plan path from step 1 and names this
-   skill (`personal-plan-orchestrate`). The Kickoff block is
+   references the resolved plan path from step 1, carries the `On branch
+   <name> (task branch)` line when step 2 left a task branch, and names
+   this skill (`personal-plan-orchestrate`). The Kickoff block is
    **idempotent**: if a Kickoff block already exists at the top of the
    file (any line matching `--- KICKOFF: ... ---`), replace it;
    otherwise insert above the first heading inside a fenced code block.

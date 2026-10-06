@@ -43,8 +43,8 @@ Read it fully before tagging anything. Remember the resolved plan path as
 its **fully-qualified absolute path** — every STOP handoff prompt must
 reference it by absolute path, never a bare filename or repo-relative path.
 The one exception is a plan tracked in `specs/handoffs/` on a runner: use
-its repo-relative path and name the branch, since the branch is reopened on
-another machine (plan-execution.md, template fill-in rules).
+its repo-relative path, since the branch (the prompt's `On branch` line) is
+reopened on another machine (plan-execution.md, template fill-in rules).
 
 If the plan file already has a Kickoff block with a `Status:` line and
 ` (done)` markers on some headings, this is a re-entry into a partially-
@@ -115,8 +115,8 @@ heading and **before**
 the next `--- STOP …` or `--- WAVE …` marker (for the final wave, after
 its last heading and before end-of-file or the Completion section). Use
 the REVIEW template from standards §"Review beat" — fill in wave number,
-total wave count, `<group-id>`, and the resolved plan path from step 1 so
-the prompt is self-contained. After an `[xdeep]` wave, also apply the
+total wave count, `<group-id>`, the resolved plan path from step 1, and, on
+a task branch, its `On branch` line, so the prompt is self-contained. After an `[xdeep]` wave, also apply the
 `[xdeep]` note under that template: `[xdeep]` in the marker, title, and
 prompt, its Opus max-effort rows, and no ultracode. **Idempotent:** skip a
 REVIEW write when
@@ -145,11 +145,14 @@ include:
    title text if not), references the resolved plan path from step 1, carries
    the **progress-update reminder spelled out inline** (before stopping:
    append ` (done)` to finished headings, update the Status line, flip
-   todos), and ends with "Stop at the next STOP marker and report back" so
-   the cascade is preserved. There is no orchestrator in this flow, and the
-   pasted chat usually does not re-load this skill, so that inline reminder
-   is the only thing that tells the wave to update plan state — never omit
-   it, and do not move it into a separate checklist block in the plan.
+   todos), carries `On branch <name> (task branch): commit each finished
+   step.` on a task branch (Gary pasting it names the branch for that chat;
+   leave it out until a task branch exists), and ends with "Stop at the next
+   STOP marker and report back" so the cascade is preserved. There is no
+   orchestrator in this flow, and the pasted chat usually does not re-load
+   this skill, so that inline reminder is the only thing that tells the
+   wave to update plan state — never omit it, and do not move it into a
+   separate checklist block in the plan.
 5. For a STOP into an `[xdeep]` wave, the extras from the standards'
    `[xdeep]` escalation note: start the prompt with the keyword `ultracode`
    so that turn runs under ultracode (for a wave that may take more than
@@ -182,6 +185,8 @@ after the no-thrash folding pass. Add a `review: every-wave` line
   "mechanical edits, do not refactor" reminder; `[deep]` and `[exec]`
   use the standard body; an `[xdeep]` first wave uses the standard body
   plus the step 4 `[xdeep]` extras: the `ultracode` opt-in and the checklist line).
+- On a task branch, the prompt body carries the same `On branch <name>
+  (task branch)` line as the STOP prompts (step 4).
 - Include a `Suggested chat title:` line in the Wave title format for the
   first wave (`Wave 1 of N [<tier>] <first group>`) — the same advisory
   title as the STOP markers (step 4). Emit it even though a foreground chat
@@ -245,9 +250,11 @@ In whichever chat executes a group, **before halting at the STOP marker**:
 4. On a task branch, commit; a runner also pushes (core.md "Save before
    you wait"). The STOP question is then only about the next wave and
    names the commit range. On a shared branch, offer the commit as its own
-   choice (standards §"STOP gate semantics"); a workstation asks once,
-   before the first commit, whether to cut a task branch (core.md "Cut a
-   task branch off a shared branch").
+   choice (standards §"STOP gate semantics"); a workstation asks once, at
+   its first pause (end of the first step), before anything is committed,
+   whether to cut a task branch (core.md "Cut a task branch off a shared
+   branch"). A chat that cuts one adds its `On branch` line to the
+   remaining STOP and REVIEW prompts with its first commit.
 
 **Review beat (separate chat).** After a wave finishes, the human runs
 the REVIEW marker for that wave before starting the next wave. When
