@@ -223,6 +223,14 @@ including the build-version string and version-field drift),
 fixed `core.md`'s "simplified `v1`, `v2`, `v3`" versioning line, which
 described only the contract regime and contradicted the SemVer rule for
 artifacts.
+`personal-repo-baseline` carries the per-repo settings the plugin can't:
+`.claude/settings.json` `attribution` (plugin settings take only `agent` and
+`subagentStatusLine`, and cloud sessions read the repo's file, not
+`~/.claude/settings.json`) and GitHub's squash-only merge settings. It ships
+`repo-facts.sh` (facts only), `merge_settings.py` (adds keys, never drops
+one), and `tests/test-repo-baseline.sh`, and `personal-new-project` runs it
+last. Option D stays rejected: that was plugin config, which cloud sessions
+don't load.
 
 ### m6 - Retire the old way per tool (done on this branch)
 

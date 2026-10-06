@@ -47,7 +47,7 @@ this skill's directory instead; the files are identical.
 | Docs, ADRs, specs, milestones | `standards/documentation.md` |
 | Tiered plans, STOP gates | `standards/plan-execution.md` |
 | Handoffs, saved plans | the `personal-handoff` skill |
-| Branches, commits, PRs, AI attribution | `standards/git.md` |
+| Branches, commits, PRs, AI attribution | `standards/git.md`, and the `personal-repo-baseline` skill for a repo's `.claude/settings.json` attribution and GitHub merge settings |
 | Versions, releases | `standards/versioning.md`, and the `personal-release` skill for cutting releases and hotfixes |
 | Auth, crypto, input validation | `standards/security.md` |
 | Secrets repos and Makefiles | `standards/secrets/README.md`, and the `personal-secrets` skill for procedures |

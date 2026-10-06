@@ -41,7 +41,7 @@ A project or organization rule can override a personal preference if there's a d
 - **Versioning**: artifacts use SemVer tags `vMAJOR.MINOR.PATCH`, bumped only at release time (`version.txt` holds the last release; no pre-release suffixes; dev builds are `<release>+<sha>`); contracts (API paths, wire and file formats) use integer majors `v1`, `v2`, with `v2.1` only for hotfixes. See `~/Projects/personal/public/standards/versioning.md`, or the `personal-release` skill
 - **Commits**: imperative mood, optional ticket prefix, 72-char subject, no period
   - `add login endpoint` or `PROJ-123 add login endpoint`
-- **AI attribution**: I'm the author of what lands on `main`, not the agent; disclose the agent with an `Assisted-by: Claude Code` trailer (the tool, not the model; Cursor or Codex names itself), never an agent `Co-authored-by` or `Signed-off-by`; a PR description an agent helped with ends with the same trailer (see `~/Projects/personal/public/standards/git.md` "AI Agent Behavior")
+- **AI attribution**: I'm the author of what lands on `main`, not the agent; disclose the agent with an `Assisted-by: Claude Code` trailer (the tool, not the model; Cursor or Codex names itself), never an agent `Co-authored-by` or `Signed-off-by`; a PR description an agent helped with ends with the same trailer (see `~/Projects/personal/public/standards/git.md` "AI Agent Behavior", or the `personal-repo-baseline` skill to set a repo up for it)
 - **PRs**: squash-and-merge only, with the PR title and description as the commit message; one feature/fix per PR
 
 ## Workflow
