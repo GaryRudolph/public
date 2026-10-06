@@ -297,6 +297,14 @@ waiver); if no explicit affirmative answer is received, re-post the exact
 gate question, write `BLOCKED at gate <N>` into the Kickoff `Status:`
 line, and end the turn. Never dispatch subagents while blocked.
 
+**Gate questions are about the plan.** On a task branch, every wave is
+committed by its subagents (and on a runner pushed by the parent) before
+any gate asks, so a gate never asks for commit or push permission; it
+names the wave's commit range so the user can review it. On a shared
+branch, nothing is committed: a gate that wants the wave committed offers
+that as its own choice in the same question. See standards §"STOP gate
+semantics (fail closed)".
+
 1. **Subagent error or self-reported low-quality output** — surface to the
    user; decide retry on same model, step up one tier, or re-plan.
 2. **`[exec] -> [deep]` or `[exec] -> [xdeep]` boundary** — review gate. STOP so the user can
@@ -334,7 +342,7 @@ the one-subagent-per-working-dir rule).
 
 ## Subagent context contract
 
-Every `Task` prompt the orchestrator dispatches **must** include all seven of
+Every `Task` prompt the orchestrator dispatches **must** include all eight of
 these. The contract applies equally to `[deep]` and `[xdeep]` subagents — opus subagents
 dispatched at `[deep] -> [deep]`, `[exec] -> [deep]`, or `[fast] -> [deep]`
 boundaries are doing architecture work, so quote the spec excerpt verbatim
@@ -370,6 +378,13 @@ parent is.
    model's rates from the same standards section. Cursor Task subagent
    transcripts expose no usage, so the heuristic normally applies here —
    label the line `(heuristic)` and treat it as ±40%.
+8. **Git instruction** — on a task branch: "Commit each finished step on
+   the current branch as `m{N}.s{K} <imperative subject>`, staging only
+   the paths you changed. Do not push, create, or switch branches." On a
+   shared branch: "Do not commit, push, or switch branches." Spell it out
+   every time. This skill runs only on Cursor today, and a `Task`
+   subagent may not receive the always-on rules, so it can't be assumed
+   to know them.
 
 ## Token tally
 
@@ -425,7 +440,15 @@ authoritative usage data.
 1. **Identify the plan** using the same priority order as the sibling
    skill (named path → most recent `plan-*.md` in `.scratch/` or
    `specs/handoffs/` → in-conversation plan). Remember the resolved path.
-2. **Run the harness gate** above. STOP and ask if not Cursor.
+2. **Run the harness gate** above. STOP and ask if not Cursor. Then
+   **check the branch and the git email in each working directory** the
+   plan touches (standards `git.md` §"Task branches and shared branches",
+   core.md "Verify git email"). On a shared branch, a runner cuts a task
+   branch without asking; a workstation asks whether to cut one before the
+   first dispatch, since subagents commit (core.md "Cut a task branch off
+   a shared branch"). Without a yes, orchestrate on the shared branch and
+   tell subagents not to commit. A branch that's neither shared nor a
+   task branch gets the same one-time ask.
 3. **Tag the plan, group into waves, and write wave markers.** If the plan
    is not already tagged, run
    [`personal-plan-tag-tiers`](../personal-plan-tag-tiers/SKILL.md) to tag
@@ -579,8 +602,8 @@ authoritative usage data.
       returned subagent summary against the plan spec (read artifacts when
       needed). Append one line to `## Review log` in the plan file (create
       the section if absent) using the grammar from standards §"Review log":
-      `review wave-N (<group-id>): PASS|CONCERNS - <one-line note> -
-      <YYYY-MM-DD>`. This is orchestrate's **log-only** participation in
+      `review wave-N (<group-id>) <from>..<to>: PASS|CONCERNS - <one-line
+      note> - <YYYY-MM-DD>`. This is orchestrate's **log-only** participation in
       the [review beat](../personal-standards/standards/plan-execution.md) —
       it adds **no new human STOP gate** (gates 1–7 unchanged). Review
       tokens count toward the orchestrator-parent row in the token tally,
@@ -590,6 +613,11 @@ authoritative usage data.
       high-effort parent would cap the review at `[deep]`. The parent
       writes that subagent's verdict to the Review log and gives its tokens
       their own `review-wave-N` row.
+    - **Commit and push (task branch).** After the review, whatever the
+      verdict, commit the plan file if it's tracked (on a runner, in
+      `specs/handoffs/`). A runner then pushes each working directory's
+      branch; a workstation pushes at will. A `CONCERNS` verdict adds a
+      fix-up wave on top; it never rewrites the wave's commits.
 13. **Handle errors / low-quality output** — STOP (gate 1) and offer
     retry / step-up / re-plan. Fail-closed: if no explicit answer is
     received, re-post the error gate question, write `BLOCKED at gate 1`
@@ -617,7 +645,8 @@ authoritative usage data.
   produces diffs in its own context. If you find yourself doing plan
   work directly, dispatch a `Task` subagent for the current group
   instead. The orchestrator's job is tagging, dispatching, reviewing
-  summaries, and advancing — nothing else.
+  summaries, and advancing — nothing else. Committing the plan file and
+  pushing the task branch are bookkeeping, not plan work.
 - Auto-executing `Task` calls without user approval at the gates above.
 - Re-enabling this skill on Claude Code. Flip the harness gate once
   [anthropics/claude-code#43869](https://github.com/anthropics/claude-code/issues/43869)

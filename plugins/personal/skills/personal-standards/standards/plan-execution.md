@@ -382,12 +382,15 @@ Template:
       Prompt to paste into the next chat:
         Review wave <n> of <t> [deep] <just-finished group>
         Read <absolute path to the plan file>. Review the work completed in
-        wave <n> (<group-id>) against its spec: read the diff in git status /
-        diff and check it against the plan steps and any acceptance criteria.
-        This is READ-ONLY -- do not fix anything yourself and do not start
-        the next wave. Append one line to the "## Review log" section of the
-        plan file (create the section if absent):
-          review wave-<n> (<group-id>): PASS|CONCERNS - <one-line note> - <YYYY-MM-DD>
+        wave <n> (<group-id>) against its spec: read `git diff <from>` and
+        `git status`, where <from> is the commit after `..` on the last
+        Review log line (for the first review, `git merge-base HEAD
+        origin/<default branch>`), and check it against the plan steps and
+        any acceptance criteria. This is READ-ONLY -- do not fix anything
+        yourself and do not start the next wave. Append one line to the
+        "## Review log" section of the plan file (create the section if
+        absent), with <to> from `git rev-parse --short HEAD`:
+          review wave-<n> (<group-id>) <from>..<to>: PASS|CONCERNS - <one-line note> - <YYYY-MM-DD>
         If the verdict is CONCERNS, also set the Kickoff Status line to
         `BLOCKED at gate review-wave-<n>`, re-post the concern, and stop.
         On PASS, update the Status line `last review:` field and report back.
@@ -408,12 +411,14 @@ The **Review log** is a durable `## Review log` section at the bottom of the pla
 
 One line per reviewed wave:
 
-    review wave-<n> (<group-id>): PASS|CONCERNS - <one-line note> - <YYYY-MM-DD>
+    review wave-<n> (<group-id>) <from>..<to>: PASS|CONCERNS - <one-line note> - <YYYY-MM-DD>
 
 For example:
 
-    review wave-1 (m1-s1-s5): PASS - standards wording is internally consistent - 2026-06-07
-    review wave-2 (m2-s1-s2): CONCERNS - s2 skips the orchestrate log-only note - 2026-06-07
+    review wave-1 (m1-s1-s5) 3f2a9c1..8d0e4b7: PASS - standards wording is internally consistent - 2026-06-07
+    review wave-2 (m2-s1-s2) 8d0e4b7..c41f0a2: CONCERNS - s2 skips the orchestrate log-only note - 2026-06-07
+
+- `<from>..<to>` is the commit range the review read (`git diff <from>` also covers uncommitted work). The next review starts from this line's `<to>`. On a shared branch, where waves stay uncommitted, both ends are the same commit.
 
 - `PASS` verdicts let the next wave proceed; `CONCERNS` is fail-closed (see [Review beat](#review-beat) above).
 - The verdict also surfaces in the Kickoff `Status:` line `last review:` field (see [Updating the Status line](#updating-the-status-line)) so re-entry sees the latest result without scanning the log.
@@ -524,7 +529,7 @@ Rules for filling in the template:
 
 The two tracking surfaces — the in-harness todo list and the durable plan markdown file (both defined under [Progress tracking](#progress-tracking) below) — are kept in sync differently by each driver, because only one flow has a coordinator:
 
-- `personal-plan-orchestrate` **has an orchestrator-parent**. After each wave's subagent returns, the parent applies the [Progress tracking](#progress-tracking) updates itself (mark ` (done)`, update the `Status:` line, flip todos). Subagents do mechanical work in their own working directory and never touch the plan file. This is handled by the skill procedure, so it does not need to ride in any prompt. The parent also **reviews every returned summary** as part of that step and writes the verdict to the [Review log](#review-log) (`review wave-N (<group-id>): PASS|CONCERNS - … - <date>`) — this is the orchestrate **log-only** participation in the [review beat](#review-beat) convention. It adds **no new human review gate**: orchestrate's existing gates (the `[exec]/[fast] -> [deep]` review gate and the milestone gate) are unchanged, and the every-wave review beat that the passive driver runs as a separate human-driven chat is, in orchestrate, just the parent's inline review plus the log write.
+- `personal-plan-orchestrate` **has an orchestrator-parent**. After each wave's subagent returns, the parent applies the [Progress tracking](#progress-tracking) updates itself (mark ` (done)`, update the `Status:` line, flip todos). Subagents do mechanical work in their own working directory and never touch the plan file. This is handled by the skill procedure, so it does not need to ride in any prompt. The git instruction does ride in every dispatch prompt (see [Delegating execution to subagents](#delegating-execution-to-subagents)): on a task branch subagents commit each finished step, and only the parent pushes, after its review. The parent also **reviews every returned summary** as part of that step and writes the verdict to the [Review log](#review-log) (`review wave-N (<group-id>) <from>..<to>: PASS|CONCERNS - … - <date>`) — this is the orchestrate **log-only** participation in the [review beat](#review-beat) convention. It adds **no new human review gate**: orchestrate's existing gates (the `[exec]/[fast] -> [deep]` review gate and the milestone gate) are unchanged, and the every-wave review beat that the passive driver runs as a separate human-driven chat is, in orchestrate, just the parent's inline review plus the log write.
 - `personal-plan-model-tiers` **has no orchestrator**. Each wave runs in its own pasted chat, and that chat usually does **not** re-load the driver skill — it just reads the plan, executes, and stops. So the progress-update instruction is **baked inline into every Kickoff/STOP prompt body** (see the templates above). The pasted prompt is the only place the convention can reach a fresh chat, which is why the reminder is spelled out in full there rather than referenced. Do **not** add a separate checklist block to the plan file to carry this — it is noise for the human and burns context; the inline prompt reminder is the mechanism.
 
 ## Progress tracking
@@ -603,7 +608,8 @@ When the last group finishes:
          Status: 2/5 groups done | last review: wave-2 CONCERNS | BLOCKED at gate review-wave-2 | updated 2026-05-28
 
      On re-entry, an agent that sees a `BLOCKED at gate` status re-posts that exact question and waits — it never assumes the gate was approved. A `BLOCKED at gate review-wave-N` means the wave-N review found a concern that a human must resolve (re-tag, add a fix-up wave, or waive) before the next wave starts.
-- **On a runner, push before you wait.** The blocked-gate turn may be the container's last: update the `Status:` line, write the handoff, commit, push, then re-post the question (core.md "Runners save before they stop").
+- **The gate asks about the plan, not git.** On a task branch the finished wave is already committed (on a runner, pushed) when the gate asks, so the question is only the plan decision, and it names the commit range for review (`m2 s1-s3 is in 8d0e4b7..c41f0a2. Start wave 3 [deep] m3 s1?`). Never ask "approve, commit, push?" there. On a shared branch the wave stays uncommitted unless the question offers the commit as its own choice (`Commit wave 2 to main and start wave 3? yes / commit only / start only / neither`); any other reply is ambiguous: re-ask.
+- **On a task branch, commit before you wait.** Update the `Status:` line and commit, then re-post the question. A runner also writes the handoff and pushes first, since the blocked-gate turn may be the container's last (core.md "Save before you wait").
 - Cross-references: [Progress tracking](#progress-tracking) (the Status line) and the AGENTS.md "Wait for approval" workflow rule.
 
 ## Delegating execution to subagents
@@ -613,5 +619,7 @@ When a `[deep]` agent finishes a deep step and the next step is `[exec]` or `[fa
 - Use the harness's subagent/Task tool (Cursor `Task` with `subagent_type` and optional `model`; Claude Code `Task`; other harnesses use the equivalent).
 - Pass the cheapest model that can plausibly complete the step (see the model picker in "Model-tier stop points" above). Step up only if the subagent fails or returns low-quality output.
 - Give the subagent: the spec section, the exact files to touch, acceptance criteria, and a hard scope limit. Subagents do not see the parent conversation, so be explicit.
+- Check the branch and the git email first, in each working directory the subagents will touch (git.md "Task branches and shared branches", core.md "Verify git email"), since they commit there. On a shared branch, a runner cuts a task branch; a workstation asks whether to cut one before the first dispatch, and without a yes the subagents don't commit.
+- Give it the git instruction too. On a task branch: commit each finished step on the current branch (`m{N}.s{K} <imperative subject>`, only the paths it changed), and don't push, branch, or switch. On a shared branch: don't commit. A subagent may not get the always-on rules (Claude Code subagents don't get SessionStart output, which is how runners load core.md), so spell it out. The parent reviews, then pushes.
 - The deep parent stays responsible for reviewing the subagent's output and deciding the next stop point.
 - If the harness does not support per-subagent model selection, stop at the boundary instead and let the user start a fresh session on a cheaper model using the STOP marker's handoff prompt.

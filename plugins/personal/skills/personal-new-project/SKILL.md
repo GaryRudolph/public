@@ -112,4 +112,6 @@ Don't copy a stack snapshot from an older sibling project. Re-run step 3
 for every new repo.
 
 Follow the core working agreements throughout: pause after each step,
-and commit only when asked (or on a runner, per `core.md`).
+and commit per `core.md`. A brand-new repo starts on `main`, so commits
+wait until Gary asks; a task branch can follow once `main` has its first
+commit.

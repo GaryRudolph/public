@@ -242,6 +242,12 @@ In whichever chat executes a group, **before halting at the STOP marker**:
 3. Update the `Status:` line in the Kickoff block: increment the done
    count, set `current:` to the next group's identifier, and refresh
    the date.
+4. On a task branch, commit; a runner also pushes (core.md "Save before
+   you wait"). The STOP question is then only about the next wave and
+   names the commit range. On a shared branch, offer the commit as its own
+   choice (standards §"STOP gate semantics"); a workstation asks once,
+   before the first commit, whether to cut a task branch (core.md "Cut a
+   task branch off a shared branch").
 
 **Review beat (separate chat).** After a wave finishes, the human runs
 the REVIEW marker for that wave before starting the next wave. When
@@ -333,9 +339,12 @@ delegating to a subagent on the cheaper model from the picker rather than
 burning the deep context on mechanical work. Pass: the spec section, the
 exact files to touch, acceptance criteria, and a hard scope limit naming
 the exact steps to implement and instructing the subagent to stop and report
-back after completing them. The deep parent reviews the
-subagent output before moving to the next STOP marker. See the standards
-section "Delegating execution to subagents" for the full guidance.
+back after completing them. Spell out the git instruction too: on a task
+branch, commit each finished step and don't push or switch branches; on a
+shared branch, don't commit. The deep parent reviews the subagent output
+before moving to the next STOP marker, and only the parent pushes. See the
+standards section "Delegating execution to subagents" for the full
+guidance.
 
 ## See also
 

@@ -57,7 +57,7 @@ them with the work, and push. Commit and push before every turn that waits
 for Gary; that turn may be the last one the container runs. Remove or
 promote them before the branch merges.
 The rules are in core.md under "Runner scratch rides the branch" and
-"Runners save before they stop".
+"Save before you wait".
 
 ## Contents
 

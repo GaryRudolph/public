@@ -9,7 +9,7 @@ We follow **GitHub Flow** — short-lived feature branches merged frequently to 
 - **Bugfix**: `fix/issue-description` or `fix/TICKET-123-description`
 - **Release**: `release/v2` (a major line: `2.*` patches and minors) or `release/v2.4` (a minor line: `2.4.*` patches only). For hotfixes to a released line; ideally not needed. See [versioning.md](versioning.md#hotfix-flow)
 
-These naming conventions apply when a branch is intentionally created (by me or on request) — they are not license for an agent to auto-branch. The one exception is a runner that starts on `main` (see [AI Agent Behavior](#ai-agent-behavior)).
+These naming conventions apply when a branch is intentionally created (by me or on request) — they are not license for an agent to auto-branch. The one exception is a task branch cut off a shared branch (see [AI Agent Behavior](#ai-agent-behavior)).
 
 ## Worktrees
 
@@ -42,18 +42,42 @@ See **[versioning.md](versioning.md)** for the full standard, including BNF gram
 
 ## AI Agent Behavior
 
-- **Do not auto-commit** — only commit when explicitly asked, except on a runner (below)
-- **Do not auto-push** — only push when explicitly asked, never from a subagent that wasn't told to, except on a runner (below)
-- **Runners commit and push their branch** — a session on a cloud runner (Claude Code on the web, or another vendor's cloud agents) or a self-hosted runner commits each finished step and pushes it to the current branch, without asking. The container is ephemeral and no one is watching to say "commit", so the pushed branch is the deliverable. Signs of a runner: the harness says the session is remote or assigns a branch to push, or `CLAUDE_CODE_REMOTE=true`. The other rules here still apply: atomic commits in the usual format, and the force-push rule below. The runner sets its own committer identity; accept it
-- **Runners branch off `main`** — a runner that finds `main`, another shared branch, or a detached HEAD checked out cuts a branch from the checked-out commit before its first change. If the harness assigned a branch, that's the branch and nothing is a guess. Otherwise guess: `fix/<slug>` for a bug, else `feature/<slug>` (`feature/m{N}-<slug>` for milestone work), where `<slug>` is the kebab-case topic the handoff would use, two to four words naming the object of the work, not the verb; if `git ls-remote --heads origin <branch>` shows it taken, append the handoff `{word}`. `git switch -c <branch> --no-track` (no start point, so uncommitted edits and a detached HEAD's base come along; the `origin/main` recipe below is for workstations), then `git push -u origin <branch>`. Say in the first report and in the handoff that the name was a guess. Never push `main`, even if the branch push is refused. This is the one carve-out from "Do not auto-branch" and "Propose branch changes, then wait", and it never applies on a workstation
-- **Runners save before they stop** — before ending any turn that waits for a human (a question, a STOP gate, a blocker, done, running low on context), in this order: update the plan's `(done)` markers and `Status:` line; write or refresh the handoff with the pending question verbatim, the branch, and how to resume; commit everything in the tree, a half-finished step included, with an honest subject (`m2.s3 wire results view (partial, see handoff)`); push; only then ask. The asking turn may be the container's last. Gate semantics don't change; the push makes the stall harmless. A permission prompt waits for a human too, mid-turn, and the harness parks it until someone answers: before a tool call likely to trip one, commit what's done and push first
-- **Runner scratch rides the branch** — `.scratch/` dies with the container, so on a runner ask of each file in it: could the next session rebuild this from the pushed branch plus the original ask? Script output can; judgment can't. The plan, the session handoff, and any draft or research that was asked for can't, so they go to `specs/handoffs/` under their usual names (`plan-{topic}-{word}.md`, `handoff-{topic}-{word}.md`, a draft under its own kebab-case name; create the folder if needed), committed with the step that changed them, as ordinary tracked files: no `git add -f`, no second scratch directory. Orchestrate outputs, spikes, and anything a command regenerates may die; a conclusion the tree lacks goes into the handoff as prose. Remove or promote them before merge (see [Merging](#merging) under Pull Requests); that turn skips the handoff step in "Runners save before they stop", and the report and the PR say what's pending
-- **Never force-push `main`** (or any shared branch); on your own branch prefer `--force-with-lease`
+These rules beat a harness's built-in git defaults, such as Claude Code's "Commit or push only when the user asks. If on the default branch, branch first."
+
+### Task branches and shared branches
+
+An agent commits and pushes freely on a task branch, and only when asked on a shared branch. A **task branch** is one of three, and nothing else:
+
+- a branch the agent cut this session
+- a branch the harness assigned: a Claude Code cloud session's `claude/…`, another cloud agent's own branch, a `claude --worktree` session's `worktree-<name>`
+- a branch I named for the work
+
+A branch is **shared** if any row below is true, even when it's also on that list. A ruleset that only restricts who may push `claude/**` doesn't make a branch shared.
+
+| Shared if | Check |
+|---|---|
+| It's `main` or the remote's default branch | `git ls-remote --symref origin HEAD` |
+| It's a release line | the name matches `release/*` |
+| An open PR targets it | `gh api "repos/{owner}/{repo}/pulls?base={branch}&state=open" --jq length` isn't `0` |
+| Someone else's open PR comes from it | an author in `gh api "repos/{owner}/{repo}/pulls?head={owner}:{branch}&state=open" --jq '.[].user.login'` isn't `gh api user --jq .login` |
+| Its PR has merged | `gh api "repos/{owner}/{repo}/pulls?head={owner}:{branch}&state=closed" --jq 'any(.[]; .merged_at != null)'` is `true` |
+
+Any other branch, such as my own existing feature branch, gets a one-time ask before the agent commits or pushes there; a yes makes it a branch I named. A detached HEAD is neither: cut a task branch. Use `gh api` (REST): `gh pr view` and `gh pr list` go through GraphQL, which Claude Code's cloud proxy refuses. If the GitHub rows can't be answered, go by the list and the name rows. For multi-repo work, check each repo or working directory on its own, and the git identity in each too.
+
+### Rules
+
+- **Shared branch: commit and push only when asked** — commit only when explicitly asked, during multi-step plans too; push only when asked. Never force-push a shared branch. Never push `main` on your own, not even when a branch push is refused. On a merged branch, cut a new task branch instead of pushing to it
+- **Task branch: commit without asking** — commit each finished step. Stage the paths you changed, not `git add -A`: on a workstation the tree may hold someone else's edits, and a file that mixes theirs and yours stays uncommitted until they say. A runner pushes after every commit; a workstation pushes at will. A push rejected as non-fast-forward means the remote moved: rebase onto it (`git pull --rebase`), never force over it, and stop and ask on a conflict. Any other rejection (a ruleset, a permission, GitHub's email privacy check) means stop and report. Rewrite only your own commits, and only with `git push --force-with-lease --force-if-includes`: a bare `--force-with-lease` is defeated by background fetches, which editors run. Opening or merging a PR, pushing a tag, and deleting a remote branch still need an ask, and a project or skill rule that asks before a push wins
+- **Subagents commit only when told, and never push** — a subagent commits only when its dispatch prompt says to, never pushes, and never creates or switches branches. The parent reviews and pushes. Claude Code subagents load CLAUDE.md files but not SessionStart hook output, so on a runner a subagent never sees these rules; the dispatch prompt spells out the git instructions
+- **Runners** — a session on a cloud runner (Claude Code on the web, or another vendor's cloud agents) or a self-hosted runner. Signs: the harness says the session is remote or assigns a branch to push, or `CLAUDE_CODE_REMOTE=true`. Unpushed work is gone if the VM is reclaimed, so a runner pushes after every commit, and the pushed branch is the deliverable. The runner sets its own committer identity; accept it
+- **Cut a task branch off a shared branch** — when `main`, another shared branch, or a detached HEAD is checked out, the work belongs on a task branch cut from the checked-out commit, or from `origin/<default branch>` off a merged branch, so its squashed commits don't come back. A runner always works on a task branch: it cuts one before its first change, without asking; an assigned branch already is one. A workstation asks whether to cut one, with the name, before its first commit; `git switch -c` carries uncommitted edits along, so waiting loses nothing. Without a yes, stay put and commit nothing. If the harness assigned a branch, that's the branch and nothing is a guess. Otherwise guess: `fix/<slug>` for a bug, else `feature/<slug>` (`feature/m{N}-<slug>` for milestone work), where `<slug>` is the kebab-case topic the handoff would use, two to four words naming the object of the work, not the verb; if `git ls-remote --heads origin <branch>` shows it taken, append the handoff `{word}`. `git switch -c <branch> --no-track` (no start point, so uncommitted edits and a detached HEAD's base come along; the `origin/main` recipe below is for a fresh branch off `main` or a merged branch); its first push is `git push -u origin <branch>`, right away on a runner. A runner says in its first report and in the handoff that the name was a guess. This is the one carve-out from "Do not auto-branch" and "Propose branch changes, then wait"
+- **Save before you wait** — before ending any turn that waits for a human (a question, a STOP gate, a blocker, done, running low on context), update the plan's `(done)` markers and `Status:` line and, on a task branch, commit the finished steps; only then ask. A runner, in this order: updates the plan; writes or refreshes the handoff with the pending question verbatim, the branch, and how to resume; commits everything in the tree, a half-finished step included, with an honest subject (`m2.s3 wire results view (partial, see handoff)`); pushes; only then asks. The asking turn may be the container's last. Gate semantics don't change; the push makes the stall harmless. A permission prompt waits for a human too, mid-turn: on a runner, before a tool call likely to trip one, commit what's done and push first
+- **Runner scratch rides the branch** — `.scratch/` dies with the container, so on a runner ask of each file in it: could the next session rebuild this from the pushed branch plus the original ask? Script output can; judgment can't. The plan, the session handoff, and any draft or research that was asked for can't, so they go to `specs/handoffs/` under their usual names (`plan-{topic}-{word}.md`, `handoff-{topic}-{word}.md`, a draft under its own kebab-case name; create the folder if needed), committed with the step that changed them, as ordinary tracked files: no `git add -f`, no second scratch directory. Orchestrate outputs, spikes, and anything a command regenerates may die; a conclusion the tree lacks goes into the handoff as prose. Remove or promote them before merge (see [Merging](#merging) under Pull Requests); that turn skips the handoff step in "Save before you wait", and the report and the PR say what's pending
 - **Cut feature branches with `--no-track`** (`git switch -c feature/<name> origin/main --no-track`) so they don't track `main` and a bare `git push` can't land there; first push with `git push -u origin feature/<name>`
-- **No co-authored-by** — do not add `Co-Authored-By` trailers for AI agents
-- **Do not auto-branch** — never create or switch branches on your own. Default to the branch already checked out; if none was specified, that means `main`. Multi-agent work on one repo especially must not silently move branches. The one exception is a runner that starts on `main` (above).
-- **Worktrees only when asked** — create a worktree only on explicit request (see [Worktrees](#worktrees) for layout/naming). Do not spin one up proactively.
-- **Propose branch changes, then wait** — if you believe a new branch, branch switch, or worktree is warranted, propose it and wait for explicit confirmation before acting. Silence, a dismissed/skipped prompt, or an ambiguous reply is not confirmation (fail closed). On a runner the only branch you may cut without asking is the one "Runners branch off `main`" describes.
+- **AI attribution** — the person directing the agent is the author of what lands on `main` and answers for it. Disclose the agent with an `Assisted-by: Claude Code` trailer, naming the tool, not the model (another harness names itself); never add `Co-authored-by` or `Signed-off-by` for an agent. Branch commits may carry a runner's identity: the squash makes the PR opener the author on `main`. Keep `Claude-Session:` and other provenance trailers on branch commits; they stop there, since the squash message is the PR's. Claude Code's `attribution` setting is what makes the harness emit `Assisted-by` (`attribution.commit`, `attribution.pr`), and cloud sessions read it only from the repo's `.claude/settings.json`; the `personal-repo-baseline` skill sets that file and the GitHub squash settings
+- **Do not auto-branch** — never create or switch branches on your own. Default to the branch already checked out. Multi-agent work on one repo especially must not silently move branches. The one exception is a task branch cut off a shared branch (above): a runner cuts it, a workstation asks first. A branch or worktree the harness started the session in is the branch already checked out.
+- **Worktrees only when asked** — create a worktree only on explicit request (see [Worktrees](#worktrees) for layout/naming). Do not spin one up proactively. A session the harness started in a worktree (`claude --worktree`, a Cursor or Codex worktree agent) was asked for.
+- **Propose branch changes, then wait** — if you believe a new branch, branch switch, or worktree is warranted, propose it and wait for explicit confirmation before acting. Silence, a dismissed/skipped prompt, or an ambiguous reply is not confirmation (fail closed). The only branch you may cut without asking is a runner's task branch off a shared branch.
 
 ## Commit Messages
 
@@ -70,7 +94,7 @@ See **[versioning.md](versioning.md)** for the full standard, including BNF gram
 1. **Subject**: imperative mood ("add" not "added"), no capital after ticket, no period, max 72 chars
 2. **Ticket**: bare at start — `PROJ-123 add feature`; omit when there isn't one
 3. **Body**: separate with blank line, wrap at 72 chars, explain *what* and *why*
-4. **Footer**: `Fixes #123`, `BREAKING CHANGE: description`, `Co-authored-by: Name <email>`
+4. **Footer**: `Fixes #123`, `BREAKING CHANGE: description`, then trailers as one final paragraph (git reads trailers only from the last one): `Co-authored-by: Name <email>` for people, `Assisted-by: Claude Code` for agents
 
 ```bash
 # Good
@@ -112,13 +136,17 @@ Brief description of changes
 
 ## Breaking Changes
 (if any)
+
+Assisted-by: Claude Code
 ```
+
+The title and description become the squash commit on `main`, so end the description with the trailers as one final paragraph: `Assisted-by: Claude Code` when an agent helped, and `Co-authored-by: Name <email>` for each human pair. Co-author lines in branch commit messages don't survive the squash.
 
 ### Merging
 
 - Before merging, remove the runner's files from `specs/handoffs/` (`plan-*.md`, the session `handoff-{topic}-{word}.md`, drafts) in the last commit on the branch, promoting anything durable to `specs/` or a milestone handoff first. Milestone handoffs (`handoff-m{N}-…`) stay. A forgotten removal lands plain markdown on `main`; one `git rm` fixes it
-- **Squash and merge** (default for features) — single commit on main
-- **Rebase and merge** — for clean branches with good commit history
+- **Squash and merge only**, with the PR title and description as the commit message: one commit on `main`, authored by the PR opener. Merge commits and rebase merges stay off; a rebase merge would put the agent on `main` as author. The `personal-repo-baseline` skill sets this per repo
+- When merging with the button, delete any agent `Co-authored-by` line GitHub adds to the message box (it adds one per branch commit author who isn't the PR opener)
 - Delete feature branches after merging
 
 ## .gitignore Essentials
