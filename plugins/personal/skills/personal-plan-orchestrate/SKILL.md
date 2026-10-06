@@ -401,10 +401,10 @@ At every STOP gate, print a per-model running breakdown:
 
 ```
 tokens so far:
-  orchestrator  (claude-opus-5-5):  input ~Xo / output ~Yo | ~$Co
-  wave-1 <id>   (grok-4-7):         input ~Xs / output ~Ys | ~$Cs
+  orchestrator  (claude-opus-5-5):  input ~Xo / output ~Yo | ~$Co API-equiv
+  wave-1 <id>   (grok-4-7):         input ~Xs / output ~Ys | ~$Cs API-equiv
   …
-  RUNNING TOTAL:                    input ~Xt / output ~Yt | ~$Ct (heuristic)
+  RUNNING TOTAL:                    input ~Xt / output ~Yt | ~$Ct API-equiv (heuristic)
 ```
 
 Review work is parent-side — include its tokens in the orchestrator row,
@@ -413,13 +413,13 @@ separate review-beat chats in `personal-plan-model-tiers`). The one
 exception is the max-effort Opus review subagent after an `[xdeep]` wave,
 which gets its own `review-wave-N` row.
 
-Each row's cost uses **that row's model rates** from the Model price table.
+Each row's cost uses **that row's model list rates** from the Model price table: API-equivalent, whatever the harness bills (standards §"Model price table", "Agent costs are API-equivalent").
 The RUNNING TOTAL cost is the **sum of per-row costs**, not a blended rate
 applied to the total token count.
 
 At plan completion, print a per-wave breakdown table:
 
-| wave | model | ~input | ~output | ~total | ~cost |
+| wave | model | ~input | ~output | ~total | ~cost (API-equiv) |
 |------|-------|--------|---------|--------|-------|
 | orchestrator | claude-opus-5-5 | … | … | … | … |
 | wave-1 (task-id) | <slug> | … | … | … | … |
@@ -433,8 +433,8 @@ computation — it can recompute from each wave's token counts even when a
 subagent omits the cost field.
 
 Accuracy follows the source each wave used (±15% from real harness usage,
-±40% from the `chars / 4` heuristic). These are rough estimates, not
-authoritative usage data.
+±40% from the `chars / 4` heuristic). These are rough API-equivalent
+estimates at list rates, not the bill.
 
 ## Procedure
 

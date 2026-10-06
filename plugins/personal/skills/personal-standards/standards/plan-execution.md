@@ -156,7 +156,7 @@ Notes:
 - **Claude Code uses version-less aliases.** `opus`, `sonnet`, `haiku`, and `fable` (the `[xdeep]` alt) resolve to the newest model of each tier, so the row never needs a version bump. Set effort with `/effort <level>`. `/effort max` applies to the current session only, so each fresh `[xdeep]` chat needs it again. Opus 5.5 and Sonnet 5.5 default to `medium` and can't turn thinking off, so set it explicitly; Fable defaults to `high` and always thinks. Haiku takes no effort level and gains nothing from thinking on bounded mechanical work. On Pro, Max, and Team plans Fable bills to usage credits and asks for consent first.
 - **`[exec]` runs Sonnet at `high`, not `medium`.** On CursorBench 4.0, Sonnet 5.5 scores 47.8% at high and 39.2% at medium, for $1.67 vs $0.70 a task. That gap is worth a dollar.
 - **Cursor billing has two pools, and Auto no longer protects the expensive one.** "Cursor Models" (Composer, Grok) carries much more included usage. "Other Models" (Anthropic, OpenAI, Google) bills at provider list price. Every Auto request bills the routed model's list price from that model's pool, and a subagent that names a third-party model bills Other Models even under an Auto or Grok parent. Teams and Enterprise add $0.25/Mtok on third-party models; Cursor's own models are exempt. Pin the model at every tier.
-- **In Cursor, prefer the Cursor pool when it's close.** Take Grok or Composer over a third-party model when it scores within about 5 points on CursorBench 4.0 (table below). That puts `[exec]` on Grok 4.7 (43.9% vs Sonnet 5.5's 47.8%, both at high) and keeps `[deep]` on Opus 5.5 (Grok 4.7 at xhigh is 46.3% vs Opus 5.5 at high 56.0%). The pool is the saving, not the per-task price: at list, Grok 4.7 high costs $4.69 a task against Sonnet 5.5 high's $1.67. Once included Cursor usage runs out and on-demand billing starts, move `[exec]` to the Sonnet alt.
+- **In Cursor, prefer the Cursor pool when it's close.** Take Grok or Composer over a third-party model when it scores within about 5 points on CursorBench 4.0 (table below). That puts `[exec]` on Grok 4.7 (43.9% vs Sonnet 5.5's 47.8%, both at high) and keeps `[deep]` on Opus 5.5 (Grok 4.7 at xhigh is 46.3% vs Opus 5.5 at high 56.0%). The pool is the saving, not the per-task price: at list, Grok 4.7 high costs $4.69 a task against Sonnet 5.5 high's $1.67. Once included Cursor usage runs out and on-demand billing starts, move `[exec]` to the Sonnet alt. This decides the model only; cost figures still use list rates ([Model price table](#model-price-table)).
 - **Cursor `[fast]` is Composer 2.5 standard** ($0.50/$2.50). Fast is the product default and costs 6×; `[fast=false]` or empty brackets (`composer-2.5[]`) select standard. Composer scores 27.7% on CursorBench 4.0, which is enough for steps that pass the [`[fast]` checklist](#fast-downgrade-checklist) and nothing more.
 - **Cursor slugs** use the bracket parameters from Cursor's subagent docs (`[effort=...]`, `[fast=false]`). Cursor publishes no full ID list, so confirm with `agent --list-models`. The Fable alt in Cursor needs the data-retention opt-in under Privacy Mode, and Cursor reroutes guardrail-tripped Fable requests to Opus. Cursor doesn't offer GPT-6, and GPT-5.6 Sol scores 41.7%, so the Cursor row has no OpenAI alt.
 - **Review beats are a high-ROI place to pin the top model.** A [review beat](#review-beat) reads the prior wave's diff (input-heavy) and emits a short verdict (output-light). Output is the expensive half ($20/Mtok vs $4 input on Opus), so a review is one of the cheapest ways to spend `[deep]` credit. Pin it rather than letting Auto downgrade it.
@@ -185,6 +185,8 @@ Notes:
 ### Model price table
 
 Standard list rates in USD per million tokens for every model in the picker. Cursor charges provider list price with no markup, apart from the Teams and Enterprise surcharge above. Effort and bracket parameters don't change the rate; Fast variants do.
+
+**Agent costs are API-equivalent.** Every agent cost a standard or skill computes (expected costs, token tallies, completion tables) prices tokens at these provider API list rates, cache tiers included, whatever the harness actually bills. Included usage, subscriptions, credits, Cursor's pools and harness surcharges don't change the figure. That keeps costs comparable across harnesses and over time, and measures what a plan consumed rather than what a billing plan absorbed. Label the figures `API-equiv`. Pools and plan limits only inform which model runs a wave (the Cursor bullets above). A model with no published API rate shows `n/a` and stays out of totals.
 
 | Model | Used by | Input | Cached input | Output |
 |---|---|---|---|---|
@@ -247,7 +249,7 @@ Tally token cost from the most accurate source available, in this order:
    the Cursor usage UI, prefer those and price with the cache-aware formula.
 
 The Model price table covers every harness in the picker; use its row for
-the model the wave ran on. No estimate here is authoritative billing data.
+the model the wave ran on. Every figure is API-equivalent at list rates ([Model price table](#model-price-table)), not the bill.
 
 ### Wave title format
 

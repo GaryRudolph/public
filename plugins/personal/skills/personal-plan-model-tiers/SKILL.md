@@ -301,8 +301,8 @@ your report-back. After a **review beat** chat, use the same shape with
 `review-wave-N` instead of `wave-N`:
 
 ```
-tokens wave-N <group-id> (model-slug): input ~X / output ~Y | cost ~$C (heuristic)
-tokens review-wave-N <group-id> (model-slug): input ~X / output ~Y | cost ~$C (heuristic)
+tokens wave-N <group-id> (model-slug): input ~X / output ~Y | cost ~$C API-equiv (heuristic)
+tokens review-wave-N <group-id> (model-slug): input ~X / output ~Y | cost ~$C API-equiv (heuristic)
 ```
 
 Where `wave-N` is the 1-based wave number (1 for the first group executed, 2
@@ -317,8 +317,9 @@ session JSONL), and fall back to `~tokens ≈ chars / 4` only when it isn't
 (e.g. Cursor). Tag the line `(heuristic)` and treat it as ±40% when using the
 fallback; ±15% when using real usage.
 
-Compute `C` with the cache-aware formula and the input/output rates for the
-model slug from the same standards section (§"Model price table").
+Compute `C` with the cache-aware formula and the list rates for the model
+slug from the same standards section (§"Model price table"): API-equivalent,
+whatever the harness bills.
 
 **Also write the wave line to the plan file.** Append it to a `## Token log`
 section at the bottom of the plan file (create the section if it doesn't
@@ -330,7 +331,7 @@ When the **last group finishes**, read all wave and review lines from the
 the Completion summary (include `review-wave-N` rows interleaved after their
 wave):
 
-| wave | group | model | ~input | ~output | ~cost |
+| wave | group | model | ~input | ~output | ~cost (API-equiv) |
 |------|-------|-------|--------|---------|-------|
 | wave-1 | m1-s1-s3 | claude-opus-5-5 | … | … | … |
 | review-wave-1 | m1-s1-s3 | claude-opus-5-5 | … | … | … |
@@ -340,8 +341,8 @@ wave):
 The GRAND TOTAL cost is the **sum of per-wave costs** (each priced at its own
 model's rates), not a blended rate applied to the total token count. Accuracy
 follows the source each wave used (±15% from real harness usage, ±40% from
-the `chars / 4` heuristic). These are rough estimates, not authoritative
-billing data.
+the `chars / 4` heuristic). These are rough API-equivalent estimates at
+list rates, not the bill.
 
 ## Delegating to subagents
 
