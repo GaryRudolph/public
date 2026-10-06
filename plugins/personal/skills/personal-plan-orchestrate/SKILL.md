@@ -382,19 +382,18 @@ parent is.
    the requirement that the returned summary cover: what changed, what was
    decided, surprises, and the artifact path.
 7. **Token reporting** — end your returned summary with one token line
-   per model you ran on, in the format of
-   `../personal-standards/standards/plan-execution.md` §"Token line
-   format":
+   per model you ran on, in the line format of the counting header at the
+   top of the plan's `## Token log` (step 4):
    `tokens wave-N <task-id> (<slug>): input ~X / cache read ~R / cache write ~W / output ~Y | ~$C API-equiv (heuristic)`
    (`review-wave-N` for the `[xdeep]` review subagent).
    A Cursor `Task` subagent can't read its own usage, so it uses the
-   accumulation heuristic from §"Token accounting — source precedence"
-   (source 3): it counts its model calls, the characters it read and the
-   characters it wrote, and applies the formula there. Quote that formula
-   in the prompt, since the subagent may not read the standard. Compute
-   `C` with the cache-aware formula and the model's rates from
-   §"Model price table". Keep the `(heuristic)` label: off Claude Code
-   its constants are uncalibrated, and the line can be off by 2× or more.
+   header's accumulation heuristic: it counts its model calls, the
+   characters it read and the characters it wrote, and applies the
+   formula. The subagent never reads the plan, so quote into the prompt,
+   from the header, the heuristic, the cache-aware formula and the rate
+   row of the subagent's model. Keep the `(heuristic)` label: off Claude
+   Code its constants are uncalibrated, and the line can be off by 2× or
+   more.
 8. **Git instruction** — on a task branch: "Commit each finished step on
    the current branch as `m{N}.s{K} <imperative subject>`, staging only
    the paths you changed. Do not push, create, or switch branches." On a
@@ -408,8 +407,8 @@ parent is.
 The orchestrator-parent keeps every token figure as token lines in the
 format of `../personal-standards/standards/plan-execution.md` §"Token line
 format", one per row, group and model, and appends each line to the plan's
-`## Token log` as soon as it has it, so the tally survives a chat that ends
-at a gate:
+`## Token log`, below its counting header, as soon as it has it, so the
+tally survives a chat that ends at a gate:
 
 - **Subagent lines** (contract item 7), labeled `wave-N <task-id>`: one per
   working directory in a parallel wave. A step-up retry keeps its wave's
@@ -428,16 +427,20 @@ at a gate:
 
 Cursor exposes no usage to an agent, so both kinds normally come from the
 accumulation heuristic (standards §"Token accounting — source precedence",
-source 3) and carry `(heuristic)`. When the user pastes Cursor usage
-(source 2), it replaces the lines it covers, per standards §"Token line
-format" ("Token log"): CSV rows that can't tell this parent from an Opus
-subagent become one combined line. Because the orchestrator and its
-subagents run on different models with different rates, **never blend
-their token counts into a single cost line**: each line is priced at its
-own model's list rates from the Model price table, API-equivalent,
-whatever the harness bills (standards §"Model price table", "Agent costs
-are API-equivalent"). The parent can recompute any line's dollars from its
-four counts when a subagent omits or miscomputes them.
+source 3) and carry `(heuristic)`. The counting header that step 4 writes
+holds that heuristic in its form for a chat covered by one line, with the
+rates of this plan's models and the formula, and every dispatch prompt
+quotes from it (contract item 7), so the subagents count from that one
+copy. When the user pastes Cursor usage (source 2), it replaces the lines
+it covers, per standards §"Token line format" ("Token log"): CSV rows that
+can't tell this parent from an Opus subagent become one combined line.
+Because the orchestrator and its subagents run on different models with
+different rates, **never blend their token counts into a single cost
+line**: each line is priced at its own model's list rates from the Model
+price table, API-equivalent, whatever the harness bills (standards §"Model
+price table", "Agent costs are API-equivalent"). The parent can recompute
+any line's dollars from its four counts when a subagent omits or
+miscomputes them.
 
 At every STOP gate, print the running block: the Token log lines so far,
 then a total.
@@ -521,9 +524,10 @@ table; the Token log keeps the per-model detail.
    `Status:` line with `0/N groups done | last review: — | current:
    <first group> [deep] | updated <today>` where `N` is the total group
    count. Add `review: every-wave (log-only — parent writes Review log; no
-   human review gate)`. Apart from the Cost table below, do not modify any
-   other content. **Record whether you replaced an existing matching
-   Kickoff block (`--- KICKOFF: begin orchestration at [deep] ---`) or
+   human review gate)`. Apart from the Cost table and the counting header
+   below, do not modify any other content. **Record whether you replaced
+   an existing matching Kickoff block
+   (`--- KICKOFF: begin orchestration at [deep] ---`) or
    inserted a new one — this "kickoff-replaced" signal is used in
    step 5.** Do not write any
    separate progress checklist block into the plan; the
@@ -542,6 +546,17 @@ table; the Token log keeps the per-model detail.
    its expected columns only when re-grouping changed the waves before any
    wave has run, and say so. After a wave has run, a re-plan adds rows
    with expected `—` instead.
+
+   **Write the counting header at the top of `## Token log`** (standards
+   §"Token line format", "Counting header"), creating the section at the
+   bottom of the plan. It is the Cursor form: the token line format and
+   row labels, the accumulation heuristic, the price rows of the models
+   this plan runs (Opus for this parent, the `[deep]` and `[xdeep]` waves
+   and the `[xdeep]` reviews; Grok and the Sonnet alt for `[exec]`;
+   Composer for `[fast]`, at its Fast row when the harness gate found
+   only Fast), and the one-line formula. Contract item 7 quotes from it.
+   On a replace or re-entry, keep the header, refreshing it in place when
+   the plan's models changed; never write a second one.
 
    After writing the Kickoff block, **seed the native todo list**: one
    todo per group (in order), first group `in_progress`, rest `pending`.

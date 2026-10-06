@@ -158,7 +158,8 @@ include:
    follows the standards' fill-in rule: a runner keeps its assigned branch
    and says so, a workstation proposes switching and waits), carries the
    **token-line reminder** inline (append one line per model to `## Token
-   log`, labeled `wave-<n> <group-id>`, with the format quoted), and ends
+   log`, labeled `wave-<n> <group-id>`, with the format quoted, counted
+   and priced per the log's counting header from step 5), and ends
    with "Stop at the next STOP marker and report back" so the cascade is
    preserved. There is no orchestrator in this flow, and the pasted chat
    usually does not re-load this skill, so those inline reminders are the
@@ -210,11 +211,12 @@ heading, inside a fenced code block. The Kickoff block is **idempotent**:
 if a Kickoff block already exists at the top of the file (any line
 matching `--- KICKOFF: ... ---`), replace it with the appropriate
 variant rather than appending. A plan never carries more than one
-Kickoff block. Apart from the Cost table below, do not modify any other
-content in the plan. Do **not** write any separate progress checklist
-block into the plan — the progress-update and token-line reminders live
-inline in the Kickoff/STOP prompt bodies (see step 4), which is the only
-surface a fresh pasted chat reliably reads.
+Kickoff block. Apart from the Cost table and the counting header below,
+do not modify any other content in the plan. Do **not** write any
+separate progress checklist block into the plan — the progress-update
+and token-line reminders live inline in the Kickoff/STOP prompt bodies
+(see step 4), which is the only surface a fresh pasted chat reliably
+reads.
 
 **Write the Cost table directly below the Kickoff block** (standards
 §"Cost table"). Estimate each wave per standards §"Expected cost": each
@@ -228,6 +230,18 @@ the Kickoff block and the table in chat. When you replace an existing
 Kickoff, keep the table; recompute its expected columns only when
 re-grouping changed the waves before any wave has run, and say so. After
 a wave has run, a re-plan adds rows with expected `—` instead.
+
+**Write the counting header at the top of `## Token log`** (standards
+§"Token line format", "Counting header"), creating the section at the
+bottom of the plan. For the harness the Cost table names, it carries the
+token line format and row labels, that harness's usage source and how to
+normalize it (the accumulation heuristic on Cursor and Muse Code), the
+price rows of the models this plan's waves and reviews run (alts the Next
+model rows name included), and the one-line formula: everything a pasted
+wave or review chat needs to write its lines without reading the
+standard. When you replace an existing Kickoff or re-enter the plan, keep
+the header, refreshing it in place when the waves will now run in another
+harness or on other models; never write a second one.
 
 After writing the Kickoff block, **seed the native todo list**: create
 one todo per group (in order), with the first group as `in_progress` and
@@ -333,7 +347,8 @@ the canonical format of `../personal-standards/standards/plan-execution.md`
 §"Token line format":
 
 - **Kickoff** (both branches of step 7): `kickoff <plan-name>`, for the
-  work through writing the Kickoff block and the Cost table.
+  work through writing the Kickoff block, the Cost table and the counting
+  header.
 - **Wave 1** (current-chat branch only): `wave-1 <group-id>`, for the work
   since the kickoff line: only those calls when the harness has real
   usage, or the heuristic's form for part of a chat (`T0` is the kickoff's
@@ -342,7 +357,8 @@ the canonical format of `../personal-standards/standards/plan-execution.md`
 `<group-id>` is the group identifier from the plan with hyphens (e.g.
 `m1-s1-s3`). Later wave chats and review-beat chats write their own
 `wave-N` and `review-wave-N` lines, from the token-line reminder in the
-prompts they paste (step 4).
+prompts they paste (step 4), counted and priced per the counting header
+step 5 writes, so they read the plan, not the standard.
 
 Take the counts from the **source precedence** in the same standards file
 (§"Token accounting — source precedence"):
@@ -360,12 +376,14 @@ Take the counts from the **source precedence** in the same standards file
 
 Accuracy follows the source, as the standards section states. Price each
 line with the cache-aware formula and its model's list rates (§"Model price
-table"): API-equivalent, whatever the harness bills.
+table"): API-equivalent, whatever the harness bills. The counting header
+(step 5) carries these rules cut to the harness the Cost table names, with
+the rates of the models the plan's waves and reviews run.
 
 **Also write the lines to the plan file.** Append them to the `## Token log`
-section at the bottom of the plan file (create the section if it doesn't
-exist). This persists the lines across separate chats, and the Cost table's
-actual columns come from it.
+section at the bottom of the plan file, below its counting header (step 5
+creates both). This persists the lines across separate chats, and the Cost
+table's actual columns come from it.
 
 At final completion (the last wave's review beat, step 7), the actual
 tokens and actual $ columns come from the `## Token log` (standards §"Cost

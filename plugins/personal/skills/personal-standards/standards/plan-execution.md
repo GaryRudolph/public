@@ -279,14 +279,34 @@ For example:
 
 - `<row>` names what spent the tokens: `wave-N` for a wave's work (its chat, or a subagent; `wave-N-fix` for a [fix-up wave](#wave-annotation-format)), `review-wave-N` for a [review beat](#review-beat) or orchestrate's `[xdeep]` review subagent, `kickoff` for the passive driver's kickoff chat, and `orchestrator-kickoff` or `orchestrator-wave-N` for orchestrate's parent. A step-up retry keeps its wave's `wave-N`.
 - `<group-id>` is the wave's group identifier with hyphens (`m2-s1-s3`, orchestrate's `{task-id}`). A `kickoff` or `orchestrator-kickoff` line uses the plan's base name.
-- `<model>` is the slug the tokens ran on, without Cursor's bracket parameters, plus ` Fast` for Composer's Fast variant (`composer-2.5 Fast`), so it names one [price table](#model-price-table) row. A wave that ran two models has two lines.
+- `<model>` is the slug the tokens ran on, without Cursor's bracket parameters or a date suffix (`claude-haiku-4-5-20251001` is `claude-haiku-4-5`), plus ` Fast` for Composer's Fast variant (`composer-2.5 Fast`), so it names one [price table](#model-price-table) row. A wave that ran two models has two lines.
 - `input` is uncached input. A plain `cache write` count is 5-minute writes, or the provider's only kind. Mark 1-hour writes `1h`, and show both kinds when both occur: `cache write ~40k 5m + ~8k 1h`. [Source precedence](#token-accounting--source-precedence) says how to normalize each harness's counts to these four terms.
 - Round counts to two significant figures with `k` or `M`. The dollars are the [cache-aware formula](#model-price-table) over the four counts at the model's rates, so the line alone reproduces them. A model with no published rate shows `n/a API-equiv`.
 - **Billed tokens** are input + cache read + cache write + output. Every token total, the [Cost table](#cost-table)'s included, is billed tokens.
 - Append `(heuristic)` only when the line came from the accumulation heuristic, and `(output est.)` when only output was estimated (Claude Code calls without a `stop_reason` line). A line with neither label is real usage. An `(output est.)` line ends with `session <id>`, the Claude Code session whose transcript it came from, so a later chat can replace it from that session's `cost-state` record.
 - A total sums its lines' counts. Its dollars are the sum of the lines' dollars, each at its own model's rates, never a blended rate applied to the summed tokens.
 
-**Token log.** Both drivers append every token line to a `## Token log` section at the bottom of the plan file (created when absent) as each row's work finishes, so the lines survive across chats. The [Cost table](#cost-table)'s actual columns are summed from it. A line from a better source (usage Gary pastes, or a `cost-state` record) replaces the lines it covers: the same row, group and model over the same span. Usage that can't be split by row (Cursor's CSV can't tell the Opus parent from an Opus `[deep]` subagent in the same minutes) replaces every line for that model in its span with one line, under the row that did most of the work, ending `(combined: <rows>)`.
+**Token log.** Both drivers append every token line to a `## Token log` section at the bottom of the plan file, below its counting header, as each row's work finishes, so the lines survive across chats. The kickoff creates the section. The [Cost table](#cost-table)'s actual columns are summed from it. A line from a better source (usage Gary pastes, or a `cost-state` record) replaces the lines it covers: the same row, group and model over the same span. Usage that can't be split by row (Cursor's CSV can't tell the Opus parent from an Opus `[deep]` subagent in the same minutes) replaces every line for that model in its span with one line, under the row that did most of the work, ending `(combined: <rows>)`.
+
+**Counting header.** The kickoff that writes the Kickoff and the Cost table also writes a counting header directly under the `## Token log` heading, above every token line. It holds what a chat needs to write its own lines for this plan in the harness the waves are expected to run in (at kickoff, the one the Cost table's label names), so a pasted wave or review chat counts and prices from the plan alone, outside the cases the header's last line names. It is a bold label line naming that harness and a short list, about 1-2 KB:
+
+- The line format, in backticks so no header line starts with `tokens`, with the row labels a pasted chat writes (`wave-N`, `review-wave-N`, and `wave-N-fix` and `review-wave-N-fix` for a fix-up wave), the group id with hyphens, the model as its price row names it, and the rounding rule.
+- Where that harness keeps usage and how to normalize it: its row of the [source precedence](#token-accounting--source-precedence) table, which on Claude Code includes the dedupe by `message.id` and the `(output est.)` rule. On Cursor and Muse Code, the accumulation heuristic instead, in its form for a chat covered by one line (`T0` = 0), with what it counts, its constants, the cold start after each pause past the cache TTL and the `(heuristic)` label.
+- One [price table](#model-price-table) row for each model this plan's waves and reviews run in that harness, alts the Next model rows name included, with any long-context surcharge.
+- The cache-aware formula in one line, with the cache-write multipliers of those models.
+- One line naming the cases that read this standard instead: a chat in another harness (its source-precedence row), a model the header doesn't list (the price table) and, on Cursor, usage Gary pastes (source 2).
+
+A plan carries one counting header. Replacing the Kickoff or re-entering the plan keeps it, and refreshes it in place when the waves will now run in another harness or on other models (a re-grouping that adds a tier, a [Model picker](#model-picker) change); a plan without one gets one. Never add a second header, and leave the token lines below it as they are. For a Claude Code plan whose waves run Sonnet, Opus and Haiku:
+
+    ## Token log
+
+    **Counting header (Claude Code)**
+
+    - Line, one per model a chat ran, appended below: `tokens <row> <group-id> (<model>): input ~X / cache read ~R / cache write ~W / output ~Y | ~$C API-equiv`. `<row>` is `wave-N`, `review-wave-N`, or `wave-N-fix` and `review-wave-N-fix` for a fix-up wave; `<group-id>` is the wave's group id with hyphens (`m2-s1-s3`); `<model>` is `message.model` without a date suffix (`claude-haiku-4-5-20251001` is `claude-haiku-4-5`). Round counts to two significant figures with `k` or `M`.
+    - Usage: `~/.claude/projects/<slug>/$CLAUDE_CODE_SESSION_ID.jsonl` (`<slug>` is the working directory with every character but a letter or digit turned into `-`, matched by prefix when long; without the id, the newest `.jsonl` there), plus its subagents' `<session-id>/subagents/**/agent-*.jsonl` in the same directory. Sum `message.usage` over assistant lines once per `message.id`, from the line with `stop_reason`: input `input_tokens`, cache read `cache_read_input_tokens`, cache write `cache_creation.ephemeral_5m_input_tokens` (with `ephemeral_1h_input_tokens` too, `cache write ~40k 5m + ~8k 1h`), output `output_tokens`. A call with no `stop_reason` line keeps its input-side counts, takes output as about 1,000, and its line ends `(output est.) session <id>`.
+    - Rates by `<model>`, $ per Mtok input / cached / output: `claude-opus-5-5` 4.00 / 0.20 / 20.00; `claude-sonnet-5-5` 2.00 / 0.20 / 10.00; `claude-haiku-4-5` 1.00 / 0.10 / 5.00.
+    - `$C` = (input × in + cache read × cached + 5m write × in × 1.25 + 1h write × in × 2.00 + output × out) / 1M.
+    - In another harness, or on a model not listed here, count and price per plan-execution.md "Token accounting" and "Model price table" instead.
 
 ### Expected cost
 
@@ -398,8 +418,7 @@ Template (a `[deep] -> [exec]` transition):
         Before you stop, update plan progress: append ` (done)` to the
         headings you finished, update the Kickoff Status line, and flip the
         matching todos. Append one line per model this chat ran to the
-        plan's "## Token log" (create it if absent), counted and priced per
-        plan-execution.md "Token line format":
+        plan's "## Token log", counted and priced per its counting header:
           tokens wave-<n> <group-id> (<model>): input ~X / cache read ~R / cache write ~W / output ~Y | ~$C API-equiv
         Then stop at the next STOP marker and report what you changed and
         any deviations from the plan.
@@ -424,9 +443,8 @@ For an `[exec] -> [fast]` transition, the prompt should also remind the model no
         specifies; do not refactor, rename, or generalize. Before you
         stop, update plan progress (mark the headings you finished
         ` (done)`, update the Status line, flip the matching todos). Append
-        one line per model this chat ran to the plan's "## Token log"
-        (create it if absent), counted and priced per plan-execution.md
-        "Token line format":
+        one line per model this chat ran to the plan's "## Token log",
+        counted and priced per its counting header:
           tokens wave-<n> <group-id> (<model>): input ~X / cache read ~R / cache write ~W / output ~Y | ~$C API-equiv
         Then stop at the next STOP marker and report back.
 
@@ -450,9 +468,8 @@ For an escalation back to `[deep]` (after `[exec]` or `[fast]`):
         On branch <name> (task branch): commit each finished step.
         Before you stop, update plan progress (mark the headings you finished
         ` (done)`, update the Status line, flip the matching todos). Append
-        one line per model this chat ran to the plan's "## Token log"
-        (create it if absent), counted and priced per plan-execution.md
-        "Token line format":
+        one line per model this chat ran to the plan's "## Token log",
+        counted and priced per its counting header:
           tokens wave-<n> <group-id> (<model>): input ~X / cache read ~R / cache write ~W / output ~Y | ~$C API-equiv
         Stop after the design is written and report back.
 
@@ -477,7 +494,7 @@ Rules for filling in the template:
 - Always include the "Stop at the next STOP marker" hard limit so the cascade is preserved.
 - `On branch <name> (task branch)` names the task branch the plan runs on. Each wave is a new chat, so a branch cut in an earlier one isn't "cut this session"; Gary pasting the prompt names the branch for the work (git.md "Task branches and shared branches"), so a chat on `<name>` commits there without asking again. A chat on another branch: on a runner, the harness-assigned branch wins; the chat works there, says in its first report that it isn't `<name>`, and puts its own branch on the remaining prompts' `On branch` lines (the earlier wave's branch stays as is). On a workstation, it proposes switching to `<name>` and waits, committing nothing until Gary answers. With no task branch yet (a workstation on a shared branch), leave the line out; the chat that cuts one adds it to the remaining prompts with its first commit. The REVIEW prompt carries it only when the plan file is tracked (in `specs/handoffs/` on a runner), as `On branch <name> (task branch): commit the plan update before you stop.`; a plan in gitignored `.scratch/` stays uncommitted (never `git add -f`).
 - Always include the **progress-update reminder** spelled out inline in the prompt body (append ` (done)` to finished headings, update the Kickoff Status line, flip the matching todos). The pasted chat usually does **not** re-load the driver skill, so this inline reminder is the only way the [Progress tracking](#progress-tracking) convention reaches it — never drop it. Do not factor it out into a separate checklist block in the plan; keep it in the prompt.
-- Always include the **token-line reminder** the same way, with `<n>` and `<group-id>` (the group identifier with hyphens, `m2-s1-s3`) filled in. The [Cost table](#cost-table)'s actual columns are summed from the Token log, and the prompt is the only place a pasted chat learns to write its line.
+- Always include the **token-line reminder** the same way, with `<n>` and `<group-id>` (the group identifier with hyphens, `m2-s1-s3`) filled in. It sends the chat to the Token log's [counting header](#token-line-format) for how to count and price the line, never to this standard, so a pasted chat reads only the plan. The [Cost table](#cost-table)'s actual columns are summed from the Token log, and the prompt is the only place a pasted chat learns to write its line.
 - Use `->` ASCII arrows rather than Unicode em-dash arrows so the marker is safe in terminals and grep.
 - If the next group is a `[deep]` block being delegated to a parent, the prompt should say "design only, do not implement"; if it's `[exec]` or `[fast]`, the prompt should say "implement <next group>, stop at next STOP marker."
 
@@ -518,9 +535,8 @@ Template:
         "## Review log" section of the plan file (create the section if
         absent), with <to> from `git rev-parse --short HEAD`:
           review wave-<n> (<group-id>) <from>..<to>: PASS|CONCERNS - <one-line note> - <YYYY-MM-DD>
-        Append one line per model this chat ran to "## Token log" (create
-        it if absent), counted and priced per plan-execution.md "Token
-        line format":
+        Append one line per model this chat ran to "## Token log",
+        counted and priced per its counting header:
           tokens review-wave-<n> <group-id> (<model>): input ~X / cache read ~R / cache write ~W / output ~Y | ~$C API-equiv
         If the verdict is CONCERNS, also set the Kickoff Status line to
         `BLOCKED at gate review-wave-<n>`, re-post the concern, and stop.
@@ -578,7 +594,8 @@ Placement and idempotence:
 - The skill writes the Kickoff block at the **top of the plan file**, above the first heading, inside a fenced code block so it pastes cleanly.
 - The block is idempotent: if a Kickoff block already exists at the top of the file (matching the marker line `--- KICKOFF: ... ---`), the skill **replaces** it with the appropriate variant rather than appending. A plan never carries more than one Kickoff block.
 - The [Cost table](#cost-table) goes directly below the Kickoff block. Replacing the Kickoff keeps it, under the Cost table's own idempotence rule.
-- Skills must not modify any other content in the plan when writing the Kickoff, apart from that Cost table. Tagging rules, STOP markers, and existing prose all stay where they are.
+- The kickoff writes the [counting header](#token-line-format) at the top of `## Token log`, creating the section at the bottom of the plan. Replacing the Kickoff keeps it, under the header's own idempotence rule.
+- Skills must not modify any other content in the plan when writing the Kickoff, apart from that Cost table and counting header. Tagging rules, STOP markers, and existing prose all stay where they are.
 
 Ask-user rule (after writing the Kickoff):
 
@@ -609,8 +626,7 @@ Passive variant — `[exec]` first wave (the most common shape):
         Before you stop, update plan progress: append ` (done)` to the
         headings you finished, update the Kickoff Status line, and flip the
         matching todos. Append one line per model this chat ran to the
-        plan's "## Token log" (create it if absent), counted and priced per
-        plan-execution.md "Token line format":
+        plan's "## Token log", counted and priced per its counting header:
           tokens wave-1 <group-id> (<model>): input ~X / cache read ~R / cache write ~W / output ~Y | ~$C API-equiv
         Then stop at the next STOP marker and report what you changed and
         any deviations from the plan.
@@ -639,9 +655,8 @@ Passive variant — `[fast]` first wave (prompt body adds the "no refactor" remi
         plan specifies; do not refactor, rename, or generalize. Before you
         stop, update plan progress (mark the headings you finished
         ` (done)`, update the Status line, flip the matching todos). Append
-        one line per model this chat ran to the plan's "## Token log"
-        (create it if absent), counted and priced per plan-execution.md
-        "Token line format":
+        one line per model this chat ran to the plan's "## Token log",
+        counted and priced per its counting header:
           tokens wave-1 <group-id> (<model>): input ~X / cache read ~R / cache write ~W / output ~Y | ~$C API-equiv
         Then stop at the next STOP marker and report back.
 
@@ -684,6 +699,7 @@ Rules for filling in the template:
 - Fill in the `Status:` line with the total group count (`N`), the first group's identifier, and today's date. Update it as execution progresses (see [Progress tracking](#progress-tracking) below).
 - For the passive variants, include the `Suggested chat title:` line in the [Wave title format](#wave-title-format) for the first wave (`Wave 1 of N [<tier>] <first group>`). It is advisory — a foreground chat cannot set its own title, so emit it for the user to paste even though the harness may ignore it. The active orchestrate variant has no such line: its per-wave titles are the `Task` subagent descriptions.
 - For the passive variants, always keep the **progress-update reminder** spelled out inline in the prompt body (append ` (done)` to finished headings, update the Status line, flip the matching todos). A fresh chat that pastes this prompt usually does **not** re-load the driver skill, so this line is the only way the [Progress tracking](#progress-tracking) convention reaches the worker — it is the single most common reason a wave finishes without being marked done, so never drop it. Keep the token-line reminder too, filled in per the [STOP fill-in rules](#stop-marker-template). (The active orchestrate variant re-loads the skill, so its parent applies the updates per the skill procedure instead; see [Who updates progress, and how](#who-updates-progress-and-how).)
+- For both variants, write the Token log's [counting header](#token-line-format) for the harness the Cost table names. The passive prompts send every pasted chat to it, and the orchestrate parent quotes it into each dispatch prompt.
 
 ### Cost table
 
@@ -725,8 +741,8 @@ Completed, with a fix-up wave after wave 1's review:
 
 The two tracking surfaces — the in-harness todo list and the durable plan markdown file (both defined under [Progress tracking](#progress-tracking) below) — are kept in sync differently by each driver, because only one flow has a coordinator:
 
-- `personal-plan-orchestrate` **has an orchestrator-parent**. After each wave's subagent returns, the parent applies the [Progress tracking](#progress-tracking) updates itself (mark ` (done)`, update the `Status:` line, flip todos). Subagents do mechanical work in their own working directory and never touch the plan file. This is handled by the skill procedure, so it does not need to ride in any prompt. The git instruction does ride in every dispatch prompt (see [Delegating execution to subagents](#delegating-execution-to-subagents)): on a task branch subagents commit each finished step, and only the parent pushes, after its review. The parent also **reviews every returned summary** as part of that step and writes the verdict to the [Review log](#review-log) (`review wave-N (<group-id>) <from>..<to>: PASS|CONCERNS - … - <date>`) — this is the orchestrate **log-only** participation in the [review beat](#review-beat) convention. It adds **no human review gate** beyond orchestrate's own (the `[exec]/[fast] -> [deep]` review gate and the milestone gate), and the every-wave review beat that the passive driver runs as a separate human-driven chat is, in orchestrate, just the parent's inline review plus the log write.
-- `personal-plan-model-tiers` **has no orchestrator**. Each wave runs in its own pasted chat, and that chat usually does **not** re-load the driver skill — it just reads the plan, executes, and stops. So the progress-update instruction is **baked inline into every Kickoff/STOP prompt body** (see the templates above), and so is the token-line reminder, which the REVIEW prompts carry too. The pasted prompt is the only place the convention can reach a fresh chat, which is why the reminder is spelled out in full there rather than referenced. Do **not** add a separate checklist block to the plan file to carry this — it is noise for the human and burns context; the inline prompt reminder is the mechanism.
+- `personal-plan-orchestrate` **has an orchestrator-parent**. After each wave's subagent returns, the parent applies the [Progress tracking](#progress-tracking) updates itself (mark ` (done)`, update the `Status:` line, flip todos). Subagents do mechanical work in their own working directory and never touch the plan file. This is handled by the skill procedure, so it does not need to ride in any prompt. The git instruction does ride in every dispatch prompt (see [Delegating execution to subagents](#delegating-execution-to-subagents)): on a task branch subagents commit each finished step, and only the parent pushes, after its review. So does the token-reporting instruction, quoted from the Token log's [counting header](#token-line-format), since subagents never read the plan. The parent also **reviews every returned summary** as part of that step and writes the verdict to the [Review log](#review-log) (`review wave-N (<group-id>) <from>..<to>: PASS|CONCERNS - … - <date>`) — this is the orchestrate **log-only** participation in the [review beat](#review-beat) convention. It adds **no human review gate** beyond orchestrate's own (the `[exec]/[fast] -> [deep]` review gate and the milestone gate), and the every-wave review beat that the passive driver runs as a separate human-driven chat is, in orchestrate, just the parent's inline review plus the log write.
+- `personal-plan-model-tiers` **has no orchestrator**. Each wave runs in its own pasted chat, and that chat usually does **not** re-load the driver skill — it just reads the plan, executes, and stops. So the progress-update instruction is **baked inline into every Kickoff/STOP prompt body** (see the templates above), and so is the token-line reminder, which the REVIEW prompts carry too. The reminder sends the chat to the [counting header](#token-line-format) the kickoff wrote at the top of the plan's `## Token log`, which holds the line format, usage source, rates and formula for this plan, so a pasted chat reads the plan, not this standard. The pasted prompt is the only place the convention can reach a fresh chat, which is why the reminder is spelled out in full there rather than referenced. Do **not** add a separate checklist block to the plan file to carry this — it is noise for the human and burns context; the inline prompt reminder is the mechanism, and the counting header only holds the data it points to.
 
 ## Progress tracking
 
