@@ -231,3 +231,35 @@ A drafted patch (9 files) is in `draft-branch-commit-policy.diff`. It passes `ma
 **Headers:** RFC 6648, RFC 9110 §16.3, RFC 9651, RFC 9113 §8.2; the IANA HTTP Field Name Registry; W3C Trace Context; the Fetch spec (CORS); docs from Stripe, Anthropic, OpenAI, Fly, Cloudflare, Twilio, Heroku, OCI, GitHub, Shopify, Slack, Google, AWS, Azure and Vercel; chi, Envoy, asgi-correlation-id and httprate source.
 
 **Commit policy:** Claude Code cloud-environments, self-hosted, sub-agents and settings docs; git-push docs (`--force-if-includes`); GitHub Copilot and Cursor cloud agent docs; Codex config docs.
+
+## 7. Admin plane naming (verified 2026-10-06)
+
+**"Admin" means the customer's admin across the industry.**
+- Google Workspace: Admin console and Admin SDK (`admin.googleapis.com`). Its "Super Admin" is the customer's own top role.
+- Slack: `admin.*` methods for Enterprise org admins and owners.
+- Atlassian: Admin API at `api.atlassian.com/admin/v1/orgs/{orgId}`.
+- Shopify: Admin API for merchants.
+- Auth0 and Okta: Management APIs. Okta's `SUPER_ADMIN` is also a customer role.
+- Microsoft Graph and GitHub `/orgs/{org}`: no separate API; admin power comes from permissions on the normal API.
+
+That validates reserving "admin" for tenant admins and never calling staff "super admin".
+
+**The vendor's own staff plane is never a public API.** Vendors refer to it as "personnel" (Google Access Transparency), "Microsoft Operator" (Customer Lockbox audit entries; staff access goes support engineer → manager approval → customer approval, 4 hours maximum), and "control plane" or "SaaS provider admin console". AWS SaaS Factory's reference solution has roles `SystemAdmin` and `CustomerSupport` against `TenantAdmin` and `TenantUser`. Its provider roles authenticate against a separate user pool, so they "cannot present a token to the tenant API at all". That supports keeping ops identities (IAP and Workspace) separate from customer identities (Identity Platform).
+
+**Words that collide:**
+- "staff": Shopify's `StaffMember` is the merchant's employee.
+- "system": Salesforce's customer "System Administrator".
+- "site admin" and "stafftools": GitHub Enterprise Server's operator, which is the customer running the instance. That GitHub calls its own internal tools "stafftools" is unverified.
+- "ops", "backoffice" and "support console" aren't attested as vendor-standard terms, but "ops" doesn't collide with any tenant-plane word, and "operator" is Microsoft's own name for its staff.
+
+**Tenant scope in APIs** goes in the path (`/orgs/{org}`), the host (`{store}.myshopify.com`), or the token (Google `my_customer`, Slack, Graph). The path is the clearest, and it's what `/organizations/{org}` already does.
+
+**SCIM** (RFC 7643/7644) is the standard for provisioning tenant users. It's tenant-scoped in practice (GitHub `/scim/v2/organizations/{org}/Users` and `/scim/v2/enterprises/{enterprise}/Users`; Atlassian `/scim/directory/{id}/Users`). The RFC leaves multi-tenancy and the `/v2` version segment optional.
+
+**OWASP ASVS 5.0:**
+- 8.4.2 (L3): layered security on admin interfaces, so network location is never the only factor.
+- 8.4.1 (L2): cross-tenant controls.
+- 13.4.5 (L2): internal APIs aren't exposed unintentionally.
+- 6.3.2 (L1): no default admin accounts.
+
+Sources: Google Workspace Directory API and admin roles; Slack admin scopes; Atlassian organization REST API and admin roles; Shopify API docs and `StaffMember`; Auth0 and Okta API references; Zoom app management; Microsoft Graph permissions overview and Customer Lockbox; GitHub org, enterprise, SCIM and GHES docs; RFC 7644; AWS SaaS architecture whitepaper, SaaS Lens and SaaS Factory reference solution; Kubernetes RBAC; OWASP ASVS 5.0 V6, V8 and V13.
