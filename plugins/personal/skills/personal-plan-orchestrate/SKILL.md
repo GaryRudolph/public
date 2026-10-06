@@ -73,7 +73,8 @@ swap yourself.)
 
 Canonical reference for tier definitions, the `[fast]` downgrade checklist,
 tag placement, the no-thrash rule, the model picker (Cursor + Claude Code
-+ thinking levels), and the Kickoff template lives in:
++ thinking levels), the Kickoff template, token lines, expected cost, and
+the Cost table lives in:
 
 > `../personal-standards/standards/plan-execution.md` §"Model-tier stop
 > points"
@@ -123,8 +124,8 @@ schema.
 from Cursor's subagent docs, which don't list the `Task` enum. If the enum
 offers plain or suffixed IDs instead, dispatch the entry for the same model
 at the same (or nearest) effort, and tell the user to refresh the standards
-model picker. If the only Composer entry is Fast, use it and note the 6×
-price in the token tally.
+model picker. If the only Composer entry is Fast, use it and price its token
+lines at the Fast row of the Model price table (6× standard).
 
 **Use the newest version of each family.** Cursor has no version-less
 alias, so the slugs above go stale. If the enum offers a newer entry of the
@@ -328,14 +329,15 @@ semantics (fail closed)".
    STOP first so the user confirms the budget impact and the diagnosis.
 7. **`[xdeep]` budget gate** — STOP before every `[xdeep]` dispatch,
    including `[deep] -> [xdeep]` and `[xdeep] -> [xdeep]` across waves.
-   Name the steps, the checklist condition each one met, and a rough cost,
-   so the user approves `[xdeep]` spend wave by wave. The premium is token
-   volume, not rate: use the standards' CursorBench 4.0 table as the
-   volume proxy (Opus 5.5 at max costs $13.43 a task vs $3.97 at high,
-   about 3.4× a `[deep]` wave), and the Model price table for Fable-alt
-   rates. The read-only review subagent after an `[xdeep]` wave (step 12)
-   is covered by that wave's gate-7 approval and does not STOP again. When
-   gate 2 or 3 also fires, ask both in one question.
+   Name the steps, the checklist condition each one met, and the wave's
+   expected tokens and dollars from its Cost table row (they include the
+   wave's review subagent), so the user approves `[xdeep]` spend wave by
+   wave. A row with expected `—` (a wave added after kickoff) or a
+   Fable-alt re-attempt gets its estimate from standards §"Expected cost"
+   at the gate, the latter from the Fable 5.1 (max) row. The read-only
+   review subagent after an `[xdeep]` wave (step 12) is covered by that
+   wave's gate-7 approval and does not STOP again. When gate 2 or 3 also
+   fires, ask both in one question.
 
 Deliberately **not** STOP gates: per-wave success on the same tier,
 large-diff thresholds, scope drift (already enforced at the git layer by
@@ -369,16 +371,20 @@ parent is.
 6. **Output contract** — the disk-backed compaction sentence above plus
    the requirement that the returned summary cover: what changed, what was
    decided, surprises, and the artifact path.
-7. **Token reporting** — end your returned summary with one line:
-   `tokens: input ~X / output ~Y / total ~Z / model <slug> | cost ~$C`.
-   Derive X and Y via the **source precedence** in
-   `../personal-standards/standards/plan-execution.md` §"Token accounting
-   — source precedence" (real harness usage when available, else
-   `~tokens ≈ chars / 4` — input chars = everything read, output chars =
-   everything written). Compute `C` with the cache-aware formula and the
-   model's rates from the same standards section. Cursor Task subagent
-   transcripts expose no usage, so the heuristic normally applies here —
-   label the line `(heuristic)` and treat it as ±40%.
+7. **Token reporting** — end your returned summary with one token line
+   per model you ran on, in the format of
+   `../personal-standards/standards/plan-execution.md` §"Token line
+   format":
+   `tokens wave-N <task-id> (<slug>): input ~X / cache read ~R / cache write ~W / output ~Y | ~$C API-equiv (heuristic)`
+   (`review-wave-N` for the `[xdeep]` review subagent).
+   A Cursor `Task` subagent can't read its own usage, so it uses the
+   accumulation heuristic from §"Token accounting — source precedence"
+   (source 3): it counts its model calls, the characters it read and the
+   characters it wrote, and applies the formula there. Quote that formula
+   in the prompt, since the subagent may not read the standard. Compute
+   `C` with the cache-aware formula and the model's rates from
+   §"Model price table". Keep the `(heuristic)` label; on Cursor the line
+   is good to about ±50%.
 8. **Git instruction** — on a task branch: "Commit each finished step on
    the current branch as `m{N}.s{K} <imperative subject>`, staging only
    the paths you changed. Do not push, create, or switch branches." On a
@@ -389,58 +395,62 @@ parent is.
 
 ## Token tally
 
-The orchestrator-parent maintains a running token tally across the run,
-deriving each row's tokens via the **source precedence** in
-`../personal-standards/standards/plan-execution.md` §"Token accounting —
-source precedence" (real harness usage when available, else
-`~tokens ≈ chars / 4`). Because the orchestrator and its subagents run on
-different models with different rates, **never blend their token counts into
-a single cost line** — always track per model slug.
+The orchestrator-parent keeps every token figure as token lines in the
+format of `../personal-standards/standards/plan-execution.md` §"Token line
+format", one per model per row, and appends each line to the plan's
+`## Token log` as soon as it has it, so the tally survives a chat that ends
+at a gate:
 
-At every STOP gate, print a per-model running breakdown:
+- **Subagent lines** (contract item 7), labeled `wave-N <task-id>`: one per
+  working directory in a parallel wave. A step-up retry keeps its wave's
+  label, so it counts in that wave's actual. The max-effort Opus review
+  subagent after an `[xdeep]` wave reports its own `review-wave-N` line.
+- **Orchestrator lines** for this parent: `orchestrator-kickoff` once the
+  kickoff is written (step 6), then `orchestrator-wave-N` after each wave's
+  review and bookkeeping (step 12). Each covers the parent's tokens since
+  its previous line in this chat, gates included. Inline review work counts
+  here, not as `review-wave-N` lines (contrast the passive driver's
+  separate review-beat chats in `personal-plan-model-tiers`).
+
+Cursor exposes no usage to an agent, so both kinds normally come from the
+accumulation heuristic (standards §"Token accounting — source precedence",
+source 3) and carry `(heuristic)`. When the user pastes Cursor usage
+(source 2), replace the matching lines. Because the orchestrator and its
+subagents run on different models with different rates, **never blend
+their token counts into a single cost line**: each line is priced at its
+own model's list rates from the Model price table, API-equivalent,
+whatever the harness bills (standards §"Model price table", "Agent costs
+are API-equivalent"). The parent can recompute any line's dollars from its
+four counts when a subagent omits or miscomputes them.
+
+At every STOP gate, print the running block: the Token log lines so far,
+then a total.
 
 ```
 tokens so far:
-  orchestrator  (claude-opus-5-5):  input ~Xo / output ~Yo | ~$Co API-equiv
-  wave-1 <id>   (grok-4-7):         input ~Xs / output ~Ys | ~$Cs API-equiv
+  tokens orchestrator-kickoff <plan-name> (claude-opus-5-5): input ~… / cache read ~… / cache write ~… / output ~… | ~$… API-equiv (heuristic)
+  tokens wave-1 m1-s1-s3 (grok-4-7): input ~… / cache read ~… / cache write ~… / output ~… | ~$… API-equiv (heuristic)
   …
-  RUNNING TOTAL:                    input ~Xt / output ~Yt | ~$Ct API-equiv (heuristic)
+  RUNNING TOTAL: input ~… / cache read ~… / cache write ~… / output ~… | ~$… API-equiv (heuristic)
 ```
 
-Review work is parent-side — include its tokens in the orchestrator row,
-not as separate `review-wave-N` rows (contrast the passive driver's
-separate review-beat chats in `personal-plan-model-tiers`). The one
-exception is the max-effort Opus review subagent after an `[xdeep]` wave,
-which gets its own `review-wave-N` row.
+The RUNNING TOTAL's dollars are the **sum of the lines' dollars**, not a
+blended rate applied to the summed tokens. It carries `(heuristic)` when
+any line does.
 
-Each row's cost uses **that row's model list rates** from the Model price table: API-equivalent, whatever the harness bills (standards §"Model price table", "Agent costs are API-equivalent").
-The RUNNING TOTAL cost is the **sum of per-row costs**, not a blended rate
-applied to the total token count.
-
-At plan completion, print a per-wave breakdown table:
-
-| wave | model | ~input | ~output | ~total | ~cost (API-equiv) |
-|------|-------|--------|---------|--------|-------|
-| orchestrator | claude-opus-5-5 | … | … | … | … |
-| wave-1 (task-id) | <slug> | … | … | … | … |
-| … | | | | | |
-| **GRAND TOTAL** | | | | | … |
-
-Compute per-wave cost from the wave's model slug using the Model price table
-in `../personal-standards/standards/plan-execution.md` §"Model price table". Sum
-the per-wave costs for the GRAND TOTAL. The orchestrator-parent owns this
-computation — it can recompute from each wave's token counts even when a
-subagent omits the cost field.
-
-Accuracy follows the source each wave used (±15% from real harness usage,
-±40% from the `chars / 4` heuristic). These are rough API-equivalent
-estimates at list rates, not the bill.
+At plan completion, add the actual tokens and actual $ columns to the
+plan's Cost table from the `## Token log`, per standards §"Cost table":
+each wave row sums its `wave-N` and `review-wave-N` lines, and the
+`orchestrator` row sums the `orchestrator-*` lines. Print the completed
+table; the Token log keeps the per-model detail.
 
 ## Procedure
 
 1. **Identify the plan** using the same priority order as the sibling
    skill (named path → most recent `plan-*.md` in `.scratch/` or
    `specs/handoffs/` → in-conversation plan). Remember the resolved path.
+   On re-entry into a partially-executed plan, keep its Cost table as it
+   stands, per the re-entry rule in standards §"Cost table".
 2. **Run the harness gate** above. STOP and ask if not Cursor. Then
    **check the branch and the git email in each working directory** the
    plan touches (standards `git.md` §"Task branches and shared branches",
@@ -495,13 +505,25 @@ estimates at list rates, not the bill.
    `Status:` line with `0/N groups done | last review: — | current:
    <first group> [deep] | updated <today>` where `N` is the total group
    count. Add `review: every-wave (log-only — parent writes Review log; no
-   human review gate)`. Do not modify any other content. **Record whether
+   human review gate)`. Apart from the Cost table below, do not modify any
+   other content. **Record whether
    you replaced an existing matching Kickoff block (`--- KICKOFF: begin
    orchestration at [deep] ---`) or inserted a new one — this
    "kickoff-replaced" signal is used in step 5.** Do not write any
    separate progress checklist block into the plan; the
    orchestrator-parent applies the progress updates itself in step 12, so
    no in-plan reminder is needed.
+
+   **Write the Cost table directly below the Kickoff block** (standards
+   §"Cost table"), labeled `**Cost (API-equiv, Cursor models)**`. Estimate
+   each wave per standards §"Expected cost" at the Cursor slug for its
+   execution tier, each `[xdeep]` row including its review subagent. Add
+   an `orchestrator` row for this parent: the kickoff, the start-up after
+   the default new-chat handoff, each wave, and each gate expected to wait
+   on a human (the canary, plus every gate 2, 3, 4 and 7 the plan
+   crosses). Print the Kickoff block and the table in chat. On a replace,
+   keep the table unless re-grouping changed the waves; then recompute its
+   expected columns and say so.
 
    After writing the Kickoff block, **seed the native todo list**: one
    todo per group (in order), first group `in_progress`, rest `pending`.
@@ -528,10 +550,12 @@ estimates at list rates, not the bill.
    question is itself a gate: if no explicit answer is received, write
    `BLOCKED at gate (kickoff-destination)` to the `Status:` line and end
    the turn. Do not dispatch subagents while blocked.
-6. **Branch on the answer.**
+6. **Branch on the answer.** In both branches, first append this chat's
+   `orchestrator-kickoff` token line to `## Token log` (see "Token
+   tally").
    - **New chat (default).** Print the modified plan (with the Kickoff
-     block at the top) so the user can see it. Halt. Do **not** dispatch
-     any `Task` subagents from this chat. The fresh Opus chat will
+     block and Cost table at the top) so the user can see it. Halt. Do
+     **not** dispatch any `Task` subagents from this chat. The fresh Opus chat will
      re-invoke this skill from the top, see the existing tagging and
      Kickoff block, and begin dispatching.
    - **Current chat.** Print the modified plan, then continue to step 7.
@@ -592,9 +616,9 @@ estimates at list rates, not the bill.
     completion notification does NOT count as an answer to the canary
     question.
 12. **Collect summaries**. Update "state so far". Re-read artifacts only
-    when needed. Parse the `tokens:` line from each subagent summary
-    into the rolling tally; include the running tally in the "state so
-    far" update.
+    when needed. Append each subagent's token lines (contract item 7) to
+    `## Token log`; include the running block (see "Token tally") in the
+    "state so far" update.
 
     After each successful wave, **update plan state**:
     - Append ` (done)` to every executable heading in the just-finished
@@ -613,38 +637,45 @@ estimates at list rates, not the bill.
       note> - <YYYY-MM-DD>`. This is orchestrate's **log-only** participation in
       the [review beat](../personal-standards/standards/plan-execution.md) —
       it adds **no human STOP gate** beyond gates 1–7. Review
-      tokens count toward the orchestrator-parent row in the token tally,
-      not a separate per-wave row. **Exception: an `[xdeep]` wave** is
+      tokens count in this parent's `orchestrator-wave-N` token line, not
+      a separate `review-wave-N` line. **Exception: an `[xdeep]` wave** is
       reviewed by a read-only max-effort Opus subagent
       (`Task(model=<[xdeep] Cursor slug>, ...)`), not inline, because the
       high-effort parent would cap the review at `[deep]`. The parent
-      writes that subagent's verdict to the Review log and gives its tokens
-      their own `review-wave-N` row.
+      writes that subagent's verdict to the Review log and appends its
+      `review-wave-N` token line to `## Token log`.
     - **Commit and push (task branch).** After the review, whatever the
       verdict, commit the plan file if it's tracked (on a runner, in
       `specs/handoffs/`). A runner then pushes each working directory's
       branch; a workstation pushes at will. A `CONCERNS` verdict adds a
-      fix-up wave on top; it never rewrites the wave's commits.
+      fix-up wave on top; it never rewrites the wave's commits. The
+      fix-up wave gets its own Cost table row with expected `—`
+      (standards §"Cost table").
+    - **Token log.** Append this parent's `orchestrator-wave-N` token
+      line for the wave (see "Token tally").
 13. **Handle errors / low-quality output** — STOP (gate 1) and offer
     retry / step-up / re-plan. Fail-closed: if no explicit answer is
     received, re-post the error gate question, write `BLOCKED at gate 1`
     to the `Status:` line, and end the turn. Stepping up tiers triggers
     gate 6, and the re-attempt itself is **dispatched** as a subagent on
     the next model in the step-up chain — composer → `[exec]` model → opus
-    high → opus max, then the fable alt — never executed inline.
+    high → opus max, then the fable alt — never executed inline. The
+    re-attempt's token lines keep the wave's `wave-N` label. A re-plan's
+    new waves get Cost table rows with expected `—`, and a wave it drops
+    keeps its row.
 14. **Advance** to the next boundary. Repeat from step 7 until the plan
-    is complete, stopping at every gate. When the plan is complete,
-    print the final per-wave + orchestrator + grand-total token table
-    from the "Token tally" section above.
+    is complete, stopping at every gate. When the plan is complete, add
+    the actual columns to the Cost table and print it, as the "Token
+    tally" section above says.
 
     When the **last group finishes**, perform the final-completion steps
     from `§"Model-tier stop points" → "Progress tracking" → "Final
     completion"` in the standards: flip all remaining todos to
     `completed`, replace the Kickoff marker with
     `--- KICKOFF: plan complete ---`, update the Status line to
-    `N/N groups done | completed <date>`, and append the Completion
-    summary at the bottom of the plan file. Print this summary
-    alongside the final token table.
+    `N/N groups done | completed <date>`, add the Cost table's actual
+    columns, and append the Completion summary at the bottom of the plan
+    file. Print this summary alongside the completed Cost table.
 
 ## Out of scope
 

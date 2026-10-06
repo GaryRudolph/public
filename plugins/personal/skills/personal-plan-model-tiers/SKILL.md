@@ -21,7 +21,8 @@ skill, which this skill invokes automatically when a plan is not tagged yet.
 
 The canonical reference for tier definitions, the `[fast]` downgrade checklist,
 tag placement, the no-thrash rule, the model picker (Cursor + Claude Code +
-thinking levels), and the STOP marker template lives in:
+thinking levels), the STOP marker template, token lines, expected cost, and
+the Cost table lives in:
 
 > `../personal-standards/standards/plan-execution.md` §"Model-tier stop
 > points"
@@ -51,7 +52,8 @@ If the plan file already has a Kickoff block with a `Status:` line and
 executed plan. Re-derive the native todo list from those markers (one todo
 per group; groups that have all steps marked done → `completed`; the
 current group → `in_progress`; remaining groups → `pending`). Do not
-assume native todos from a prior session still exist.
+assume native todos from a prior session still exist. Keep the plan's Cost
+table as it stands, per the re-entry rule in standards §"Cost table".
 
 ### 2. Ensure the plan is tagged
 
@@ -202,10 +204,22 @@ heading, inside a fenced code block. The Kickoff block is **idempotent**:
 if a Kickoff block already exists at the top of the file (any line
 matching `--- KICKOFF: ... ---`), replace it with the appropriate
 variant rather than appending. A plan never carries more than one
-Kickoff block. Do not modify any other content in the plan. Do **not**
+Kickoff block. Apart from the Cost table below, do not modify any other
+content in the plan. Do **not**
 write any separate progress checklist block into the plan — the
 progress-update reminder lives inline in the Kickoff/STOP prompt bodies
 (see step 4), which is the only surface a fresh pasted chat reliably reads.
+
+**Write the Cost table directly below the Kickoff block** (standards
+§"Cost table"). Estimate each wave per standards §"Expected cost": each
+step at the row for the model that runs the wave's execution tier in this
+harness (or the harness the user names), times the step's size factor,
+plus the wave's review beat. Label the table with that harness (e.g.
+`**Cost (API-equiv, Claude Code models)**`), give it one row per wave and
+a **Total** row, and keep the one-line accuracy note under it. Print the
+Kickoff block and the table in chat. When you replace an existing Kickoff,
+keep the table unless re-grouping changed the waves; then recompute its
+expected columns and say so.
 
 After writing the Kickoff block, **seed the native todo list**: create
 one todo per group (in order), with the first group as `in_progress` and
@@ -234,8 +248,8 @@ and the only way to authorize multiple unattended steps is an explicit
 ### 7. Branch on the answer
 
 - **New chat (default).** Print the full modified plan (with STOP
-  markers and the Kickoff block at the top) so the user can see the
-  result. Halt. Do **not** begin executing any step — the user will
+  markers, and the Kickoff block and Cost table at the top) so the user
+  can see the result. Halt. Do **not** begin executing any step — the user will
   start a fresh chat by copying the Kickoff prompt from the top of the
   plan file.
 - **Current chat.** Print the full modified plan. Then begin executing
@@ -275,7 +289,8 @@ in `## Review log`. If the verdict is `CONCERNS` or missing when
 required, set `Status:` to
 `BLOCKED at gate review-wave-N` (with `last review: wave-N CONCERNS` when
 applicable), re-post the concern, and end the turn. The next wave does
-not start until a human resolves the block.
+not start until a human resolves the block. A fix-up wave added to resolve
+it gets its own Cost table row with expected `—` (standards §"Cost table").
 
 **At every STOP marker, these gates are fail-closed.** A missed,
 timed-out, dismissed, or ambiguous response to a STOP-marker question
@@ -290,59 +305,47 @@ a `BLOCKED at gate` status means re-post and wait, never assume approval.
 When the **last group finishes**, perform the final-completion steps from
 `§"Model-tier stop points" → "Progress tracking" → "Final completion"`
 in the standards: flip all todos to `completed`, replace the Kickoff
-marker with `--- KICKOFF: plan complete ---`, and append the Completion
-summary at the bottom of the plan file.
+marker with `--- KICKOFF: plan complete ---`, add the actual columns to
+the Cost table (see "Token tally on report-back" below), and append the
+Completion summary at the bottom of the plan file.
 
 ## Token tally on report-back
 
 Before halting (new-chat branch of step 7) or after stopping at the first
-STOP marker (current-chat branch of step 7), append a wave summary line to
-your report-back. After a **review beat** chat, use the same shape with
-`review-wave-N` instead of `wave-N`:
+STOP marker (current-chat branch of step 7), end your report-back with one
+token line per model this chat ran, in the canonical format of
+`../personal-standards/standards/plan-execution.md` §"Token line format".
+Label each `wave-N <group-id>`, or `review-wave-N <group-id>` after a
+**review beat** chat. `wave-N` is the 1-based wave number (1 for the first
+group executed, 2 for the second, etc.) and `<group-id>` is the group
+identifier from the plan (e.g. `m1-s1-s3`).
 
-```
-tokens wave-N <group-id> (model-slug): input ~X / output ~Y | cost ~$C API-equiv (heuristic)
-tokens review-wave-N <group-id> (model-slug): input ~X / output ~Y | cost ~$C API-equiv (heuristic)
-```
+Take the counts from the **source precedence** in the same standards file
+(§"Token accounting — source precedence"):
 
-Where `wave-N` is the 1-based wave number (1 for the first group executed, 2
-for the second, etc.), `<group-id>` is the group identifier from the plan
-(e.g. `m1-s1-s3`), and `model-slug` is the model this chat ran on.
+- **Claude Code**: this chat's session transcript, deduped by `message.id`
+  (exact). A subagent this chat delegated to adds the exact input-side
+  counts from its own transcript, with output estimated per call as the
+  standards table says, so that model's line carries `(output est.)`.
+- **Codex, Gemini CLI, Grok Build**: that harness's usage, normalized per
+  the standards table.
+- **Cursor, Muse Code**: usage the user pastes, else the accumulation
+  heuristic, labeled `(heuristic)`.
 
-Derive `X` and `Y` using the **source precedence** in
-`../personal-standards/standards/plan-execution.md` §"Token accounting —
-source precedence": prefer real harness usage when available (on Claude Code,
-read `message.usage` — incl. cache tiers and reasoning tokens — from the
-session JSONL), and fall back to `~tokens ≈ chars / 4` only when it isn't
-(e.g. Cursor). Tag the line `(heuristic)` and treat it as ±40% when using the
-fallback; ±15% when using real usage.
+Accuracy follows the source, as the standards section states. Price each
+line with the cache-aware formula and its model's list rates (§"Model price
+table"): API-equivalent, whatever the harness bills.
 
-Compute `C` with the cache-aware formula and the list rates for the model
-slug from the same standards section (§"Model price table"): API-equivalent,
-whatever the harness bills.
-
-**Also write the wave line to the plan file.** Append it to a `## Token log`
+**Also write the lines to the plan file.** Append them to the `## Token log`
 section at the bottom of the plan file (create the section if it doesn't
-exist). This persists cross-wave data across separate chats so the final
-wave can assemble the full table.
+exist). This persists the lines across separate chats, and the Cost table's
+actual columns come from it.
 
-When the **last group finishes**, read all wave and review lines from the
-`## Token log` section and print the full per-wave breakdown table alongside
-the Completion summary (include `review-wave-N` rows interleaved after their
-wave):
-
-| wave | group | model | ~input | ~output | ~cost (API-equiv) |
-|------|-------|-------|--------|---------|-------|
-| wave-1 | m1-s1-s3 | claude-opus-5-5 | … | … | … |
-| review-wave-1 | m1-s1-s3 | claude-opus-5-5 | … | … | … |
-| wave-2 | m2-s4-s6 | grok-4-7 | … | … | … |
-| **GRAND TOTAL** | | | | | … |
-
-The GRAND TOTAL cost is the **sum of per-wave costs** (each priced at its own
-model's rates), not a blended rate applied to the total token count. Accuracy
-follows the source each wave used (±15% from real harness usage, ±40% from
-the `chars / 4` heuristic). These are rough API-equivalent estimates at
-list rates, not the bill.
+When the **last group finishes**, add the actual tokens and actual $
+columns to the plan's Cost table from the `## Token log` (standards §"Cost
+table": each wave row sums its `wave-N` and `review-wave-N` lines across
+models) and print the completed table alongside the Completion summary. The
+Token log keeps the per-model detail.
 
 ## Delegating to subagents
 
@@ -354,7 +357,8 @@ the exact steps to implement and instructing the subagent to stop and report
 back after completing them. Spell out the git instruction too: on a task
 branch, commit each finished step and don't push or switch branches; on a
 shared branch, don't commit. The deep parent reviews the subagent output
-before moving to the next STOP marker, and only the parent pushes. See the
+before moving to the next STOP marker, and only the parent pushes. Count
+the subagent's tokens in the wave's token lines, one line per model. See the
 standards section "Delegating execution to subagents" for the full
 guidance.
 

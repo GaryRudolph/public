@@ -1,6 +1,6 @@
 # Plan Execution
 
-How multi-step plans are executed across models of different cost and capability: tagging steps by tier, grouping them into execution waves, stopping (or delegating to a subagent) at tier boundaries, tracking progress across chat handoffs, and the STOP-gate semantics that keep human oversight intact. This file is the canonical reference. The operational skills implement it in two layers: a shared **tagging** skill (`personal-plan-tag-tiers`) that only tags executable steps with honest complexity tiers, and two **execution drivers** (`personal-plan-model-tiers`, `personal-plan-orchestrate`) that group the tagged steps into waves, apply the no-thrash rule, and either emit STOP markers or dispatch subagents.
+How multi-step plans are executed across models of different cost and capability: tagging steps by tier, grouping them into execution waves, stopping (or delegating to a subagent) at tier boundaries, tracking progress across chat handoffs, budgeting and tallying token cost, and the STOP-gate semantics that keep human oversight intact. This file is the canonical reference. The operational skills implement it in two layers: a shared **tagging** skill (`personal-plan-tag-tiers`) that only tags executable steps with honest complexity tiers, and two **execution drivers** (`personal-plan-model-tiers`, `personal-plan-orchestrate`) that group the tagged steps into waves, apply the no-thrash rule, and either emit STOP markers or dispatch subagents.
 
 ## Model-tier stop points
 
@@ -15,7 +15,7 @@ This section is the canonical reference for the convention. The work splits into
 
 ### Tiers
 
-- `[xdeep]` — frontier reasoning, one rung above `[deep]`. For steps where a strong `[deep]` model is likely to be wrong, or already was: novel designs with nothing to copy from, security and correctness arguments (auth, crypto, concurrency, distributed consistency), migrations that can't be rolled back, and long-horizon analysis over a very large context. It runs Opus 5.5 at max effort, with ultracode in Claude Code (see [Model picker](#model-picker)). Max effort (plus many agents in Claude Code) spends far more tokens than a `[deep]` wave, so the tag has to pass the [upgrade checklist](#xdeep-upgrade-checklist).
+- `[xdeep]` — frontier reasoning, one rung above `[deep]`. For steps where a strong `[deep]` model is likely to be wrong, or already was: novel designs with nothing to copy from, security and correctness arguments (auth, crypto, concurrency, distributed consistency), migrations that can't be rolled back, and long-horizon analysis over a very large context. It runs Opus 5.5 at max effort, with ultracode in Claude Code (see [Model picker](#model-picker)). Max effort (plus many agents in Claude Code) spends far more tokens than a `[deep]` wave (about 6× a `[deep]` step alone and about 90× with ultracode; see [Expected cost](#expected-cost)), so the tag has to pass the [upgrade checklist](#xdeep-upgrade-checklist).
 - `[deep]` — top-tier reasoning. Architecture decisions, ambiguous requirements, non-obvious debugging, security-sensitive review, library/stack trade-offs, anywhere the cost of getting it wrong is high.
 - `[exec]` — standard implementation. Multi-file changes with cross-file reasoning, refactors with a clear target but real judgment, test writing where cases need thought, work that must read repo patterns first to extend them.
 - `[fast]` — mechanical, fully-specified, single-concern work. Renames, format changes, applying a decided design line-by-line, doc updates, well-bounded ports.
@@ -151,7 +151,7 @@ One row per harness, one column per tier, effort in parentheses. "Switch harness
 *As of 2026-10-01.* Refresh the rows that pin versions (everything but Claude Code) when a harness adds a model.
 
 Notes:
-- **`[xdeep]` is Opus 5.5 at max effort plus ultracode.** Opus 5.5 shipped after Fable 5.1 and beats it on every benchmark Anthropic published: Terminal-Bench 4.0 66.4% vs 55.8%, CursorBench 4.0 57.8% vs 51.8% at max effort (and $13.43 vs $17.28 a task), at 40% of Fable's per-token price. Anthropic says the real-world gap is narrower than those scores. So `[xdeep]` buys depth with max effort and multi-agent fan-out rather than a pricier model; its premium is token volume, not per-token rate. A `[deep]` attempt that already failed escalates to exactly this. `[deep]` runs at `high`: on CursorBench 4.0, Opus 5.5 high scores 56.0% at $3.97 a task against max's 57.8% at $13.43. Fable 5.1 at max effort is the alt when a different model is wanted, a second opinion with different failure modes after Opus has already failed the step. Revisit when the next Fable ships.
+- **`[xdeep]` is Opus 5.5 at max effort plus ultracode.** Opus 5.5 shipped after Fable 5.1 and beats it on every benchmark Anthropic published: Terminal-Bench 4.0 66.4% (at xhigh; 64.8% at max) vs 55.8% (Fable at max), and CursorBench 4.0 57.8% vs 51.8%, both at max effort (and $13.43 vs $17.28 a task), at 40% of Fable's per-token price. Anthropic says the real-world gap is narrower than those scores. So `[xdeep]` buys depth with max effort and multi-agent fan-out rather than a pricier model; its premium is token volume, not per-token rate. A `[deep]` attempt that already failed escalates to exactly this. `[deep]` runs at `high`: on CursorBench 4.0, Opus 5.5 high scores 56.0% at $3.97 a task against max's 57.8% at $13.43. Fable 5.1 at max effort is the alt when a different model is wanted, a second opinion with different failure modes after Opus has already failed the step. Revisit when the next Fable ships.
 - **Ultracode** is Claude Code's multi-agent orchestration mode: Claude writes and runs workflow scripts that fan the work out to many subagents in parallel, keeping intermediate results in script variables instead of its context. Turn it on for one prompt with the keyword `ultracode`, for a session with `/effort ultracode` (or launch with `claude --effort ultracode`), and off with `/effort ultracode off`. It needs Claude Code v2.1.203+; on Pro, enable it once from `/config` first. It composes with `/effort max` from v2.1.284 on; earlier versions forced `xhigh` under ultracode. It opts into large runs (no 25-agent warning, no approval prompts in auto mode, up to 1,000 agents a run), so keep it off by default and use it only on `[xdeep]` waves: don't leave `"ultracode": true` on in settings for every session. It fans out inside one wave, so the plan's wave boundaries still hold. Cursor has no ultracode equivalent; Cursor `[xdeep]` is Opus 5.5 at max effort alone.
 - **Claude Code uses version-less aliases.** `opus`, `sonnet`, `haiku`, and `fable` (the `[xdeep]` alt) resolve to the newest model of each tier, so the row never needs a version bump. Set effort with `/effort <level>`. `/effort max` applies to the current session only, so each fresh `[xdeep]` chat needs it again. Opus 5.5 and Sonnet 5.5 default to `medium` and can't turn thinking off, so set it explicitly; Fable defaults to `high` and always thinks. Haiku takes no effort level and gains nothing from thinking on bounded mechanical work. On Pro, Max, and Team plans Fable bills to usage credits and asks for consent first.
 - **`[exec]` runs Sonnet at `high`, not `medium`.** On CursorBench 4.0, Sonnet 5.5 scores 47.8% at high and 39.2% at medium, for $1.67 vs $0.70 a task. That gap is worth a dollar.
@@ -159,7 +159,7 @@ Notes:
 - **In Cursor, prefer the Cursor pool when it's close.** Take Grok or Composer over a third-party model when it scores within about 5 points on CursorBench 4.0 (table below). That puts `[exec]` on Grok 4.7 (43.9% vs Sonnet 5.5's 47.8%, both at high) and keeps `[deep]` on Opus 5.5 (Grok 4.7 at xhigh is 46.3% vs Opus 5.5 at high 56.0%). The pool is the saving, not the per-task price: at list, Grok 4.7 high costs $4.69 a task against Sonnet 5.5 high's $1.67. Once included Cursor usage runs out and on-demand billing starts, move `[exec]` to the Sonnet alt. This decides the model only; cost figures still use list rates ([Model price table](#model-price-table)).
 - **Cursor `[fast]` is Composer 2.5 standard** ($0.50/$2.50). Fast is the product default and costs 6×; `[fast=false]` or empty brackets (`composer-2.5[]`) select standard. Composer scores 27.7% on CursorBench 4.0, which is enough for steps that pass the [`[fast]` checklist](#fast-downgrade-checklist) and nothing more.
 - **Cursor slugs** use the bracket parameters from Cursor's subagent docs (`[effort=...]`, `[fast=false]`). Cursor publishes no full ID list, so confirm with `agent --list-models`. The Fable alt in Cursor needs the data-retention opt-in under Privacy Mode, and Cursor reroutes guardrail-tripped Fable requests to Opus. Cursor doesn't offer GPT-6, and GPT-5.6 Sol scores 41.7%, so the Cursor row has no OpenAI alt.
-- **Review beats are a high-ROI place to pin the top model.** A [review beat](#review-beat) reads the prior wave's diff (input-heavy) and emits a short verdict (output-light). Output is the expensive half ($20/Mtok vs $4 input on Opus), so a review is one of the cheapest ways to spend `[deep]` credit. Pin it rather than letting Auto downgrade it.
+- **Review beats are a high-ROI place to pin the top model.** A [review beat](#review-beat) reads the prior wave's diff and emits a short verdict, but its cost is mostly input, not output: every call re-sends the whole context, so cache reads and writes make up about 70% of a reviewer's API-equivalent cost (output about 30%). It still costs only about 0.6× a [medium step](#expected-cost) at the reviewer's model because it makes fewer calls, so a review is a cheap way to spend `[deep]` credit. Point it at the diff and the plan rather than the whole repo, since its cost scales with calls × context. Pin it rather than letting Auto downgrade it.
 - **Haiku vs Composer.** Haiku is Claude Code's `[fast]` model and Composer is Cursor's. They are platform-specific choices, not alternatives to each other; each harness uses its own native fast model.
 - **Codex** runs the GPT-6 family. Set effort with `/model` → "More reasoning…", `model_reasoning_effort` in `config.toml`, or `-c model_reasoning_effort='"xhigh"'`. Skip `ultra`: it hands delegation to the model, and these plans do their own delegation (Claude Code's `[xdeep]` ultracode is the one exception, and it fans out only inside one wave). Astra costs the same as Fable. `gpt-5.5` leaves Codex for ChatGPT sign-ins on 2026-10-14.
 - **Gemini CLI** defaults to `auto`, which routes between Pro and Flash; pin a model with `-m` or `/model` → Manual. Thinking is set only through `modelConfigs.overrides` in `settings.json`, and the CLI sends `HIGH` to every 3.x model by default. Since 2026-06-18 Gemini CLI needs a paid API key, Vertex, or a Code Assist licence; Google AI Pro and Ultra sign-ins moved to Antigravity CLI.
@@ -186,7 +186,7 @@ Notes:
 
 Standard list rates in USD per million tokens for every model in the picker. Cursor charges provider list price with no markup, apart from the Teams and Enterprise surcharge above. Effort and bracket parameters don't change the rate; Fast variants do.
 
-**Agent costs are API-equivalent.** Every agent cost a standard or skill computes (expected costs, token tallies, completion tables) prices tokens at these provider API list rates, cache tiers included, whatever the harness actually bills. Included usage, subscriptions, credits, Cursor's pools and harness surcharges don't change the figure. That keeps costs comparable across harnesses and over time, and measures what a plan consumed rather than what a billing plan absorbed. Label the figures `API-equiv`. Pools and plan limits only inform which model runs a wave (the Cursor bullets above). A model with no published API rate shows `n/a` and stays out of totals.
+**Agent costs are API-equivalent.** Every agent cost a standard or skill computes (expected costs, [token lines](#token-line-format), the [Cost table](#cost-table)) prices tokens at these provider API list rates, cache tiers included, whatever the harness actually bills. Included usage, subscriptions, credits, Cursor's pools and harness surcharges don't change the figure. That keeps costs comparable across harnesses and over time, and measures what a plan consumed rather than what a billing plan absorbed. Label the figures `API-equiv`. Pools and plan limits only inform which model runs a wave (the Cursor bullets above). A model with no published API rate shows `n/a` and stays out of totals.
 
 | Model | Used by | Input | Cached input | Output |
 |---|---|---|---|---|
@@ -210,9 +210,9 @@ Long-context surcharges: Grok 4.7 doubles every rate above 256k input in Cursor 
 
 *As of 2026-10-01. Sources: [Claude pricing](https://platform.claude.com/docs/en/about-claude/pricing), [Cursor models and pricing](https://cursor.com/docs/models-and-pricing), [OpenAI pricing](https://developers.openai.com/api/docs/pricing), [Gemini pricing](https://ai.google.dev/gemini-api/docs/pricing), [Meta pricing](https://dev.meta.ai/docs/pricing-rate-limits), [xAI pricing](https://docs.x.ai/developers/pricing).*
 
-On Claude Code, price by the model the alias resolved to (read it from `message.usage`'s model).
+On Claude Code, price by the model the alias resolved to (read it from `message.model`).
 
-Cache-aware cost formula used by the `tokens:` tally:
+Cache-aware cost formula, which prices every [token line](#token-line-format):
 
     cost_usd ≈ ( uncached_input      × in_rate
                + cache_read_input    × cached_rate
@@ -220,36 +220,136 @@ Cache-aware cost formula used by the `tokens:` tally:
                + cache_write_1h      × in_rate × 2.00
                + output_tokens       × out_rate ) / 1_000_000
 
-`output_tokens` already includes extended-thinking/reasoning tokens. `cached_rate` is the table's cached-input column. The write multipliers are Anthropic's (5-minute write = 1.25×, 1-hour write = 2.00× the input rate); GPT-6 also bills writes at 1.25×, and the other providers don't charge for them, so set those terms to 0. When no cache split is available, set the cache terms to 0 and the formula collapses to `input × in_rate + output × out_rate`.
+`output_tokens` includes reasoning tokens; [source precedence](#token-accounting--source-precedence) says how to normalize each harness's counts to these terms. `cached_rate` is the table's cached-input column. The write multipliers are Anthropic's (5-minute write = 1.25×, 1-hour write = 2.00× the input rate); GPT-6 also bills writes at 1.25×. The other providers charge no write premium, so their cache writes price at 1.00× the input rate.
 
 ### Token accounting — source precedence
 
-Tally token cost from the most accurate source available, in this order:
+Take token counts from the most accurate source available, in this order. Each source yields the four counts a [token line](#token-line-format) shows: uncached input, cache read, cache write and output.
 
-1. **Real harness usage (preferred — captures reasoning + cache tiers).** On
-   **Claude Code**, read the active session transcript at
-   `~/.claude/projects/<project-slug>/<session-id>.jsonl` (if the session id
-   is unknown, use the most-recently-modified `.jsonl` in the project-slug
-   dir). Each assistant message carries `message.usage` with `input_tokens`,
-   `cache_read_input_tokens`, `cache_creation_input_tokens` (split into
-   `cache_creation.ephemeral_5m_input_tokens` / `ephemeral_1h_input_tokens`),
-   and `output_tokens` (already includes extended thinking). Sum these per
-   `message.model` across the wave and price with the cache-aware formula
-   above. The in-progress final turn isn't flushed yet — a small tail, ignore
-   it. Estimates from real usage are ±15%.
+**1. Real usage the agent can read.**
 
-2. **Heuristic fallback.** On **Cursor** and any harness that does not expose
-   per-turn usage to the agent (Cursor's `agent-transcripts/*.jsonl` carry
-   only `{role, message}` — no usage), fall back to `~tokens ≈ chars / 4`:
-   count input chars as everything read (prompts, file reads, tool outputs),
-   output chars as everything written (chat text, tool-call args, file
-   writes). This **cannot see** extended-thinking tokens or cache-read
-   discounts, so treat it as **±40%**, label it `(heuristic)`, and set the
-   cache terms to 0. If the user pastes real input/output/cache numbers from
-   the Cursor usage UI, prefer those and price with the cache-aware formula.
+| Harness | Where to read | Fields | Normalize |
+|---|---|---|---|
+| Claude Code | `~/.claude/projects/<slug>/<session-id>.jsonl`, where `<slug>` is the working directory with `/` turned into `-` and the id is `$CLAUDE_CODE_SESSION_ID` (without it, the newest `.jsonl` there). Subagents and workflow agents: `<session-id>/subagents/**/agent-*.jsonl` | `message.usage` on assistant lines: `input_tokens` (uncached), `cache_read_input_tokens`, `cache_creation.ephemeral_5m_input_tokens` and `ephemeral_1h_input_tokens`, `output_tokens` (thinking included). Price by `message.model` | One call spans several lines that repeat its usage, so dedupe by `message.id`; summing lines counts about 2×. Main-session lines carry `stop_reason` and final counts. In subagent files `output_tokens` is a streaming placeholder (1-24): keep the exact input-side counts, estimate output at about 1,000 tokens per call, and label the line `(output est.)` |
+| Codex | `$CODEX_HOME/sessions/**/rollout-*-<thread-id>.jsonl` (default `~/.codex`; the id is `$CODEX_THREAD_ID`) | `token_count` events, `info.total_token_usage`: `input_tokens`, `cached_input_tokens`, `cache_write_input_tokens`, `output_tokens`, `reasoning_output_tokens` | `input_tokens` includes cached tokens: input = `input_tokens` - cached - cache write. `output_tokens` already includes reasoning. Subagents write their own rollout files, linked by `session_id` and `parent_thread_id`; the parent's totals exclude them, so add them |
+| Gemini CLI | The newest `~/.gemini/tmp/<project>/chats/*.jsonl` (the shell carries no session id). Subagents: `chats/<parentSessionId>/` | Per-message `tokens`: `input`, `cached`, `output`, `thoughts` | `input` is the whole prompt, cached included: input = `input` - `cached`. `thoughts` sits outside `output` but bills as output: output = `output` + `thoughts`. There is no cache-write field (implicit caching has no write charge), so cache write is 0 |
+| Grok Build | `grok usage "$GROK_SESSION_ID"` | `session`: `inputTokens`, `cachedReadTokens`, `cacheCreationTokens`, `outputTokens`, and `modelUsage` per model | `inputTokens` includes cached tokens: input = `inputTokens` - cache read - cache write. `outputTokens` includes reasoning. Finished subagents are included; `grok usage <subagent_id>` shows one |
+| Cursor, Muse Code | Nothing: their transcripts carry no usage | | Use source 2 or 3 |
+
+A wave run in its own chat is that session's total plus its subagents'. When one chat ran more than one wave, take only that wave's calls, or the difference between the cumulative totals at its start and end. The in-progress final turn isn't flushed yet: a small tail, ignore it.
+
+- **Exact Claude Code totals after the session ends.** When the session process exits, Claude Code appends a cumulative `cost-state` record to the main transcript: `modelUsage.<model>` with `inputTokens`, `cacheReadInputTokens`, `cacheCreationInputTokens`, `outputTokens` (which already includes `thinkingTokens`) and `costUSD`, plus `totalCostUSD`, covering the main loop and its subagents. It is exact but absent while the chat is live, so use it to replace `(output est.)` lines afterward. Headless `claude -p --output-format json` returns the same `modelUsage` and `total_cost_usd`.
+- **Never price** the `Agent` tool result's `usage` or `totalTokens`, or a Workflow notification's `subagent_tokens`: each covers only an agent's final request.
+
+Real usage is exact. An `(output est.)` line is good to about ±20% on dollars: output is about 30% of an agent's cost, and real calls average about 600-1,200 output tokens.
+
+**2. Usage Gary pastes.** On Cursor, that is the dashboard's usage CSV export (the rows for the wave's model and time span) or the `result.usage` of `agent -p --output-format json`. In the CSV, `Input (w/o Cache Write)` is input and `Input (w/ Cache Write)` is cache write, next to `Cache Read` and `Output Tokens`; check that the four sum to `Total Tokens`. In `result.usage`, `inputTokens` is already uncached, next to `cacheReadTokens`, `cacheWriteTokens` and `outputTokens`; whether it covers `Task` subagents is unverified. Price with the formula above, not the CSV's `Cost` column. Pasted usage is exact.
+
+**3. Accumulation heuristic.** For Cursor, Muse Code and any other harness without readable usage. Count the wave's model calls `N` (about one per tool-call round, plus the final reply), the characters it read (prompts, file reads, tool outputs) and the characters it wrote (chat text, tool-call arguments, file writes):
+
+    T            = (chars_read + chars_written) / 2.5 + 500 × N    transcript tokens at the end
+    S            = 50_000                                          base context sent with every call
+    cache_write  = S + T
+    billed_input = N × S + N × T / 2
+    cache_read   = billed_input - cache_write
+    output       = 500 × N + chars_written / 2.5
+    input        = 0
+
+Every call re-sends the whole context, so billed input grows with calls × context, almost all of it cache reads. The 500 tokens per call cover hidden thinking and tool-call framing, and Claude's tokenizer averages about 2.4 characters per token. A single count of the characters seen misses all of that and understates dollars about 7×. Label the line `(heuristic)`.
+
+Fitted on Claude Code with Opus 5.5 at xhigh, the heuristic lands within ±25% of real dollars there (median real/predicted 0.94; 91% of agents within 1.25×). Its constants are uncalibrated on other harnesses and models: GPT and Gemini tokenizers run nearer 4 characters per token, and Cursor's base prompt size is unknown. Treat it as ±50% there.
 
 The Model price table covers every harness in the picker; use its row for
 the model the wave ran on. Every figure is API-equivalent at list rates ([Model price table](#model-price-table)), not the bill.
+
+### Token line format
+
+Every actual token figure a driver reports, logs or sums is a **token line**, one per model per row:
+
+    tokens <row> <group-id> (<model>): input ~X / cache read ~R / cache write ~W / output ~Y | ~$C API-equiv
+
+For example:
+
+    tokens wave-2 m2-s1-s3 (claude-sonnet-5-5): input ~1.2k / cache read ~2.1M / cache write ~48k / output ~22k | ~$0.76 API-equiv
+
+- `<row>` names what spent the tokens: `wave-N` for a wave's work (its chat, or a subagent), `review-wave-N` for a [review beat](#review-beat) or orchestrate's `[xdeep]` review subagent, and `orchestrator-kickoff` or `orchestrator-wave-N` for orchestrate's parent. A step-up retry keeps its wave's `wave-N`.
+- `<group-id>` is the wave's group identifier with hyphens (`m2-s1-s3`, orchestrate's `{task-id}`). An `orchestrator-kickoff` line uses the plan's base name.
+- `<model>` is the slug the tokens ran on. A wave that ran two models has two lines.
+- `input` is uncached input. A plain `cache write` count is 5-minute writes, or the provider's only kind. Mark 1-hour writes `1h`, and show both kinds when both occur: `cache write ~40k 5m + ~8k 1h`. [Source precedence](#token-accounting--source-precedence) says how to normalize each harness's counts to these four terms.
+- Round counts to two significant figures with `k` or `M`. The dollars are the [cache-aware formula](#model-price-table) over the four counts at the model's rates, so the line alone reproduces them. A model with no published rate shows `n/a API-equiv`.
+- **Billed tokens** are input + cache read + cache write + output. Every token total, the [Cost table](#cost-table)'s included, is billed tokens.
+- Append `(heuristic)` only when the line came from the accumulation heuristic, and `(output est.)` when only output was estimated (Claude Code subagents). A line with neither label is real usage.
+- A total sums its lines' counts. Its dollars are the sum of the lines' dollars, each at its own model's rates, never a blended rate applied to the summed tokens.
+
+**Token log.** Both drivers append every token line to a `## Token log` section at the bottom of the plan file (created when absent) as each row's work finishes, so the lines survive across chats. The [Cost table](#cost-table)'s actual columns are summed from it. A line from a better source (usage Gary pastes, or a `cost-state` record) replaces the line for the same row and model.
+
+### Expected cost
+
+The [Cost table](#cost-table) budgets each wave at kickoff from per-step anchors. The unit is one **medium plan step**: one FrontierCode v1.1 extended-set rollout, a maintainer-written issue turned into one mergeable patch with tests, median 308 lines over 6 files. Tokens are [billed tokens](#token-line-format). Dollars are API-equiv at the [Model price table](#model-price-table)'s rates. Rows marked "est." have no direct measurement and are rounded coarsely.
+
+| Model (effort) | Used at | ~Tokens / step | ~$ / step (API-equiv) | Basis |
+|---|---|---|---|---|
+| Opus 5.5 (max) + ultracode | Claude Code `[xdeep]` | ~170M | ~$80 | est.: the Opus xhigh workflows in Gary's standards repo (median $37 plus about $6 for the parent) scaled to max, ×1.9 for dollars and ×1.7 for tokens (CursorBench 4.0). Assumes one workflow per step |
+| Opus 5.5 (max) | Cursor `[xdeep]`; `[xdeep]` review beats | 8.6M | $5.3 | FrontierCode ($5.28, 144k output) |
+| Fable 5.1 (max) | `[xdeep]` alt (Claude Code, Cursor) | 15M | $11 | FrontierCode ($10.72, 78k output). Tokens range 6-15M depending on the cache split |
+| Opus 5.5 (high) | `[deep]` (Claude Code, Cursor); review beats; orchestrate parent | 1.7M | $0.90 | FrontierCode ($0.90, 21k output) |
+| Sonnet 5.5 (high) | Claude Code `[exec]`; Cursor `[exec]` alt | 1.0M | $0.35 | FrontierCode ($0.35, 11k output) |
+| Haiku 4.5 | Claude Code `[fast]` | ~2M | ~$0.3 | est.: Sonnet 5.5 high's token volume ×1.8, the Haiku 4.5 / Sonnet 4.5 input ratio on SWE-bench Verified |
+| Grok 4.7 (high), Cursor | Cursor `[exec]` | ~1.6M | ~$1.0 | est.: CursorBench 4.0 cost ratio of Grok to Sonnet/Opus high, applied to their FrontierCode steps |
+| Composer 2.5 (standard) | Cursor `[fast]` | ~3.8M | ~$0.85 | est.: FrontierCode's $2.57, read as Fast rates and re-priced at standard |
+| GPT-6 Astra (xhigh) | Codex `[xdeep]` | 1.4M | $2.9 | FrontierCode |
+| GPT-6.1 Sol (xhigh) | Codex `[deep]` | 1.6M | $0.49 | FrontierCode |
+| GPT-6.1 Sol (medium) | Codex `[exec]` | 1.1M | $0.31 | FrontierCode |
+| GPT-6 Luna (low) | Codex `[fast]` | 1.2M | $0.018 | FrontierCode |
+| Gemini 3.1 Pro (high) | Gemini CLI `[deep]` | ~5M | ~$2.2 | est.: FrontierCode v1 (older task set), run in Gemini CLI |
+| Gemini 3.8 Flash (high) | Gemini CLI `[exec]` | 13M | $2.3 | FrontierCode (Cognition's own harness). The dollars double from 2027-01-01 |
+| Gemini 3.5 Flash-Lite (low) | Gemini CLI `[fast]` | ~3M | ~$0.2 | est.: FrontierCode v1 Gemini 3.1 Flash-Lite low's token volume, re-priced at 3.5 Flash-Lite rates |
+| Muse Spark 1.3 (xhigh) | Muse Code `[deep]` | ~8M | ~$1.6 | est.: Artificial Analysis $3.47 divided by 2.1, the median AA/FrontierCode cost ratio |
+| Muse Spark 1.3 (medium) | Muse Code `[exec]` | ~5M | ~$1.1 | est.: the xhigh row ×0.68, GPT-6.1 Sol's medium/xhigh ratio on AA |
+| Muse Spark 1.3 (low) | Muse Code `[fast]` | ~4M | ~$0.8 | est.: the xhigh row ×0.48, Sol's low/xhigh ratio |
+| Grok 4.7 (xhigh) | Grok Build `[deep]` | 11M | $7.0 | FrontierCode (Grok Build) |
+| Grok 4.7 (high), Grok Build | Grok Build `[exec]` | 9.1M | $5.6 | FrontierCode (Grok Build) |
+| grok-build-0.1 | Grok Build `[fast]` | ~4M | ~$1 | est.: Grok 4.6 high's FrontierCode token volume in Grok Build, priced at grok-build-0.1 rates. Range $0.3-2.3 |
+
+**Size factors** multiply both tokens and dollars:
+
+| Size | Factor | Basis |
+|---|---|---|
+| small (about 100 lines over 4 files, fully specified) | 0.3× | Anthropic's SWE-bench Pro subset over FrontierCode for Opus 5.5: 0.30× at medium, 0.32× at high, 0.39× at xhigh. Its harness is leaner than Claude Code's, so treat 0.3× as a floor |
+| medium (about 300 lines over 6 files) | 1× | FrontierCode v1.1 extended |
+| large (long-horizon or ambiguous, several hundred lines or more) | 3× | CursorBench 4.0 over FrontierCode, same model and effort: median 2.96× over 15 Anthropic rows (range 0.6-4.8×). Anthropic's Terminal-Bench 4.0 over FrontierCode for Opus: median 3.95× |
+
+**Per wave.** Price each step at the row for the model that runs the wave's execution tier in the harness the estimate assumes ([Model picker](#model-picker)), so a folded `[fast]` step takes the `[exec]` row. Then add the wave's review:
+
+    wave tokens  = sum over its steps of (row tokens  × size factor) + review tokens
+    wave dollars = sum over its steps of (row dollars × size factor) + review dollars
+
+- **Review beat** (passive driver): 0.6× a medium step at the reviewer's model, in tokens and dollars (range 0.4-1.2×). After a `[deep]`, `[exec]` or `[fast]` wave that is Opus 5.5 (high): about 1.0M and $0.54. After an `[xdeep]` wave it is Opus 5.5 (max) without ultracode: about 5.2M and $3.2, or up to about $3.7, since read-only work at max runs closer to 0.7×. On another harness it is 0.6× that harness's `[deep]` row (GPT-6.1 Sol xhigh: about $0.29). A review's cost follows calls × context, not output, so the review of a small `[fast]` wave can cost more than the wave.
+- **`[xdeep]` review subagent** (orchestrate): the same 0.6× of the Opus 5.5 (max) row, about 5.2M and $3.2.
+
+**Orchestrator row** (orchestrate only). The parent runs Opus 5.5 (high) in Cursor and reviews inline:
+
+| Part | ~Tokens | ~$ |
+|---|---|---|
+| Kickoff: read the skill and plan, tag, write the wave markers, Kickoff and Cost table, seed todos, git checks | 1.5M | $1.0 |
+| Start-up of the orchestrating chat after the default new-chat handoff | 0.9M | $0.75 |
+| Each wave: summary review, Review log line, plan bookkeeping (average) | 1.3M | $1.1 |
+| Each gate that waits on a human past the 5-minute cache TTL | 0.45M | $0.8 |
+
+The per-wave share grows with the parent's context, by about 16k tokens a wave: about $0.95 for wave 1, plus about $0.11 for each later wave. A wave outlasts the cache TTL while the parent makes no calls, so each wave starts by re-writing the parent's whole context at the write rate. Count the canary gate, which always waits, and each gate 2, 3, 4 or 7 the plan crosses. These figures come from the accumulation heuristic with Claude Code's 50k base context; Cursor's base is unknown.
+
+**Example** (Claude Code, passive driver; the [Cost table](#cost-table) shows the result):
+
+- Wave 1 `[exec]`, 3 medium steps on Sonnet 5.5 (high): 3 × (1.0M, $0.35) = 3.0M and $1.05, plus its review, 0.6 × (1.7M, $0.90) = 1.0M and $0.54. About 4.0M and $1.6.
+- Wave 2 `[deep]`, 1 large step on Opus 5.5 (high): 3 × (1.7M, $0.90) = 5.1M and $2.70, plus its review. About 6.1M and $3.2.
+- Wave 3 `[fast]`, 4 small steps on Haiku 4.5: 4 × 0.3 × (2M, $0.30) = 2.4M and $0.36, plus its review. About 3.4M and $0.90.
+- Total: about 14M and $5.7. The reviews are 28% of it, and wave 3's review costs more than the wave.
+
+**Accuracy.** A single step's figure is good to about 2-3× either way, and so is a wave's; a plan total, where errors partly cancel, is good to about 2×. Token counts also depend on the assumed cache split, while the dollars don't, since the anchors are dollars. Harness matters: the Grok, Composer and Gemini rows move 3-16× across harnesses. In a Claude Code setup with a large base context (about 50k tokens of skills, MCP and tool listings), the Anthropic rows can run about 1.35× the anchor.
+
+*As of 2026-10-06. Sources: [FrontierCode v1.1](https://cognition.com/frontiercode) (Cognition; extended set, cost per rollout in each vendor's own harness at list prices; leaderboard of 2026-09-29; v1 for the Gemini 3.1 Pro and Flash-Lite rows), [CursorBench 4.0](https://cursor.com/evals) (2026-09-10), Anthropic's [SWE-bench Pro subset](https://platform.claude.com/docs/en/about-claude/models/optimizing-for-cost-and-intelligence) (runs of 2026-09-19 and 20) and [Terminal-Bench 4.0 results](https://www.anthropic.com/claude-opus-5-5) (2026-09-22), the [Artificial Analysis Coding Agent Index](https://artificialanalysis.ai/agents/coding-agents) v1.5 (2026-10-05), [swebench.com](https://www.swebench.com/) bash-only trajectories (2026-02), and 131 Claude Code agents on Opus 5.5 at xhigh in Gary's standards repo (2026-10) for the ultracode, review and orchestrator figures.*
+
+**Refresh** the anchors when completed plans' actuals keep landing outside 0.5×-2× of expected, and re-derive a row when the [Model picker](#model-picker) changes its model.
 
 ### Wave title format
 
@@ -417,7 +517,7 @@ Leave ultracode off for the review, in Claude Code too: a review is one read-onl
 
 ### Review log
 
-The **Review log** is a durable `## Review log` section at the bottom of the plan file (parallel to the `## Token log` the drivers maintain). It persists review verdicts across separate chats so a fresh session — or the final wave — can see the full review history. Both drivers write to it: the passive driver from each review beat, `personal-plan-orchestrate` from its parent after each wave.
+The **Review log** is a durable `## Review log` section at the bottom of the plan file (parallel to the [`## Token log`](#token-line-format) the drivers maintain). It persists review verdicts across separate chats so a fresh session — or the final wave — can see the full review history. Both drivers write to it: the passive driver from each review beat, `personal-plan-orchestrate` from its parent after each wave.
 
 One line per reviewed wave:
 
@@ -441,7 +541,8 @@ Placement and idempotence:
 
 - The skill writes the Kickoff block at the **top of the plan file**, above the first heading, inside a fenced code block so it pastes cleanly.
 - The block is idempotent: if a Kickoff block already exists at the top of the file (matching the marker line `--- KICKOFF: ... ---`), the skill **replaces** it with the appropriate variant rather than appending. A plan never carries more than one Kickoff block.
-- Skills must not modify any other content in the plan when writing the Kickoff. Tagging rules, STOP markers, and existing prose all stay where they are.
+- The [Cost table](#cost-table) goes directly below the Kickoff block. Replacing the Kickoff keeps it, under the Cost table's own idempotence rule.
+- Skills must not modify any other content in the plan when writing the Kickoff, apart from that Cost table. Tagging rules, STOP markers, and existing prose all stay where they are.
 
 Ask-user rule (after writing the Kickoff):
 
@@ -541,6 +642,40 @@ Rules for filling in the template:
 - For the passive variants, include the `Suggested chat title:` line in the [Wave title format](#wave-title-format) for the first wave (`Wave 1 of N [<tier>] <first group>`). It is advisory — a foreground chat cannot set its own title, so emit it for the user to paste even though the harness may ignore it. The active orchestrate variant has no such line: its per-wave titles are the `Task` subagent descriptions.
 - For the passive variants, always keep the **progress-update reminder** spelled out inline in the prompt body (append ` (done)` to finished headings, update the Status line, flip the matching todos). A fresh chat that pastes this prompt usually does **not** re-load the driver skill, so this line is the only way the [Progress tracking](#progress-tracking) convention reaches the worker — it is the single most common reason a wave finishes without being marked done, so never drop it. (The active orchestrate variant re-loads the skill, so its parent applies the updates per the skill procedure instead; see [Who updates progress, and how](#who-updates-progress-and-how).)
 
+### Cost table
+
+The **Cost table** budgets the plan per wave at kickoff and records what each wave actually cost at completion. The driver writes it directly below the Kickoff fenced block, as a real markdown table outside any fence so it renders, and prints it in chat with the Kickoff. A bold label line introduces it and names the harness the estimate assumed. The label is not a heading, so the tagger never treats it as a step.
+
+At kickoff, for the [Expected cost](#expected-cost) example:
+
+    **Cost (API-equiv, Claude Code models)**
+
+    | wave | expected tokens | expected $ |
+    |---|---|---|
+    | 1 [exec] m1 s1-s3 | ~4.0M | ~$1.6 |
+    | 2 [deep] m2 s1 | ~6.1M | ~$3.2 |
+    | 3 [fast] m3 s1-s4 | ~3.4M | ~$0.90 |
+    | **Total** | ~14M | ~$5.7 |
+
+    Expected values are estimates, good to about 2-3× per wave.
+
+- **Rows.** One per wave, in the order the waves run, labeled `<n> [<execution tier>] <group-id>` with the group identifier of its [wave title](#wave-title-format). A wave's row includes its review: the passive driver's review beat, or orchestrate's `[xdeep]` review subagent. Orchestrate adds an `orchestrator` row above the total for its parent: the kickoff, plus each wave's review and bookkeeping. The **Total** row comes last.
+- **Expected values** come from [Expected cost](#expected-cost) for the harness the label names: the harness the kickoff runs in, unless Gary names another. Show them with `~`, and keep the one line under the table that says how far to trust them.
+- **Waves added later.** A wave added after kickoff (a fix-up wave after `CONCERNS`, or a re-plan) gets its own row with expected `—`. A fix-up wave for wave N is `N-fix` (row `1-fix [exec] m1 s2`, token lines `wave-1-fix`). A re-plan's new waves take the next unused numbers, and a wave it drops keeps its row. The expected total sums only the planned rows and the actual total sums every row, so the gap between them shows the cost of unplanned work. A step-up retry is not a new wave: it counts in its wave's actual.
+- **Idempotence.** A plan carries one Cost table. Replacing the Kickoff keeps the table and its expected values, unless re-grouping changed the waves: then recompute the expected columns and say so in chat.
+- **Re-entry.** A driver re-entering a plan keeps the table as it stands and adds rows for waves added since. If the table is missing, it writes one with expected values for every planned wave.
+- **Completion.** At [Final completion](#final-completion-all-groups-done), add `actual tokens` and `actual $` columns. Each row's actuals are the sum of its [Token log](#token-line-format) lines across models: billed tokens, and dollars. A wave row sums its `wave-N` and `review-wave-N` lines, and the `orchestrator` row sums the `orchestrator-*` lines. A wave that never ran shows actual `—`. Mark an actual `(heuristic)` when any line it sums carries that label. The completed table is the plan's cost breakdown; the Token log keeps the per-model detail.
+
+Completed, with a fix-up wave after wave 1's review:
+
+    | wave | expected tokens | expected $ | actual tokens | actual $ |
+    |---|---|---|---|---|
+    | 1 [exec] m1 s1-s3 | ~4.0M | ~$1.6 | … | … |
+    | 1-fix [exec] m1 s2 | — | — | … | … |
+    | 2 [deep] m2 s1 | ~6.1M | ~$3.2 | … | … |
+    | 3 [fast] m3 s1-s4 | ~3.4M | ~$0.90 | … | … |
+    | **Total** | ~14M | ~$5.7 | … | … |
+
 ## Who updates progress, and how
 
 The two tracking surfaces — the in-harness todo list and the durable plan markdown file (both defined under [Progress tracking](#progress-tracking) below) — are kept in sync differently by each driver, because only one flow has a coordinator:
@@ -596,7 +731,9 @@ When the last group finishes:
 
        Status: N/N groups done | completed YYYY-MM-DD
 
-4. Append a **Completion summary** at the bottom of the plan file (below all existing content):
+4. Add the actual columns to the [Cost table](#cost-table) from the `## Token log`, and print the completed table in chat with the Completion summary.
+
+5. Append a **Completion summary** at the bottom of the plan file (below all existing content):
 
        ## Completion summary
 
