@@ -140,6 +140,8 @@ func (h contextHandler) Handle(ctx context.Context, r slog.Record) error {
 }
 
 // WithAttrs and WithGroup keep the wrapper, so slog.With loggers add the ids too.
+// Under WithGroup the ids land inside the group ("db":{"request_id":…}), so
+// don't open groups on request-path loggers you query by top-level request_id.
 func (h contextHandler) WithAttrs(attrs []slog.Attr) slog.Handler {
     return contextHandler{h.Handler.WithAttrs(attrs)}
 }

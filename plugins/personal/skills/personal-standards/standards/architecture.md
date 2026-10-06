@@ -240,7 +240,7 @@ message Book {
 
 ## Protobuf
 
-Protobuf is a supported second payload format. A resource's JSON and protobuf forms interoperate through [ProtoJSON], protobuf's own JSON mapping, and the JSON rules above match its casing, enum and int64 rules. They differ on empty values: by default ProtoJSON leaves out a field that isn't set and an empty list or map, where a hand-written Go or Pydantic server sends `[]`, `{}` or the zero value. Each representation gets its own ETag ([Resource History](#resource-history)).
+Protobuf is a supported second payload format. A resource's JSON and protobuf forms interoperate through [ProtoJSON], protobuf's own JSON mapping, and the JSON rules above match its casing, enum and int64 rules. They differ on empty values: by default ProtoJSON leaves out a field that isn't set and an empty list or map, where a hand-written server sends whatever its encoder emits: `[]`, `{}` or the zero value, unless a field is tagged to omit it (Go `omitempty` / `omitzero`). Each representation gets its own ETag ([Resource History](#resource-history)).
 
 - **Field names** — `.proto` fields are `lower_snake_case` (edition 2024 makes anything else an error), and ProtoJSON maps them to lowerCamel, the house wire casing. Never set `json_name` or a keep-proto-names option (Go `UseProtoNames`, Python `preserving_proto_field_name`)
 - **Enums** — ProtoJSON writes the value name verbatim, so a nested unprefixed enum gives `"state": "ACTIVE"` ([Resource State](#resource-state)). An encoder on an older schema writes a value it doesn't know as an integer, so the service that renders JSON always runs the newest schema

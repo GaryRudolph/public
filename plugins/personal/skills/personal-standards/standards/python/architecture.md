@@ -442,7 +442,11 @@ def _locate(loc: Sequence[str | int]) -> dict[str, str]:
 
 
 def _unparsable(error: Mapping[str, Any]) -> bool:
-    """Malformed JSON, or no body at all: a 400, as in Go."""
+    """Malformed JSON, no body, or a literal null body: a 400.
+
+    Go matches on the first two; it decodes null into a zero struct and
+    validates it (422). null is never a valid resource, so 400 here is fine.
+    """
     return error["type"] == "json_invalid" or (
         error["type"] == "missing" and tuple(error["loc"]) == ("body",)
     )

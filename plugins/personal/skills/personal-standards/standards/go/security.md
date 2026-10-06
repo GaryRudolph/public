@@ -397,6 +397,8 @@ func rateLimit(n int, window time.Duration) func(http.Handler) http.Handler {
     )
 }
 
+// With the other r.Use calls, before any route or Mount: chi panics on a
+// middleware added after a route.
 r.Use(middleware.ClientIPFromXFF(trustedProxies...)) // the proxies' CIDRs
 r.Use(rateLimit(100, time.Minute))                   // general API
 r.With(rateLimit(5, 15*time.Minute)).Post("/auth/login", loginHandler)

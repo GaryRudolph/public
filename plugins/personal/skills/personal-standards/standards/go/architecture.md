@@ -149,7 +149,7 @@ func (pw *problemWriter) Write(b []byte) (int, error) {
 func (pw *problemWriter) Unwrap() http.ResponseWriter { return pw.ResponseWriter }
 ```
 
-A handler's own problem passes through untouched, since `writeProblem` sets `application/problem+json` before the status, and so does an error body another spec defines, such as an OAuth token endpoint's `application/json` error ([RFC 6749 §5.2](https://www.rfc-editor.org/rfc/rfc6749#section-5.2)). `requestID` is in [security.md](security.md#request-id), and `writeProblem` in its [Error Boundaries](security.md#error-boundaries).
+The replaced text is dropped from the log too: router and handler text can quote user input ([logging](security.md#logging)), so a handler logs its own error, with the request id, before it writes a 5xx. A handler's own problem passes through untouched, since `writeProblem` sets `application/problem+json` before the status, and so does an error body another spec defines, such as an OAuth token endpoint's `application/json` error ([RFC 6749 §5.2](https://www.rfc-editor.org/rfc/rfc6749#section-5.2)). `requestID` is in [security.md](security.md#request-id), and `writeProblem` in its [Error Boundaries](security.md#error-boundaries).
 
 ### Custom Methods
 
