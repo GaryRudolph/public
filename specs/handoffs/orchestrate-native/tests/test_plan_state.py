@@ -18,8 +18,8 @@ KICK = """```
 """
 
 
-GATED = "  mode: gated | proposed gated (no runner signal) | guard 2x | confirmed 2026-10-06 session s1: gated"
-UNATTENDED = "  mode: unattended | proposed unattended (CLAUDE_CODE_REMOTE=true) | guard 2x | confirmed 2026-10-06 session s1: yes"
+GATED = "  mode: gated | proposed gated (harness=claude-code runner=none) | guard 2x | confirmed 2026-10-06 session s1: gated"
+UNATTENDED = "  mode: unattended | proposed unattended (harness=claude-code runner=cloud) | guard 2x | confirmed 2026-10-06 session s1: yes"
 COST = """
 **Cost (API-equiv, Claude Code models)**
 
@@ -176,7 +176,7 @@ def misnumbered_wave_markers_are_gate_0():
 @test
 def a_plan_with_no_confirmed_mode_dispatches_nothing():
     assert state(plan(marked(0), mode=""))["stops"] == ["gate-mode"]
-    pending = "  mode: pending | proposed unattended (CLAUDE_CODE_REMOTE=true) | guard 2x"
+    pending = "  mode: pending | proposed unattended (harness=claude-code runner=cloud) | guard 2x"
     s = state(plan(marked(0), mode=pending))
     assert s["mode"]["value"] == "pending" and s["mode"]["proposed"] == "unattended" and s["stops"] == ["gate-mode"]
     assert state(plan(marked(8), mode=""))["gates"] == []  # nothing left to dispatch
@@ -184,8 +184,9 @@ def a_plan_with_no_confirmed_mode_dispatches_nothing():
 
 @test
 def the_mode_line_keeps_the_words_verbatim():
-    m = state(plan(marked(0), mode="  mode: unattended | proposed gated (no runner signal) | guard 3x | confirmed 2026-10-06 session ab-12: unattended | no stops, thanks"))["mode"]
-    assert m == {"value": "unattended", "proposed": "gated", "signal": "no runner signal", "guard": 3.0, "guard_min": 50.0, "fixups": 2,
+    m = state(plan(marked(0), mode="  mode: unattended | proposed gated (harness=claude-code runner=none; CLAUDE_CODE_REMOTE unset) | guard 3x | confirmed 2026-10-06 session ab-12: unattended | no stops, thanks"))["mode"]
+    assert m == {"value": "unattended", "proposed": "gated", "signal": "harness=claude-code runner=none; CLAUDE_CODE_REMOTE unset",
+                 "harness": "claude-code", "runner": "none", "guard": 3.0, "guard_min": 50.0, "fixups": 2,
                  "date": "2026-10-06", "session": "ab-12", "via": "answer", "words": "unattended | no stops, thanks"}
     m = state(plan(marked(0), mode="  mode: gated | guard 2x | fixups 3 | confirmed 2026-10-06 session s1: gated, guard 9x, fixups 9"))["mode"]
     assert (m["guard"], m["fixups"]) == (2.0, 3)  # fields come only from before "confirmed"
@@ -420,14 +421,14 @@ def fix_up_labels_outside_the_grammar_are_gate_0():
 
 def prompted(mode_line, prompt_mode):
     """A Kickoff block with its prompt; prompt_mode None leaves the prompt's mode line out, as before the kickoff answer."""
-    lines = ["Read specs/handoffs/plan-x.md. The plan is already tagged.",
+    lines = ["In example/repo, read specs/handoffs/plan-x.md. The plan is already tagged.",
              "On branch feature/x (task branch): subagents commit each finished step."]
     lines += [f"Run in {prompt_mode} mode."] if prompt_mode else []
     lines += ["Run the personal-plan-orchestrate skill from the top."]
     return mode_line + "\n\n  Prompt to paste into the next chat:\n" + "".join(f"    {x}\n" for x in lines) + "\n---"
 
 
-BY_PROMPT = "  mode: unattended | proposed unattended (CLAUDE_CODE_REMOTE=true) | guard 2x | confirmed 2026-10-07 session b2 by Kickoff prompt: Run in unattended mode."
+BY_PROMPT = "  mode: unattended | proposed unattended (harness=claude-code runner=cloud) | guard 2x | confirmed 2026-10-07 session b2 by Kickoff prompt: Run in unattended mode."
 
 
 @test
@@ -438,7 +439,7 @@ def the_kickoff_prompt_carries_the_confirmed_mode():
     s = state(text)
     assert s["errors"] == [] and (s["mode"]["via"], s["mode"]["session"], s["mode"]["words"]) == ("prompt", "b2", "Run in unattended mode.")
     assert kickoff_prompt(text).splitlines()[2] == "Run in unattended mode." and len(kickoff_prompt(text).splitlines()) == 4
-    pending = "  mode: pending | proposed unattended (CLAUDE_CODE_REMOTE=true) | guard 2x"
+    pending = "  mode: pending | proposed unattended (harness=claude-code runner=cloud) | guard 2x"
     s = state(plan(marked(0), mode=prompted(pending, None)))
     assert s["errors"] == [] and s["prompt_mode"] is None and s["stops"] == ["gate-mode"]
     assert state(plan(marked(0)))["prompt_mode"] is None and kickoff_prompt(plan(marked(0))) is None
@@ -448,11 +449,34 @@ def the_kickoff_prompt_carries_the_confirmed_mode():
 def a_kickoff_prompt_that_disagrees_with_the_mode_line_is_gate_0():
     for mode_line, prompt_mode, why in ((UNATTENDED, "gated", "names gated mode, but the confirmed mode is unattended"),
                                         (GATED, None, "has no mode line, but the confirmed mode is gated"),
-                                        ("  mode: pending | proposed gated (no runner signal)", "gated", "no mode is confirmed yet")):
+                                        ("  mode: pending | proposed gated (harness=claude-code runner=none)", "gated", "no mode is confirmed yet")):
         s = state(plan(marked(0), mode=prompted(mode_line, prompt_mode)))
         assert s["stops"][0] == "gate-0" and any(why in e for e in s["errors"]), s["errors"]
     s = state(plan(marked(0), mode=prompted(GATED, "gated").replace("Run in gated mode.", "Run in gated mode, please.")))
     assert s["prompt_mode"] is None and s["stops"][0] == "gate-0"  # only the exact line counts
+
+
+@test
+def an_unattended_record_needs_a_signal_in_the_token_grammar():
+    for signal in ("CLAUDE_CODE_REMOTE=true", "CLAUDE_CODE_REMOTE is true", "cloud session", "harness=claude-code runner=moon"):
+        s = state(plan(marked(0), mode=UNATTENDED.replace("harness=claude-code runner=cloud", signal)))
+        assert s["stops"][0] == "gate-0" and any("harness=<h> runner=" in e for e in s["errors"]), (signal, s["errors"])
+    s = state(plan(marked(0), mode=GATED.replace("harness=claude-code runner=none", "no runner signal")))
+    assert s["errors"] == [] and s["mode"]["runner"] is None  # gated relaxes nothing; the parent re-asks on a mismatch
+    s = state(plan(marked(0), mode=UNATTENDED.replace("harness=claude-code", "harness=codex")))
+    assert s["errors"] == [] and (s["mode"]["harness"], s["mode"]["runner"]) == ("codex", "cloud")
+
+
+@test
+def a_kickoff_prompt_must_name_the_plans_repo_and_path():
+    s = state(plan(marked(0), mode=prompted(UNATTENDED, "unattended")))
+    assert s["prompt_plan"] == {"repo": "example/repo", "path": "specs/handoffs/plan-x.md"}, s["prompt_plan"]
+    bare = prompted(UNATTENDED, "unattended").replace("In example/repo, read", "Read")
+    s = state(plan(marked(0), mode=bare))
+    assert s["stops"][0] == "gate-0" and any("names no repo and plan" in e for e in s["errors"]), s["errors"]
+    loose = prompted(GATED, "gated").replace("In example/repo, read specs/handoffs/plan-x.md", "Read /Users/gary/work/.scratch/plan-x.md")
+    s = state(plan(marked(0), mode=loose))  # decision 11: a plan in no git repo keeps its absolute path
+    assert s["errors"] == [] and s["prompt_plan"] == {"repo": None, "path": "/Users/gary/work/.scratch/plan-x.md"}, s["errors"]
 
 
 failed = 0

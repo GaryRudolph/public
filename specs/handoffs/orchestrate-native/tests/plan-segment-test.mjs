@@ -39,8 +39,8 @@ async function harness(args, behave = {}) {
 }
 
 const unit = (wave, tier, steps, extra = {}) => ({ kind: 'wave', wave, tier, milestone: 'm1', steps, groups: [], start: true, ...extra })
-const GATED = { value: 'gated', proposed: 'gated', signal: 'no runner signal', guard: 2, fixups: 2, date: '2026-10-06', session: 's1', words: 'gated' }
-const UNATT = { value: 'unattended', proposed: 'unattended', signal: 'CLAUDE_CODE_REMOTE=true', guard: 2, fixups: 2, date: '2026-10-06', session: 's1', words: 'unattended' }
+const GATED = { value: 'gated', proposed: 'gated', signal: 'harness=claude-code runner=none', harness: 'claude-code', runner: 'none', guard: 2, fixups: 2, date: '2026-10-06', session: 's1', words: 'gated' }
+const UNATT = { value: 'unattended', proposed: 'unattended', signal: 'harness=claude-code runner=cloud', harness: 'claude-code', runner: 'cloud', guard: 2, fixups: 2, date: '2026-10-06', session: 's1', words: 'unattended' }
 const st = (next, gates = [], extra = {}) => ({ version: 3, t: 4, done: 0, total: 9, status: null, mode: GATED, blocked: null, concerns: [], prev: null, next, gates, stops: gates, checkpoints: [], cost: null, milestones: true, errors: [], ...extra })
 const un = (next, stops = [], checkpoints = [], extra = {}) => st(next, [...stops, ...checkpoints], { mode: UNATT, stops, checkpoints, ...extra })
 const G = (dir, steps, extra = {}) => ({ workdir: dir, steps, spec: 'spec', acceptance: 'ac', standards: [], branch: 'feature/x', from: 'aaa0000', ...extra })

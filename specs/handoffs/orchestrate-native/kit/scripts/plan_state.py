@@ -26,7 +26,14 @@ answer to that gate 1 verbatim (the hook checks the words).
 The Kickoff prompt carries the confirmed mode on a line of its own, "Run in
 unattended mode." or "Run in gated mode.", so pasting it confirms the mode in
 a new session ("by Kickoff prompt" on the mode line). A prompt whose mode line
-doesn't match the confirmed mode is gate 0.
+doesn't match the confirmed mode is gate 0, and so is one with no line that
+names the plan's repo and path ("In <owner>/<repo>, read specs/handoffs/...",
+or "Read /<absolute path>." for a plan in no git repo).
+
+The proposal's signal is fixed tokens, "harness=<h> runner=<r>", optionally
+followed by "; <note>", so a new session can compare its own environment with
+the one the mode was proposed for. An unattended record whose signal doesn't
+parse is gate 0.
 
 Usage: plan_state.py <plan.md>     prints one JSON object
 """
@@ -51,7 +58,7 @@ REVIEW_RE = re.compile(
     r"^\s*(?:[-*]\s+)?`?review wave-(\d+)(?:" + FIX + r")? \((.+?)\) (\S+)\.\.(\S+): (PASS|CONCERNS|WAIVED) - (.*) - (\d{4}-\d\d-\d\d)`?\s*$")
 REVIEW_START_RE = re.compile(r"^\s*(?:[-*]\s+)?`?review wave-")
 # Kickoff mode line. Gary's words come last, verbatim, so they may hold any character:
-#   mode: unattended | proposed unattended (CLAUDE_CODE_REMOTE=true) | guard 3x min $50 | fixups 2 | confirmed 2026-10-06 session <id>: <words>
+#   mode: unattended | proposed unattended (harness=claude-code runner=cloud) | guard 3x min $50 | fixups 2 | confirmed 2026-10-06 session <id>: <words>
 # A new session that Gary started by pasting the Kickoff prompt records the prompt's mode line as the words:
 #   ... | confirmed 2026-10-07 session <id> by Kickoff prompt: Run in unattended mode.
 MODE_RE = re.compile(r"^mode:\s*(gated|unattended|pending)\b(.*)$")
@@ -59,6 +66,10 @@ CONFIRMED_RE = re.compile(r"\|\s*confirmed (\d{4}-\d\d-\d\d) session (\S+?)( by 
 PROMPT_START = "Prompt to paste into the next chat:"
 PROMPT_MODE_RE = re.compile(r"^Run in (gated|unattended) mode\.$")
 PROPOSED_RE = re.compile(r"\|\s*proposed (gated|unattended)(?: \(([^)]*)\))?")
+# The proposal's signal: which harness proposed the mode, and which runner it ran on (none: a workstation).
+SIGNAL_RE = re.compile(r"^harness=(claude-code|codex|cursor|grok|gemini|muse) runner=(cloud|self-hosted|ci|none)(?:;.*)?$")
+# The Kickoff prompt's plan line names the repo that holds the plan and the plan's path in it.
+PROMPT_PLAN_RE = re.compile(r"^(?:In (\S+), read (specs/handoffs/plan-[\w.-]+\.md)|Read (/\S+\.md))\.(?:\s|$)")
 GUARD_RE = re.compile(r"\|\s*guard (\d+(?:\.\d+)?)x(?: min \$(\d+(?:\.\d+)?))?(?=\s|\||$)")
 FIXUPS_RE = re.compile(r"\|\s*fixups (\d+)\b")
 COST_ROW_RE = re.compile(r"^\|\s*(\d+(?:" + FIX + r")?) \[(?:xdeep|deep|exec|fast)\][^|]*\|[^|]*\|\s*(~?\$([\d.]+)|\u2014|-)\s*\|")
@@ -87,7 +98,9 @@ def mode_of(line):
     rest, c = m.group(2), CONFIRMED_RE.search(m.group(2))
     head = rest[:c.start()] if c else rest  # the words after "confirmed" are Gary's, never fields
     p, g, f = PROPOSED_RE.search(head), GUARD_RE.search(head), FIXUPS_RE.search(head)
+    sig = SIGNAL_RE.match((p and p.group(2) or "").strip())
     return {"value": m.group(1) if c else "pending", "proposed": p and p.group(1), "signal": p and p.group(2),
+            "harness": sig and sig.group(1), "runner": sig and sig.group(2),
             "guard": float(g.group(1)) if g else DEFAULT_GUARD,
             "guard_min": float(g.group(2)) if g and g.group(2) else DEFAULT_GUARD_MIN, "fixups": int(f.group(1)) if f else DEFAULT_FIXUPS,
             "date": c and c.group(1), "session": c and c.group(2), "via": c and ("prompt" if c.group(3) else "answer"),
@@ -218,7 +231,7 @@ def state(text):
     out = {"version": 3, "t": len(ns), "done": sum(s["done"] for s in steps), "total": len(steps),
            "status": status, "mode": mode, "blocked": None, "concerns": [], "prev": None, "next": None, "gates": [],
            "stops": [], "checkpoints": [], "waivers": [], "cost": None, "milestones": any(s["milestone"] for s in steps),
-           "prompt_mode": None, "errors": errors}
+           "prompt_mode": None, "prompt_plan": None, "errors": errors}
     if prompt is not None:  # the prompt carries the confirmed mode, and nothing before it is confirmed
         out["prompt_mode"] = next((m.group(1) for m in map(PROMPT_MODE_RE.match, prompt) if m), None)
         confirmed = mode["value"] if mode and mode["value"] != "pending" else None
@@ -226,6 +239,15 @@ def state(text):
             has = f"names {out['prompt_mode']} mode" if out["prompt_mode"] else "has no mode line"
             errors.append(f"the Kickoff prompt {has}, but " + (f"the confirmed mode is {confirmed}: write \"Run in {confirmed} mode.\""
                           if confirmed else "no mode is confirmed yet: the mode line comes with the kickoff answer"))
+        at = next((m for m in map(PROMPT_PLAN_RE.match, prompt) if m), None)
+        if at:
+            out["prompt_plan"] = {"repo": at.group(1), "path": at.group(2) or at.group(3)}
+        else:
+            errors.append("the Kickoff prompt names no repo and plan: start it \"In <owner>/<repo>, read specs/handoffs/plan-<topic>-<word>.md.\" "
+                          "(\"Read /<absolute path>.\" for a plan in no git repo)")
+    if mode and mode["value"] == "unattended" and not mode["runner"]:
+        errors.append(f"the mode line's proposed ({mode['signal']}) signal must read harness=<h> runner=<cloud|self-hosted|ci|none>, "
+                      "so a new session can tell whether its environment matches")
     m = BLOCKED_RE.search(status or "")
     if m:
         out["blocked"] = "gate-" + m.group(1)
