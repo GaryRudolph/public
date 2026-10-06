@@ -101,7 +101,7 @@ which form.
 ## Contract versions (Regime 1)
 
 A breaking change to an API path, RPC schema, or file format gets the next
-integer (`/api/v2`, `acme v3`). Non-breaking changes don't bump it. Keep the
+integer (`/api/v2`, `example v3`). Non-breaking changes don't bump it. Keep the
 old version serving until consumers move. Hotfixes to a contract (`v2.1`)
 are for security or data-loss fixes only. The artifact that implements the
 contract is still released under SemVer as usual.

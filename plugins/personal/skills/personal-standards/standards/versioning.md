@@ -1,6 +1,6 @@
 # Versioning Standards
 
-Pick the regime by **what you're versioning**, not by personal preference. The two regimes regularly coexist in a single project: a backend service might be at SemVer `2.4.1` (the deployable artifact, Regime 2) while exposing `/api/v1/users` (the public HTTP contract, Regime 1) and writing `.acme v3` files (the file format, Regime 1). Bump them independently — the artifact bumps every release; the contract only bumps when it breaks.
+Pick the regime by **what you're versioning**, not by personal preference. The two regimes regularly coexist in a single project: a backend service might be at SemVer `2.4.1` (the deployable artifact, Regime 2) while exposing `/api/v1/users` (the public HTTP contract, Regime 1) and writing `example v3` files (the file format, Regime 1). Bump them independently — the artifact bumps every release; the contract only bumps when it breaks.
 
 | Regime | Use for | Format |
 |---|---|---|
@@ -25,9 +25,9 @@ For things consumers code against — URL paths, RPC schemas, wire formats, file
 - **Standard releases**: `v1`, `v2`, `v3`, `v4`, …
 - **Hotfixes** (rare): `v2.1`, `v2.2` — next planned contract is still `v3`.
 
-The contract version lives wherever the contract is exposed — typically a URL segment (`/api/v3/...`), a header field (`Acme-Version: 3`, a [`{Product}-` header](architecture.md#custom-headers), never `X-`), or a literal in the file/message itself (`acme v3` declared inside an `.acme` file). It is **not** a git tag in its own right; the service binary that implements it is tagged via Regime 2.
+The contract version lives wherever the contract is exposed — typically a URL segment (`/api/v3/...`), a header field (`Example-Version: 3`, a [`{Product}-` header](architecture.md#custom-headers), never `X-`), or a literal in the file or message itself (an `example v3` line at the top). It is **not** a git tag in its own right; the service binary that implements it is tagged via Regime 2.
 
-Examples: `/api/v1/users`, the `acme v1` declaration inside an `.acme` file, a gRPC package version (`acme.users.v2`), a JSON Schema `$id` segment.
+Examples: `/api/v1/users`, an `example v1` line at the top of a file, a gRPC package version (`example.users.v2`), a JSON Schema `$id` segment.
 
 ## Regime 2: SemVer 2.0
 
@@ -292,7 +292,7 @@ Notes:
 
 - Web apps with `"private": true` aren't published to npm, so it's harmless to leave `+sha` in `package.json#version` — but `version.txt` remains the source of truth, with `package.json#version` derived during CI.
 - Crash reporters take `release` and `dist` as separate fields. Don't mash them together: `release="app@2.4.1"` (clean), `dist="1470"` (the build code).
-- The build header is `{Product}-Build` (`Acme-Build`), never `X-Version` ([Custom Headers](architecture.md#custom-headers)). A cross-origin browser client reads it only if `Access-Control-Expose-Headers` lists it.
+- The build header is `{Product}-Build` (`Example-Build`), never `X-Version` ([Custom Headers](architecture.md#custom-headers)). A cross-origin browser client reads it only if `Access-Control-Expose-Headers` lists it.
 
 ### Backend service
 
@@ -317,7 +317,7 @@ An HTTP service reports its own build on its health endpoint ([architecture.md](
 HTTP/1.1 200 OK
 Content-Type: application/json
 Cache-Control: no-store
-Acme-Request-Id: 7c1e3a0b-5f2d-4c8e-9a6b-2d4f8e1c3b5a
+Example-Request-Id: 7c1e3a0b-5f2d-4c8e-9a6b-2d4f8e1c3b5a
 
 { "build": "2.4.1+def5678", "buildCode": 1470 }
 ```

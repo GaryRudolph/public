@@ -18,7 +18,7 @@ Include from the workspace root Makefile with `include repos.mk`.
 | `REPOS_FOLLOW_ONLY` | Generated mirrors; skip push; tag in roster |
 | `REPOS_GH` | Repos with Actions workflows; typically `$(filter-out $(REPOS_FOLLOW_ONLY),$(REPOS))` |
 
-Variable names use dots and hyphens in the suffix (`REPO_URL.acme-api`) — GNU Make
+Variable names use dots and hyphens in the suffix (`REPO_URL.example-api`) — GNU Make
 permits this.
 
 Internal helper at parse time:
@@ -77,7 +77,7 @@ aligning; only add stubs when a core verb is missing.
 Every stack's `lint` fails on drift in anything its `format` rewrites (see
 `makefile.md`). Flag a row whose `lint` can pass on unformatted code.
 
-### Go (acme-api, triage)
+### Go (example-api, triage)
 
 | Target | Typical recipe |
 |--------|----------------|
@@ -97,7 +97,7 @@ Every stack's `lint` fails on drift in anything its `format` rewrites (see
 - `govulncheck` runs as its own blocking PR check and on a schedule
   (`go/security.md`); the standard doesn't fix which target runs it.
 
-### pnpm / Node (acme, acme-app, acme-site)
+### pnpm / Node (example, example-app, example-site)
 
 | Target | Typical recipe |
 |--------|----------------|
@@ -112,7 +112,7 @@ Every stack's `lint` fails on drift in anything its `format` rewrites (see
 Doesn't meet the drift rule: `biome lint` and eslint skip formatting.
 `biome check` (no `--write`) or `prettier --check` in `lint` does.
 
-### Terraform (acme-infra)
+### Terraform (example-infra)
 
 | Target | Typical recipe |
 |--------|----------------|
@@ -232,8 +232,8 @@ Templates use `{{PLACEHOLDER}}` markers. Replace:
 
 | Placeholder | Example |
 |-------------|---------|
-| `{{ESTATE_NAME}}` | `acme` |
-| `{{ESTATE_TITLE}}` | `acme-workspace` |
+| `{{ESTATE_NAME}}` | `example` |
+| `{{ESTATE_TITLE}}` | `example-workspace` |
 | `{{REPOS}}` | space-separated dir list |
 | `{{INIT_SKIP_NOTES}}` | comments for repos skipped in workspace init |
 | `{{STACK_INIT_RECIPE}}` | leaf `init` recipe body |

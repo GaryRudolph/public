@@ -74,7 +74,7 @@ Build on the published HTTP and JSON standards; house conventions only fill the 
 | Partial updates | `PATCH` with `application/merge-patch+json` | [RFC 7396] |
 | Field locations | JSON Pointer (`#/items/0/quantity`) | [RFC 6901] |
 | Retiring a contract version | `Deprecation` and `Sunset` headers on every response from the old version | [RFC 9745], [RFC 8594] |
-| Custom headers | A standard header if one fits; otherwise `{Product}-Name` (`Acme-Request-Id`), never `X-` — see [Custom Headers](#custom-headers) | [RFC 9110] §16.3.2.1, [RFC 6648] §3 |
+| Custom headers | A standard header if one fits; otherwise `{Product}-Name` (`Example-Request-Id`), never `X-` — see [Custom Headers](#custom-headers) | [RFC 9110] §16.3.2.1, [RFC 6648] §3 |
 | Contract description | OpenAPI document for every public API; output-only fields (`id`, `state`, `createdAt`) are `readOnly` | [OpenAPI] 3.1 or later |
 | Second payload format | Protobuf, interoperating with JSON through ProtoJSON — see [Protobuf](#protobuf) | [ProtoJSON] |
 
@@ -130,7 +130,7 @@ A single problem, with an extension member:
 ```http
 HTTP/1.1 409 Conflict
 Content-Type: application/problem+json
-Acme-Request-Id: 180de92f-24c9-4f35-8c8f-372da5353e24
+Example-Request-Id: 180de92f-24c9-4f35-8c8f-372da5353e24
 
 {
   "type": "https://api.example.com/problems/order-not-cancellable",
@@ -147,7 +147,7 @@ Several validation errors in one response:
 ```http
 HTTP/1.1 422 Unprocessable Content
 Content-Type: application/problem+json
-Acme-Request-Id: df6c8512-3986-4bab-a568-91e65e6c62a4
+Example-Request-Id: df6c8512-3986-4bab-a568-91e65e6c62a4
 
 {
   "type": "https://api.example.com/problems/validation-error",
@@ -177,8 +177,8 @@ A caller who may not read a resource gets `404`, the same answer as for one that
 
 Use a standard header when one fits (`Authorization`, `traceparent`, `Idempotency-Key`, `RateLimit`, `Deprecation`). Otherwise [RFC 9110] §16.3.2.1 says to prefix a limited-use field with the application's name ("Foo-Desc") and never with `X-`, and [RFC 6648] §3 suggests the organization's name. Which name is a house convention:
 
-- **Namespace** — the product name users see, shared by every service in the product (`Acme-`, not `AcmeApi-`). Use the company name only for a header that spans products
-- **Spelling** — letters, digits and hyphens, Title-Case, acronyms as words (`Acme-Request-Id`). Read names case-insensitively: HTTP/2 sends them lowercase ([RFC 9113] §8.2)
+- **Namespace** — the product name users see, shared by every service in the product (`Example-`, not `ExampleApi-`). Use the company name only for a header that spans products
+- **Spelling** — letters, digits and hyphens, Title-Case, acronyms as words (`Example-Request-Id`). Read names case-insensitively: HTTP/2 sends them lowercase ([RFC 9113] §8.2)
 - **Permanent** — a shipped header name never changes
 - **Existing `X-` headers** — registered and platform headers (`X-Content-Type-Options`, `X-Forwarded-For`) are used as they are; the rule covers new names
 - **Request id** — `{Product}-Request-Id: <uuid>` on every response the service generates, minted by the service and never read from the request. The problem `instance` is the same id as `urn:uuid:…`, and every log line carries it. A cached response carries the id of the request that filled the cache. Off-the-shelf middleware (chi `RequestID`, Envoy, asgi-correlation-id) uses `X-Request-Id` and trusts the inbound value, so write a small one instead
