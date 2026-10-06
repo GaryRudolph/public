@@ -85,7 +85,7 @@ quietly on some surfaces, so `make validate` runs before every push.
 
 | Surface | Skills | Always-on core | How it gets the plugin |
 | --- | --- | --- | --- |
-| Claude Code, this Mac | Yes | Hook (`make install` removes any `~/.claude/CLAUDE.md` block) | Local marketplace for live edits, or claude.ai sync |
+| Claude Code, this Mac | Yes | Hook (`make install` removes the personal `~/.claude/CLAUDE.md` block) | Local marketplace for live edits, or claude.ai sync |
 | Claude Code cloud and self-hosted runner | Yes | Hook | claude.ai sync |
 | Cowork | Yes | Hook | claude.ai account |
 | Claude chat | Yes | None (chat ignores hooks) | claude.ai account |

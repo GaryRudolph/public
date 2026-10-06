@@ -240,7 +240,7 @@ message Book {
 
 ## Protobuf
 
-Protobuf is a supported second payload format. A resource's JSON and protobuf forms interoperate through [ProtoJSON], protobuf's own JSON mapping, and the JSON rules above match its casing, enum and int64 rules. They differ on empty values: by default ProtoJSON leaves out a field that isn't set and an empty list or map, where a hand-written server sends whatever its encoder emits: `[]`, `{}` or the zero value, unless a field is tagged to omit it (Go `omitempty` / `omitzero`). So clients treat a missing field the same as its empty value (`[]`, `{}`, zero or `""`). Each representation gets its own ETag ([Resource History](#resource-history)).
+Protobuf is a supported second payload format. A resource's JSON and protobuf forms interoperate through [ProtoJSON], protobuf's own JSON mapping, and the JSON rules above match its casing, enum and int64 rules. They differ on empty values: by default ProtoJSON leaves out a field that isn't set and an empty list or map, where a hand-written server sends whatever its encoder emits: `[]`, `{}` or the zero value, unless a field is tagged to omit it (Go `omitempty` / `omitzero`). So a client reading a response treats a missing field as its empty value: `[]`, `{}`, `0` (`"0"` for an int64 or decimal), `false` or `""`. Each representation gets its own ETag ([Resource History](#resource-history)).
 
 - **Field names** — `.proto` fields are `lower_snake_case` (edition 2024 makes anything else an error), and ProtoJSON maps them to lowerCamel, the house wire casing. Never set `json_name` or a keep-proto-names option (Go `UseProtoNames`, Python `preserving_proto_field_name`)
 - **Enums** — ProtoJSON writes the value name verbatim, so a nested unprefixed enum gives `"state": "ACTIVE"` ([Resource State](#resource-state)). An encoder on an older schema writes a value it doesn't know as an integer, so the service that renders JSON always runs the newest schema
@@ -300,8 +300,8 @@ Optional. Add one only when an application needs that kind of logging; most won'
 - **Ops is its own service** — its own console and API at `ops.<product domain>` (`ops.example.com`, with `ops.example.net` for dev), behind IAP
 - **One origin** — the console at `/`, the API at `/api/v1/…`. IAP authenticates with a session cookie, so a second host would add a second IAP session, CORS preflights that IAP blocks by default, and `fetch` calls that fail on IAP's sign-in redirect. The product splits `api.` from its app hosts only because its bearer tokens cross origins cleanly
 - **The host names the plane** — ops paths follow the product's convention without repeating the plane (`/api/v1/organizations/{org}`, not `/api/v1/ops/…`). The ops `v1` versions independently of the product API
-- **Roles** — a single `OPS` role to start, split later when needed. An ops role never shares a name with a tenant role
-- **Audited** — every ops action writes an [activity log](#activity-log) entry with the actor's `sub` and the target organization, and ops reads of tenant data are logged too. Time-limited support sessions come later
+- **Roles** — one `OPS` role; split it only when a need appears. An ops role never shares a name with a tenant role
+- **Audited** — every ops action writes an [activity log](#activity-log) entry with the actor's `sub` and the target organization, and ops reads of tenant data are logged too. Time-limited support sessions are optional
 - **Same registrable domain** — ops cookies are host-only `__Host-` cookies, and state-changing ops requests must be same-origin, because sibling subdomains are same-site ([security.md](security.md#shared-domain-cookies))
 
 Identity, bootstrap, revocation and break-glass: [security.md](security.md#authorization). IAP, Terraform and load-balancer setup: [gcp.md](gcp.md#ops-plane-on-iap).

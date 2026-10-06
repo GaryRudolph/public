@@ -116,10 +116,10 @@ make status       # modes line first; ~/.claude/CLAUDE.md "no personal block (pl
 `CLAUDE_MODE` defaults to `plugin`, so this install removes what the
 installer writes for Claude Code in `home` mode: the `~/.claude/CLAUDE.md`
 block and the `~/.claude/skills` symlinks, including any still pointing at
-the old `agents/skills/`. Anything else in those places is left alone. From then on,
-Claude Code on the Mac gets the core the same way cloud and the runner do,
-from the plugin's hook. With the local marketplace from s4, that hook reads
-your working tree, so edits still apply without a push.
+the old `agents/skills/`. Anything else in those places is left alone.
+From then on, Claude Code on the Mac gets the core the same way cloud and
+the runner do, from the plugin's hook. With the local marketplace from s4,
+that hook reads your working tree, so edits still apply without a push.
 
 The other tools stay on `home` until you move them (m7). Each tool has a
 mode: `CLAUDE_MODE`, `CODEX_MODE`, `GEMINI_MODE`, `CURSOR_MODE`, each `home` or
@@ -362,7 +362,7 @@ Ask "What is the personal canary phrase?" in each surface. Expect
   session start.
 - **Canary works but standards files can't be found.** The agent tried
   `~/Projects/...`. The hook's first part gives the in-plugin path; make sure
-  part 1 of 2 appears in `/context`.
+  part 1 appears in `/context`.
 - **Skills appear twice on the Mac.** Something still symlinks into
   `~/.claude/skills`. Run `make status`: the modes line should say
   `CLAUDE_MODE=plugin`, and `agents/local.mk` shouldn't override it.

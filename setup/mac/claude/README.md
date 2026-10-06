@@ -27,7 +27,7 @@ Used by all three docs. Labels, plist files, and log files are the same in every
 | `ADMIN` | Admin user that owns Homebrew and SSH | `gary` |
 | `ORG` | Claude org slug, or `personal` for a Pro/Max account | `acme` |
 | `USER` | macOS short name for the runner or agent user | `acme-runner`, `acme-agent` |
-| `ACCOUNT` | The one Claude account used in `USER` | `you@acme.com` |
+| `ACCOUNT` | The one Claude account used in `USER` | `you@example.com` |
 | `REPO` | Repository folder under `~/code` (Remote Control) | `widgets` |
 | `GH_OWNER` | GitHub org or user that owns the repo | `acme` |
 | `ENV_NAME` | Self-hosted environment name in claude.ai (runner) | `hangar (you only)` |
