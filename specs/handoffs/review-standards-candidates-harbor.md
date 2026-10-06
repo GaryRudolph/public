@@ -56,10 +56,19 @@ All 2026-10-05.
 - **Firestore denormalization:** C4's ban is dropped.
 - **Build string:** a service publishes its own build on its health endpoint; third-party versions never.
 
-- **Admin planes.** "Admin" is reserved for customer (tenant) admins, a role on org-scoped resources in the product API, with tenant settings in the product app. Platform operation is **ops**: its own console and its own API on a separate service at `ops.<product domain>` (`ops.nowline.io`, with `ops.nowline.dev` for dev), behind IAP. Its API follows the product's path convention, `ops.nowline.io/api/v1/...`: the host names the plane and the path doesn't repeat it, and its `v1` versions independently of the product API. It shares the product's registrable domain, so ops cookies are host-only `__Host-` cookies, and state-changing ops requests must be same-origin (Fetch Metadata or an `Origin` check), because sibling subdomains count as same-site. Staff authority starts as a single `ops` role, to be split later. The first `ops` member comes from infrastructure: a Terraform-set one-time grant, claimed by the IAP-authenticated account and bound to its `sub`. No app-level break-glass; Workspace keeps two or more super admins held by different people.
+- **Admin planes.** "Admin" is reserved for customer (tenant) admins, a role on org-scoped resources in the product API, with tenant settings in the product app. Platform operation is **ops**: its own console and its own API on a separate service at `ops.<product domain>` (`ops.nowline.io`, with `ops.nowline.dev` for dev), behind IAP. Its API follows the product's path convention, `ops.nowline.io/api/v1/...`: the host names the plane and the path doesn't repeat it, and its `v1` versions independently of the product API. It shares the product's registrable domain, so ops cookies are host-only `__Host-` cookies, and state-changing ops requests must be same-origin (Fetch Metadata or an `Origin` check), because sibling subdomains count as same-site. Staff authority starts as a single `ops` role, to be split later. The first `ops` member is added to the ops IAP access group by email in a reviewed Terraform PR. The ops service creates a profile row keyed by the IAP `sub` on that person's first request; the row records identity and grants no authority. No one-time grant and no database record are needed. Urgent revocation is an app-side deny list keyed by `sub`, because group changes take minutes to hours to propagate. No app-level break-glass; Workspace keeps two or more super admins held by different people.
 - **Runbooks.** Operational procedures live in `runbooks/`, not `ops/` (documentation.md).
 
-Recommendations awaiting your OK, in `research-round-two.md`: resource history (head plus immutable revisions, §1), admin bootstrap (§3), AI attribution (§4), and the branch-based commit/push policy (§6, draft in `draft-branch-commit-policy.diff`).
+- **Agent commit policy** (applied in e60b71f and follow-ups):
+  - Task branches are a fixed list: cut by the agent this session, assigned by the harness, or named by Gary.
+  - In the cloud an agent always works on a task branch and pushes after every commit.
+  - Locally, on `main`, it confirms before cutting a branch; workstations push at will.
+  - Subagents commit only when told and never push.
+  - No local enforcement hook.
+- **AI attribution:** the person directing the agent is the author on `main`. Agents are disclosed with an `Assisted-by: Claude Code` trailer, naming the tool, not the model, and never with an agent `Co-authored-by`. Merges are squash-only, with the PR title and description as the message.
+- **Repo baseline:** the new `personal-repo-baseline` skill applies `.claude/settings.json` attribution and GitHub squash settings, and can be re-run on any repo.
+
+Still awaiting your OK, in `research-round-two.md`: resource history (head plus immutable revisions, §1). The rejected PreToolUse hook in §6 is superseded by the decisions above.
 
 ## Incorporate (no decision needed)
 

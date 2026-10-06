@@ -263,3 +263,24 @@ That validates reserving "admin" for tenant admins and never calling staff "supe
 - 6.3.2 (L1): no default admin accounts.
 
 Sources: Google Workspace Directory API and admin roles; Slack admin scopes; Atlassian organization REST API and admin roles; Shopify API docs and `StaffMember`; Auth0 and Okta API references; Zoom app management; Microsoft Graph permissions overview and Customer Lockbox; GitHub org, enterprise, SCIM and GHES docs; RFC 7644; AWS SaaS architecture whitepaper, SaaS Lens and SaaS Factory reference solution; Kubernetes RBAC; OWASP ASVS 5.0 V6, V8 and V13.
+
+## 8. Ops bootstrap with Terraform and IAP (verified 2026-10-06)
+
+**Terraform never needs an identity id.** IAM resolves `group:` and `user:` emails to accounts when the plan is applied. The IAP JWT then carries a stable `sub` (`accounts.google.com:<id>`; "Use sub … as the unique-identifier key", never email), along with `email` and `hd`. It has no groups claim, so authority comes from which IAP service admitted the request (`aud` names the Cloud Run service). The ops service creates a profile row keyed by `sub` on the first request; that row records identity and grants nothing. Having Terraform look ids up by email and write database rows is an anti-pattern: no provider data source exists for Identity Platform or Workspace users, it creates drift against the app's own writes, and it would need Workspace admin credentials in CI.
+
+**Pieces:**
+- **Cloud Run:** `iap_enabled = true` on `google_cloud_run_v2_service` (GA in google provider 8.5.0). The IAP service agent needs `roles/run.invoker`. Access is granted with `google_iap_web_cloud_run_service_iam_member`, `roles/iap.httpsResourceAccessor`, bound to the ops group.
+- **Groups:** `google_cloud_identity_group_membership` with `preferred_member_key { id = "<email>" }`. A Workspace admin creates the access group, since the security label is immutable, and makes the Terraform service account its owner (least privilege, no Group Admin role). Owners are members, so add an IAM deny or an alert for the CI identity's use of the ops service.
+- **Guarantee:** the org policy `iam.allowedPolicyMemberDomains` (domain-restricted sharing) ensures only org identities can be bound.
+- **Custom domain:** use a global external Application Load Balancer with IAP configured on the Cloud Run service, not the load balancer; you can't do both. Cloud Run domain mapping is Preview.
+- **Clients:** the Google-managed OAuth client is internal-only and browser-only. A CLI or scripts calling the ops API need IAP programmatic clients or a service-account JWT.
+- **Reauth:** set `SECURE_KEY` with `google_iap_settings`. Read the exact per-service `name` with `gcloud iap settings get`. The reauth cookie is set on the top-level private domain, so later split services under `ops.` share it.
+
+**Revocation and elevation:**
+- Removing someone from a group propagates in "several minutes, potentially hours". An IAM deny on `iap.googleapis.com/webServiceVersions.accessViaIAP` takes effect in about 2 to 7 minutes. An app-side deny list keyed by `sub` is the only immediate path.
+- Time-boxed write elevation, when roles split, is better done with PAM or a `request.time` condition on the IAP binding than with Terraform-managed membership expiry. Expiry needs Workspace Enterprise or Cloud Identity Premium, and Terraform re-creates an expired membership on the next apply.
+- Never reassign a staff email address, and remove the Terraform entry in the same change that offboards the person. A deleted principal's bindings become `deleted:user:…` and don't carry over to a new account.
+
+**If staff ever need a role inside the product app**, don't bind it by email: a Firebase ID token has no `hd`, and Workspace custom domains aren't a trusted provider for `email_verified`. Use a one-time claim code issued in the ops console and redeemed in the product app, or read `sub` and `hd` from the Google ID token forwarded to a `beforeSignIn` blocking function. Pre-creating Identity Platform users is rejected: an import collision replaces the existing user, and account linking errors out for untrusted providers.
+
+Sources: Cloud Run IAP; IAP signed headers, identity, reauth and audit docs; the Terraform registry (cloud_run_v2_service, iap_web_cloud_run_service_iam, cloud_identity_group_membership, iap_settings, privileged_access_manager_entitlement); Cloud Identity Groups setup, memberships and expirations; IAM principal identifiers, policies, access-change propagation, deny policies and groups best practices; Google OIDC; Firebase users, import-users, ID token fields and blocking functions; Identity Platform account linking; Workspace delete-user and offboarding help.
