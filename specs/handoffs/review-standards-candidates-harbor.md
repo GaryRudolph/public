@@ -56,6 +56,9 @@ All 2026-10-05.
 - **Firestore denormalization:** C4's ban is dropped.
 - **Build string:** a service publishes its own build on its health endpoint; third-party versions never.
 
+- **Admin planes.** "Admin" is reserved for customer (tenant) admins, a role on org-scoped resources in the product API, with tenant settings in the product app. Platform operation is **ops**: its own console and its own API on a separate service and registrable domain, behind IAP. Staff authority starts as a single `ops` role, to be split later. The first `ops` member comes from infrastructure: a Terraform-set one-time grant, claimed by the IAP-authenticated account and bound to its `sub`. No app-level break-glass; Workspace keeps two or more super admins held by different people.
+- **Runbooks.** Operational procedures live in `runbooks/`, not `ops/` (documentation.md).
+
 Recommendations awaiting your OK, in `research-round-two.md`: resource history (head plus immutable revisions, §1), admin bootstrap (§3), AI attribution (§4), and the branch-based commit/push policy (§6, draft in `draft-branch-commit-policy.diff`).
 
 ## Incorporate (no decision needed)

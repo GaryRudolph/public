@@ -50,6 +50,10 @@ Substantive project documents — product specs, technical designs, RFCs, and AD
 
 Do not scatter spec-level docs across the repo root or language-specific folders. The only exception is when a tool expects a fixed filename at the root (e.g. `README.md`, `AGENTS.md`, `CLAUDE.md`).
 
+## Runbooks
+
+Operational procedures (environment setup, deploys, verification checks, incident and recovery steps) live in `{project-root}/runbooks/{topic}.md` (e.g. `runbooks/setup.md`, `runbooks/public-cache-check.md`). Not `ops/`: "ops" names the platform operations plane, meaning the ops console, ops API and `ops` role that staff use to run the product for customers. A runbook says what to do. The reasoning behind it belongs in a spec or ADR, linked from the runbook.
+
 ### Spec Structure Conventions
 
 - Use `##` for top-level sections, `###` for subsections. Don't duplicate section numbers (e.g. avoid two `## 8.` headings)
