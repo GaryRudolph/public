@@ -264,7 +264,7 @@ from uuid import uuid4
 from starlette.datastructures import MutableHeaders
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
-REQUEST_ID_HEADER = "Nowline-Request-Id"  # {Product}-Request-Id
+REQUEST_ID_HEADER = "Acme-Request-Id"  # {Product}-Request-Id
 
 request_id: ContextVar[str] = ContextVar("request_id", default="")
 

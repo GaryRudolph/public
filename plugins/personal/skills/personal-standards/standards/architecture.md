@@ -74,7 +74,7 @@ Build on the published HTTP and JSON standards; house conventions only fill the 
 | Partial updates | `PATCH` with `application/merge-patch+json` | [RFC 7396] |
 | Field locations | JSON Pointer (`#/items/0/quantity`) | [RFC 6901] |
 | Retiring a contract version | `Deprecation` and `Sunset` headers on every response from the old version | [RFC 9745], [RFC 8594] |
-| Custom headers | A standard header if one fits; otherwise `{Product}-Name` (`Nowline-Request-Id`), never `X-` — see [Custom Headers](#custom-headers) | [RFC 9110] §16.3.2.1, [RFC 6648] §3 |
+| Custom headers | A standard header if one fits; otherwise `{Product}-Name` (`Acme-Request-Id`), never `X-` — see [Custom Headers](#custom-headers) | [RFC 9110] §16.3.2.1, [RFC 6648] §3 |
 | Contract description | OpenAPI document for every public API; output-only fields (`id`, `state`, `createdAt`) are `readOnly` | [OpenAPI] 3.1 or later |
 | Second payload format | Protobuf, interoperating with JSON through ProtoJSON — see [Protobuf](#protobuf) | [ProtoJSON] |
 
@@ -130,7 +130,7 @@ A single problem, with an extension member:
 ```http
 HTTP/1.1 409 Conflict
 Content-Type: application/problem+json
-Nowline-Request-Id: 180de92f-24c9-4f35-8c8f-372da5353e24
+Acme-Request-Id: 180de92f-24c9-4f35-8c8f-372da5353e24
 
 {
   "type": "https://api.example.com/problems/order-not-cancellable",
@@ -147,7 +147,7 @@ Several validation errors in one response:
 ```http
 HTTP/1.1 422 Unprocessable Content
 Content-Type: application/problem+json
-Nowline-Request-Id: df6c8512-3986-4bab-a568-91e65e6c62a4
+Acme-Request-Id: df6c8512-3986-4bab-a568-91e65e6c62a4
 
 {
   "type": "https://api.example.com/problems/validation-error",
@@ -177,8 +177,8 @@ A caller who may not read a resource gets `404`, the same answer as for one that
 
 Use a standard header when one fits (`Authorization`, `traceparent`, `Idempotency-Key`, `RateLimit`, `Deprecation`). Otherwise [RFC 9110] §16.3.2.1 says to prefix a limited-use field with the application's name ("Foo-Desc") and never with `X-`, and [RFC 6648] §3 suggests the organization's name. Which name is a house convention:
 
-- **Namespace** — the product name users see, shared by every service in the product (`Nowline-`, not `NowlineApi-`). Use the company name only for a header that spans products
-- **Spelling** — letters, digits and hyphens, Title-Case, acronyms as words (`Nowline-Request-Id`). Read names case-insensitively: HTTP/2 sends them lowercase ([RFC 9113] §8.2)
+- **Namespace** — the product name users see, shared by every service in the product (`Acme-`, not `AcmeApi-`). Use the company name only for a header that spans products
+- **Spelling** — letters, digits and hyphens, Title-Case, acronyms as words (`Acme-Request-Id`). Read names case-insensitively: HTTP/2 sends them lowercase ([RFC 9113] §8.2)
 - **Permanent** — a shipped header name never changes
 - **Existing `X-` headers** — registered and platform headers (`X-Content-Type-Options`, `X-Forwarded-For`) are used as they are; the rule covers new names
 - **Request id** — `{Product}-Request-Id: <uuid>` on every response the service generates, minted by the service and never read from the request. The problem `instance` is the same id as `urn:uuid:…`, and every log line carries it. A cached response carries the id of the request that filled the cache. Off-the-shelf middleware (chi `RequestID`, Envoy, asgi-correlation-id) uses `X-Request-Id` and trusts the inbound value, so write a small one instead
@@ -240,7 +240,7 @@ message Book {
 
 ## Protobuf
 
-Protobuf is a supported second payload format. A resource's JSON and protobuf forms interoperate through [ProtoJSON], protobuf's own JSON mapping, and the JSON rules above match its casing, enum and int64 rules. They differ on empty values: by default ProtoJSON leaves out a field that isn't set and an empty list or map, where a hand-written server sends whatever its encoder emits: `[]`, `{}` or the zero value, unless a field is tagged to omit it (Go `omitempty` / `omitzero`). Each representation gets its own ETag ([Resource History](#resource-history)).
+Protobuf is a supported second payload format. A resource's JSON and protobuf forms interoperate through [ProtoJSON], protobuf's own JSON mapping, and the JSON rules above match its casing, enum and int64 rules. They differ on empty values: by default ProtoJSON leaves out a field that isn't set and an empty list or map, where a hand-written server sends whatever its encoder emits: `[]`, `{}` or the zero value, unless a field is tagged to omit it (Go `omitempty` / `omitzero`). So clients treat a missing field the same as its empty value (`[]`, `{}`, zero or `""`). Each representation gets its own ETag ([Resource History](#resource-history)).
 
 - **Field names** — `.proto` fields are `lower_snake_case` (edition 2024 makes anything else an error), and ProtoJSON maps them to lowerCamel, the house wire casing. Never set `json_name` or a keep-proto-names option (Go `UseProtoNames`, Python `preserving_proto_field_name`)
 - **Enums** — ProtoJSON writes the value name verbatim, so a nested unprefixed enum gives `"state": "ACTIVE"` ([Resource State](#resource-state)). An encoder on an older schema writes a value it doesn't know as an integer, so the service that renders JSON always runs the newest schema
@@ -297,7 +297,7 @@ Optional. Add one only when an application needs that kind of logging; most won'
 "Admin" means the customer's admin, as it does at Google Workspace, Slack, Atlassian and Shopify. The vendor's own staff work in a separate **ops** plane. Words that name customer roles elsewhere ("super admin", "staff", "system") are never used to name an ops role, API or UI. The term "ops" is a house convention: vendors call this plane different things, and no standard names it.
 
 - **Tenant admin is a role** — tenant roles (`OWNER`, `ADMIN`, `EDITOR`, `VIEWER`, wire enums like any other: [Resource State](#resource-state)) apply to org-scoped resources in the product API (`/organizations/{org}/…`), and tenant settings live in the product app. There's no separate admin API
-- **Ops is its own service** — its own console and API at `ops.<product domain>` (`ops.nowline.io`, with `ops.nowline.dev` for dev), behind IAP
+- **Ops is its own service** — its own console and API at `ops.<product domain>` (`ops.example.com`, with `ops.example.net` for dev), behind IAP
 - **One origin** — the console at `/`, the API at `/api/v1/…`. IAP authenticates with a session cookie, so a second host would add a second IAP session, CORS preflights that IAP blocks by default, and `fetch` calls that fail on IAP's sign-in redirect. The product splits `api.` from its app hosts only because its bearer tokens cross origins cleanly
 - **The host names the plane** — ops paths follow the product's convention without repeating the plane (`/api/v1/organizations/{org}`, not `/api/v1/ops/…`). The ops `v1` versions independently of the product API
 - **Roles** — a single `OPS` role to start, split later when needed. An ops role never shares a name with a tenant role

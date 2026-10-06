@@ -13,7 +13,7 @@ How one component learns that another component's state changed (settings toggle
 
 ## Why
 
-- The **Observation framework** (`@Observable`) is the standard for app/UI state; it replaced `ObservableObject`.
+- The **Observation framework** (`@Observable`) is the standard for app/UI state; it is Apple's successor to `ObservableObject`.
 - **`Observations`** is an `AsyncSequence` for observing `@Observable` properties **outside SwiftUI**. It has did-set semantics, coalesces redundant updates, and manages its own lifecycle (no manual re-arming).
 - **`NotificationCenter` is discouraged for internal logic**: string keys + untyped payloads create hidden dependencies and runtime errors. Reserve it for system frameworks that require it.
 - For decoupled broadcast between concurrency-native components, the modern alternative to Combine is **`AsyncStream`**.

@@ -3,7 +3,7 @@
 > **Status:** candidate reference architecture / personal standard. Not a universal
 > default — see [README.md](README.md) for when to adopt and known tradeoffs.
 >
-> Placeholders: `<estate>` (e.g. `nowline`), `<org>` (e.g. `lolay`).
+> Placeholders: `<estate>` (e.g. `acme`), `<org>` (e.g. `lolay`).
 
 Candidate architecture for managing secrets across an estate through a single
 private GitHub repo, using SOPS + age. Portable across projects: it needs nothing
@@ -246,7 +246,7 @@ exactly the groups (or individual `repo__context` keys) allowed to decrypt it.
 Worked example estate (cells are `repo__context`; the `actions` context is shown —
 a repo may also have `agents`, `codespaces`, etc.):
 
-| file \ identity (group)  | nowline (oss) | nowline-site (oss) | nowline-app (commercial) | nowline-infra (commercial) | nowline-api (payments) |
+| file \ identity (group)  | acme (oss) | acme-site (oss) | acme-app (commercial) | acme-infra (commercial) | acme-api (payments) |
 |--------------------------|:---:|:---:|:---:|:---:|:---:|
 | `oss.env`                | yes | yes | yes | yes | yes |
 | `commercial.env`         |     |     | yes | yes | yes |
@@ -259,8 +259,8 @@ Each row is exactly the access list for that file — nothing is inferred:
 - `oss.env` lists `@oss`, `@commercial`, and `@payments`, so every identity reads
   it (you list those groups; it is not automatic).
 - `commercial.env` lists `@commercial` and `@payments`, not `@oss`.
-- `payments.env` lists only `@payments` — a single repo here (`nowline-api`).
-- The iOS signing assets list only `nowline-app__actions` — narrower than any
+- `payments.env` lists only `@payments` — a single repo here (`acme-api`).
+- The iOS signing assets list only `acme-app__actions` — narrower than any
   group. Note `@payments`, despite being the most sensitive group, has **no**
   access to them: because groups do not inherit, "most sensitive" never implies
   "reads everything."
@@ -302,17 +302,17 @@ inheritance — list every group that should have access.
 
 ```text
 # --- groups: named sets of repo__context identities ---
-@oss        = nowline__actions nowline-site__actions
-@commercial = nowline-app__actions nowline-infra__actions
-@payments   = nowline-api__actions
+@oss        = acme__actions acme-site__actions
+@commercial = acme-app__actions acme-infra__actions
+@payments   = acme-api__actions
 
 # --- file : groups / identities allowed to DECRYPT it (no inheritance) ---
 oss.env:                    @oss @commercial @payments
 commercial.env:             @commercial @payments
 payments.env:               @payments
 
-ios/AuthKey_BV7QPDLS45.p8:  nowline-app__actions
-ios/distribution.p12:       nowline-app__actions
+ios/AuthKey_BV7QPDLS45.p8:  acme-app__actions
+ios/distribution.p12:       acme-app__actions
 ```
 
 At build time `build.sh` expands each `@group`, resolves public keys from
@@ -325,12 +325,12 @@ One SOPS-encrypted dotenv (recipients: maintainers + break-glass) holding every
 consumer keypair:
 
 ```dotenv
-nowline-app__actions__public=age1...
-nowline-app__actions__private=AGE-SECRET-KEY-1...
-nowline-app__agents__public=age1...
-nowline-app__agents__private=AGE-SECRET-KEY-1...
-nowline-api__actions__public=age1...
-nowline-api__actions__private=AGE-SECRET-KEY-1...
+acme-app__actions__public=age1...
+acme-app__actions__private=AGE-SECRET-KEY-1...
+acme-app__agents__public=age1...
+acme-app__agents__private=AGE-SECRET-KEY-1...
+acme-api__actions__public=age1...
+acme-api__actions__private=AGE-SECRET-KEY-1...
 ```
 
 > Delimiter: use `__` — `<repo>__<context>__public` / `__private` — so repo

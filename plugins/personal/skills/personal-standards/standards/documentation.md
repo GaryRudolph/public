@@ -91,7 +91,7 @@ Reserve plain "step" prose for procedural steps in user-facing docs (onboarding 
 
 ### Plan execution
 
-Model-tier tagging, the model picker and price table, STOP markers, kickoff and progress conventions, STOP-gate semantics, and subagent delegation now live in [plan-execution.md](plan-execution.md).
+Model-tier tagging, the model picker and price table, STOP markers, kickoff and progress conventions, STOP-gate semantics, and subagent delegation are in [plan-execution.md](plan-execution.md).
 
 ### Handoffs between milestones
 

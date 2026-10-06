@@ -415,7 +415,7 @@ import (
     "uuid" // standard library since Go 1.27
 )
 
-const requestIDHeader = "Nowline-Request-Id" // {Product}-Request-Id
+const requestIDHeader = "Acme-Request-Id" // {Product}-Request-Id
 
 type requestIDKey struct{}
 
