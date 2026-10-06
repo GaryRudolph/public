@@ -15,7 +15,7 @@ This section is the canonical reference for the convention. The work splits into
 
 ### Tiers
 
-- `[xdeep]` — frontier reasoning, one rung above `[deep]`. For steps where a strong `[deep]` model is likely to be wrong, or already was: novel designs with nothing to copy from, security and correctness arguments (auth, crypto, concurrency, distributed consistency), migrations that can't be rolled back, and long-horizon analysis over a very large context. It runs Opus 5.5 at max effort, with ultracode in Claude Code (see [Model picker](#model-picker)). Max effort (plus many agents in Claude Code) spends far more tokens than a `[deep]` wave (about 6× a `[deep]` step alone and about 90× with ultracode; see [Expected cost](#expected-cost)), so the tag has to pass the [upgrade checklist](#xdeep-upgrade-checklist).
+- `[xdeep]` — frontier reasoning, one rung above `[deep]`. For steps where a strong `[deep]` model is likely to be wrong, or already was: novel designs with nothing to copy from, security and correctness arguments (auth, crypto, concurrency, distributed consistency), migrations that can't be rolled back, and long-horizon analysis over a very large context. It runs Opus 5.5 at max effort, with ultracode in Claude Code (see [Model picker](#model-picker)). Max effort (plus many agents in Claude Code) costs far more than a `[deep]` wave: max effort alone costs about 6× a `[deep]` step, and about 90× with ultracode (see [Expected cost](#expected-cost)), so the tag has to pass the [upgrade checklist](#xdeep-upgrade-checklist).
 - `[deep]` — top-tier reasoning. Architecture decisions, ambiguous requirements, non-obvious debugging, security-sensitive review, library/stack trade-offs, anywhere the cost of getting it wrong is high.
 - `[exec]` — standard implementation. Multi-file changes with cross-file reasoning, refactors with a clear target but real judgment, test writing where cases need thought, work that must read repo patterns first to extend them.
 - `[fast]` — mechanical, fully-specified, single-concern work. Renames, format changes, applying a decided design line-by-line, doc updates, well-bounded ports.
@@ -133,7 +133,9 @@ The folded-step case (`[fast]` steps inside an `[exec]` wave) always satisfies t
 
 **Idempotence.** If wave markers are already present in the plan (re-entry into a partially-executed plan), the driver skips the wave-marker-writing pass but still validates the ≤ constraint for any unmarked waves. Do not add duplicate markers.
 
-**Regex to find wave markers:** `^--- WAVE \d+ \[(xdeep|deep|exec|fast)\] ---$`
+**Fix-up waves.** A wave added to resolve a `CONCERNS` review of wave N is numbered `N-fix` (`--- WAVE 1-fix [exec] ---`), wherever a wave number appears: its marker, [wave title](#wave-title-format), [Cost table](#cost-table) row and [token lines](#token-line-format). A retry of a wave is not a new wave and keeps its number.
+
+**Regex to find wave markers:** `^--- WAVE \d+(-fix)? \[(xdeep|deep|exec|fast)\] ---$`
 
 ### Model picker
 
@@ -157,7 +159,7 @@ Notes:
 - **`[exec]` runs Sonnet at `high`, not `medium`.** On CursorBench 4.0, Sonnet 5.5 scores 47.8% at high and 39.2% at medium, for $1.67 vs $0.70 a task. That gap is worth a dollar.
 - **Cursor billing has two pools, and Auto no longer protects the expensive one.** "Cursor Models" (Composer, Grok) carries much more included usage. "Other Models" (Anthropic, OpenAI, Google) bills at provider list price. Every Auto request bills the routed model's list price from that model's pool, and a subagent that names a third-party model bills Other Models even under an Auto or Grok parent. Teams and Enterprise add $0.25/Mtok on third-party models; Cursor's own models are exempt. Pin the model at every tier.
 - **In Cursor, prefer the Cursor pool when it's close.** Take Grok or Composer over a third-party model when it scores within about 5 points on CursorBench 4.0 (table below). That puts `[exec]` on Grok 4.7 (43.9% vs Sonnet 5.5's 47.8%, both at high) and keeps `[deep]` on Opus 5.5 (Grok 4.7 at xhigh is 46.3% vs Opus 5.5 at high 56.0%). The pool is the saving, not the per-task price: at list, Grok 4.7 high costs $4.69 a task against Sonnet 5.5 high's $1.67. Once included Cursor usage runs out and on-demand billing starts, move `[exec]` to the Sonnet alt. This decides the model only; cost figures still use list rates ([Model price table](#model-price-table)).
-- **Cursor `[fast]` is Composer 2.5 standard** ($0.50/$2.50). Fast is the product default and costs 6×; `[fast=false]` or empty brackets (`composer-2.5[]`) select standard. Composer scores 27.7% on CursorBench 4.0, which is enough for steps that pass the [`[fast]` checklist](#fast-downgrade-checklist) and nothing more.
+- **Cursor `[fast]` is Composer 2.5 standard** ($0.50/$2.50). Fast is the product default and costs 6× on input and output (2.5× on cache reads); `[fast=false]` or empty brackets (`composer-2.5[]`) select standard. Composer scores 27.7% on CursorBench 4.0, which is enough for steps that pass the [`[fast]` checklist](#fast-downgrade-checklist) and nothing more.
 - **Cursor slugs** use the bracket parameters from Cursor's subagent docs (`[effort=...]`, `[fast=false]`). Cursor publishes no full ID list, so confirm with `agent --list-models`. The Fable alt in Cursor needs the data-retention opt-in under Privacy Mode, and Cursor reroutes guardrail-tripped Fable requests to Opus. Cursor doesn't offer GPT-6, and GPT-5.6 Sol scores 41.7%, so the Cursor row has no OpenAI alt.
 - **Review beats are a high-ROI place to pin the top model.** A [review beat](#review-beat) reads the prior wave's diff and emits a short verdict, but its cost is mostly input, not output: every call re-sends the whole context, so cache reads and writes make up about 70% of a reviewer's API-equivalent cost (output about 30%). It still costs only about 0.6× a [medium step](#expected-cost) at the reviewer's model because it makes fewer calls, so a review is a cheap way to spend `[deep]` credit. Point it at the diff and the plan rather than the whole repo, since its cost scales with calls × context. Pin it rather than letting Auto downgrade it.
 - **Haiku vs Composer.** Haiku is Claude Code's `[fast]` model and Composer is Cursor's. They are platform-specific choices, not alternatives to each other; each harness uses its own native fast model.
@@ -230,41 +232,44 @@ Take token counts from the most accurate source available, in this order. Each s
 
 | Harness | Where to read | Fields | Normalize |
 |---|---|---|---|
-| Claude Code | `~/.claude/projects/<slug>/<session-id>.jsonl`, where `<slug>` is the working directory with `/` turned into `-` and the id is `$CLAUDE_CODE_SESSION_ID` (without it, the newest `.jsonl` there). Subagents and workflow agents: `<session-id>/subagents/**/agent-*.jsonl` | `message.usage` on assistant lines: `input_tokens` (uncached), `cache_read_input_tokens`, `cache_creation.ephemeral_5m_input_tokens` and `ephemeral_1h_input_tokens`, `output_tokens` (thinking included). Price by `message.model` | One call spans several lines that repeat its usage, so dedupe by `message.id`; summing lines counts about 2×. Main-session lines carry `stop_reason` and final counts. In subagent files `output_tokens` is a streaming placeholder (1-24): keep the exact input-side counts, estimate output at about 1,000 tokens per call, and label the line `(output est.)` |
+| Claude Code | `~/.claude/projects/<slug>/<session-id>.jsonl`, where `<slug>` is the working directory with every character other than a letter or digit turned into `-` (`/Users/gary/src/github.com/x` is `-Users-gary-src-github-com-x`; a slug over 200 characters is cut there and gets a hash suffix, so match it by prefix) and the id is `$CLAUDE_CODE_SESSION_ID` (without it, the newest `.jsonl` there). Subagents and workflow agents: `<session-id>/subagents/**/agent-*.jsonl` | `message.usage` on assistant lines: `input_tokens` (uncached), `cache_read_input_tokens`, `cache_creation.ephemeral_5m_input_tokens` and `ephemeral_1h_input_tokens`, `output_tokens` (thinking included). Price by `message.model` | One call spans several lines that repeat its usage, so dedupe by `message.id`; summing lines counts about 2×. Take a call's usage from its line with `stop_reason`, which carries the final counts; main-session lines always have one. A call without one (almost every Opus call in a subagent file) logs a streaming placeholder (1-24) as `output_tokens`: keep its exact input-side counts, estimate its output at about 1,000 tokens, and label the line `(output est.)` |
 | Codex | `$CODEX_HOME/sessions/**/rollout-*-<thread-id>.jsonl` (default `~/.codex`; the id is `$CODEX_THREAD_ID`) | `token_count` events, `info.total_token_usage`: `input_tokens`, `cached_input_tokens`, `cache_write_input_tokens`, `output_tokens`, `reasoning_output_tokens` | `input_tokens` includes cached tokens: input = `input_tokens` - cached - cache write. `output_tokens` already includes reasoning. Subagents write their own rollout files, linked by `session_id` and `parent_thread_id`; the parent's totals exclude them, so add them |
 | Gemini CLI | The newest `~/.gemini/tmp/<project>/chats/*.jsonl` (the shell carries no session id). Subagents: `chats/<parentSessionId>/` | Per-message `tokens`: `input`, `cached`, `output`, `thoughts` | `input` is the whole prompt, cached included: input = `input` - `cached`. `thoughts` sits outside `output` but bills as output: output = `output` + `thoughts`. There is no cache-write field (implicit caching has no write charge), so cache write is 0 |
 | Grok Build | `grok usage "$GROK_SESSION_ID"` | `session`: `inputTokens`, `cachedReadTokens`, `cacheCreationTokens`, `outputTokens`, and `modelUsage` per model | `inputTokens` includes cached tokens: input = `inputTokens` - cache read - cache write. `outputTokens` includes reasoning. Finished subagents are included; `grok usage <subagent_id>` shows one |
-| Cursor, Muse Code | Nothing: their transcripts carry no usage | | Use source 2 or 3 |
+| Cursor, Muse Code | Nothing: their transcripts carry no usage | | Cursor: source 2, else 3. Muse Code: source 3 |
 
 A wave run in its own chat is that session's total plus its subagents'. When one chat ran more than one wave, take only that wave's calls, or the difference between the cumulative totals at its start and end. The in-progress final turn isn't flushed yet: a small tail, ignore it.
 
-- **Exact Claude Code totals after the session ends.** When the session process exits, Claude Code appends a cumulative `cost-state` record to the main transcript: `modelUsage.<model>` with `inputTokens`, `cacheReadInputTokens`, `cacheCreationInputTokens`, `outputTokens` (which already includes `thinkingTokens`) and `costUSD`, plus `totalCostUSD`, covering the main loop and its subagents. It is exact but absent while the chat is live, so use it to replace `(output est.)` lines afterward. Headless `claude -p --output-format json` returns the same `modelUsage` and `total_cost_usd`.
+- **Exact Claude Code totals after the session ends.** When the session process exits, Claude Code appends a cumulative `cost-state` record to the main transcript: `modelUsage.<model>` with `inputTokens`, `cacheReadInputTokens`, `cacheCreationInputTokens`, `outputTokens` (which already includes `thinkingTokens`) and `costUSD`, plus `totalCostUSD`, covering the main loop and its subagents. It is exact but absent while the chat is live, so [Final completion](#final-completion-all-groups-done) uses it to replace the `(output est.)` lines of sessions that have ended, found by the `session <id>` those lines carry. Headless `claude -p --output-format json` returns the same `modelUsage` and `total_cost_usd`.
 - **Never price** the `Agent` tool result's `usage` or `totalTokens`, or a Workflow notification's `subagent_tokens`: each covers only an agent's final request.
 
 Real usage is exact. An `(output est.)` line is good to about ±20% on dollars: output is about 30% of an agent's cost, and real calls average about 600-1,200 output tokens.
 
-**2. Usage Gary pastes.** On Cursor, that is the dashboard's usage CSV export (the rows for the wave's model and time span) or the `result.usage` of `agent -p --output-format json`. In the CSV, `Input (w/o Cache Write)` is input and `Input (w/ Cache Write)` is cache write, next to `Cache Read` and `Output Tokens`; check that the four sum to `Total Tokens`. In `result.usage`, `inputTokens` is already uncached, next to `cacheReadTokens`, `cacheWriteTokens` and `outputTokens`; whether it covers `Task` subagents is unverified. Price with the formula above, not the CSV's `Cost` column. Pasted usage is exact.
+**2. Usage Gary pastes.** On Cursor, that is the dashboard's usage CSV export (the rows for the wave's model and time span) or the `result.usage` of `agent -p --output-format json`. In the CSV, `Input (w/o Cache Write)` is input and `Input (w/ Cache Write)` is cache write, next to `Cache Read` and `Output Tokens`; check that the four sum to `Total Tokens`. In `result.usage`, `inputTokens` is already uncached, next to `cacheReadTokens`, `cacheWriteTokens` and `outputTokens`; whether it covers `Task` subagents is unverified, so use it only for a run that dispatched none, and take subagent usage from CSV rows. Price with the formula above, not the CSV's `Cost` column. Pasted usage is exact.
 
-**3. Accumulation heuristic.** For Cursor, Muse Code and any other harness without readable usage. Count the wave's model calls `N` (about one per tool-call round, plus the final reply), the characters it read (prompts, file reads, tool outputs) and the characters it wrote (chat text, tool-call arguments, file writes):
+**3. Accumulation heuristic.** For Cursor, Muse Code and any other harness without readable usage. Over the stretch of a chat the line covers, count the model calls `N` (about one per tool-call round, plus the final reply), the characters read (prompts, file reads, tool outputs) and the characters written (chat text, tool-call arguments, file writes):
 
-    T            = (chars_read + chars_written) / 2.5 + 500 × N    transcript tokens at the end
     S            = 50_000                                          base context sent with every call
-    cache_write  = S + T
-    billed_input = N × S + N × T / 2
-    cache_read   = billed_input - cache_write
+    T0           = transcript tokens before the stretch            0 for a chat's first line
+    T            = (chars_read + chars_written) / 2.5 + 500 × N    transcript tokens the stretch adds
+    C0           = S + T0                                          context at the stretch's first call
+    billed_input = N × C0 + N × T / 2
+    cache_write  = T + the whole context at each cold start
+    cache_read   = max(0, billed_input - cache_write)
     output       = 500 × N + chars_written / 2.5
     input        = 0
 
+`T0` is the same count, characters / 2.5 plus 500 per call, over the chat's earlier calls. A **cold start** is a chat's first call, or the first call after a pause longer than the 5-minute cache TTL (a gate waiting on a human, or a parent idle while its subagent works): that call writes the whole context again, which is `C0` at the stretch's first call and more after a later pause. A chat covered by a single line has `T0` = 0 and one cold start, so its cache write is `S + T` and its billed input `N × S + N × T / 2`.
+
 Every call re-sends the whole context, so billed input grows with calls × context, almost all of it cache reads. The 500 tokens per call cover hidden thinking and tool-call framing, and Claude's tokenizer averages about 2.4 characters per token. A single count of the characters seen misses all of that and understates dollars about 7×. Label the line `(heuristic)`.
 
-Fitted on Claude Code with Opus 5.5 at xhigh, the heuristic lands within ±25% of real dollars there (median real/predicted 0.94; 91% of agents within 1.25×). Its constants are uncalibrated on other harnesses and models: GPT and Gemini tokenizers run nearer 4 characters per token, and Cursor's base prompt size is unknown. Treat it as ±50% there.
+Fitted on whole Claude Code agents running Opus 5.5 at xhigh on research, review and markdown editing, the heuristic lands within ±25% of real dollars there (median real/predicted 0.94; 91% of agents within 1.25×). App-code steps that run builds and tests have bigger tool outputs and different call counts, so expect a wider spread on them. Off Claude Code its constants are uncalibrated: GPT and Gemini tokenizers run nearer 4 characters per token, and Cursor's base prompt size is unknown, so a line there can be off by 2× or more.
 
-The Model price table covers every harness in the picker; use its row for
-the model the wave ran on. Every figure is API-equivalent at list rates ([Model price table](#model-price-table)), not the bill.
+The Model price table covers every harness in the picker; use its row for the model the wave ran on. Every figure is API-equivalent at list rates ([Model price table](#model-price-table)), not the bill.
 
 ### Token line format
 
-Every actual token figure a driver reports, logs or sums is a **token line**, one per model per row:
+Every actual token figure a driver reports, logs or sums is a **token line**, one per row, group and model (a parallel orchestrate wave has one per working directory):
 
     tokens <row> <group-id> (<model>): input ~X / cache read ~R / cache write ~W / output ~Y | ~$C API-equiv
 
@@ -272,16 +277,16 @@ For example:
 
     tokens wave-2 m2-s1-s3 (claude-sonnet-5-5): input ~1.2k / cache read ~2.1M / cache write ~48k / output ~22k | ~$0.76 API-equiv
 
-- `<row>` names what spent the tokens: `wave-N` for a wave's work (its chat, or a subagent), `review-wave-N` for a [review beat](#review-beat) or orchestrate's `[xdeep]` review subagent, and `orchestrator-kickoff` or `orchestrator-wave-N` for orchestrate's parent. A step-up retry keeps its wave's `wave-N`.
-- `<group-id>` is the wave's group identifier with hyphens (`m2-s1-s3`, orchestrate's `{task-id}`). An `orchestrator-kickoff` line uses the plan's base name.
-- `<model>` is the slug the tokens ran on. A wave that ran two models has two lines.
+- `<row>` names what spent the tokens: `wave-N` for a wave's work (its chat, or a subagent; `wave-N-fix` for a [fix-up wave](#wave-annotation-format)), `review-wave-N` for a [review beat](#review-beat) or orchestrate's `[xdeep]` review subagent, `kickoff` for the passive driver's kickoff chat, and `orchestrator-kickoff` or `orchestrator-wave-N` for orchestrate's parent. A step-up retry keeps its wave's `wave-N`.
+- `<group-id>` is the wave's group identifier with hyphens (`m2-s1-s3`, orchestrate's `{task-id}`). A `kickoff` or `orchestrator-kickoff` line uses the plan's base name.
+- `<model>` is the slug the tokens ran on, without Cursor's bracket parameters, plus ` Fast` for Composer's Fast variant (`composer-2.5 Fast`), so it names one [price table](#model-price-table) row. A wave that ran two models has two lines.
 - `input` is uncached input. A plain `cache write` count is 5-minute writes, or the provider's only kind. Mark 1-hour writes `1h`, and show both kinds when both occur: `cache write ~40k 5m + ~8k 1h`. [Source precedence](#token-accounting--source-precedence) says how to normalize each harness's counts to these four terms.
 - Round counts to two significant figures with `k` or `M`. The dollars are the [cache-aware formula](#model-price-table) over the four counts at the model's rates, so the line alone reproduces them. A model with no published rate shows `n/a API-equiv`.
 - **Billed tokens** are input + cache read + cache write + output. Every token total, the [Cost table](#cost-table)'s included, is billed tokens.
-- Append `(heuristic)` only when the line came from the accumulation heuristic, and `(output est.)` when only output was estimated (Claude Code subagents). A line with neither label is real usage.
+- Append `(heuristic)` only when the line came from the accumulation heuristic, and `(output est.)` when only output was estimated (Claude Code calls without a `stop_reason` line). A line with neither label is real usage. An `(output est.)` line ends with `session <id>`, the Claude Code session whose transcript it came from, so a later chat can replace it from that session's `cost-state` record.
 - A total sums its lines' counts. Its dollars are the sum of the lines' dollars, each at its own model's rates, never a blended rate applied to the summed tokens.
 
-**Token log.** Both drivers append every token line to a `## Token log` section at the bottom of the plan file (created when absent) as each row's work finishes, so the lines survive across chats. The [Cost table](#cost-table)'s actual columns are summed from it. A line from a better source (usage Gary pastes, or a `cost-state` record) replaces the line for the same row and model.
+**Token log.** Both drivers append every token line to a `## Token log` section at the bottom of the plan file (created when absent) as each row's work finishes, so the lines survive across chats. The [Cost table](#cost-table)'s actual columns are summed from it. A line from a better source (usage Gary pastes, or a `cost-state` record) replaces the lines it covers: the same row, group and model over the same span. Usage that can't be split by row (Cursor's CSV can't tell the Opus parent from an Opus `[deep]` subagent in the same minutes) replaces every line for that model in its span with one line, under the row that did most of the work, ending `(combined: <rows>)`.
 
 ### Expected cost
 
@@ -289,7 +294,7 @@ The [Cost table](#cost-table) budgets each wave at kickoff from per-step anchors
 
 | Model (effort) | Used at | ~Tokens / step | ~$ / step (API-equiv) | Basis |
 |---|---|---|---|---|
-| Opus 5.5 (max) + ultracode | Claude Code `[xdeep]` | ~170M | ~$80 | est.: the Opus xhigh workflows in Gary's standards repo (median $37 plus about $6 for the parent) scaled to max, ×1.9 for dollars and ×1.7 for tokens (CursorBench 4.0). Assumes one workflow per step |
+| Opus 5.5 (max) + ultracode | Claude Code `[xdeep]` | ~170M | ~$80 | est.: the Opus xhigh workflows in Gary's standards repo (median $37 plus about $6 for the parent) scaled to max, ×1.9 for dollars (CursorBench 4.0's max/xhigh cost ratio) and ×1.7 for tokens (its max/xhigh LLM-call ratio). FrontierCode's max/xhigh cost ratio, 2.8×, gives about $120. Assumes one workflow per step |
 | Opus 5.5 (max) | Cursor `[xdeep]`; `[xdeep]` review beats | 8.6M | $5.3 | FrontierCode ($5.28, 144k output) |
 | Fable 5.1 (max) | `[xdeep]` alt (Claude Code, Cursor) | 15M | $11 | FrontierCode ($10.72, 78k output). Tokens range 6-15M depending on the cache split |
 | Opus 5.5 (high) | `[deep]` (Claude Code, Cursor); review beats; orchestrate parent | 1.7M | $0.90 | FrontierCode ($0.90, 21k output) |
@@ -324,8 +329,10 @@ The [Cost table](#cost-table) budgets each wave at kickoff from per-step anchors
     wave tokens  = sum over its steps of (row tokens  × size factor) + review tokens
     wave dollars = sum over its steps of (row dollars × size factor) + review dollars
 
-- **Review beat** (passive driver): 0.6× a medium step at the reviewer's model, in tokens and dollars (range 0.4-1.2×). After a `[deep]`, `[exec]` or `[fast]` wave that is Opus 5.5 (high): about 1.0M and $0.54. After an `[xdeep]` wave it is Opus 5.5 (max) without ultracode: about 5.2M and $3.2, or up to about $3.7, since read-only work at max runs closer to 0.7×. On another harness it is 0.6× that harness's `[deep]` row (GPT-6.1 Sol xhigh: about $0.29). A review's cost follows calls × context, not output, so the review of a small `[fast]` wave can cost more than the wave.
+- **Review beat** (passive driver): 0.6× a medium step at the reviewer's model, in tokens and dollars (range 0.4-1.2×). After a `[deep]`, `[exec]` or `[fast]` wave that is Opus 5.5 (high): about 1.0M and $0.54. After an `[xdeep]` wave it is Opus 5.5 (max) without ultracode: about 5.2M and $3.2 (up to about $3.7, since read-only work at max runs closer to 0.7×). On another harness it is 0.6× that harness's row at the review's tier: its `[deep]` row (GPT-6.1 Sol xhigh: about $0.29), or its `[xdeep]` row after an `[xdeep]` wave (GPT-6 Astra xhigh: about $1.7). A review's cost follows calls × context, not output, so the review of a small `[fast]` wave can cost more than the wave.
 - **`[xdeep]` review subagent** (orchestrate): the same 0.6× of the Opus 5.5 (max) row, about 5.2M and $3.2.
+
+**Kickoff row** (passive driver). The kickoff chat reads the skill and plan, tags, and writes the markers, the Kickoff and the Cost table, the same work as the orchestrator's kickoff part below: about 1.5M and $1.0 on Opus 5.5 (high).
 
 **Orchestrator row** (orchestrate only). The parent runs Opus 5.5 (high) in Cursor and reviews inline:
 
@@ -333,21 +340,22 @@ The [Cost table](#cost-table) budgets each wave at kickoff from per-step anchors
 |---|---|---|
 | Kickoff: read the skill and plan, tag, write the wave markers, Kickoff and Cost table, seed todos, git checks | 1.5M | $1.0 |
 | Start-up of the orchestrating chat after the default new-chat handoff | 0.9M | $0.75 |
-| Each wave: summary review, Review log line, plan bookkeeping (average) | 1.3M | $1.1 |
+| Each wave: summary review, Review log line, plan bookkeeping | 1.1M, plus 0.16M per earlier wave | $0.95, plus $0.11 per earlier wave |
 | Each gate that waits on a human past the 5-minute cache TTL | 0.45M | $0.8 |
 
-The per-wave share grows with the parent's context, by about 16k tokens a wave: about $0.95 for wave 1, plus about $0.11 for each later wave. A wave outlasts the cache TTL while the parent makes no calls, so each wave starts by re-writing the parent's whole context at the write rate. Count the canary gate, which always waits, and each gate 2, 3, 4 or 7 the plan crosses. These figures come from the accumulation heuristic with Claude Code's 50k base context; Cursor's base is unknown.
+The per-wave share grows with the parent's context, by about 16k tokens a wave. A wave outlasts the cache TTL while the parent makes no calls, so each wave starts by re-writing the parent's whole context at the write rate. Count the canary gate, which always waits, and each gate 2, 3, 4 or 7 the plan crosses; gates asked in one question count as one wait. These figures come from the accumulation heuristic with Claude Code's 50k base context; Cursor's base is unknown.
 
 **Example** (Claude Code, passive driver; the [Cost table](#cost-table) shows the result):
 
 - Wave 1 `[exec]`, 3 medium steps on Sonnet 5.5 (high): 3 × (1.0M, $0.35) = 3.0M and $1.05, plus its review, 0.6 × (1.7M, $0.90) = 1.0M and $0.54. About 4.0M and $1.6.
 - Wave 2 `[deep]`, 1 large step on Opus 5.5 (high): 3 × (1.7M, $0.90) = 5.1M and $2.70, plus its review. About 6.1M and $3.2.
 - Wave 3 `[fast]`, 4 small steps on Haiku 4.5: 4 × 0.3 × (2M, $0.30) = 2.4M and $0.36, plus its review. About 3.4M and $0.90.
-- Total: about 14M and $5.7. The reviews are 28% of it, and wave 3's review costs more than the wave.
+- Kickoff on Opus 5.5 (high): about 1.5M and $1.0.
+- Total: about 15M and $6.7. The reviews are 24% of it, and wave 3's review costs more than the wave.
 
-**Accuracy.** A single step's figure is good to about 2-3× either way, and so is a wave's; a plan total, where errors partly cancel, is good to about 2×. Token counts also depend on the assumed cache split, while the dollars don't, since the anchors are dollars. Harness matters: the Grok, Composer and Gemini rows move 3-16× across harnesses. In a Claude Code setup with a large base context (about 50k tokens of skills, MCP and tool listings), the Anthropic rows can run about 1.35× the anchor.
+**Accuracy.** A single step's figure is good to about 2-3× either way, and so are a wave's and a plan total's: the largest errors (the harness's base context, how a plan step compares to a FrontierCode task) are shared by every wave, so they don't cancel. Token counts also depend on the assumed cache split, while the dollars don't, since the anchors are dollars. Harness matters: Grok 4.7 (high) costs $5.6 a step in Grok Build against the Cursor row's estimated $1.0, and Composer's FrontierCode cost is 3.8× its CursorBench cost on a longer task, for reasons unknown. The Anthropic rows at high effort come from Claude Code runs that carried about 25-35k tokens of context per model call on average (input backed out of FrontierCode's dollars, over its call counts), so a setup with a 50k base context (skills, MCP and tool listings) runs above them: the cache reads of the extra base alone take the Opus 5.5 (high) and Sonnet 5.5 (high) rows to at least about 1.35× and 1.3×.
 
-*As of 2026-10-06. Sources: [FrontierCode v1.1](https://cognition.com/frontiercode) (Cognition; extended set, cost per rollout in each vendor's own harness at list prices; leaderboard of 2026-09-29; v1 for the Gemini 3.1 Pro and Flash-Lite rows), [CursorBench 4.0](https://cursor.com/evals) (2026-09-10), Anthropic's [SWE-bench Pro subset](https://platform.claude.com/docs/en/about-claude/models/optimizing-for-cost-and-intelligence) (runs of 2026-09-19 and 20) and [Terminal-Bench 4.0 results](https://www.anthropic.com/claude-opus-5-5) (2026-09-22), the [Artificial Analysis Coding Agent Index](https://artificialanalysis.ai/agents/coding-agents) v1.5 (2026-10-05), [swebench.com](https://www.swebench.com/) bash-only trajectories (2026-02), and 131 Claude Code agents on Opus 5.5 at xhigh in Gary's standards repo (2026-10) for the ultracode, review and orchestrator figures.*
+*As of 2026-10-06. Sources: [FrontierCode v1.1](https://cognition.com/frontiercode) (Cognition; extended set, cost per rollout in each vendor's own harness at list prices; leaderboard of 2026-09-29; v1 for the Gemini 3.1 Pro and Flash-Lite rows), [CursorBench 4.0](https://cursor.com/evals) (2026-09-10), Anthropic's [SWE-bench Pro subset](https://platform.claude.com/docs/en/about-claude/models/optimizing-for-cost-and-intelligence) (runs of 2026-09-19 and 20) and [Terminal-Bench 4.0 results](https://www.anthropic.com/claude-opus-5-5) (2026-09-22), the [Artificial Analysis Coding Agent Index](https://artificialanalysis.ai/agents/coding-agents) v1.5 (2026-10-05), [swebench.com](https://www.swebench.com/) bash-only trajectories (2026-02), and 97 Claude Code work agents on Opus 5.5 at xhigh (of 131 analysed) in Gary's standards repo (2026-10) for the ultracode, review and orchestrator figures.*
 
 **Refresh** the anchors when completed plans' actuals keep landing outside 0.5×-2× of expected, and re-derive a row when the [Model picker](#model-picker) changes its model.
 
@@ -359,7 +367,7 @@ Both drivers label each wave with the same human-scannable title so a wave is id
 
 For example, `Wave 2 of 3 [exec] repo-A m2 s1-s3`. Fill it in as:
 
-- `{n}` — the 1-based wave number the title refers to (the wave a STOP marker is launching is the *next* wave; a Kickoff always refers to wave 1).
+- `{n}` — the 1-based wave number the title refers to, `N-fix` for a [fix-up wave](#wave-annotation-format) (the wave a STOP marker is launching is the *next* wave; a Kickoff always refers to wave 1).
 - `{t}` — the total wave count after the no-thrash folding pass (the same `N` as the Kickoff `Status:` line).
 - `{tier}` — that wave's execution tier (`[xdeep]` / `[deep]` / `[exec]` / `[fast]`).
 - `{group-id}` — the group identifier: heading IDs when the plan has them (e.g. `m2 s1-s3`), otherwise exact title text. For a parallel orchestrate wave, prefix each subagent's title with its working directory (repo or worktree name), e.g. `repo-B m2 s4-s6`.
@@ -389,8 +397,12 @@ Template (a `[deep] -> [exec]` transition):
         On branch <name> (task branch): commit each finished step.
         Before you stop, update plan progress: append ` (done)` to the
         headings you finished, update the Kickoff Status line, and flip the
-        matching todos. Then stop at the next STOP marker and report what
-        you changed and any deviations from the plan.
+        matching todos. Append one line per model this chat ran to the
+        plan's "## Token log" (create it if absent), counted and priced per
+        plan-execution.md "Token line format":
+          tokens wave-<n> <group-id> (<model>): input ~X / cache read ~R / cache write ~W / output ~Y | ~$C API-equiv
+        Then stop at the next STOP marker and report what you changed and
+        any deviations from the plan.
 
     ---
 
@@ -411,8 +423,12 @@ For an `[exec] -> [fast]` transition, the prompt should also remind the model no
         These are mechanical edits -- apply exactly what the plan
         specifies; do not refactor, rename, or generalize. Before you
         stop, update plan progress (mark the headings you finished
-        ` (done)`, update the Status line, flip the matching todos). Then
-        stop at the next STOP marker and report back.
+        ` (done)`, update the Status line, flip the matching todos). Append
+        one line per model this chat ran to the plan's "## Token log"
+        (create it if absent), counted and priced per plan-execution.md
+        "Token line format":
+          tokens wave-<n> <group-id> (<model>): input ~X / cache read ~R / cache write ~W / output ~Y | ~$C API-equiv
+        Then stop at the next STOP marker and report back.
 
     ---
 
@@ -433,8 +449,12 @@ For an escalation back to `[deep]` (after `[exec]` or `[fast]`):
         (see the Review beat section), so do not re-review it here.
         On branch <name> (task branch): commit each finished step.
         Before you stop, update plan progress (mark the headings you finished
-        ` (done)`, update the Status line, flip the matching todos). Stop
-        after the design is written and report back.
+        ` (done)`, update the Status line, flip the matching todos). Append
+        one line per model this chat ran to the plan's "## Token log"
+        (create it if absent), counted and priced per plan-execution.md
+        "Token line format":
+          tokens wave-<n> <group-id> (<model>): input ~X / cache read ~R / cache write ~W / output ~Y | ~$C API-equiv
+        Stop after the design is written and report back.
 
     ---
 
@@ -457,6 +477,7 @@ Rules for filling in the template:
 - Always include the "Stop at the next STOP marker" hard limit so the cascade is preserved.
 - `On branch <name> (task branch)` names the task branch the plan runs on. Each wave is a new chat, so a branch cut in an earlier one isn't "cut this session"; Gary pasting the prompt names the branch for the work (git.md "Task branches and shared branches"), so a chat on `<name>` commits there without asking again. A chat on another branch: on a runner, the harness-assigned branch wins; the chat works there, says in its first report that it isn't `<name>`, and puts its own branch on the remaining prompts' `On branch` lines (the earlier wave's branch stays as is). On a workstation, it proposes switching to `<name>` and waits, committing nothing until Gary answers. With no task branch yet (a workstation on a shared branch), leave the line out; the chat that cuts one adds it to the remaining prompts with its first commit. The REVIEW prompt carries it only when the plan file is tracked (in `specs/handoffs/` on a runner), as `On branch <name> (task branch): commit the plan update before you stop.`; a plan in gitignored `.scratch/` stays uncommitted (never `git add -f`).
 - Always include the **progress-update reminder** spelled out inline in the prompt body (append ` (done)` to finished headings, update the Kickoff Status line, flip the matching todos). The pasted chat usually does **not** re-load the driver skill, so this inline reminder is the only way the [Progress tracking](#progress-tracking) convention reaches it — never drop it. Do not factor it out into a separate checklist block in the plan; keep it in the prompt.
+- Always include the **token-line reminder** the same way, with `<n>` and `<group-id>` (the group identifier with hyphens, `m2-s1-s3`) filled in. The [Cost table](#cost-table)'s actual columns are summed from the Token log, and the prompt is the only place a pasted chat learns to write its line.
 - Use `->` ASCII arrows rather than Unicode em-dash arrows so the marker is safe in terminals and grep.
 - If the next group is a `[deep]` block being delegated to a parent, the prompt should say "design only, do not implement"; if it's `[exec]` or `[fast]`, the prompt should say "implement <next group>, stop at next STOP marker."
 
@@ -497,6 +518,10 @@ Template:
         "## Review log" section of the plan file (create the section if
         absent), with <to> from `git rev-parse --short HEAD`:
           review wave-<n> (<group-id>) <from>..<to>: PASS|CONCERNS - <one-line note> - <YYYY-MM-DD>
+        Append one line per model this chat ran to "## Token log" (create
+        it if absent), counted and priced per plan-execution.md "Token
+        line format":
+          tokens review-wave-<n> <group-id> (<model>): input ~X / cache read ~R / cache write ~W / output ~Y | ~$C API-equiv
         If the verdict is CONCERNS, also set the Kickoff Status line to
         `BLOCKED at gate review-wave-<n>`, re-post the concern, and stop.
         On PASS, update the Status line `last review:` field and report back.
@@ -505,7 +530,18 @@ Template:
 
     ---
 
-Keep that last line only when the plan file is tracked (the [STOP fill-in rules](#stop-marker-template)); a plan in `.scratch/` isn't committed.
+Keep that last line only when the plan file is tracked (the [STOP fill-in rules](#stop-marker-template)); a plan in `.scratch/` isn't committed. The token-line reminder follows the same fill-in rule as in the STOP prompts.
+
+The last wave's review also does the plan's [final completion](#final-completion-all-groups-done), since no chat runs after it. Its prompt adds, after the `On PASS` line:
+
+        On PASS, this was the last wave, so also finish the plan: replace
+        the Kickoff marker line with `--- KICKOFF: plan complete ---` and
+        its Status line with `N/N groups done | completed <YYYY-MM-DD>`,
+        add the `actual tokens` and `actual $` columns to the Cost table
+        from "## Token log" (your own lines included), and append the
+        Completion summary, per plan-execution.md "Final completion".
+
+On a plan that runs `review:` off, the last wave's own prompt carries the same instructions instead. When the last wave's review returns `CONCERNS`, its fix-up wave's review becomes the last review and carries them; when Gary waives the concern instead, the chat that records the waiver runs final completion.
 
 For a wave that ran at `[xdeep]`, change `[deep]` to `[xdeep]` in the marker, the chat title, and the prompt's first line, and use these rows:
 
@@ -570,11 +606,14 @@ Passive variant — `[exec]` first wave (the most common shape):
         Read <absolute path to the plan file>. Begin execution at the top
         of the plan.
         On branch <name> (task branch): commit each finished step.
-        Before you stop, update plan progress: append
-        ` (done)` to the headings you finished, update the Kickoff Status
-        line, and flip the matching todos. Then stop at the next STOP
-        marker and report what you changed and any deviations from the
-        plan.
+        Before you stop, update plan progress: append ` (done)` to the
+        headings you finished, update the Kickoff Status line, and flip the
+        matching todos. Append one line per model this chat ran to the
+        plan's "## Token log" (create it if absent), counted and priced per
+        plan-execution.md "Token line format":
+          tokens wave-1 <group-id> (<model>): input ~X / cache read ~R / cache write ~W / output ~Y | ~$C API-equiv
+        Then stop at the next STOP marker and report what you changed and
+        any deviations from the plan.
 
     ---
 
@@ -599,8 +638,12 @@ Passive variant — `[fast]` first wave (prompt body adds the "no refactor" remi
         These are mechanical edits -- apply exactly what the
         plan specifies; do not refactor, rename, or generalize. Before you
         stop, update plan progress (mark the headings you finished
-        ` (done)`, update the Status line, flip the matching todos). Then
-        stop at the next STOP marker and report back.
+        ` (done)`, update the Status line, flip the matching todos). Append
+        one line per model this chat ran to the plan's "## Token log"
+        (create it if absent), counted and priced per plan-execution.md
+        "Token line format":
+          tokens wave-1 <group-id> (<model>): input ~X / cache read ~R / cache write ~W / output ~Y | ~$C API-equiv
+        Then stop at the next STOP marker and report back.
 
     ---
 
@@ -640,7 +683,7 @@ Rules for filling in the template:
 - Use `->` ASCII arrows rather than Unicode em-dash arrows so the marker is safe in terminals and grep.
 - Fill in the `Status:` line with the total group count (`N`), the first group's identifier, and today's date. Update it as execution progresses (see [Progress tracking](#progress-tracking) below).
 - For the passive variants, include the `Suggested chat title:` line in the [Wave title format](#wave-title-format) for the first wave (`Wave 1 of N [<tier>] <first group>`). It is advisory — a foreground chat cannot set its own title, so emit it for the user to paste even though the harness may ignore it. The active orchestrate variant has no such line: its per-wave titles are the `Task` subagent descriptions.
-- For the passive variants, always keep the **progress-update reminder** spelled out inline in the prompt body (append ` (done)` to finished headings, update the Status line, flip the matching todos). A fresh chat that pastes this prompt usually does **not** re-load the driver skill, so this line is the only way the [Progress tracking](#progress-tracking) convention reaches the worker — it is the single most common reason a wave finishes without being marked done, so never drop it. (The active orchestrate variant re-loads the skill, so its parent applies the updates per the skill procedure instead; see [Who updates progress, and how](#who-updates-progress-and-how).)
+- For the passive variants, always keep the **progress-update reminder** spelled out inline in the prompt body (append ` (done)` to finished headings, update the Status line, flip the matching todos). A fresh chat that pastes this prompt usually does **not** re-load the driver skill, so this line is the only way the [Progress tracking](#progress-tracking) convention reaches the worker — it is the single most common reason a wave finishes without being marked done, so never drop it. Keep the token-line reminder too, filled in per the [STOP fill-in rules](#stop-marker-template). (The active orchestrate variant re-loads the skill, so its parent applies the updates per the skill procedure instead; see [Who updates progress, and how](#who-updates-progress-and-how).)
 
 ### Cost table
 
@@ -655,16 +698,17 @@ At kickoff, for the [Expected cost](#expected-cost) example:
     | 1 [exec] m1 s1-s3 | ~4.0M | ~$1.6 |
     | 2 [deep] m2 s1 | ~6.1M | ~$3.2 |
     | 3 [fast] m3 s1-s4 | ~3.4M | ~$0.90 |
-    | **Total** | ~14M | ~$5.7 |
+    | kickoff | ~1.5M | ~$1.0 |
+    | **Total** | ~15M | ~$6.7 |
 
     Expected values are estimates, good to about 2-3× per wave.
 
-- **Rows.** One per wave, in the order the waves run, labeled `<n> [<execution tier>] <group-id>` with the group identifier of its [wave title](#wave-title-format). A wave's row includes its review: the passive driver's review beat, or orchestrate's `[xdeep]` review subagent. Orchestrate adds an `orchestrator` row above the total for its parent: the kickoff, plus each wave's review and bookkeeping. The **Total** row comes last.
+- **Rows.** One per wave, in the order the waves run, labeled `<n> [<execution tier>] <group-id>` with the group identifier of its [wave title](#wave-title-format). A wave's row includes its review: the passive driver's review beat, or orchestrate's `[xdeep]` review subagent. Above the total, the passive driver adds a `kickoff` row for its kickoff chat, and orchestrate an `orchestrator` row for its parent: the kickoff, the start-up after the new-chat handoff, each wave's review and bookkeeping, and each gate that waits on a human ([Expected cost](#expected-cost)). The **Total** row comes last.
 - **Expected values** come from [Expected cost](#expected-cost) for the harness the label names: the harness the kickoff runs in, unless Gary names another. Show them with `~`, and keep the one line under the table that says how far to trust them.
-- **Waves added later.** A wave added after kickoff (a fix-up wave after `CONCERNS`, or a re-plan) gets its own row with expected `—`. A fix-up wave for wave N is `N-fix` (row `1-fix [exec] m1 s2`, token lines `wave-1-fix`). A re-plan's new waves take the next unused numbers, and a wave it drops keeps its row. The expected total sums only the planned rows and the actual total sums every row, so the gap between them shows the cost of unplanned work. A step-up retry is not a new wave: it counts in its wave's actual.
-- **Idempotence.** A plan carries one Cost table. Replacing the Kickoff keeps the table and its expected values, unless re-grouping changed the waves: then recompute the expected columns and say so in chat.
+- **Waves added later.** A wave added after kickoff (a fix-up wave after `CONCERNS`, or a re-plan) gets its own row with expected `—`. A [fix-up wave](#wave-annotation-format) for wave N is `N-fix` (row `1-fix [exec] m1 s2`, token lines `wave-1-fix` and `review-wave-1-fix`). A re-plan's new waves take the next unused numbers, and a wave it drops keeps its row. The expected total sums only the planned rows and the actual total sums every row, so the gap between them shows the cost of unplanned work. A step-up retry is not a new wave: it counts in its wave's actual.
+- **Idempotence.** A plan carries one Cost table. Replacing the Kickoff keeps the table and its expected values. Before any wave has run, re-grouping that changed the waves recomputes the expected columns (say so in chat); after that, a re-plan follows the rule above and no expected value changes.
 - **Re-entry.** A driver re-entering a plan keeps the table as it stands and adds rows for waves added since. If the table is missing, it writes one with expected values for every planned wave.
-- **Completion.** At [Final completion](#final-completion-all-groups-done), add `actual tokens` and `actual $` columns. Each row's actuals are the sum of its [Token log](#token-line-format) lines across models: billed tokens, and dollars. A wave row sums its `wave-N` and `review-wave-N` lines, and the `orchestrator` row sums the `orchestrator-*` lines. A wave that never ran shows actual `—`. Mark an actual `(heuristic)` when any line it sums carries that label. The completed table is the plan's cost breakdown; the Token log keeps the per-model detail.
+- **Completion.** At [Final completion](#final-completion-all-groups-done), add `actual tokens` and `actual $` columns. Each row's actuals are the sum of its [Token log](#token-line-format) lines across models: billed tokens, and dollars. A wave row sums its `wave-N` and `review-wave-N` lines, the `kickoff` row its `kickoff` lines, and the `orchestrator` row the `orchestrator-*` lines. A wave that never ran shows actual `—`. Mark an actual `(heuristic)` or `(output est.)` when any line it sums carries that label, and `(combined)` when a `(combined: <rows>)` line names its row. The completed table is the plan's cost breakdown; the Token log keeps the per-model detail.
 
 Completed, with a fix-up wave after wave 1's review:
 
@@ -674,14 +718,15 @@ Completed, with a fix-up wave after wave 1's review:
     | 1-fix [exec] m1 s2 | — | — | … | … |
     | 2 [deep] m2 s1 | ~6.1M | ~$3.2 | … | … |
     | 3 [fast] m3 s1-s4 | ~3.4M | ~$0.90 | … | … |
-    | **Total** | ~14M | ~$5.7 | … | … |
+    | kickoff | ~1.5M | ~$1.0 | … | … |
+    | **Total** | ~15M | ~$6.7 | … | … |
 
 ## Who updates progress, and how
 
 The two tracking surfaces — the in-harness todo list and the durable plan markdown file (both defined under [Progress tracking](#progress-tracking) below) — are kept in sync differently by each driver, because only one flow has a coordinator:
 
 - `personal-plan-orchestrate` **has an orchestrator-parent**. After each wave's subagent returns, the parent applies the [Progress tracking](#progress-tracking) updates itself (mark ` (done)`, update the `Status:` line, flip todos). Subagents do mechanical work in their own working directory and never touch the plan file. This is handled by the skill procedure, so it does not need to ride in any prompt. The git instruction does ride in every dispatch prompt (see [Delegating execution to subagents](#delegating-execution-to-subagents)): on a task branch subagents commit each finished step, and only the parent pushes, after its review. The parent also **reviews every returned summary** as part of that step and writes the verdict to the [Review log](#review-log) (`review wave-N (<group-id>) <from>..<to>: PASS|CONCERNS - … - <date>`) — this is the orchestrate **log-only** participation in the [review beat](#review-beat) convention. It adds **no human review gate** beyond orchestrate's own (the `[exec]/[fast] -> [deep]` review gate and the milestone gate), and the every-wave review beat that the passive driver runs as a separate human-driven chat is, in orchestrate, just the parent's inline review plus the log write.
-- `personal-plan-model-tiers` **has no orchestrator**. Each wave runs in its own pasted chat, and that chat usually does **not** re-load the driver skill — it just reads the plan, executes, and stops. So the progress-update instruction is **baked inline into every Kickoff/STOP prompt body** (see the templates above). The pasted prompt is the only place the convention can reach a fresh chat, which is why the reminder is spelled out in full there rather than referenced. Do **not** add a separate checklist block to the plan file to carry this — it is noise for the human and burns context; the inline prompt reminder is the mechanism.
+- `personal-plan-model-tiers` **has no orchestrator**. Each wave runs in its own pasted chat, and that chat usually does **not** re-load the driver skill — it just reads the plan, executes, and stops. So the progress-update instruction is **baked inline into every Kickoff/STOP prompt body** (see the templates above), and so is the token-line reminder, which the REVIEW prompts carry too. The pasted prompt is the only place the convention can reach a fresh chat, which is why the reminder is spelled out in full there rather than referenced. Do **not** add a separate checklist block to the plan file to carry this — it is noise for the human and burns context; the inline prompt reminder is the mechanism.
 
 ## Progress tracking
 
@@ -719,7 +764,7 @@ When re-entering a plan in a fresh chat, re-derive the native todo list from thi
 
 ### Final completion (all groups done)
 
-When the last group finishes:
+Final completion runs once the last group finishes and its review passes: in the passive flow, in the last wave's [review beat](#review-beat) on `PASS` (in the last wave's own chat when `review:` is off), and in orchestrate, in the parent after the last wave's review. It does:
 
 1. Flip all remaining native todos to `completed`.
 2. Ensure every executable heading carries ` (done)`.
@@ -731,7 +776,7 @@ When the last group finishes:
 
        Status: N/N groups done | completed YYYY-MM-DD
 
-4. Add the actual columns to the [Cost table](#cost-table) from the `## Token log`, and print the completed table in chat with the Completion summary.
+4. Replace each `(output est.)` line in the `## Token log` whose session has ended with that session's `cost-state` totals ([source precedence](#token-accounting--source-precedence)), per model from `modelUsage.<model>`, taking the line's dollars from its `costUSD` since the record doesn't split 5-minute from 1-hour writes; a session that is still live, or whose record also covers other rows, keeps its lines. Then add the actual columns to the [Cost table](#cost-table) from the Token log, and print the completed table in chat with the Completion summary.
 
 5. Append a **Completion summary** at the bottom of the plan file (below all existing content):
 

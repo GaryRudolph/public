@@ -123,7 +123,10 @@ branch with the plan file tracked (`specs/handoffs/` on a runner): a plan
 in gitignored `.scratch/` isn't committed, and never `git add -f` it.
 After an `[xdeep]` wave, also apply the `[xdeep]` note under that
 template: `[xdeep]` in the marker, title, and prompt, its Opus max-effort
-rows, and no ultracode. **Idempotent:** skip a REVIEW write when
+rows, and no ultracode. The final wave's REVIEW prompt also carries the
+standards' final-completion paragraph, so that review finishes the plan
+on `PASS`; with `review:` off, the STOP or Kickoff prompt that launches the
+last wave carries it. **Idempotent:** skip a REVIEW write when
 `--- REVIEW: wave-N` already exists for that wave (re-entry).
 
 Then insert STOP markers at tier transitions.
@@ -153,12 +156,15 @@ include:
    step.` on a task branch (Gary pasting it names the branch for that chat;
    leave it out until a task branch exists; a chat on another branch
    follows the standards' fill-in rule: a runner keeps its assigned branch
-   and says so, a workstation proposes switching and waits), and ends with
-   "Stop at the next STOP marker and report back" so the cascade is
+   and says so, a workstation proposes switching and waits), carries the
+   **token-line reminder** inline (append one line per model to `## Token
+   log`, labeled `wave-<n> <group-id>`, with the format quoted), and ends
+   with "Stop at the next STOP marker and report back" so the cascade is
    preserved. There is no orchestrator in this flow, and the pasted chat
-   usually does not re-load this skill, so that inline reminder is the only
-   thing that tells the wave to update plan state — never omit it, and do
-   not move it into a separate checklist block in the plan.
+   usually does not re-load this skill, so those inline reminders are the
+   only thing that tells the wave to update plan state and log its tokens —
+   never omit them, and do not move them into a separate checklist block in
+   the plan.
 5. For a STOP into an `[xdeep]` wave, the extras from the standards'
    `[xdeep]` escalation note: start the prompt with the keyword `ultracode`
    so that turn runs under ultracode (for a wave that may take more than
@@ -205,21 +211,23 @@ if a Kickoff block already exists at the top of the file (any line
 matching `--- KICKOFF: ... ---`), replace it with the appropriate
 variant rather than appending. A plan never carries more than one
 Kickoff block. Apart from the Cost table below, do not modify any other
-content in the plan. Do **not**
-write any separate progress checklist block into the plan — the
-progress-update reminder lives inline in the Kickoff/STOP prompt bodies
-(see step 4), which is the only surface a fresh pasted chat reliably reads.
+content in the plan. Do **not** write any separate progress checklist
+block into the plan — the progress-update and token-line reminders live
+inline in the Kickoff/STOP prompt bodies (see step 4), which is the only
+surface a fresh pasted chat reliably reads.
 
 **Write the Cost table directly below the Kickoff block** (standards
 §"Cost table"). Estimate each wave per standards §"Expected cost": each
 step at the row for the model that runs the wave's execution tier in this
 harness (or the harness the user names), times the step's size factor,
 plus the wave's review beat. Label the table with that harness (e.g.
-`**Cost (API-equiv, Claude Code models)**`), give it one row per wave and
-a **Total** row, and keep the one-line accuracy note under it. Print the
-Kickoff block and the table in chat. When you replace an existing Kickoff,
-keep the table unless re-grouping changed the waves; then recompute its
-expected columns and say so.
+`**Cost (API-equiv, Claude Code models)**`), give it one row per wave, a
+`kickoff` row for this chat (standards §"Expected cost", "Kickoff row")
+and a **Total** row, and keep the one-line accuracy note under it. Print
+the Kickoff block and the table in chat. When you replace an existing
+Kickoff, keep the table; recompute its expected columns only when
+re-grouping changed the waves before any wave has run, and say so. After
+a wave has run, a re-plan adds rows with expected `—` instead.
 
 After writing the Kickoff block, **seed the native todo list**: create
 one todo per group (in order), with the first group as `in_progress` and
@@ -247,13 +255,16 @@ and the only way to authorize multiple unattended steps is an explicit
 
 ### 7. Branch on the answer
 
-- **New chat (default).** Print the full modified plan (with STOP
-  markers, and the Kickoff block and Cost table at the top) so the user
-  can see the result. Halt. Do **not** begin executing any step — the user will
-  start a fresh chat by copying the Kickoff prompt from the top of the
-  plan file.
-- **Current chat.** Print the full modified plan. Then begin executing
-  the first group. Stop at the first STOP marker and report back.
+- **New chat (default).** Append this chat's `kickoff` token line to
+  `## Token log` (see "Token tally on report-back" below). Print the full
+  modified plan (with STOP markers, and the Kickoff block and Cost table
+  at the top) so the user can see the result. Halt. Do **not** begin
+  executing any step — the user will start a fresh chat by copying the
+  Kickoff prompt from the top of the plan file.
+- **Current chat.** Append this chat's `kickoff` token line, print the
+  full modified plan, then begin executing the first group. Stop at the
+  first STOP marker and report back, with a `wave-1` token line for the
+  work since the kickoff line.
 
 In whichever chat executes a group, **before halting at the STOP marker**:
 
@@ -264,23 +275,25 @@ In whichever chat executes a group, **before halting at the STOP marker**:
 3. Update the `Status:` line in the Kickoff block: increment the done
    count, set `current:` to the next group's identifier, and refresh
    the date.
-4. On a task branch, commit; a runner also pushes (core.md "Save before
+4. Append this chat's token lines to `## Token log`, as the prompt's
+   token-line reminder says (see "Token tally on report-back").
+5. On a task branch, commit; a runner also pushes (core.md "Save before
    you wait"). The STOP question is then only about the next wave and
-   names the commit range. On a shared branch, offer the commit as its own
-   choice (standards §"STOP gate semantics"); a workstation asks once, at
-   its first pause (end of the first step), before anything is committed,
-   whether to cut a task branch (core.md "Cut a task branch off a shared
-   branch"). A chat that cuts one adds its `On branch` line to the
+   names the commit range. On a shared branch, offer the commit as its
+   own choice (standards §"STOP gate semantics"); a workstation asks once,
+   at its first pause (end of the first step), before anything is
+   committed, whether to cut a task branch (core.md "Cut a task branch off
+   a shared branch"). A chat that cuts one adds its `On branch` line to the
    remaining STOP prompts (and REVIEW prompts, when the plan is tracked)
    with its first commit.
 
 **Review beat (separate chat).** After a wave finishes, the human runs
 the REVIEW marker for that wave before starting the next wave. When
 executing a review beat, follow the REVIEW prompt in the plan: read-only,
-append one line to `## Review log` per standards §"Review log", update
-`last review:` on the Kickoff `Status:` line (`wave-N PASS` or
-`wave-N CONCERNS`), and report back. Do **not** fix or start the next
-wave.
+append one line to `## Review log` per standards §"Review log" and its
+`review-wave-N` token lines to `## Token log`, update `last review:` on
+the Kickoff `Status:` line (`wave-N PASS` or `wave-N CONCERNS`), and
+report back. Do **not** fix or start the next wave.
 
 **Review gate (fail-closed).** Before starting wave N+1 (via a STOP or
 Kickoff prompt), verify wave N's review verdict is `PASS` — either
@@ -290,7 +303,8 @@ required, set `Status:` to
 `BLOCKED at gate review-wave-N` (with `last review: wave-N CONCERNS` when
 applicable), re-post the concern, and end the turn. The next wave does
 not start until a human resolves the block. A fix-up wave added to resolve
-it gets its own Cost table row with expected `—` (standards §"Cost table").
+it is numbered `N-fix` and gets its own Cost table row with expected `—`
+(standards §"Cost table").
 
 **At every STOP marker, these gates are fail-closed.** A missed,
 timed-out, dismissed, or ambiguous response to a STOP-marker question
@@ -302,35 +316,47 @@ re-post the STOP-marker question, and end the turn. The next session
 re-derives state from the `Status:` line and ` (done)` markers —
 a `BLOCKED at gate` status means re-post and wait, never assume approval.
 
-When the **last group finishes**, perform the final-completion steps from
+When the **last group finishes**, its chat updates progress and logs its
+tokens like any other wave and stops. The final-completion steps from
 `§"Model-tier stop points" → "Progress tracking" → "Final completion"`
-in the standards: flip all todos to `completed`, replace the Kickoff
-marker with `--- KICKOFF: plan complete ---`, add the actual columns to
-the Cost table (see "Token tally on report-back" below), and append the
-Completion summary at the bottom of the plan file.
+in the standards run in the last wave's review beat, on `PASS`, as its
+REVIEW prompt says (in the last wave's own chat when `review:` is off):
+replace the Kickoff marker with `--- KICKOFF: plan complete ---`, add the
+actual columns to the Cost table (see "Token tally on report-back"
+below), and append the Completion summary at the bottom of the plan
+file.
 
 ## Token tally on report-back
 
-Before halting (new-chat branch of step 7) or after stopping at the first
-STOP marker (current-chat branch of step 7), end your report-back with one
-token line per model this chat ran, in the canonical format of
-`../personal-standards/standards/plan-execution.md` §"Token line format".
-Label each `wave-N <group-id>`, or `review-wave-N <group-id>` after a
-**review beat** chat. `wave-N` is the 1-based wave number (1 for the first
-group executed, 2 for the second, etc.) and `<group-id>` is the group
-identifier from the plan (e.g. `m1-s1-s3`).
+This chat ends its report-back with one token line per model it ran, in
+the canonical format of `../personal-standards/standards/plan-execution.md`
+§"Token line format":
+
+- **Kickoff** (both branches of step 7): `kickoff <plan-name>`, for the
+  work through writing the Kickoff block and the Cost table.
+- **Wave 1** (current-chat branch only): `wave-1 <group-id>`, for the work
+  since the kickoff line: only those calls when the harness has real
+  usage, or the heuristic's form for part of a chat (`T0` is the kickoff's
+  tokens).
+
+`<group-id>` is the group identifier from the plan with hyphens (e.g.
+`m1-s1-s3`). Later wave chats and review-beat chats write their own
+`wave-N` and `review-wave-N` lines, from the token-line reminder in the
+prompts they paste (step 4).
 
 Take the counts from the **source precedence** in the same standards file
 (§"Token accounting — source precedence"):
 
 - **Claude Code**: this chat's session transcript, deduped by `message.id`
   (exact). A subagent this chat delegated to adds the exact input-side
-  counts from its own transcript, with output estimated per call as the
-  standards table says, so that model's line carries `(output est.)`.
+  counts from its own transcript, with output estimated for the calls the
+  standards table names, so that model's line carries `(output est.)` and
+  ends with `session <id>`.
 - **Codex, Gemini CLI, Grok Build**: that harness's usage, normalized per
   the standards table.
-- **Cursor, Muse Code**: usage the user pastes, else the accumulation
-  heuristic, labeled `(heuristic)`.
+- **Cursor**: usage the user pastes, else the accumulation heuristic,
+  labeled `(heuristic)`.
+- **Muse Code**: the accumulation heuristic, labeled `(heuristic)`.
 
 Accuracy follows the source, as the standards section states. Price each
 line with the cache-aware formula and its model's list rates (§"Model price
@@ -341,11 +367,12 @@ section at the bottom of the plan file (create the section if it doesn't
 exist). This persists the lines across separate chats, and the Cost table's
 actual columns come from it.
 
-When the **last group finishes**, add the actual tokens and actual $
-columns to the plan's Cost table from the `## Token log` (standards §"Cost
+At final completion (the last wave's review beat, step 7), the actual
+tokens and actual $ columns come from the `## Token log` (standards §"Cost
 table": each wave row sums its `wave-N` and `review-wave-N` lines across
-models) and print the completed table alongside the Completion summary. The
-Token log keeps the per-model detail.
+models, and the `kickoff` row its `kickoff` lines), and the completed table
+prints alongside the Completion summary. The Token log keeps the per-model
+detail.
 
 ## Delegating to subagents
 
