@@ -391,7 +391,11 @@ test('unattended: a check failure gets an automatic fix-up that quotes the check
   assert.deepEqual(result.checkpoints, ['gate-1'])
   assert.deepEqual(kinds(calls), ['Wave', 'Review'])
   assert.match(calls[0].prompt, /check_wave\.py\) failed on this group\. Their output \(verbatim\):\n\n> check_wave\.py: repo-b: 518e99f has a Co-authored-by line; repo-b: m1\.s3 has no commit/)
-  assert.match(calls[0].prompt, /change only the messages of the commits the check names by SHA[\s\S]*every other commit in 846932b\.\.HEAD as it is, message included; some of them are the parent's plan and handoff commits/)
+  // m2.s2 item 12: a reword replays the parent's commits with new SHAs, so the prompt keeps their content, not the commits
+  assert.match(calls[0].prompt, /change only the messages of the commits the check names by SHA[\s\S]*keep the message and content of every other commit in 846932b\.\.HEAD; some of them are the parent's plan and handoff commits/)
+  assert.match(calls[0].prompt, /replays the commits after them with new SHAs, the parent's included: that is expected, and the parent force-pushes with a lease/)
+  assert.doesNotMatch(calls[0].prompt, /as it is, message included/)
+  assert.match(calls[0].prompt, /A step with no commit gets its commit, an empty one \(`git commit --allow-empty`\) when the step changes no file/)
   assert.match(calls[0].prompt, /`git commit --amend` only when HEAD is one of the named commits[\s\S]*Do not push/)
   assert.doesNotMatch(calls[0].prompt, /review CONCERNS:/)
   assert.match(calls[1].prompt, /The last check_wave\.py run raised/)
@@ -455,6 +459,14 @@ test('every prompt forbids outward actions, and a worker asks with needs_info in
   const { calls } = await harness({ ...base, xdeepDrafts: 2, approval: 'go', approved: [{ gate: 'gate-7', wave: 4 }], state: st(unit(4, 'xdeep', ['m2.s4']), ['gate-7']), groups: [G('/r/a', ['m2.s4'])] })
   for (const c of calls) assert.match(c.prompt, /open or merge a PR/, c.label)
   assert.match(calls.find(c => c.label.startsWith('Wave')).prompt, /If a step needs one, return `needs_info` naming it/)
+})
+
+// ---- m2.s2: a step that changes no file ----
+
+test('a step that changes no file still gets its commit, an empty one (m2.s2 item 11)', async () => {
+  const { calls } = await harness({ ...base, state: st(unit(2, 'exec', ['m1.s2'])), groups: [G('/r/a', ['m1.s2'])] })
+  assert.match(calls[0].prompt, /A step that changes no file \(a check, a verification\) still gets its commit, an empty one \(`git commit --allow-empty`\)\. Each commit message is:/)
+  assert.match(calls[0].prompt, /as the last paragraph:\n\n    Assisted-by: Claude Code\nNever add/)  // nothing between the trailers and the rules
 })
 
 let failed = 0

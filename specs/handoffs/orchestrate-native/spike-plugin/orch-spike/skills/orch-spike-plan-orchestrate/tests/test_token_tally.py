@@ -34,6 +34,7 @@ agent("r", "Review Wave 2-fix of 4 [exec] repo-b m1 s3", [call("c", O, 800, True
 agent("x", "Wave 2 of 4 [deep] repo-a m1 s2 (retry)", [call("d", O, 9, False)])
 agent("f2", "Wave 2-fix2 of 4 [exec] repo-b m1 s3", [call("e", S, 700, True)])
 agent("r2", "Review Wave 2-fix2 of 4 [exec] repo-b m1 s3 (retry)", [call("f", O, 600, True)])
+agent("h", "Wave 1 of 4 [fast] repo-c m1 s1", [call("g", "claude-haiku-4-5-20251001", 50, True)])
 launch = lambda rid: {"type": "user", "toolUseResult": {"status": "async_launched", "runId": rid}, "message": {"content": []}}
 (tmp / "sess-1.jsonl").write_text("".join(json.dumps(x) + "\n" for x in [
     call("p1", O, 300, True), launch("wf_1"), call("p2", O, 400, True, inp=20), launch("wf_2"), call("p3", O, 900, True)]))
@@ -104,6 +105,16 @@ def labels_outside_the_fix_up_grammar_get_no_row():
     assert row_for("Wave 2-fix12 of 4 [exec] repo-b m1 s3") == ("wave-2-fix12 repo-b-m1-s3", "exec")
     for bad in ("Wave 2-fix1 of 4 [exec] repo-b m1 s3", "Wave 2-fix01 of 4 [exec] repo-b m1 s3", "Wave 2-fix0 of 4 [exec] repo-b m1 s3"):
         assert row_for(bad) == (bad, None), row_for(bad)
+
+
+@test
+def a_lines_model_drops_the_date_suffix_and_pricing_uses_the_raw_id():
+    rc, out, err = tally("--check-routing")
+    line = next(l for l in out.splitlines() if l.startswith("tokens wave-1 repo-c-m1-s1 "))
+    assert "(claude-haiku-4-5):" in line and "20251001" not in line and "n/a" not in line, line
+    rows = {r["row"]: r for r in json.loads(tally("--json")[1])["rows"]}
+    assert (rows["wave-1 repo-c-m1-s1"]["model"], rows["wave-1 repo-c-m1-s1"]["model_id"]) == ("claude-haiku-4-5", "claude-haiku-4-5-20251001")
+    assert rc == 0, err
 
 
 failed = 0

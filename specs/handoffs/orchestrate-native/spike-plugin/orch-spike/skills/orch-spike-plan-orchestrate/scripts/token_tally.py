@@ -13,7 +13,8 @@ call per message.id, from its line with stop_reason, which carries the final
 counts. A call with no such line (almost every Opus call in a subagent file)
 logs a streaming placeholder (1-24) as output_tokens: its input-side counts
 are kept, its output is estimated at 1,000 tokens, and its token line is
-labeled (output est.) and ends with session <id>.
+labeled (output est.) and ends with session <id>. A line's <model> drops a
+trailing -YYYYMMDD; pricing and --check-routing use the raw id.
 
 With --check-routing, exit 2 when an agent ran on another model than its
 tier's (an availableModels substitution, or a wrong alias).
@@ -33,6 +34,12 @@ ROW_RE = re.compile(r"^\|\s*`([^`]+)`(?:\s*/\s*`[^`]+`)?(?:\s*\(([^)]*)\))?\s*\|
 # A fix-up of wave N is N-fix, then N-fix2, N-fix3 (plan-execution.md "Fix-up waves"); never N-fix1 or N-fix02.
 LABEL_RE = re.compile(r"^(?:(Review|Draft|Judge)\b[^W]*)?Wave (\d+(?:-fix(?:[2-9]|[1-9]\d+)?)?) of \d+ \[(\w+)\] (.+?)(?: \(retry\))?$")
 OUTPUT_EST = 1_000  # tokens per call without a stop_reason line (plan-execution.md)
+DATE_SUFFIX = re.compile(r"-\d{8}$")  # claude-haiku-4-5-20251001 prints as claude-haiku-4-5
+
+
+def slug(model):
+    """The model as a token line names it: no date suffix (plan-execution.md "Token line format")."""
+    return DATE_SUFFIX.sub("", model)
 
 
 def load_rates(table_path):
@@ -198,7 +205,7 @@ def main():
     for (row, model), acc in sorted(rows.items(), key=lambda kv: (kv[0][0] != "orchestrator", kv[0])):
         c = cost(acc, rate_for(model, rates))
         total += c or 0
-        out.append({"row": row, "model": model, **acc, "cost": c, "session": session})
+        out.append({"row": row, "model": slug(model), "model_id": model, **acc, "cost": c, "session": session})
     if a.json:
         print(json.dumps({"rows": out, "total_cost": total, "misrouted": misrouted}, indent=1))
     else:

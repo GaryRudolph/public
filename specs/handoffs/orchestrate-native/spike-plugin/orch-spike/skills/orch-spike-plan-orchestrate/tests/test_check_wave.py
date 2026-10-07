@@ -132,6 +132,42 @@ cases.append(("with the fixed wave's snapshot as baseline, the leftover path sti
 code, out = run("check", "--snapshot", tmp / "s1.json", "--baseline", tmp / "s0.json", "--group", lg)
 cases.append(("once the fix-up removes it, the check passes", code == 0))
 
+# ---- m2.s2: the plan's repo with no group, and the scope breaches that stop ----
+
+hold = repo("holder")                                       # the plan's repo; this wave runs only in another directory
+(hold / "specs" / "handoffs").mkdir(parents=True)
+hp, hh = hold / "specs/handoffs/plan-y.md", hold / "specs/handoffs/handoff-y.md"
+hp.write_text("plan\n")
+hh.write_text("handoff\n")
+sh(hold, "add", "-A")
+sh(hold, "commit", "-q", "-m", "start plan-y")
+work = repo("work")
+code, s4 = run("snapshot", hold, work)
+(tmp / "s4.json").write_text(json.dumps(s4))
+wfrom = sh(work, "rev-parse", "--short", "HEAD")
+commit(work, "w.txt", "m1.s1 Add w" + T)
+hp.write_text("plan\nm1.s1 (done)\n")
+hh.write_text("handoff\nwave 1 done\n")
+sh(hold, "add", "specs")
+sh(hold, "commit", "-q", "-m", "update plan-y and its handoff after wave 1" + T)   # the parent's bookkeeping, then a second check
+wg = json.dumps({"id": "work m1 s1", "workdir": str(work), "steps": ["m1.s1"], "from": wfrom, "trailers": ["Assisted-by: Claude Code"]})
+code, out = run("check", "--snapshot", tmp / "s4.json", "--plan", hp, "--group", wg)
+cases.append(("the parent's bookkeeping commit in the plan's repo with no group passes", code == 0 and not out["others"]
+              and list(out["bookkeeping"].values()) == [[sh(hold, "rev-parse", "--short=7", "HEAD")]]))
+code, out = run("check", "--snapshot", tmp / "s4.json", "--group", wg)
+cases.append(("without the plan path it is a change in a directory with no group", code == 1 and out["others"] and out["scope"]))
+commit(hold, "x.txt", "m1.s1 Add x" + T)
+code, out = run("check", "--snapshot", tmp / "s4.json", "--plan", hp, "--group", wg)
+cases.append(("a step commit in the plan's repo with no group is still a scope breach", code == 1 and out["others"] and out["scope"]))
+sh(hold, "reset", "-q", "--hard", "HEAD~1")
+code, out = run("check", "--snapshot", tmp / "s4.json", "--plan", hp, "--group", wg.replace(wfrom, "1234567"))
+cases.append(("a from that is not an ancestor is listed under scope", code == 1 and out["groups"][0]["scope"]
+              and any("not an ancestor" in x for x in out["scope"])))
+(work / "left.txt").write_text("x")
+code, out = run("check", "--snapshot", tmp / "s4.json", "--plan", hp, "--group", wg)
+cases.append(("a new uncommitted path is listed under uncommitted, not scope", code == 1 and out["groups"][0]["uncommitted"] == ["left.txt"]
+              and not out["scope"]))
+
 failed = [n for n, ok in cases if not ok]
 for n, ok in cases:
     print(("ok   " if ok else "FAIL ") + n)

@@ -315,7 +315,10 @@ def state(text):
         if mode is None or mode["value"] == "pending":
             gates.insert(0, "gate-mode")  # no confirmed answer to the kickoff question: dispatch nothing
         row = cost["rows"].get(nxt["label"])
-        spend_next = (row or 0.0) if (nxt["kind"] == "fixup" or nxt["start"]) else 0.0
+        # A wave's expected $ counts once, before any of its steps is done: not again for a canary's continuation or
+        # for a later unit of a wave split across milestones, whose start is true but whose wave has begun.
+        begun = nxt["kind"] == "wave" and any(s["done"] for s in steps if s["label"] == nxt["label"])
+        spend_next = (row or 0.0) if (nxt["kind"] == "fixup" or not begun) else 0.0
         guard = mode["guard"] if mode else DEFAULT_GUARD
         guard_min = mode["guard_min"] if mode else DEFAULT_GUARD_MIN
         out["cost"] = {"expected_total": cost["total"], "actual": round(cost["actual"], 2), "next_expected": row,
