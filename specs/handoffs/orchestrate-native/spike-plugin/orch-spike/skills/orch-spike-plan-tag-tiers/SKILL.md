@@ -83,7 +83,8 @@ picking a driver:
 - The top-down tier sequence (e.g. `xdeep, deep, exec, exec, fast, fast, deep`).
 - For each `[xdeep]` step, the checklist condition it met and whether it is
   audit-shaped (a whole-codebase or cross-repo audit, or a broad sweep over
-  many files: the one case that takes ultracode in Claude Code), so the
+  many files: the one case that takes ultracode in Claude Code, and only under
+  the passive driver), so the
   `[xdeep]` spend is easy to second-guess.
 - A one-line recommendation:
   - Mostly `[exec]` / `[fast]` with little `[deep]` → good fit for
@@ -105,9 +106,9 @@ not already tagged.
   inserts STOP markers + a passive Kickoff block, and hands each model swap
   off to you.
 - [`orch-spike-plan-orchestrate`](../orch-spike-plan-orchestrate/SKILL.md) —
-  active Cursor driver. Same wave grouping, but the `[deep]` parent dispatches
-  each wave via `Task(model=...)` subagents and pauses only at mandatory STOP
-  gates.
+  active driver, on Claude Code and Cursor. Same wave grouping, but the
+  `[deep]` parent dispatches each wave to subagents on the tier's model and
+  pauses only where its recorded mode stops.
 - `../orch-spike-standards/standards/plan-execution.md` §"Model-tier stop
   points" — canonical reference for tiers, the downgrade checklist, and tag
   placement.

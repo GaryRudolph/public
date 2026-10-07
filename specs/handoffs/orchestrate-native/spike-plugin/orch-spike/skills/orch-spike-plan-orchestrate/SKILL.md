@@ -30,9 +30,12 @@ says to stop.
 This file is the harness-neutral core: what a run is, the kickoff and its
 mode, the gates, the loop, the handoff, and how to tell which harness you
 are on. The steps that differ by harness (the dispatch call, its arguments,
-the run's result) are in "Claude Code steps" and "Cursor steps" at the end;
-m2.s4 of the orchestrate-native plan moves them to `adapters/claude-code.md`
-and `adapters/cursor.md`, and from then on this file points there.
+the hooks that check it, the run's result, the token tally) are in
+[`adapters/claude-code.md`](adapters/claude-code.md) and
+[`adapters/cursor.md`](adapters/cursor.md). Once detection picks the
+harness, read that adapter next: this file and the adapter are one
+procedure, and the adapter says where each of its steps falls in the loop
+below.
 
 Canonical reference for tier definitions, the `[fast]` downgrade and
 `[xdeep]` upgrade checklists, tag placement, the no-thrash rule, the model
@@ -100,7 +103,7 @@ Work down this list and take the first that matches.
      copy of the plugin works unchanged. If `<P>:plan-worker` isn't among
      `Agent`'s subagent types, the plugin's agents aren't loaded: go passive.
    - If `Workflow` is missing (disabled, or Pro without the `/config`
-     opt-in), use the **Agent path** (Claude Code steps, below).
+     opt-in), use the **Agent path** (`adapters/claude-code.md`).
    - Otherwise use the **workflow path**: you will **call the Workflow
      tool** to launch the `<P>:plan-segment` workflow, one launch per
      dispatch unit. Confirm the workflow exists from the skills list (it is
@@ -111,8 +114,8 @@ Work down this list and take the first that matches.
    - **Phase 1: dogfood.** The Claude Code path is new and is being proven
      on real plans. Say so in the kickoff question, and report anything the
      procedure below doesn't cover as a deviation.
-3. **Cursor: `Task` with a `model` parameter, and no `Agent`** → Cursor
-   steps, below. Cursor imports Claude plugins and may list the
+3. **Cursor: `Task` with a `model` parameter, and no `Agent`** →
+   `adapters/cursor.md`. Cursor imports Claude plugins and may list the
    `<P>:plan-*` agents with `model: inherit`; never dispatch them there.
 4. **Codex (`spawn_agent`), Grok Build (`spawn_subagent`), Gemini CLI
    (`invoke_agent`), Muse Code (`subagent_spawn`)**, or nothing that
@@ -149,7 +152,7 @@ The workflow sets these itself. `[exec]` never runs past high: a stalled
 at max, only on a task type with a measured gain, and needs a gate-7
 approval in every mode; on any other tier it is gate 0. No ultracode in orchestrate: an audit-shaped
 `[xdeep]` wave that needs its fan-out runs on the passive driver. Cursor's
-slugs are in "Cursor steps". If the standard's model picker and this table
+slugs are in `adapters/cursor.md`. If the standard's model picker and this table
 disagree, the picker wins and the kit's consistency check fails.
 
 ## Rules every run keeps
@@ -790,7 +793,7 @@ the prompt from the group you pass; on Cursor you write it.
    step IDs (`m2-s1-s3`). The result's status is `done`, `failed`,
    `low_quality` or `needs_info` (with one question); never report partial
    work as `done`.
-7. **Token reporting (Cursor `Task` subagents only):** see "Cursor steps".
+7. **Token reporting (Cursor `Task` subagents only):** see `adapters/cursor.md`.
    Claude Code workflow workers get no token instruction; the parent tallies
    their transcripts.
 8. **Git instruction:** "Commit each finished step on the current branch
@@ -816,180 +819,13 @@ Reviewers are read-only and get the spec, the acceptance criteria, the
 standards, the worker's summary and the commit range; they back every
 finding with evidence and report only defects the plan must fix.
 
-## Claude Code steps (phase 1: dogfood; moves to `adapters/claude-code.md`)
+## Harness steps
 
-**Setup, once per session.**
-- `C` is `${CLAUDE_CONFIG_DIR:-$HOME/.claude}`. The session's transcript is
-  `$C/projects/<slug>/<S>.jsonl`, where `<slug>` is the working directory
-  with every character but a letter or digit turned into `-`; a run's
-  record is `$C/projects/<slug>/<S>/workflows/<runId>.json`, written when
-  the run ends.
-- If `K` isn't known from the skill's base directory:
-  `find "$C" /root/.claude -path "*<P>-plan-orchestrate/scripts/plan_state.py" 2>/dev/null | head -1`.
-- Trailers: `Assisted-by: Claude Code`, plus any trailer the harness adds
-  to its own commits (on the web, the `Claude-Session:` line; check the
-  attribution note in your system prompt). Your own commits carry
-  `Assisted-by: Claude Code` and no `Co-authored-by`, whatever the CLI's
-  default attribution says.
-
-**The launch.** Call the Workflow tool with `name: "<P>:plan-segment"`
-(never `script` or `scriptPath`) and `args` as a JSON object, never a
-string:
-
-```json
-{ "plugin": "<P>",
-  "plan": { "name": "plan-auth-otter", "path": "/abs/path/specs/handoffs/plan-auth-otter.md" },
-  "state": { "...": "plan_state.py's output, verbatim; re-run it after your last plan edit" },
-  "canaryDone": true,
-  "approved": [{ "gate": "gate-5", "wave": 1 }],
-  "approval": "yes, continue wave 1",
-  "trailers": ["Assisted-by: Claude Code"],
-  "groups": [{ "workdir": "/abs/path/repo-b", "branch": "feature/auth-otter",
-               "steps": ["m1.s2"], "spec": "#### m1.s2 - [exec] Add beta.txt\n…",
-               "acceptance": "…", "standards": [], "from": "a08d5d2" }] }
-```
-
-- `canaryDone` is false on this session's first launch and true after.
-- `approved` is `[]` except in the turn Gary's answer started (or joined):
-  then one `{gate, wave}` per gate he answered, `wave` being the launched
-  unit's wave number. `approval` is a top-level string beside `approved`,
-  never inside its items, holding his message verbatim.
-- A `needs_info` group adds `"answer": {"question": "…", "answer": "<the same words as approval>"}`.
-- Optional, each needing Gary's approval: `stepUp` (`"deep"`, `"xdeep"`,
-  `"fable"`: gate 6, plus gate 7 into `[xdeep]` or Fable), `max: true` and
-  `xdeepDrafts: 2-4` (an `[xdeep]` or Fable unit only; gate 7 in every mode).
-
-**The launch result.** `async_launched` with a `runId`: end the turn with
-one line. `error` set: the script failed its own check, gate 0.
-`remote_launched`: the run went to a cloud session whose commits land
-elsewhere, gate 0; use the Agent path. Show any `warning`. A hook deny reads
-`PreToolUse:Workflow hook error: orch-spike-plan-orchestrate gate: …` even when
-the hook exited 0: it is a deny; quote it, fix what it names, and never
-work around it.
-
-**The gate hook** (`orchestrate_gate.py`, a `PreToolUse` hook on Workflow)
-denies a launch unless: `state` equals `plan_state.py` on disk; approvals
-ride only in a turn a human message started or joined and `approval` is
-that message verbatim; `canaryDone` follows a canary launch of this
-session; no earlier run of this session is unfinished; the last run's
-stopping gates are approved; the launch is by name; an unattended mode was
-confirmed in this session for this harness and runner and not taken back;
-a raised guard or fix-up cap carries its approval; every group's directory
-and the plan's repo are on a task branch with `origin/HEAD` known; the plan
-and a refreshed handoff are committed and pushed, and so is every working
-directory of the last run; and a new WAIVED line is Gary's message. It
-fails closed. A second hook keeps reviewers' Bash read-only.
-
-**The result** (the completion notification starts the turn):
-- `check`: `python3 $K/check_wave.py check --snapshot <snapshot> --run
-  $C/projects/<slug>/<S>/workflows/<runId>.json` (add `--baseline` for a
-  fix-up). The run record supplies the plan path and the trailers.
-- `tally`: `python3 $K/token_tally.py --session-dir $C/projects/<slug>/<S>
-  --run <runId> --check-routing --parent-window <prevRunId>:<runId>
-  --parent-row "orchestrator-wave-<N> <group-id>"`; for the first run the
-  window is `start:<runId>` and the row `orchestrator-kickoff <plan name>`.
-- The record's `result`: `stop` (`done`, `gate`, `end`), `gates`,
-  `checkpoints` (log them), `retries` (log them), `questions` (a
-  `needs_info` group's question, asked verbatim), and per group `work`,
-  `review` (verdict, note, findings), `from`, `branch`, `tier`.
-
-**The runner.** Its Stop hook (`~/.claude/stop-hook-git-check.sh`) is a
-git check: it fires at a turn's end only while the tree is dirty or
-unpushed, as it is while workers run. Reply in one line; don't commit or
-push. The web harness also blocks `sleep N; cmd` chains: don't wait in the
-shell. The runner's container stays up while a run works.
-
-**Permissions.** Workers use the session's rules: allow `git add`, `git
-commit` and each repo's test commands, and the parent's `git push`
-(`--force-with-lease --force-if-includes` included). Leave `gh pr`, tag and
-deploy commands out, so a worker that tries one meets a prompt. In `-p` or
-the SDK, allow `Workflow(<P>:plan-segment)`. Start the session with
-`--add-dir <repo>` for each working directory outside the current one.
-When the snapshot reports a repo whose `.claude/settings.json` attribution
-would add a `Co-authored-by` line, say so at kickoff: `check_wave.py` fails
-such commits, and personal-repo-baseline fixes the setting.
-
-**The Agent path** (no `Workflow` tool). No hook and no script: the parent
-applies `plan_state.py`'s stops, the retries, the fix-ups and the per-wave
-handoff by hand, as on Cursor. Per working directory, all in one message:
-`Agent(subagent_type: "<P>:plan-worker", model: <opus|sonnet|haiku>,
-description: <wave title>, prompt: <the contract>, run_in_background:
-false)`; `[exec]` uses `<P>:plan-worker-exec` (Sonnet high, since this path
-can't pass effort) and `[xdeep]` `<P>:plan-worker-xdeep`; `max` doesn't
-exist here. Then each directory's reviewer the same way
-(`<P>:plan-reviewer`, or `-xdeep`). `run_in_background: false` is required:
-without it Claude Code backgrounds the call. Check with `check_wave.py
-check --snapshot <s> --plan <plan> --group '<json>'`, one `--group` per
-group (`{"id","workdir","steps","from","trailers"}`). Tally with
-`token_tally.py --session-dir $C/projects/<slug>/<S>` and no `--run`: it
-reads the session's `subagents/` transcripts and labels rows from each
-call's `description`, the wave title, so tally once per wave and append
-only that wave's new lines. Parent windows are bounded by workflow run
-ids, which this path has none of, so write one `orchestrator` line at final
-completion with `--parent-window start:end --parent-row "orchestrator <plan name>"`.
-
-## Cursor steps (moves to `adapters/cursor.md`)
-
-Phase 3 adds `plan_state.py`-driven gates checked in code, an Opus review
-subagent per working directory and a `subagentStart` hook; until then the
-parent applies the core above by hand, reviews `[deep]`, `[exec]` and
-`[fast]` waves inline and `[xdeep]` waves with a read-only xhigh subagent.
-
-**Models.** Dispatch `Task` with `model` on every call:
-- `[xdeep]`: `claude-opus-5-5[effort=xhigh]` (alt
-  `claude-fable-5-1[effort=xhigh]` only as a different-model second opinion
-  after Opus xhigh failed the step; `[effort=max]` only where a gain is
-  measured)
-- `[deep]` and the parent: `claude-opus-5-5[effort=high]`
-- `[exec]`: `grok-4-7[effort=high]`, or `claude-sonnet-5-5[effort=high]`
-  once included Cursor-pool usage runs out
-- `[fast]`: `composer-2.5[fast=false]`
-
-The bracket forms come from Cursor's subagent docs, which list only `high`
-and `max` as Claude efforts; a dropped value runs Cursor's default (medium
-on Opus 5.5). If the enum offers plain or suffixed IDs, dispatch the same
-model at the same or nearest effort and tell Gary to refresh the standards
-model picker; likewise use a newer entry of the same family when one
-appears. If the only Composer entry is Fast, use it, name its lines' model
-`composer-2.5 Fast`, and price them at the Fast row. If `Task` has no
-`model` parameter, or its enum lacks Opus, Composer, or both Grok and
-Sonnet, recommend `orch-spike-plan-model-tiers` and wait. If no xhigh Opus
-entry exists (or `model` takes free text, so nothing confirms
-`[effort=xhigh]`), say so in the gate-7 question and dispatch the effort
-Gary picks.
-
-**Dispatch.** Issue real `Task` tool calls, never text for Gary to run: one
-per working directory, all in one assistant message, each with
-`description` set to the wave title `Wave {n} of {t} [{tier}] {group-id}`
-(`Wave 2-fix2 of 4 [exec] repo-B m2 s4`; fixed at spawn), `subagent_type:
-"generalPurpose"`, `model` from above, and `prompt` per the contract. Every
-`[deep]` wave goes out too, even on one working directory: the parent's
-context never holds a wave's diffs.
-
-**Step-up on failure**: composer → the `[exec]` model at high → opus high
-(re-tag `[deep]`) → opus xhigh (re-tag `[xdeep]`, gates 6 and 7) → the fable
-alt (gates 6 and 7). Quote the re-attempt's expected cost from the
-standard's §"Expected cost" at the gate.
-
-**Checking.** `check_wave.py check --snapshot <s> --group '<json>'` per
-group (`{"id","workdir","steps","from","trailers"}`), where `trailers` is
-what the worker was told.
-
-**Contract item 7, token reporting.** End the returned summary with one
-token line per model the subagent ran on:
-`tokens wave-<label> <task-id> (<slug>): input ~X / cache read ~R / cache write ~W / output ~Y | ~$C API-equiv (heuristic)`
-(`review-wave-<label>` for the `[xdeep]` reviewer). A Cursor `Task`
-subagent can't read its own usage, so quote into the prompt, from the
-Token log's counting header, the accumulation heuristic, the cache-aware
-formula and its model's rate row, and keep the `(heuristic)` label. The
-parent's own `orchestrator-*` lines use the same heuristic (the standard's
-form for part of a chat). Pasted Cursor usage replaces the lines it covers;
-CSV rows that can't tell the parent from an Opus subagent become one
-`(combined: <rows>)` line.
-
-**Mode on Cursor.** Unattended is proposed on a Cursor cloud agent and rests
-on the parent (no hook checks the confirmation), as its gates do. Its cloud
-agents run only the repo's `.cursor/hooks.json`.
+- **Claude Code:** [`adapters/claude-code.md`](adapters/claude-code.md), the
+  workflow launch and its arguments, the two hooks, the run's result, the
+  Agent path, runners and limits, permissions and the token tally.
+- **Cursor:** [`adapters/cursor.md`](adapters/cursor.md), the harness gate,
+  the `Task` dispatch, the boundary rows and the heuristic tally.
 
 ## Out of scope
 
