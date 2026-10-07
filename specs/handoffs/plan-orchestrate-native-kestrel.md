@@ -1,7 +1,7 @@
 ```
 --- KICKOFF: begin orchestration at [deep] ---
 
-  Status: 3/8 groups done | last review: wave-3 PASS | current: m2 s1 [exec] (wave 4 dispatched, gate 4 approved) | updated 2026-10-07
+  Status: 4/8 groups done | last review: wave-4 PASS | BLOCKED at gate 2 ([exec]->[deep], before wave 5) | current: m2 s2-s3 [deep] | updated 2026-10-07
 
   review: every-wave (log-only — parent writes Review log; no human review gate)
 
@@ -128,6 +128,7 @@ Until m2.s3 rewrites `SKILL.md`, the spike's parent follows proposal §1.5 and �
 review wave-1 (m1-s1-s3) bf5da80..0d0140d: PASS - kit staged (f356a2f); criteria 1 and 10 held, 4 partial with the m2.s2 hook changes listed; scope slip: the spike changed ~/.claude-lolay/settings.json - 2026-10-06
 review wave-2 (m1-s4-s6) 0d0140d..c793202: PASS - criteria 5 (Edit/Write only; reviewer Bash writes possible), 3 and 6 held; orch-spike synced by org and account, chat and Cowork list it - 2026-10-07
 review wave-3 (m1-s7-s10) c793202..14a76b7: PASS - criteria 2 and 7 held on the runner, 8 and 9 partial (compaction false deny; typed gated switch on the runner left to m2.s9); m1 closed with no fallback, 12 m2.s2 items, m2 handoff written; spike runs ~$13.7 vs ~$5 allowance - 2026-10-07
+review wave-4 (m2-s1) 6548274..2870822: PASS - test-orchestrate wired into agents/Makefile (.PHONY, test, help); manifest fields and the || exit 2 fallback already in place; validate test passes with 152 kit tests; claude plugin validate passes - 2026-10-07
 
 ## Token log",
       counted and priced per its counting header:
@@ -322,7 +323,7 @@ Ship the Claude Code adapter in the `personal` plugin, with the standards edits 
 
 --- WAVE 4 [exec] ---
 
-#### s1 - [exec] Manifest, hooks file and `make test` wiring
+#### s1 - [exec] Manifest, hooks file and `make test` wiring (done)
 
 - Finalize what m1.s1 staged: `plugins/personal/.claude-plugin/plugin.json` carries `agents`, `workflows` and `hooks` (§4 row "hooks/claude-hooks.json, .claude-plugin/plugin.json"); `hooks/claude-hooks.json` keeps its `|| exit 2` fallback. The Codex, Cursor and Gemini manifests stay as they are (Cursor keeps pointing at `cursor-hooks.json`).
 - Add `test-orchestrate` to `agents/Makefile` (`.PHONY`, the `test` prerequisite list, `help`), calling `tests/test-orchestrate.sh "$(PLUGINS_DIR)/personal"`, beside `test-secrets` and `test-release`.
@@ -654,3 +655,5 @@ tokens wave-3 m1-s7-s10 (claude-opus-5-5): input ~50 / cache read ~240k / cache 
 tokens wave-3 m1-s7-s10 (claude-opus-5-5): input ~220 / cache read ~9.5M / cache write ~110k 5m + ~330k 1h / output ~80k | ~$6.69 API-equiv (output est.) cloud sessions C1 04efa574 and C2 d8be745c, from their own usage.py
 tokens wave-3 m1-s7-s10 (claude-sonnet-5-5): input ~46 / cache read ~1.0M / cache write ~240k / output ~22k | ~$1.02 API-equiv (output est.) cloud sessions C1 04efa574 and C2 d8be745c, from their own usage.py
 tokens orchestrator-wave-3 m1-s7-s10 (claude-opus-5-5): input ~78 / cache read ~4.9M / cache write ~240k 1h / output ~36k | ~$3.65 API-equiv
+tokens wave-4 m2-s1 (claude-sonnet-5-5): input ~16 / cache read ~460k / cache write ~71k / output ~8k | ~$0.35 API-equiv (output est.) session 350579b9-70e1-4f99-a901-444b0c4a63eb subagent a1a7e79763b8ad572
+tokens orchestrator-wave-4 m2-s1 (claude-opus-5-5): input ~14 / cache read ~1.4M / cache write ~9.4k 1h / output ~7.1k | ~$0.50 API-equiv
