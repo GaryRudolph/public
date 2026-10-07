@@ -1,0 +1,12 @@
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Workflow",
+        "hooks": [
+          { "type": "command", "command": "python3 -I \"${CLAUDE_PLUGIN_ROOT}\"/skills/orch-spike-plan-orchestrate/scripts/orchestrate_gate.py || { echo 'orch-spike-plan-orchestrate gate: the hook could not run; fail closed' >&2; exit 2; }", "timeout": 30 }
+        ]
+      }
+    ]
+  }
+}

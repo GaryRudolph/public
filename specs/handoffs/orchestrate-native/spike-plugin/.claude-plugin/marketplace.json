@@ -1,0 +1,17 @@
+{
+  "name": "orch-spike-lab",
+  "description": "Phase 0 spike marketplace for the orchestrate-native work. Holds one plugin, orch-spike, pinned to a branch of GaryRudolph/public.",
+  "owner": { "name": "Gary Rudolph" },
+  "plugins": [
+    {
+      "name": "orch-spike",
+      "description": "Spike copy of the personal plugin with the orchestrate kit's manifest fields (agents, workflows, hooks).",
+      "source": {
+        "source": "git-subdir",
+        "url": "https://github.com/GaryRudolph/public.git",
+        "path": "specs/handoffs/orchestrate-native/spike-plugin/orch-spike",
+        "ref": "feature/orchestrate-native"
+      }
+    }
+  ]
+}

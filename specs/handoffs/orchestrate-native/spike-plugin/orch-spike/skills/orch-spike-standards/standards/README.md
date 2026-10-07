@@ -1,0 +1,59 @@
+# Coding Standards
+
+This directory contains coding standards for consistent, maintainable, quality code. They also serve as context for AI coding agents.
+
+## Core Standards
+
+- **[Code Style](code-style.md)** — Naming conventions, formatting, imports, anti-patterns
+- **[Architecture](architecture.md)** — Layering, DI, RFC-based API design, RFC 9457 error responses, hidden resources, custom headers, timestamps, resource state, protobuf, resource history, activity log, tenant admin vs ops
+- **[Platform Parity](platform-parity.md)** — Cross-platform Swift/Kotlin naming and layer conventions
+- **[Testing](testing.md)** — Coverage targets, test structure, mocking rules
+- **[Documentation](documentation.md)** — What to document, ADR format, TODO conventions
+- **[Plan Execution](plan-execution.md)** — Model-tier tagging, STOP gates, kickoff/progress tracking, subagent delegation
+- **[Git Workflow](git.md)** — Branching, commit format, PR workflow
+- **[Versioning](versioning.md)** — SemVer for artifacts, integer-major for contracts, commit-count `versionCode`, per-platform surface map, release & hotfix flows
+- **[Security](security.md)** — Auth (OAuth, JWT, native-app BCPs), authorization and bootstrap, shared-domain cookies, encryption and erasure, input validation, checklists
+- **[Makefile](makefile.md)** — Target vocabulary, self-documenting help, workspace/polyrepo delegation, danger guards
+
+## Platform-Specific Standards
+
+- **[GCP and Firebase](gcp.md)** — IAP on Cloud Run, access groups in Terraform, revocation, break-glass, Identity Platform, the emulator guard, KMS keysets and erasure copies, activity-log sinks
+
+## Language-Specific Standards
+
+### Python
+- **[Code Style](python/code-style.md)** — PEP 8, Ruff/Black, type annotations, mypy
+- **[Architecture](python/architecture.md)** — Patterns, DI, RFC 9457 error catalog
+- **[Testing](python/testing.md)** — pytest, Hypothesis, coverage, moto/AWS
+- **[Documentation](python/documentation.md)** — Google-style docstrings, Sphinx
+- **[Security](python/security.md)** — argon2id, JWT, Flask security, Pydantic, Bandit
+
+### Swift
+- **[Code Style](swift/code-style.md)** — Apple API Guidelines, SwiftLint, access control
+- **[Architecture](swift/architecture.md)** — Manager pattern, MVVM, Router, ManagerFactory
+- **[State & Observation](swift/state-observation.md)** — `@Observable` stores, `Observations` outside SwiftUI, change-only setters, the one `NotificationCenter` boundary
+- **[Testing](swift/testing.md)** — Swift Testing, XCTest, snapshot testing
+- **[Documentation](swift/documentation.md)** — `///` doc comments, DocC
+- **[Security](swift/security.md)** — Keychain, ATS, CryptoKit, OWASP MASVS
+
+### Kotlin
+- **[Code Style](kotlin/code-style.md)** — JetBrains conventions, detekt/ktlint
+- **[Architecture](kotlin/architecture.md)** — MVI, Compose state, coroutines
+- **[Testing](kotlin/testing.md)** — JUnit 5, MockK, Turbine, Compose UI
+- **[Documentation](kotlin/documentation.md)** — KDoc, Dokka
+- **[Security](kotlin/security.md)** — EncryptedSharedPreferences, Keystore, ProGuard/R8
+
+### Go
+- **[Code Style](go/code-style.md)** — gofmt/gofumpt, naming, modern Go idioms, golangci-lint
+- **[Architecture](go/architecture.md)** — stdlib net/http, GORM, GCP clients, manual DI, repository pattern
+- **[Testing](go/testing.md)** — testify, table-driven, httptest, testcontainers, fuzzing
+- **[Documentation](go/documentation.md)** — doc comments, doc.go, testable examples, pkg.go.dev
+- **[Security](go/security.md)** — argon2id, JWT v5, validator, gosec, govulncheck
+
+## Principles
+
+- **Simplicity** — prefer simple solutions over complex ones
+- **Consistency** — follow established patterns
+- **Readability** — code is read more than written
+- **Maintainability** — think about future developers
+- **Security** — build security in from the start

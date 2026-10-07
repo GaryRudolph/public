@@ -1,0 +1,80 @@
+# Testing Standards
+
+## Coverage Requirements
+
+- **Unit Tests**: 80% code coverage for business logic
+- **Integration Tests**: all critical user paths
+- **E2E Tests**: core user flows and happy paths
+- **Per package**: read coverage per package (module, target), not only the total, which hides an untested package. It's a review signal, not a CI gate: a reviewer asks about a package below target, and no build fails on a percentage. Exemptions are written down in the repo with a reason each (generated code, entry points, conformance-suite packages, integration-only packages)
+
+### What to Test
+
+**Always**: business logic, data transformations, edge cases, public APIs, security-critical code
+
+**Skip**: third-party library internals, simple getters/setters without logic, framework boilerplate
+
+## Test Structure
+
+- **Colocated tests** (preferred for libraries) — test files alongside source
+- **Separate test directory** (common for apps) — mirrored in a parallel tree
+- Mirror source directory structure so finding tests is obvious
+
+### Naming
+
+Descriptive names that read as sentences: "creates user with valid data", "throws when email already exists". Avoid `test_1` or `test_works`.
+
+### Conventions
+
+- Always annotate test functions with void/`None` return type
+- Include a one-line description of what the test verifies
+
+## Mocking Rules
+
+### When to Mock
+
+External APIs, slow operations, non-deterministic behavior (dates, random)
+
+### When Not to Mock
+
+Simple pure functions, the code under test, internal business logic
+
+### Preferences
+
+- **Fakes** (in-memory implementations) over mock objects — more realistic, don't couple to call sequences
+- **Dependency injection** over patching/monkey-patching — explicit setup, no hidden coupling
+- Never mock what you don't own — wrap third-party APIs and mock the wrapper
+
+### Conformance Suites
+
+A fake is only as good as its match to the real thing. Write one suite against the interface and run it on both:
+
+- **On the fake** in every test run
+- **On the real adapter** (an emulator or a container) in CI
+- **Behavior, not calls** — the suite asserts what every implementation must do (errors, ordering, preconditions). What only the real store can show (indexes, contention) goes in an adapter-only test
+- **Empty store per test**, so tests don't share data
+- **Call it a conformance suite**, never a "contract test", which most people read as Pact-style consumer contracts
+
+## Anti-Patterns
+
+- **Testing implementation** — assert on observable behavior, not internal state
+- **Brittle assertions** — assert only fields that matter; avoid comparing full objects with timestamps
+- **Test interdependence** — each test sets up its own data; no execution order reliance
+- **Over-mocking** — more mocks than real objects means you should use fakes or rethink the design
+- **Sleeping** — use async wait/polling or test-controlled time instead of `sleep()`
+
+## Cross-Language Testing Parallels
+
+| Concept | Python | Swift | Kotlin | Go |
+|---|---|---|---|---|
+| Framework | pytest | Swift Testing / XCTest | JUnit 5 / Kotest | testify / stdlib testing |
+| Mocking | unittest.mock, fakes | Protocol-based fakes | MockK, fakes | fakes / mockery |
+| Async | pytest-asyncio | `async throws` | kotlinx-coroutines-test | synctest / goroutines |
+| UI testing | Playwright | XCUITest | Compose UI Testing | httptest |
+| Coverage | pytest-cov | Xcode coverage | JaCoCo / Kover | `go test -cover` |
+
+## Language-Specific Testing
+
+- **[Python](python/testing.md)**
+- **[Swift](swift/testing.md)**
+- **[Kotlin](kotlin/testing.md)**
+- **[Go](go/testing.md)**

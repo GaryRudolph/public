@@ -1,0 +1,113 @@
+---
+name: orch-spike-plan-tag-tiers
+description: >-
+  Tag every executable step in a plan as [xdeep], [deep], [exec], or [fast] so you can
+  see how complex the work actually is before deciding how to run it. This is
+  the shared tagging layer: it only tags — it does not group steps into waves,
+  apply the no-thrash rule, insert STOP markers, write Kickoff blocks, or
+  execute anything. Tags reflect honest complexity and are never rewritten for
+  thrash reasons. Use when the user asks to "tag the tiers", "tag xdeep / deep /
+  exec / fast", "show how complex this plan is", or wants the complexity readout before
+  choosing orch-spike-plan-model-tiers (STOP-and-swap) or orch-spike-plan-orchestrate
+  (auto-dispatch). The two driver skills call this one automatically when a plan
+  is not tagged yet, so you never have to invoke it by hand first.
+---
+
+# orch-spike-plan-tag-tiers
+
+Shared tagging layer for tiered plans. The canonical reference for tier
+definitions, the `[fast]` downgrade checklist, the `[xdeep]` upgrade
+checklist, default-up bias, and tag placement lives in:
+
+> `../orch-spike-standards/standards/plan-execution.md` §"Model-tier stop
+> points"
+
+Read that section's "Tiers", "`[fast]` downgrade checklist", "`[xdeep]`
+upgrade checklist", and "Tag placement" subsections first when in doubt. This file does not duplicate them.
+
+## What this skill does — and does not do
+
+**Does:** identify the plan, then tag every executable step `[xdeep]`,
+`[deep]`, `[exec]`, or `[fast]` to reveal the true shape of the work, and print a short
+complexity readout.
+
+**Does not:** group steps into execution waves, apply the no-thrash rule,
+insert STOP markers, write a Kickoff block, seed todos, ask where to execute,
+or run any step. All of that belongs to the execution drivers:
+[`orch-spike-plan-model-tiers`](../orch-spike-plan-model-tiers/SKILL.md) (passive,
+STOP-and-swap) and [`orch-spike-plan-orchestrate`](../orch-spike-plan-orchestrate/SKILL.md)
+(active, auto-dispatch).
+
+Keeping tagging separate is the whole point: the **tags stay honest**. The
+no-thrash logic in the drivers may run a short `[fast]` run on the `[exec]`
+model to avoid a model swap, but it never rewrites the `[fast]` tag. So a
+tagged plan always shows how complex the task actually was, independent of how
+it ends up being executed.
+
+## Procedure
+
+### 1. Identify the plan
+
+In priority order:
+
+1. File path the user names explicitly.
+2. The most recent `plan-*.md` in `.scratch/` or `specs/handoffs/` (a
+   runner session leaves it in the latter).
+3. The plan visible in the current conversation.
+
+Read it fully before tagging anything.
+
+### 2. Tag every executable step
+
+Following the tag placement rule in the standards section above, add
+`[xdeep]`, `[deep]`, `[exec]`, or `[fast]` to each heading at the executable level
+(typically the deepest heading level). Leave higher-level grouping headings
+(milestones, phases, sections) untagged. Apply the `[fast]` downgrade
+checklist before assigning `[fast]` and the `[xdeep]` upgrade checklist
+before assigning `[xdeep]`. Default-up bias: when in doubt,
+`[deep]` > `[exec]` > `[fast]`. The bias stops at `[deep]`; doubt between
+`[deep]` and `[xdeep]` resolves to `[deep]`. Do not rename, renumber, or otherwise change
+any other content.
+
+Tagging is **idempotent**: if a step is already tagged, leave its tag as-is
+unless it is clearly miscategorized. Do not introduce thrash-driven tag
+changes here — that is not this skill's job, and there is no thrash concept at
+the tagging layer.
+
+### 3. Report the complexity readout
+
+After tagging, print a short summary so the user can size the work before
+picking a driver:
+
+- Tag counts: `X xdeep / N deep / M exec / K fast`.
+- The top-down tier sequence (e.g. `xdeep, deep, exec, exec, fast, fast, deep`).
+- For each `[xdeep]` step, the checklist condition it met and whether it is
+  audit-shaped (a whole-codebase or cross-repo audit, or a broad sweep over
+  many files: the one case that takes ultracode in Claude Code), so the
+  `[xdeep]` spend is easy to second-guess.
+- A one-line recommendation:
+  - Mostly `[exec]` / `[fast]` with little `[deep]` → good fit for
+    [`orch-spike-plan-orchestrate`](../orch-spike-plan-orchestrate/SKILL.md)
+    (auto-dispatch, hands-off, Opus parent).
+  - Heavy `[deep]` / `[xdeep]`, or you want to drive each model swap yourself → use
+    [`orch-spike-plan-model-tiers`](../orch-spike-plan-model-tiers/SKILL.md)
+    (STOP-and-swap).
+
+Then **stop**. Do not group waves, insert STOP markers, write a Kickoff block,
+or execute anything. The user decides which driver to invoke next — or invokes
+one directly, in which case that driver re-runs this skill only if the plan is
+not already tagged.
+
+## See also
+
+- [`orch-spike-plan-model-tiers`](../orch-spike-plan-model-tiers/SKILL.md) —
+  passive driver. Groups the tagged steps into execution waves (no-thrash),
+  inserts STOP markers + a passive Kickoff block, and hands each model swap
+  off to you.
+- [`orch-spike-plan-orchestrate`](../orch-spike-plan-orchestrate/SKILL.md) —
+  active Cursor driver. Same wave grouping, but the `[deep]` parent dispatches
+  each wave via `Task(model=...)` subagents and pauses only at mandatory STOP
+  gates.
+- `../orch-spike-standards/standards/plan-execution.md` §"Model-tier stop
+  points" — canonical reference for tiers, the downgrade checklist, and tag
+  placement.

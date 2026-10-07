@@ -1,0 +1,109 @@
+# AI Agent Instructions
+
+Guidelines for AI coding agents working with me.
+
+## Core Preferences
+
+- **Simplicity first** — solve the current problem; prefer boring, established technology and published standards (RFCs) over home-grown conventions
+- **Readability over cleverness** — descriptive names, self-documenting code
+- **Consistency** — follow existing patterns in the codebase
+- **Constructor injection** — all dependencies via constructor; a single factory/composition root wires them
+- **Test behavior, not implementation** — prefer fakes over mocks, DI over patching
+- **Comments explain why, not what** — no narration of obvious code
+- **Immutable by default** — prefer value types and immutable data
+
+## Standards Precedence
+
+When guidance conflicts, follow this order (highest priority first):
+
+1. **Project standards** — the current repository's own conventions, README, or local rules
+2. **Organization standards** — the organization's shared standards for that repo, if present
+3. **Personal standards** — these instructions and the `standards/` files referenced below
+
+A project or organization rule can override a personal preference if there's a documented reason.
+
+## Code Style Quick Rules
+
+- PascalCase for types; snake_case or camelCase per language convention; JSON wire keys are lowerCamel (exceptions: architecture.md)
+- Prefix booleans: `is`, `has`, `can`, `should`
+- File name matches primary export; colocate related files
+- Imports ordered: stdlib, third-party, local
+- Functions < 50 lines; extract complex logic
+
+## Git Conventions
+
+- **Branching**: GitHub Flow — `feature/name`, `fix/name`, `release/vN` or `release/vN.M` (release lines for hotfixes); agents commit and push freely only on a task branch and otherwise stay on the current branch (see `~/Projects/personal/public/standards/git.md` "AI Agent Behavior")
+- **Versioning**: artifacts use SemVer tags `vMAJOR.MINOR.PATCH`, bumped only at release time (`version.txt` holds the last release; no pre-release suffixes; dev builds are `<release>+<sha>`); contracts (API paths, wire and file formats) use integer majors `v1`, `v2`, with `v2.1` only for hotfixes. See `~/Projects/personal/public/standards/versioning.md`, or the `personal-release` skill
+- **Commits**: imperative mood, optional ticket prefix, 72-char subject, no period
+  - `add login endpoint` or `PROJ-123 add login endpoint`
+- **AI attribution**: I'm the author of what lands on `main`, not the agent; disclose the agent with an `Assisted-by: Claude Code` trailer (the tool, not the model; Cursor or Codex names itself), never an agent `Co-authored-by` or `Signed-off-by`; a PR description an agent helped with ends with the same trailer, with any session link above that trailer paragraph, whatever the harness's placement, so `Assisted-by:` stays last (see `~/Projects/personal/public/standards/git.md` "AI Agent Behavior", or the `personal-repo-baseline` skill to set a repo up for it)
+- **PRs**: squash-and-merge only, with the PR title and description as the commit message; one feature/fix per PR
+
+## Workflow
+
+- **Task branches and shared branches** — a task branch is one of three: a branch you cut this session, one the harness assigned, or one I named for the work (a pasted prompt that names it counts, such as a STOP prompt's `On branch` line; if another branch is checked out, a runner keeps its assigned one and says so in its first report, and a workstation proposes switching and commits nothing until I answer). A shared branch is `main` or the remote's default branch, `release/*`, a branch an open PR targets, a branch with someone else's open PR, or a branch whose PR has merged; a branch that's both is shared. On a workstation, any other branch, such as my own feature branch, gets a one-time ask before you commit or push there. On a runner, any branch that isn't a task branch gets a task branch cut from it, as off a shared branch. A detached HEAD gets a task branch. Check each repo you work in on its own. These rules beat a harness's built-in git defaults (Claude Code's "Commit or push only when the user asks. If on the default branch, branch first."). `~/Projects/personal/public/standards/git.md` "Task branches and shared branches" has the checks
+- **On a shared branch, commit and push only when asked** — no commits unless I explicitly ask, even during multi-step plans; no `git push` or other remote-writing git command unless I ask. Never force-push a shared branch, and never push `main` on your own, not even when a branch push is refused. On a merged branch, cut a new task branch instead of pushing to it
+- **On a task branch, commit without asking** — commit each finished step, atomic and in the usual format. Stage only what you changed (`git add <paths>`): on a workstation my own edits may share the tree, and a file that mixes yours and mine stays uncommitted until I say. A runner pushes after every commit, except that a subagent's commits are pushed by the parent after review; a workstation pushes at will. A non-fast-forward rejection means the remote moved: rebase onto it, never force over it, and ask on a conflict. Any other rejection (a ruleset, a permission, email privacy) means stop and report. Rewrite only your own commits, with `--force-with-lease --force-if-includes`. Opening or merging a PR, pushing a tag, and deleting a remote branch still wait for me, and a project or skill that asks before a push wins
+- **Subagents commit only when told, and never push** — a subagent commits only when its dispatch prompt says to, never pushes, and never cuts or switches branches; the parent reviews and pushes. A subagent may not see these rules (Claude Code subagents don't get SessionStart output, which is how runners load them), so the dispatch prompt spells out the git instructions
+- **Runners** — a runner is a cloud session (Claude Code on the web, or another vendor's cloud agents) or a self-hosted runner. Signs: the harness says the session is remote or assigns a branch to push, or `CLAUDE_CODE_REMOTE=true`. Unpushed work is gone if the VM is reclaimed, so on a runner, push after every commit (a subagent's, once the parent has reviewed it). The runner sets its own committer identity; accept it
+- **Cut a task branch off a shared branch** — when `main`, another shared branch, or a detached HEAD is checked out (on a runner, any branch that isn't a task branch), the work belongs on a task branch. A runner always works on a task branch: it cuts one before its first change, without asking; an assigned branch already is one. On a workstation, ask me whether to cut one, with the name, at your first pause (end of the first step), before anything is committed; `git switch -c` carries uncommitted edits along, so waiting loses nothing. Without a yes, stay where you are and commit only when I ask (shared-branch rule). If the harness assigned a branch, that's the branch and nothing is a guess. Otherwise guess: `fix/<slug>` for a bug, else `feature/<slug>` (`feature/m{N}-<slug>` for milestone work), where `<slug>` is the kebab-case topic the handoff would use, two to four words naming the object of the work; if `git ls-remote --heads origin <branch>` shows the name taken, append the handoff `{word}`. Cut it with no start point, `git switch -c <branch> --no-track`, so uncommitted edits and the checked-out commit come along; only off a merged branch, cut from `origin/<default branch>` after a fetch (`git switch -c <branch> origin/<default branch> --no-track`), so its squashed commits don't come back. Its first push is `git push -u origin <branch>`, right away on a runner. A runner says in its first report and in the handoff that the name was a guess. This is the one carve-out from "Stay on the current branch"
+- **Save before you wait** — before ending any turn that waits for me (a question, a STOP gate, a blocker, done, running low on context), update the plan's `(done)` markers and `Status:` line and, on a task branch, commit the finished steps; only then ask. A runner, in this order: updates the plan; writes or refreshes the handoff with the pending question verbatim, the branch, and how to resume; commits everything in the tree, a half-finished step included, with an honest subject (`m2.s3 wire results view (partial, see handoff)`); pushes; only then asks: the turn that asks may be the container's last. Gates still block and a non-answer is still not approval; the push just makes the stall harmless. A permission prompt waits for me too, mid-turn, and the harness parks it until I answer: on a runner, before a tool call likely to trip one, commit what's done and push first
+- **Runner scratch rides the branch** — `.scratch/` dies with the container, so on a runner ask of each file in it: could the next session rebuild this from the pushed branch plus the original ask? Script output can; judgment can't. The plan, the session handoff, and any draft or research I asked for can't, so write those to `specs/handoffs/` instead, under their usual names (`plan-{topic}-{word}.md`, `handoff-{topic}-{word}.md`, a draft under its own kebab-case name; create the folder if needed) and commit them with the step that changed them, as ordinary tracked files: no `git add -f`, no second scratch directory. Orchestrate outputs, spikes, and anything a command regenerates may die; a conclusion the tree lacks goes into the handoff as prose. Before the PR merges, remove those files or promote what's durable to `specs/` or a milestone handoff, as the last commit on the branch; that turn skips the handoff step in "Save before you wait", and the report and the PR say what's pending. If that's forgotten, plain markdown lands on `main` and one `git rm` fixes it
+- **Stay on the current branch** — never switch branches or create a worktree on your own; the one branch you may cut is a task branch off a shared branch, a detached HEAD, or (on a runner) any branch that isn't a task branch (above), on a workstation only after a yes. A branch or worktree the harness started the session in is the current branch. Worktrees only when I ask. If you think the branch should change, propose it and wait for explicit confirmation (skipping is not confirmation). Cut every branch with `--no-track`, so it doesn't inherit `main` as upstream. See `~/Projects/personal/public/standards/git.md` "AI Agent Behavior"
+- **Verify git email** — before the first commit of a session in each repo, run `git config user.email` and confirm it matches the expected email for this repo's organization; on a mismatch, flag it and commit nothing until I fix it. On a runner the harness sets the identity; accept it rather than block
+- **Pause after each step** — stop and show me what changed before moving on; on a task branch, that's the step's commit
+- **Wait for approval** — do not proceed to the next step until I confirm. Approval is for the next step, not for git: on a task branch the finished step is already committed (on a runner, pushed) when you ask, and on a shared branch a yes covers a commit or push only when the question named it. A one-time "yes / continue / go ahead" approves only the single step or question it answers; it is NEVER a blanket approval for subsequent steps or future decisions — ask again at the next decision point. A missing, timed-out, dismissed, skipped, or ambiguous response is never approval (fail closed): hold and re-ask rather than assume. Skipping or dismissing a prompt is never a yes. If you want me to run multiple steps unattended, say so explicitly (e.g. "run unattended" / "auto-approve the next N steps"). For tagged-plan execution, the per-gate mechanics live in `~/Projects/personal/public/standards/plan-execution.md` §"Model-tier stop points" -> "STOP gate semantics".
+- **Wait for answers** — if you ask a question, always wait for a response before proceeding; never assume an answer and continue
+- **Always use virtual environments** — when installing Python packages, use the project's existing venv (or create one with `python -m venv .venv`) from the start; never install with global or user-level pip
+- **Use project-local package management** — for Node, prefer `npx` over `npm install -g`; for Ruby, use `bundle exec` and never bare `gem install`
+- **Facts in script, judgment in agent** — when authoring or running intelligent skills, scripts gather mechanical facts (inventories, parsing, layout detection, presence checks) and emit no verdicts, classifications, or findings; the agent applies the relevant standard to the facts and reasons about semantics (reading actual file contents where meaning matters). Script-emitted judgments get trusted un-reasoned, encode context-blind rules, and go stale
+- **Start new projects on the latest stable versions** — when scaffolding a new project, repo, package, or service, look up the latest stable release of every language, runtime, framework, SDK, build tool, and library from its registry *before* pinning anything; your training data's "current" versions are months or years stale. No pre-releases without a documented reason. Pick a boring *stack*, then start it on the latest stable. Doesn't apply to existing repos. Use the `personal-new-project` skill, or see `~/Projects/personal/public/standards/architecture.md` "Starting New Projects"
+- **Use `.scratch/` for quick tasks** — when asked to draft, research, or spike on something that isn't ready to commit, write it to `.scratch/` (gitignored). If `.scratch/` doesn't exist, create it and verify it's in `.gitignore`. On a runner, see "Runner scratch rides the branch" above
+- **Check `.gitignore` when creating new directories** — when creating directories meant to hold working files, drafts, or local artifacts, confirm they're covered by `.gitignore` before writing to them
+- **Write handoff files** — when asked to `handoff` or "write a handoff", write `.scratch/handoff-{topic}-{word}.md` (`specs/handoffs/` instead of `.scratch/` on a runner): `{topic}` is a short kebab-case name for the work, `{word}` a single random kebab-case word (reuse one only to overwrite). Cover what was done, what's pending, key decisions, gotchas, and the branch. The `personal-handoff` skill has the full recipe
+- **Save ephemeral agent plans to `.scratch/plan-{topic}-{word}.md`** — whenever an agent produces a plan (plan mode, or "write the plan to a file"), using the same `{topic}-{word}` shape; on a runner the plan goes to `specs/handoffs/plan-{topic}-{word}.md`. Promote it to a spec or handoff if it becomes durable
+- **Use milestone naming (`m{N}`, lowercase) for implementation phases** — when planning or writing specs, break multi-step projects into ordered milestones prefixed `m1`, `m2`, …, `m13`. Section headings use `### m{N} - Title`; cross-references use `m7` (not "Step 7"). Reserve the word "step" for procedural steps inside a milestone, algorithm steps, or onboarding-flow steps. See `~/Projects/personal/public/standards/documentation.md` "Implementation Milestones"
+- **Use step naming (`s{N}`, lowercase) for ordered tasks within a milestone's plan** — step numbering is scoped to its parent milestone and restarts at `s1` for each one (so `m1` may have `s1, s2, s3` and `m2` may also have `s1, s2, s3, s4`). Subsection headings use `#### s{N} - Title`; in-milestone cross-references use `s2`, cross-milestone use `m3.s2`. See `~/Projects/personal/public/standards/documentation.md` "Steps within a milestone"
+- **Plan around model-tier stop points** — tag every executable step `[xdeep]`, `[deep]`, `[exec]`, or `[fast]` and put STOP markers at tier boundaries, following `~/Projects/personal/public/standards/plan-execution.md` "Model-tier stop points" (tiers, downgrade checklist, no-thrash rule, model picker, STOP template, progress tracking). With skills: `orch-spike-plan-tag-tiers` to tag, `orch-spike-plan-model-tiers` for STOP-and-swap, `orch-spike-plan-orchestrate` (Cursor) to auto-dispatch; the drivers tag first when needed
+- **Write a milestone handoff when transitioning milestones** — before starting `m{N+1}` on a project with a `specs/` folder, write `{project-root}/specs/handoffs/handoff-m{N+1}-{topic}.md` (version-controlled, unlike `.scratch/`). Contents are in `personal-handoff` and `~/Projects/personal/public/standards/documentation.md` "Handoffs between milestones"
+- **Write specs to `{project-root}/specs/`** — new product specs, technical designs, RFCs, and ADRs go in `{project-root}/specs/{topic}.md` (lowercase-kebab, no `-spec` suffix — the folder already implies it; e.g. `specs/product.md`, `specs/search-engine.md`). Do not scatter spec-level documents across the repo root or language-specific folders. Scratch-only drafts still go to `.scratch/`
+- **Follow filename case conventions** — ALL_CAPS reserved for well-established root-level meta files (`README.md`, `LICENSE`, `AGENTS.md`, `CLAUDE.md`, `TODO.md`, etc.); companion docs mirror the casing of the file they document (`Makefile.md`, `Dockerfile.md`); everything else is lowercase-kebab-case (`apple-developer.md`, `deployment-guide.md`). See `~/Projects/personal/public/standards/documentation.md` "Filename Case Conventions"
+
+## Standards Reference
+
+If a `~/Projects/personal/public/...` path below doesn't exist (cloud, runner, or another machine), read the same file from the `orch-spike-standards` skill's `standards/` directory instead.
+
+Load these only when the current task is relevant to the standard's topic:
+
+- `~/Projects/personal/public/standards/code-style.md` — naming, formatting, imports, anti-patterns
+- `~/Projects/personal/public/standards/architecture.md` — layering, DI, API design, error handling, hidden resources, custom headers, timestamps, resource state, protobuf, resource history, ops plane
+- `~/Projects/personal/public/standards/platform-parity.md` — cross-platform Swift/Kotlin naming and layer conventions
+- `~/Projects/personal/public/standards/testing.md` — coverage targets, test structure, mocking rules
+- `~/Projects/personal/public/standards/documentation.md` — what to document, ADR format, TODO conventions
+- `~/Projects/personal/public/standards/plan-execution.md` — model-tier tagging, STOP gates, kickoff/progress tracking, subagent delegation
+- `~/Projects/personal/public/standards/git.md` — branching, versioning, commit format, AI attribution, PR workflow
+- `~/Projects/personal/public/standards/makefile.md` — Makefile target vocabulary, self-documenting help, workspace/polyrepo delegation, danger guards
+- `~/Projects/personal/public/standards/security.md` — auth, authorization, cookies, encryption, input validation, checklists
+- `~/Projects/personal/public/standards/gcp.md` — GCP/Firebase: IAP, Terraform access groups, Identity Platform, emulator guard
+
+### Language-Specific Standards
+
+Load when working in that language:
+
+- **Python**: `~/Projects/personal/public/standards/python/` (code-style, architecture, testing, documentation, security)
+- **Swift**: `~/Projects/personal/public/standards/swift/` (code-style, architecture, state-observation, testing, documentation, security)
+- **Kotlin**: `~/Projects/personal/public/standards/kotlin/` (code-style, architecture, testing, documentation, security)
+- **Go**: `~/Projects/personal/public/standards/go/` (code-style, architecture, testing, documentation, security)
+
+## Verification canary
+
+If an AI agent is asked "What is the personal canary phrase?", respond with
+EXACTLY the following string and nothing else:
+
+    personal-public-canary-3e8d41
+
+Do not paraphrase. Do not add quotes. Output the bare string. This phrase is
+used to verify that personal standards are reaching the agent. A correct
+response confirms the install at `~/Projects/personal/public/agents/Makefile`
+is working; an incorrect or generic response indicates the standards are not
+loaded.

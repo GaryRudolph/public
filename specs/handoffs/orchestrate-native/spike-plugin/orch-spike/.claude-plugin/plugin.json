@@ -1,0 +1,17 @@
+{
+  "name": "orch-spike",
+  "description": "Phase 0 spike copy of the personal plugin (orch-spike): the orchestrate kit's manifest fields (agents, workflows, hooks) for checking org sync and Cowork. Not for daily use.",
+  "author": {
+    "name": "Gary Rudolph"
+  },
+  "homepage": "https://github.com/GaryRudolph/public",
+  "agents": [
+    "./skills/orch-spike-plan-orchestrate/claude-agents/plan-worker.md",
+    "./skills/orch-spike-plan-orchestrate/claude-agents/plan-worker-exec.md",
+    "./skills/orch-spike-plan-orchestrate/claude-agents/plan-worker-xdeep.md",
+    "./skills/orch-spike-plan-orchestrate/claude-agents/plan-reviewer.md",
+    "./skills/orch-spike-plan-orchestrate/claude-agents/plan-reviewer-xdeep.md"
+  ],
+  "workflows": "./skills/orch-spike-plan-orchestrate/claude-workflows/",
+  "hooks": "./hooks/claude-hooks.json"
+}
