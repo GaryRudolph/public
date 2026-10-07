@@ -27,7 +27,7 @@
 
 ## Pending question (verbatim)
 
-> Continue execution in this chat, or hand off to a new chat for clean context? (default: new chat)
+> /personal-plan-orchestrate stopped at its harness gate (this session is Claude Code; the shipped skill is Cursor-only, citing #43869). How should this plan run: (1) keep personal-plan-model-tiers as written, (2) orchestrate here on the Agent tool with per-call `model` and no per-call effort, or (3) a Workflow per wave, which you'd have to ask for explicitly?
 
 ## How to resume
 
