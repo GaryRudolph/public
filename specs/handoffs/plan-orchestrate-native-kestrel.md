@@ -1,7 +1,7 @@
 ```
 --- KICKOFF: begin orchestration at [deep] ---
 
-  Status: 0/8 groups done | last review: — | BLOCKED at gate 1 (needs_info: claude CLI signed out) and gate 5 (canary) | current: m1 s1-s3 [deep] | updated 2026-10-06
+  Status: 0/8 groups done | last review: — | gate 5 approved 2026-10-06 ("continue wave 1") | BLOCKED at gate 1 (needs_info: claude CLI still signed out) | current: m1 s1-s3 [deep] | updated 2026-10-06
 
   review: every-wave (log-only — parent writes Review log; no human review gate)
 

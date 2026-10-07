@@ -41,6 +41,8 @@ Commit `f356a2f` (m1.s1 staging, reviewed by the parent): the kit's scripts, age
 
 > Wave 1 is blocked: the standalone `claude` CLI on the Mac is signed out, so the spike sessions can't run. Please run `claude auth login` in a terminal and sign in with the account the spike should bill (a Console API key is the sure route for criterion 10's proxy capture; a claude.ai sign-in behind the proxy is untested), then reply `continue wave 1` and I'll re-dispatch m1 s1-s3 against the ready fixture. This also clears the canary: `f356a2f` (staging only) is the wave's commit so far.
 
+Gary replied `continue wave 1` (approves gate 5 and the re-dispatch), but `claude auth status` still reported `loggedIn: false`, in and out of the sandbox, so nothing was dispatched. Re-dispatch once the CLI is signed in.
+
 ## How to resume
 
 Paste the Kickoff prompt from the top of the plan into a new Claude Code chat on `/model opus` with `/effort high`; it re-posts the pending question above.
