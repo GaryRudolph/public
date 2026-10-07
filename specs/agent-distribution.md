@@ -7,7 +7,7 @@ Gemini CLI, and Muse Code. Setup steps live in
 
 Status: m1, m3, m5, and m6 implemented on branch
 `claude/standards-skills-evaluation-0lf34z`; m2 is manual setup; m4 (model-tier
-refresh) is done except for the Claude Code orchestrate decision.
+refresh) is done.
 
 ## Evaluation of the previous setup
 
@@ -168,9 +168,9 @@ descriptions, or marketplace listings drift apart.
 - **Gemini installs from a local path only.** It installs from GitHub only
   when `gemini-extension.json` sits at the repo root, so these subfolder
   extensions use `gemini extensions link <path>`.
-- **Muse Code has no plugin format** that I found; it imports skills.
+- **Muse Code reads Claude-format plugins.** `muse plugins validate` accepts `plugins/personal`, warning that `agents` are unsupported and `workflows` ignored; the runbook (m7.s4) has the steps. Before that check it was thought to have no plugin format and to import skills only; `muse skills import` still works.
 
-### m4 - Refresh the model-tier table (mostly done)
+### m4 - Refresh the model-tier table (done)
 
 The tier-to-model mapping in `standards/plan-execution.md`, and the slugs in
 `personal-plan-orchestrate` and `personal-plan-model-tiers`, now name Opus 5.5
@@ -198,10 +198,17 @@ measured, ultracode only on audit-shaped steps), `[deep]` to Opus at high
 (medium for interactive planning), and `[exec]` to Sonnet at high, never
 past high; `plan-execution.md`'s Model picker has the current rows.
 
-Still open: whether `personal-plan-orchestrate` should drive Claude Code
-subagents. Their `model` parameter takes aliases, but
-[anthropics/claude-code#43869](https://github.com/anthropics/claude-code/issues/43869)
-is still open and reports it is ignored, so the harness gate stays.
+`personal-plan-orchestrate` now drives Claude Code too (phase 1 of the
+orchestrate-native work, still being dogfooded), which closes the open question
+about it. [anthropics/claude-code#43869](https://github.com/anthropics/claude-code/issues/43869)
+(a subagent's `model` is ignored) is still open, but on Claude Code 2.1.291
+wire captures showed the per-call `model` and `effort`, and plugin-agent
+frontmatter, reaching the API. The `plan-segment` workflow sets them per
+`agent()` call, the plugin's agents carry them for the Agent path, and
+`token_tally.py --check-routing` flags any substitution.
+The plugin ships those five agents, the workflow, and a `hooks/claude-hooks.json`
+with a `Workflow` gate and a read-only `Bash` guard for the reviewers; the
+runbook (m2.s4) says what the account sync carries.
 
 ### m5 - Turn procedures into skills (done)
 

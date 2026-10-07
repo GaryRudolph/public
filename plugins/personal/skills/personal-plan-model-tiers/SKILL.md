@@ -137,7 +137,7 @@ include:
 1. The tier transition direction.
 2. A `Suggested chat title:` line in the canonical Wave title format
    (`Wave {n} of {t} [{tier}] {group-id}`, e.g. `Wave 2 of 3 [exec] m2 s1-s3`)
-   — the same title `personal-plan-orchestrate` uses for its `Task`
+   — the same title `personal-plan-orchestrate` uses for its
    subagents. `{n}` is the wave this STOP launches (the next wave), `{t}`
    the total wave count from the Status line. This is advisory: a foreground
    chat cannot set its own title, so the user pastes it as the new chat's
@@ -324,8 +324,9 @@ required, set `Status:` to
 `BLOCKED at gate review-wave-N` (with `last review: wave-N CONCERNS` when
 applicable), re-post the concern, and end the turn. The next wave does
 not start until a human resolves the block. A fix-up wave added to resolve
-it is numbered `N-fix` and gets its own Cost table row with expected `—`
-(standards §"Cost table").
+it is numbered `N-fix` (`N-fix2` if that fix-up draws another
+`CONCERNS`, then `N-fix3`) and gets its own Cost table row with expected
+`—` (standards §"Cost table").
 
 **At every STOP marker, these gates are fail-closed.** A missed,
 timed-out, dismissed, or ambiguous response to a STOP-marker question
@@ -414,6 +415,20 @@ the subagent's tokens in the wave's token lines, one line per model. See the
 standards section "Delegating execution to subagents" for the full
 guidance.
 
+## On a runner
+
+This driver has no unattended mode. Each STOP is a model swap, and only a
+human can make one: `/model` in the session, or a new session started from
+the STOP prompt. On a runner (a cloud or self-hosted session) it saves at
+each STOP (the plan, the handoff with the pending question, a commit and a
+push, per core.md "Save before you wait") and stops, as it does anywhere,
+and Gary starts the next wave on the model the marker names. On Claude Code
+with the plugin loaded, say in one line that
+[`personal-plan-orchestrate`](../personal-plan-orchestrate/SKILL.md) can run
+the plan instead, since it sets the model per subagent. Don't run every
+wave on the session's model to remove the stops: it spends `[deep]` rates on
+`[fast]` work.
+
 ## See also
 
 - [`personal-plan-tag-tiers`](../personal-plan-tag-tiers/SKILL.md) — the
@@ -421,8 +436,10 @@ guidance.
   directly first when you only want to see a plan's complexity before
   choosing a driver.
 - [`personal-plan-orchestrate`](../personal-plan-orchestrate/SKILL.md) —
-  active counterpart for Cursor. Same tagging and model picks, but the
-  parent delegates each `[exec]` or `[fast]` wave via `Task(model=...)`
-  subagents and continues automatically, pausing only at a small set of
-  mandatory STOP gates. Use it when you want the cascade run for you
+  active counterpart, on Claude Code and Cursor. Same tagging and model
+  picks, but the parent delegates each wave to subagents on the tier's model
+  (a plugin workflow on Claude Code, `Task(model=...)` on Cursor) and
+  continues automatically, pausing only where its recorded mode stops (every
+  STOP gate when gated, or only questions, failures, premium work and the
+  cost guard when unattended). Use it when you want the cascade run for you
   instead of stopping at every tier boundary.

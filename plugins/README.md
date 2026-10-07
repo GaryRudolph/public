@@ -13,8 +13,21 @@ or through the symlinks `make install` creates.
 | Gemini CLI | none (installed from a local path) | `plugins/<name>/gemini-extension.json` |
 
 All four use the same `skills/<name>/SKILL.md` layout, so the manifests are
-the only per-vendor files. `make -C agents test` fails if their names,
-descriptions, or marketplace listings drift apart.
+the only per-vendor files, with these exceptions, all Claude Code's or one
+harness's:
+
+- `hooks/claude-hooks.json`, which the Claude manifest's `hooks` field loads
+  beside `hooks/hooks.json`: a `PreToolUse` gate on `Workflow` and a
+  read-only guard on `Bash` for the orchestrate reviewers.
+- `claude-agents/` and `claude-workflows/` inside `personal-plan-orchestrate`:
+  its five plan worker and reviewer agents and the `plan-segment` workflow,
+  named in the Claude manifest's `agents` and `workflows` fields.
+- `adapters/` inside `personal-plan-orchestrate`: one markdown file per
+  harness, which that harness's agent reads after `SKILL.md`.
+
+`make -C agents test` fails if the manifests' names, descriptions, or
+marketplace listings drift apart, and `make -C agents validate` runs
+`claude plugin validate` on each plugin.
 
 ```
 .claude-plugin/marketplace.json     <- marketplace "personal"
@@ -23,6 +36,7 @@ plugins/
     .claude-plugin/plugin.json  .codex-plugin/plugin.json
     .cursor-plugin/plugin.json  gemini-extension.json
     hooks/hooks.json                <- SessionStart for Claude, Codex, Gemini
+    hooks/claude-hooks.json         <- Claude only: Workflow gate, reviewer Bash guard
     hooks/cursor-hooks.json         <- empty; keeps Cursor off hooks.json
     cursor/rules/personal-core.mdc  <- GENERATED from core.md; Cursor's always-on core
     scripts/session-start.sh
@@ -37,7 +51,13 @@ plugins/
       personal-release/             <- cut releases and hotfixes; bump script + workflow
       personal-repo-baseline/       <- per-repo settings the plugin can't carry; facts + merge scripts
       personal-plan-tag-tiers/ personal-plan-model-tiers/
-      personal-plan-orchestrate/ personal-makefile/
+      personal-plan-orchestrate/
+        SKILL.md                    <- harness-neutral core
+        adapters/                   <- claude-code.md, cursor.md
+        claude-agents/              <- 5 worker and reviewer agents (Claude only)
+        claude-workflows/           <- plan-segment.js (Claude only)
+        scripts/  tests/            <- plan_state, check_wave, gate hook, tally; offline tests
+      personal-makefile/
   workstation/             <- needs this Mac's files
     .claude-plugin/  .codex-plugin/  .cursor-plugin/  gemini-extension.json
     skills/
@@ -129,7 +149,7 @@ cleaned up, then push.
 | `personal` | `personal-repo-baseline` | Audit and apply the per-repo settings the plugin can't carry: `.claude/settings.json` attribution (`Assisted-by: Claude Code`) and GitHub squash-only merge settings. Dry-run first; re-run to bring a repo up to the current baseline |
 | `personal` | `personal-plan-tag-tiers` | Shared tagging layer: tag plan steps `[xdeep]` / `[deep]` / `[exec]` / `[fast]` to show complexity. Tags only; the two drivers call it automatically |
 | `personal` | `personal-plan-model-tiers` | Passive driver: group tagged steps into waves (no-thrash) and insert STOP markers with handoff blocks at tier boundaries |
-| `personal` | `personal-plan-orchestrate` | Active driver: same tagging and waves, but delegates each wave to a subagent on the right model and pauses only at mandatory STOP gates. Cursor-only today |
+| `personal` | `personal-plan-orchestrate` | Active driver: same tagging and waves, but delegates each wave to a subagent on the right model, on Claude Code (a plugin workflow, gated by a hook) and Cursor (`Task`), and pauses only where its recorded mode stops (gated: every STOP gate; unattended: questions, failures, premium work and the cost guard) |
 | `personal` | `personal-makefile` | Audit and align Makefiles to the personal standard. Dry-run first; apply repo by repo with confirmation |
 | `workstation` | `personal-allowlist-scout` | Propose safe build commands missing from the per-harness allowlists, repo by repo |
 

@@ -58,6 +58,22 @@ default for marketplaces added this way.
 #### s4 - Install the plugins on the account
 
 - Install **`personal`**. This is the one that has to be on the account.
+  Besides skills it now carries pieces only Claude Code uses, named in the
+  Claude manifest: five agents (`plan-worker`, `plan-worker-exec`,
+  `plan-worker-xdeep`, `plan-reviewer`, `plan-reviewer-xdeep`), the
+  `plan-segment` workflow (so `personal:plan-segment`), and
+  `hooks/claude-hooks.json` with two `PreToolUse` hooks: a gate on `Workflow`
+  (`orchestrate_gate.py`, which denies an orchestrate launch unless the plan,
+  the approval and the branch check out) and a read-only guard on `Bash` for
+  the plan reviewers (`reviewer_guard.py`). All are for
+  `personal-plan-orchestrate`; the other tools ignore them.
+- **Permissions for orchestrate.** An interactive session offers "don't ask
+  again" for the plugin workflow. A headless run (`claude -p`, the SDK) has
+  no one to ask, so allow `Workflow(personal:plan-segment)` in its settings,
+  with `git add`, `git commit`, `git push` and the repo's test commands, and
+  leave `gh pr`, tag and deploy commands out. The orchestrate adapter,
+  `plugins/personal/skills/personal-plan-orchestrate/adapters/claude-code.md`,
+  has the rest.
 - Leave **`workstation`** off the account and install it locally in m3.s4,
   so cloud and runner sessions don't carry a Mac-only skill description.
   The whisper skills Cowork runs live in the notes repo (see their
@@ -139,7 +155,7 @@ claude plugin list        # personal@personal enabled; personal@synced "not load
 
 In a new session, ask "What is the personal canary phrase?" and
 "Which personal- skills do you have?" Expect
-`personal-public-canary-3e8d41`, plus the nine `personal` skills and the
+`personal-public-canary-3e8d41`, plus the ten `personal` skills and the
 one `workstation` skill.
 
 ### m4 - Self-hosted runner
@@ -322,10 +338,25 @@ by the tools. Treat the first install of each as the real validation.
 
 #### s4 - Muse Code
 
-Muse has no plugin format that I found, and the steps below aren't
-confirmed; check them on first use. Muse reads the project `AGENTS.md`
-(falling back to `CLAUDE.md`) and repo-local `.claude/skills` and
-`.codex/skills`. To bring in the personal skills:
+Muse Code reads Claude-format plugins, so the plugin is the first route.
+`muse plugins validate` (checked on Muse Code 1.3.0, without installing)
+reports `plugins/personal` as a valid Claude-compatible plugin with its skills
+and hooks. It warns that the manifest's `agents` declare unsupported behavior
+and that `workflows` are ignored, which is expected: those are the orchestrate
+kit's Claude Code pieces, and Muse runs the passive skill. Muse also loads
+`hooks/claude-hooks.json`; its two `PreToolUse` hooks do nothing for a tool
+call that isn't a plan-segment launch or a plan reviewer's Bash call. The
+install steps below aren't confirmed; check them on first use:
+
+```bash
+muse plugins validate ~/Projects/personal/public/plugins/personal
+muse plugins install ~/Projects/personal/public/plugins/personal
+muse plugins inspect personal      # approve its hooks if Muse asks (muse plugins approve)
+```
+
+Without the plugin, Muse reads the project `AGENTS.md` (falling back to
+`CLAUDE.md`) and repo-local `.claude/skills` and `.codex/skills`. To bring in
+just the personal skills:
 
 ```bash
 muse skills import --from codex     # reads ~/.agents/skills
@@ -351,7 +382,7 @@ Ask "What is the personal canary phrase?" in each surface. Expect
 | Codex CLI | `~/.codex/AGENTS.md` | ☐ |
 | Gemini CLI | `~/.gemini/GEMINI.md` | ☐ |
 | Cursor | `~/AGENTS.md` | ☐ |
-| Muse Code | Project `AGENTS.md` or imported skill | ☐ |
+| Muse Code | The plugin, or project `AGENTS.md` or an imported skill | ☐ |
 
 ## Troubleshooting
 
