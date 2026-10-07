@@ -9,6 +9,11 @@
     Cursor:      claude-opus-5-5[effort=high]
     Claude Code: /model opus                (/effort high)
 
+  Where: local, in /Users/gary/Projects/personal/public on branch
+    feature/orchestrate-native (not a cloud worker: the spike's evidence is in
+    gitignored .scratch/spike/ on this Mac, and the CLI needs
+    CLAUDE_CONFIG_DIR=/Users/gary/.claude-lolay).
+
   Prompt to paste into the next chat:
     Read /Users/gary/Projects/personal/public/specs/handoffs/plan-orchestrate-native-kestrel.md. The plan is already tagged.
     On branch feature/orchestrate-native (task branch): subagents commit each finished step.

@@ -72,4 +72,7 @@ Org sync of `GaryRudolph/orchestrate-spike` (commit `409b3ff`): "Synced with war
 
 ## How to resume
 
-Paste the Kickoff prompt from the top of the plan into a new Claude Code chat on `/model opus` with `/effort high`; it re-posts the pending question above.
+- **Where:** local, a new Claude Code chat (desktop Code tab or `claude`) in `/Users/gary/Projects/personal/public`, on branch `feature/orchestrate-native` (`git switch feature/orchestrate-native` if needed). Not a cloud worker: the spike's evidence and fixtures are in gitignored `.scratch/spike/` on this Mac, and its CLI runs need `CLAUDE_CONFIG_DIR=/Users/gary/.claude-lolay`.
+- **Model:** `/model opus`, `/effort high`.
+- **Paste** the Kickoff prompt from the top of the plan. The new parent re-posts the pending gate-2 question above; answer it there.
+- **Wave 3's cloud sessions** are separate: Gary starts them on claude.ai/code on `GaryRudolph/orchestrate-spike` (branch named in each prompt the wave writes, starting from `master`), with `orch-spike` installed through the org.
