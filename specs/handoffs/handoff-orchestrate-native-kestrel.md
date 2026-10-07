@@ -2,7 +2,7 @@
 
 **Branch:** `feature/orchestrate-native` (task branch, cut from `main` at bf5da80 on Gary's instruction).
 **Plan:** `specs/handoffs/plan-orchestrate-native-kestrel.md`, tagged and driven by `personal-plan-model-tiers` (passive). 8 waves, expected ~73M tokens, ~$38 API-equiv.
-**Status:** orchestrate driver, Agent-tool path (Gary's option 2), expected ~$54. Waves 1-2 (m1 s1-s6) done and reviewed PASS: criteria 1, 3, 5 (Edit/Write only), 6 and 10 held, 4 partial. Blocked at gate 2 before wave 3 (m1 s7-s10, the cloud runner). Spend ~$28.6 (this parent ~$11.4 of it; its context makes each wave ~$5.8, against ~$1.3 planned).
+**Status:** orchestrate driver, Agent-tool path (Gary's option 2), expected ~$54. Waves 1-2 (m1 s1-s6) done and reviewed PASS: criteria 1, 3, 5 (Edit/Write only), 6 and 10 held, 4 partial. Wave 3 (m1 s7-s10) in progress: the Mac half of criterion 9 is done; waiting on Gary's two cloud sessions. Spend before wave 3 ~$28.6 (this parent ~$11.4 of it; its context makes each wave ~$5.8, against ~$1.3 planned).
 
 ## Done
 
@@ -51,6 +51,21 @@ Commit `94c710f` (m1.s6, reviewed): `specs/handoffs/orchestrate-native/spike-plu
 
 Org sync of `GaryRudolph/orchestrate-spike` (commit `409b3ff`): "Synced with warnings. Every plugin synced, but these items were left out." One warning, on `orch-spike`: "Plugin 'orch-spike' has unrecognized key in plugin.json: 'workflows' (stripped — the SDK ignores unknown top-level fields)". So the manifest is accepted (no rejection) and `agents` and `hooks` are kept, but `workflows` is dropped on org-synced surfaces. Docs (https://code.claude.com/docs/en/plugins/manifest-reference, checked by the parent): `workflows` is a documented top-level key ("Workflow `.js` files or directories. Replaces the default `workflows/` scan"), and the Standard layout's default for workflows is `workflows/` at the plugin root ("Workflow `.js` files"); an unrecognized top-level key "is stripped, and the plugin loads". So org sync's validator lags the CLI on this key. **Planned fix (parent's proposal, for wave 3 to apply first and m2 to keep):** move `plan-segment.js` from `skills/<org>-plan-orchestrate/claude-workflows/` to `<plugin>/workflows/`, drop the `workflows` key, update the tests and the spike builder, rebuild `orch-spike`, and have Gary re-sync to confirm the warning is gone; criterion 7 then checks the workflow arrives in a cloud session. **Update 2026-10-07:** Gary reports neither the account install nor the org sync shows a warning any more, with no plugin change pushed (commits after `94c710f` touch only the plan and handoff). This desktop session (account install) now lists the 5 `orch-spike:plan-*` agents and `orch-spike:plan-segment` (the workflow, listed among the skills), so the `workflows` key registered there. The warning looks transient or was cleared by a newer validator; the `workflows/` move is held as the fix only if criterion 7 shows the workflow missing in a cloud session. Gary then found the Claude GitHub App hadn't been configured correctly for the scratch repo, which likely explains the transient warning; after fixing it, both routes sync with no warning. Soon after, this desktop session's list dropped the `orch-spike` agents and skills (account install changed during the fix?). Gary: `orch-spike` is now installed through the organization (not the account); wave 3's cloud sessions get it by org sync, so its access must not be "Not available" for Gary. Gary: it works in a claude.ai chat, and Cowork lists it too. **Criterion 6 held.**
 
+## Wave 3 (m1 s7-s10), in progress
+
+Gate 2 passed; the worker ran the Mac half of criterion 9 and built the cloud fixture, then stopped for Gary's cloud sessions. Full detail: `.scratch/orchestrate-plan-orchestrate-native-kestrel-3-m1-s7-s10.md`. Fixtures and logs: `.scratch/spike/w3/` (Mac), `.scratch/spike/cloud/` (a clone of the scratch repo).
+
+- **Cloud fixture, pushed to `GaryRudolph/orchestrate-spike` `master` (`a55682a`, `fc6ff35`):** plan A `plan-smoke-heron` (3 waves, `[exec]`, `[exec]` with a planted check-only step, `[deep]`), plan B `plan-smoke-ibis` (2 waves in 2 milestones, gate 4 before wave 2), `spike/brief.md` (the parent procedure standing in for SKILL.md; the plans' Kickoff prompts point to it with `P=orch-spike`), `spike/c1.md` and `spike/c2.md` (each session's steps and report), `spike/shapes.py` and `spike/usage.py`, `.claude/settings.json` (attribution, allow rules), `.gitignore`.
+- **Org sync reached the Mac CLI:** `~/.claude-lolay/plugins/synced/<bucket>/orch-spike/` appeared with `agents`, `workflows` and `hooks` intact, and a CLI session registered its 5 agents, its workflow, both hooks files and 4 skills (`.scratch/spike/w3/x-debug.log`); the SessionStart marker reached the transcript. Criterion 7's Mac analogue holds; the cloud check is pending.
+- **Criterion 9, Mac half (all CLI 2.1.291, Sonnet-high parents, real Sonnet workers, Opus reviews):**
+  - Unattended, two repos (`w3/u`, transcript `…-w3-u-repo-a/c66eb517-….jsonl`): five launches, each allowed by the hook, so each wave's plan and handoff were committed and pushed first. A planted check failure (a check-only step left without a commit) got `1-fix` with no stop, and the fix-up (an empty commit) passed `check_wave.py`. A second plant (a `prepare-commit-msg` hook rewriting the subject) made the worker return `needs_info` after its automatic retry: gate 1 stopped, the unreviewed commit was pushed and labeled `UNREVIEWED` (decision 12). After approval the fix-up reworded the commit by a non-interactive rebase, which also replayed the parent's bookkeeping commits; `check_wave.py` passed and the parent force-pushed with lease. The third-failure stop wasn't reached live; offline, `plan_state.py` turns gate 1 from checkpoint into stop at the third CONCERNS in a row (`w3/strike/result.txt`).
+  - Gated on `main` (`w3/g1`, `…-w3-g1-repo-c/8ca498a7-….jsonl`): the question named `feature/smoke-lark`, nothing committed before the answer, then cut and pushed. A launch with no `plan` in `args` made the hook exit 2 (`status code 2`, `Hook denied tool use for Workflow`) and no run started. A bracketed paste of the Kickoff prompt at `BLOCKED at gate 5` was re-posted, not taken as an answer (the paste is again wrapped in `<pasted_content>`).
+  - Gated, a plain folder of sibling repos (`w3/x`): plan and handoff stayed in `x/.scratch/`, uncommitted, and the hook allowed the launch, once `GIT_CEILING_DIRECTORIES` kept git from seeing this repo above the fixture. Nested inside this repo's work tree, rule 9 denied it as a plan in a repo with a remote (an m2.s2 item below).
+  - Every message that stopped or asked carried the handoff summary.
+- **m2.s2 kit changes found this wave (so far):** (6) a check-only step: the worker prompt says a step that changes no file gets an empty commit (or `check_wave.py` accepts a reported no-change step); (7) a reword fix-up in the plan's repo replays the parent's bookkeeping commits: `fixupSection` says to keep their content, not the commits "as they are", and SKILL.md says the parent then force-pushes with lease; (8) a plain folder nested in another repo's work tree: treat an ignored plan path as no repo, or document that it mustn't nest; (9) SKILL.md: an approval's `wave` is the launched unit's; the parent's own commits carry `Assisted-by: Claude Code` and no `Co-authored-by` (the CLI's default attribution added one in a fixture without settings); (10) optional: the hooks file's fallback echo fires on the hook's own exit 2 too.
+- `ANTHROPIC_DEFAULT_SONNET_MODEL` no longer remapped the workflow's `[exec]` workers (they ran real Sonnet). `~/.claude-lolay/settings.json` unchanged this wave (diffed against `.scratch/spike/lolay-settings-before-wave3.json`).
+- Pending: s7 (criterion 7), s8 (criterion 2), s9 (criterion 8) and the runner half of s10 need Gary's cloud sessions C1 and C2; then path (c) on the Mac with plan B, and the m1 close-out.
+
 ## Key decisions
 
 - Gary's decisions 2-12 are recorded in the plan's "Decisions" section.
@@ -68,7 +83,29 @@ Org sync of `GaryRudolph/orchestrate-spike` (commit `409b3ff`): "Synced with war
 
 ## Pending question (verbatim)
 
-> Gate 2 ([exec] -> [deep]): waves 1-2 are in `bf5da80..c793202` (kit staging `f356a2f`, spike plugin `94c710f`). Start wave 3 [deep] m1 s7-s10 (criteria 7, 2, 8, 9 on the cloud runner, ~$12 plus ~$5 of runs), with this chat coordinating on the Mac and you starting and answering the cloud sessions on `GaryRudolph/orchestrate-spike` from prompts it writes?
+> Can you run two cloud sessions on `GaryRudolph/orchestrate-spike` for wave 3 (criteria 7, 2, 8 and 9 on the runner)? The fixture is on `master` (`fc6ff35`). Expect about an hour of mostly waiting and roughly $6-8 API-equiv. Before you start, check that `orch-spike` is available to you through the org on claude.ai/code. Pick Opus for both sessions if the UI offers a model.
+>
+> **Session C1.** Start a new claude.ai/code session on `GaryRudolph/orchestrate-spike`, branch `master`, and send exactly:
+>
+> ```
+> Read spike/c1.md in this repo and follow it.
+> ```
+>
+> Then answer as it asks:
+> 1. Plan heron's kickoff question (`Proposed mode: unattended.`): type `unattended`.
+> 2. At `SPIKE: Gary, type /compact now.`: type `/compact`. If the web UI has no `/compact`, type `no compact here` instead.
+> 3. At the `SPIKE side question`: type `yes`.
+> 4. If a hook deny makes it ask the kickoff question again: type `unattended`.
+> 5. At the PR question: type `no`.
+> 6. Plan ibis's kickoff question: type `unattended`.
+> 7. It prints plan ibis's Kickoff prompt in a fenced block, names its branch, and then prints a `C1 REPORT` block. Copy all three.
+>
+> **Session C2.** Start a new session on the same repo, from the branch C1 named in step 7 (not `master`). Send the Kickoff prompt from step 7 exactly as printed, with nothing before or after it. Then:
+> 1. At `SPIKE: Gary, type gated now.`: type `gated`.
+> 2. At the gate 4 question: paste the same Kickoff prompt again. It should re-post the question. Then type `yes`.
+> 3. At the PR question: type `no`. It prints a `C2 REPORT` block.
+>
+> **Paste back here:** the `C1 REPORT` and `C2 REPORT` blocks, the branch each session showed in the UI, and anything that looked off (a permission prompt you approved, an error, a step that never came). If C1's part 1 says the `orch-spike` agents or workflow are missing, it skips to its report; paste that and skip C2.
 
 ## How to resume
 
