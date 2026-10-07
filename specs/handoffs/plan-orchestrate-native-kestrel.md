@@ -1,7 +1,7 @@
 ```
 --- KICKOFF: begin orchestration at [deep] ---
 
-  Status: 1/8 groups done | last review: wave-1 PASS | BLOCKED at gate 1 (needs_info: Gary publishes orch-spike, checks org sync and Cowork) | current: m1 s6 [exec] | updated 2026-10-06
+  Status: 2/8 groups done | last review: wave-2 PASS | BLOCKED at gate 2 ([exec]->[deep], before wave 3) | current: m1 s7-s10 [deep] | updated 2026-10-07
 
   review: every-wave (log-only — parent writes Review log; no human review gate)
 
@@ -121,6 +121,7 @@ Until m2.s3 rewrites `SKILL.md`, the spike's parent follows proposal §1.5 and �
       Append one line per model this chat ran to "## Review log
 
 review wave-1 (m1-s1-s3) bf5da80..0d0140d: PASS - kit staged (f356a2f); criteria 1 and 10 held, 4 partial with the m2.s2 hook changes listed; scope slip: the spike changed ~/.claude-lolay/settings.json - 2026-10-06
+review wave-2 (m1-s4-s6) 0d0140d..c793202: PASS - criteria 5 (Edit/Write only; reviewer Bash writes possible), 3 and 6 held; orch-spike synced by org and account, chat and Cowork list it - 2026-10-07
 
 ## Token log",
       counted and priced per its counting header:
@@ -167,7 +168,7 @@ review wave-1 (m1-s1-s3) bf5da80..0d0140d: PASS - kit staged (f356a2f); criteria
 - Run one fixture wave with the session in auto mode, with the allow rules of proposal §2.5 (`Workflow(personal:plan-segment)`, `git add`, `git commit`, the fixture's test command, the parent's `git push`).
 - **Accept when:** workers commit with no permission prompt, the commits pass `check_wave.py check`, and the parent's bookkeeping push goes through. Note any prompt that appeared and the rule that would remove it.
 
-#### s6 - [exec] Criterion 6: publish the spike plugin; org sync and Cowork accept the new manifest fields
+#### s6 - [exec] Criterion 6: publish the spike plugin; org sync and Cowork accept the new manifest fields (done)
 
 - Build a copy of the plugin under another name, so the `personal` plugin every synced surface gets stays as it is: the kit's namespace rule makes the folder, the manifest `name`, `args.plugin` and the skill prefix agree (`<name>-plan-orchestrate`, `<name>-standards`; see `orchestrate_check.py` and `test-orchestrate.sh`). Suggested name: `orch-spike`. Generate it with a small script into a tracked folder on this branch outside `plugins/` (so `make test-manifests` doesn't see a half-plugin), for example `specs/handoffs/orchestrate-native/spike-plugin/orch-spike/`, run `test-orchestrate.sh` and `claude plugin validate` on it, commit, push.
 - Find how it can be published without touching `main`: a marketplace entry whose source pins `ref: feature/orchestrate-native` (`github` or `git-subdir` source; check the current plugin-marketplace docs), in a marketplace Gary adds alongside `GaryRudolph/public`, or another route the docs allow. Also propose the cloud fixture: a private scratch repo (for example `GaryRudolph/orchestrate-spike`) holding the smoke plan and two working directories, so the runner's commits and `claude/…` branches don't land in this repo.
@@ -640,3 +641,4 @@ tokens wave-2 m1-s4-s6 (claude-sonnet-5-5): input ~114 / cache read ~7.9M / cach
 tokens wave-2 m1-s4-s6 (claude-sonnet-5-5): input ~72 / cache read ~1.8M / cache write ~49k 5m + ~50k 1h / output ~17k | ~$0.85 API-equiv (output est.) spike sessions in ~/.claude-lolay/projects/*scratch-spike*
 tokens wave-2 m1-s4-s6 (claude-opus-5-5): input ~16 / cache read ~24k / cache write ~20k / output ~6.9k | ~$0.25 API-equiv (output est.) spike sessions in ~/.claude-lolay/projects/*scratch-spike*
 tokens wave-2 m1-s4-s6 (claude-haiku-4-5): input ~158 / cache read ~270k / cache write ~9.6k 5m + ~76k 1h / output ~7.7k | ~$0.23 API-equiv spike sessions in ~/.claude-lolay/projects/*scratch-spike*
+tokens orchestrator-wave-2 m1-s4-s6 (claude-opus-5-5): input ~68 / cache read ~10M / cache write ~390k 1h / output ~31k | ~$5.76 API-equiv
