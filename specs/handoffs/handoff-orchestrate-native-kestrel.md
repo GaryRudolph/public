@@ -2,7 +2,7 @@
 
 **Branch:** `feature/orchestrate-native` (task branch, cut from `main` at bf5da80 on Gary's instruction).
 **Plan:** `specs/handoffs/plan-orchestrate-native-kestrel.md`, tagged and driven by `personal-plan-model-tiers` (passive). 8 waves, expected ~73M tokens, ~$38 API-equiv.
-**Status:** orchestrate driver, Agent-tool path (Gary's option 2), expected ~$54. Wave 1 (m1 s1-s3) done and reviewed PASS; spend so far ~$19. Wave 2 running.
+**Status:** orchestrate driver, Agent-tool path (Gary's option 2), expected ~$54. Wave 1 (m1 s1-s3) done and reviewed PASS; spend so far ~$19. Wave 2: s4 and s5 done, s6 built (`94c710f`, reviewed); blocked at gate 1 on Gary's publish. Spend ~$23.
 
 ## Done
 
@@ -36,6 +36,17 @@ No new repo commits; the wave's only commit is `f356a2f`. Evidence in `.scratch/
 - **Surprises:** `ANTHROPIC_DEFAULT_OPUS_MODEL` didn't remap `opus` (reviews and the `[deep]` worker ran real Opus); one of four mid-turn messages never reached the transcript (likely a tmux keystroke loss); a plain hook deny shows the model `PreToolUse:Workflow hook error: …` though the hook exited 0.
 - **Out-of-scope changes to Gary's lolay config, not reverted:** `/effort high` in a spike session saved `modelSettings."claude-opus-5-5".effortLevel: "high"` to `~/.claude-lolay/settings.json` (the subagent says Opus ran at xhigh before; `/effort xhigh` or removing the key restores it); approving the probe workflow's dialog added `"skipWorkflowUsageWarning": true`; workspace trust accepted for `.scratch/spike/fixture/repo-a` and `.scratch/spike/wire`. The settings file also has `claude-sonnet-5-5` `effortLevel: "medium"`, origin unknown.
 
+## Wave 2 (m1 s4-s6)
+
+Commit `94c710f` (m1.s6, reviewed): `specs/handoffs/orchestrate-native/spike-plugin/build-spike-plugin.sh` regenerates `spike-plugin/orch-spike/` (62 files: the 5 agents, workflow and hooks fields; skills `orch-spike-plan-orchestrate`, `-plan-model-tiers`, `-plan-tag-tiers`, `-standards`; a SessionStart that prints one marker line, not the core) and `spike-plugin/.claude-plugin/marketplace.json` (marketplace `orch-spike-lab`, one `git-subdir` entry for GaryRudolph/public, `path` the spike plugin, `ref: feature/orchestrate-native`). 152 pass on it, `claude plugin validate` passes on plugin and marketplace, `make -C agents validate test` passes. `~/.claude-lolay/settings.json` unchanged this wave (diffed against `.scratch/spike/lolay-settings-before-wave2.json`).
+
+- **Criterion 5, held for Edit/Write, not for Bash.** `plan-reviewer` and `-xdeep` (Opus) report no Edit or Write tool, and declined `touch` and `git commit` by instruction, even when told the owner authorized it. A control agent with the same allowlist ran both under throwaway allow rules: Bash writes are possible, so the reviewer is read-only by instruction only.
+- **Criterion 3, held.** Fresh 1-wave fixture in auto mode (Sonnet parent, Haiku workers, real Opus reviewers), allow rules only `Workflow(personal:plan-segment)`, `Bash(git add/commit/push:*)`, `Bash(grep:*)` from a throwaway `--settings` file: no permission prompt; workers committed `befc062` (repo-a) and `0b5c23d` (repo-b); `check_wave.py` `ok:true` on the first run; the parent's pushes went through.
+- **Publish route** (docs checked: code.claude.com/docs/en/plugins/marketplace-reference, host-marketplace, create-marketplace; claude.com/docs/plugins/org-sync.md, overview.md, platform-support.md, admin.md): a marketplace file must sit at the root of a repo's default branch; org sync reads only the default branch and on github.com needs a private repo; `ref`/`sha` pin a plugin source, so the branch pin goes in the entry; the Add marketplace dialog documents no branch ref. Hence the private scratch repo `GaryRudolph/orchestrate-spike`. UNVERIFIED: whether claude.ai sync honors `ref` on `git-subdir`; fallback is a copy of orch-spike in the scratch repo with a `./plugins/orch-spike` relative source.
+- **m2.s2 kit changes, adding to wave 1's:** block reviewer Bash writes (a reviewer-scoped `PreToolUse` Bash deny, after checking the hook input carries the subagent type, or drop Bash and pass the diff in the prompt); `check_wave.py` reports the parent's own bookkeeping commit as `others` (`problems: []` but `ok:false`) on a second check, so skip the plan repo's bookkeeping commits there, or have SKILL.md commit the handoff before the snapshot. `Grep`, `Glob` in reviewer `tools:` are no-ops on this CLI build (no change needed).
+- **m2.s3 SKILL.md notes:** state the order (refresh and commit plan and handoff, snapshot, launch; hook rule 6 otherwise denies a relaunch); say a canary launch runs only the first group (the Sonnet parent read it as a failure) and that `(done)` goes at the end of the heading.
+- Parent's change to the subagent's question: keep the account install of `orch-spike` until wave 3 is done (its cloud checks need it); only the org source can go after criterion 6.
+
 ## Key decisions
 
 - Gary's decisions 2-12 are recorded in the plan's "Decisions" section.
@@ -53,7 +64,21 @@ No new repo commits; the wave's only commit is `f356a2f`. Evidence in `.scratch/
 
 ## Pending question (verbatim)
 
-None. Gate 1 answered: "high is fine" (Opus `effortLevel: high` stays), then "keep, go" (`skipWorkflowUsageWarning: true` stays; start wave 2). Wave 2 (m1 s4-s6, Sonnet) dispatched 2026-10-06.
+> Wave 2 needs you for m1.s6 (criterion 6): publish the `orch-spike` spike plugin and tell me whether claude.ai accepts its new manifest fields. It's a renamed copy of `personal` plus the `agents`, `workflows` and `hooks` fields, on `feature/orchestrate-native` (pushed), so `personal` itself isn't touched.
+>
+> 1. Create the private scratch repo with the marketplace file (wave 3 also uses it as the cloud fixture):
+>
+>    cd ~/Projects && gh repo create GaryRudolph/orchestrate-spike --private --clone --description "Phase 0 spike: orch-spike marketplace and cloud fixture"
+>    cd orchestrate-spike && mkdir .claude-plugin
+>    cp ~/Projects/personal/public/specs/handoffs/orchestrate-native/spike-plugin/.claude-plugin/marketplace.json .claude-plugin/
+>    printf '# orchestrate-spike\n\nPhase 0 scratch repo: the orch-spike marketplace and the cloud fixture.\n' > README.md
+>    git add -A && git commit -m "add the orch-spike marketplace" && git push -u origin HEAD
+>
+> 2. Account route (account sync, cloud sessions, Cowork). In claude.ai or the desktop app: Customize > Plugins > Add > Add marketplace, enter `GaryRudolph/orchestrate-spike` (connect GitHub / install the Claude GitHub App on that repo if asked), then under `orch-spike-lab` pick `orch-spike` > Add. Accepted means: no error; `orch-spike` listed with 5 agents and 4 skills; `personal` still present and enabled. Then start a new Cowork task and ask it to list `orch-spike`'s agents and skills: it should start cleanly and see them.
+>
+> 3. Org route. Organization settings > Plugins & skills > Add > Sync from GitHub, pick `GaryRudolph/orchestrate-spike`, Sync automatically off, Default access Not available, Create. Open Marketplaces > `orch-spike-lab` and read Last synced. Accepted means: no error, `orch-spike` on the Inventory tab, `personal` still there. On an error, copy the date and reason verbatim and change nothing else ("path not found" would mean the branch `ref` was ignored; I'd switch to a copy inside the scratch repo).
+>
+> 4. Reply with one line per route: accepted, or the verbatim error. Afterwards you can delete the `orch-spike-lab` source from the org, but keep the account install and the repo until wave 3 is done: its cloud checks need `orch-spike` synced into cloud sessions.
 
 ## How to resume
 

@@ -1,7 +1,7 @@
 ```
 --- KICKOFF: begin orchestration at [deep] ---
 
-  Status: 1/8 groups done | last review: wave-1 PASS | gate 1 answered ("high is fine"; "keep, go") | current: m1 s4-s6 [exec] | updated 2026-10-06
+  Status: 1/8 groups done | last review: wave-1 PASS | BLOCKED at gate 1 (needs_info: Gary publishes orch-spike, checks org sync and Cowork) | current: m1 s6 [exec] | updated 2026-10-06
 
   review: every-wave (log-only — parent writes Review log; no human review gate)
 
@@ -157,12 +157,12 @@ review wave-1 (m1-s1-s3) bf5da80..0d0140d: PASS - kit staged (f356a2f); criteria
 
 --- WAVE 2 [exec] ---
 
-#### s4 - [exec] Criterion 5: the reviewer's `tools` allowlist is enforced
+#### s4 - [exec] Criterion 5: the reviewer's `tools` allowlist is enforced (done)
 
 - In the s1 fixture, launch `personal:plan-reviewer` (and `-xdeep`) with a prompt that tells it to edit a file and to run a write through Bash (`touch`, `git commit`).
 - **Accept when:** Edit and Write are unavailable to it. Bash is on the allowlist, so record whether a Bash write succeeds; if it does, the reviewer is read-only by instruction only, and m2.s2 decides whether to add a Bash deny (a `PreToolUse` rule scoped to the reviewer, or dropping Bash for `git diff` via a script).
 
-#### s5 - [exec] Criterion 3: worker commits pass in auto mode
+#### s5 - [exec] Criterion 3: worker commits pass in auto mode (done)
 
 - Run one fixture wave with the session in auto mode, with the allow rules of proposal §2.5 (`Workflow(personal:plan-segment)`, `git add`, `git commit`, the fixture's test command, the parent's `git push`).
 - **Accept when:** workers commit with no permission prompt, the commits pass `check_wave.py check`, and the parent's bookkeeping push goes through. Note any prompt that appeared and the rule that would remove it.
@@ -636,3 +636,7 @@ tokens wave-1 m1-s1-s3 (claude-opus-5-5): input ~150 / cache read ~4.3M / cache 
 tokens wave-1 m1-s1-s3 (claude-sonnet-5-5): input ~38 / cache read ~790k / cache write ~130k 5m + ~130k 1h / output ~1.2k | ~$1.00 API-equiv spike sessions in ~/.claude-lolay/projects/*scratch-spike*
 tokens wave-1 m1-s1-s3 (claude-haiku-4-5): input ~230 / cache read ~660k / cache write ~46k / output ~24k | ~$0.24 API-equiv (output est.) spike sessions in ~/.claude-lolay/projects/*scratch-spike*
 tokens orchestrator-wave-1 m1-s1-s3 (claude-opus-5-5): input ~36 / cache read ~4.7M / cache write ~21k 1h / output ~14k | ~$1.39 API-equiv
+tokens wave-2 m1-s4-s6 (claude-sonnet-5-5): input ~114 / cache read ~7.9M / cache write ~240k / output ~64k | ~$2.81 API-equiv (output est.) session b5197fbf-6866-4e1f-8fad-b73a5d15573a
+tokens wave-2 m1-s4-s6 (claude-sonnet-5-5): input ~72 / cache read ~1.8M / cache write ~49k 5m + ~50k 1h / output ~17k | ~$0.85 API-equiv (output est.) spike sessions in ~/.claude-lolay/projects/*scratch-spike*
+tokens wave-2 m1-s4-s6 (claude-opus-5-5): input ~16 / cache read ~24k / cache write ~20k / output ~6.9k | ~$0.25 API-equiv (output est.) spike sessions in ~/.claude-lolay/projects/*scratch-spike*
+tokens wave-2 m1-s4-s6 (claude-haiku-4-5): input ~158 / cache read ~270k / cache write ~9.6k 5m + ~76k 1h / output ~7.7k | ~$0.23 API-equiv spike sessions in ~/.claude-lolay/projects/*scratch-spike*
