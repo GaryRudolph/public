@@ -4,16 +4,10 @@ Design proposal and prototype kit for running `personal-plan-orchestrate` native
 
 - `brief.md`: the decision brief for Gary, one page.
 - `proposal.md`: the design, v6, revised after an adversarial review. §5 lists the decisions and the review fixes.
-- `kit/`: the prototype. `scripts/` (`plan_state.py`, `check_wave.py`, `orchestrate_gate.py`, `token_tally.py`), `claude-workflows/plan-segment.js`, five `claude-agents/`, `hooks/claude-hooks.json`, and `plugin-manifest.json` (the manifest fields the kit adds).
-- `tests/`: 152 offline tests. They expect the plugin layout, so copy the plugin and the kit into a fresh scratch tree first (a reused one would nest the plugin copy and test stale files):
+- The kit now lives in the plugin (plan m1.s1). Under `plugins/personal/skills/personal-plan-orchestrate/`: `scripts/` (`plan_state.py`, `check_wave.py`, `orchestrate_gate.py`, `token_tally.py`), `claude-workflows/plan-segment.js` and five `claude-agents/`; the hook is `plugins/personal/hooks/claude-hooks.json`, and the manifest's `agents`, `workflows` and `hooks` fields are in `plugins/personal/.claude-plugin/plugin.json`. Where the proposal says `kit/`, read those paths.
+- The 152 offline tests are in that skill's `tests/` and run in place, from the repo root:
 
-      k=specs/handoffs/orchestrate-native; root=$(mktemp -d "${TMPDIR:-/tmp}/kit-check.XXXXXX")/personal
-      echo "testing $root"; cp -r plugins/personal "$root"
-      cp -r $k/kit/scripts $k/kit/claude-agents $k/kit/claude-workflows $k/tests \
-            "$root/skills/personal-plan-orchestrate/"
-      cp $k/kit/plugin-manifest.json "$root/.claude-plugin/plugin.json"
-      cp $k/kit/hooks/claude-hooks.json "$root/hooks/"
-      bash "$root/skills/personal-plan-orchestrate/tests/test-orchestrate.sh" "$root"
+      bash plugins/personal/skills/personal-plan-orchestrate/tests/test-orchestrate.sh plugins/personal
 
 ## State
 
