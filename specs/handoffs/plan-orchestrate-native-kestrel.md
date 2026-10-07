@@ -1,7 +1,7 @@
 ```
 --- KICKOFF: begin orchestration at [deep] ---
 
-  Status: 4/8 groups done | last review: wave-4 PASS | current: m2 s2-s3 [deep] (wave 5 dispatched, gate 2 approved) | updated 2026-10-07
+  Status: 5/8 groups done | last review: wave-5 PASS | current: m2 s4-s7 [exec] (wave 6 dispatched) | updated 2026-10-07
 
   review: every-wave (log-only — parent writes Review log; no human review gate)
 
@@ -129,6 +129,7 @@ review wave-1 (m1-s1-s3) bf5da80..0d0140d: PASS - kit staged (f356a2f); criteria
 review wave-2 (m1-s4-s6) 0d0140d..c793202: PASS - criteria 5 (Edit/Write only; reviewer Bash writes possible), 3 and 6 held; orch-spike synced by org and account, chat and Cowork list it - 2026-10-07
 review wave-3 (m1-s7-s10) c793202..14a76b7: PASS - criteria 2 and 7 held on the runner, 8 and 9 partial (compaction false deny; typed gated switch on the runner left to m2.s9); m1 closed with no fallback, 12 m2.s2 items, m2 handoff written; spike runs ~$13.7 vs ~$5 allowance - 2026-10-07
 review wave-4 (m2-s1) 6548274..2870822: PASS - test-orchestrate wired into agents/Makefile (.PHONY, test, help); manifest fields and the || exit 2 fallback already in place; validate test passes with 152 kit tests; claude plugin validate passes - 2026-10-07
+review wave-5 (m2-s2-s3) 5802f23..5704254: PASS - 12 m2.s2 kit changes plus decision 9 and the take-back (suite 152 -> 172); SKILL.md rewritten harness-neutral with the Claude Code path marked phase 1: dogfood; orch-spike rebuilt, not pushed; new reviewer_guard.py Bash hook runs on every Bash call (fails open); reviewer agent_type naming unverified live (m2.s9) - 2026-10-07
 
 ## Token log",
       counted and priced per its counting header:
@@ -386,7 +387,7 @@ Ship the Claude Code adapter in the `personal` plugin, with the standards edits 
 
 --- WAVE 5 [deep] ---
 
-#### s2 - [deep] Kit changes: phase 0 findings, decision 9, and the v5 review's open items
+#### s2 - [deep] Kit changes: phase 0 findings, decision 9, and the v5 review's open items (done)
 
 - Every change m1.s10's list names, with a stub test each.
 - **Decision 9:** a reply that is a plain yes (no question back, no negation) confirms unattended when the assistant message right before it asked the kickoff question with `Proposed mode: unattended.`; a yes to a gated proposal still records gated. Change `orchestrate_gate.py` rule 7, the bare-yes test case (now allowed) and add one where the question proposed gated (records gated, never unattended); a pasted prompt still never answers.
@@ -394,7 +395,7 @@ Ship the Claude Code adapter in the `personal` plugin, with the standards edits 
 - Confirm decisions 2, 3, 4, 5, 7, 10, 11 and 12 are what the kit does; fix any that isn't.
 - **Accept when:** the suite passes with the new and changed cases counted in the handoff, and `make -C agents validate test` passes.
 
-#### s3 - [deep] `personal-plan-orchestrate/SKILL.md`: harness-neutral core and detection
+#### s3 - [deep] `personal-plan-orchestrate/SKILL.md`: harness-neutral core and detection (done)
 
 - Per proposal §4 row 1: core and detection in `SKILL.md`; per-harness steps move to `adapters/` (m2.s4 writes them). Drop "Cursor-only", the #43869 gate and "Out of scope: Claude Code"; update the frontmatter description. Say "call the Workflow tool" in so many words.
 - Add: the kickoff question with its fixed `Proposed mode:` and `Reply` words, runner signals and their tokens, replacing the separate destination question; task branches only (find or cut one per repo, the mode answer as a workstation's yes, a declined cut re-asks once); commit and push of the plan and handoff before any halt or dispatch; the gate table by mode, retries, automatic fix-ups and the cap, the failed-check Review log line, the WAIVED line, the scope breaches that stop, the snapshot kept as a fix-up's `--baseline`; the guard; questions with save-first, the per-wave handoff and its chat summary in both modes; the Kickoff prompt (plan line, `On branch` lines, mode line), what rewrites it, the three ways into a new session, when it re-asks, and the resume step. Contract item 7 (token reporting) applies to Cursor `Task` subagents, not workflow workers; `{wave-n}` takes `N-fix2`.
@@ -657,3 +658,6 @@ tokens wave-3 m1-s7-s10 (claude-sonnet-5-5): input ~46 / cache read ~1.0M / cach
 tokens orchestrator-wave-3 m1-s7-s10 (claude-opus-5-5): input ~78 / cache read ~4.9M / cache write ~240k 1h / output ~36k | ~$3.65 API-equiv
 tokens wave-4 m2-s1 (claude-sonnet-5-5): input ~16 / cache read ~460k / cache write ~71k / output ~8k | ~$0.35 API-equiv (output est.) session 350579b9-70e1-4f99-a901-444b0c4a63eb subagent a1a7e79763b8ad572
 tokens orchestrator-wave-4 m2-s1 (claude-opus-5-5): input ~14 / cache read ~1.4M / cache write ~9.4k 1h / output ~7.1k | ~$0.50 API-equiv
+tokens wave-5 m2-s2-s3 (claude-opus-5-5): input ~150 / cache read ~20M / cache write ~400k / output ~95k | ~$7.95 API-equiv (output est.) session 350579b9-70e1-4f99-a901-444b0c4a63eb subagent af56f201cdd8bca66
+tokens wave-5 m2-s2-s3 (claude-opus-5-5): input ~16 / cache read ~520k / cache write ~105k / output ~5.8k | ~$0.74 API-equiv (output est.) session 350579b9-70e1-4f99-a901-444b0c4a63eb subagent a35e02d8fdea83413 (Explore gap check)
+tokens orchestrator-wave-5 m2-s2-s3 (claude-opus-5-5): input ~14 / cache read ~1.5M / cache write ~13k 1h / output ~8k | ~$0.56 API-equiv

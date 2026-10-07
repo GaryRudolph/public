@@ -2,7 +2,7 @@
 
 **Branch:** `feature/orchestrate-native` (task branch, cut from `main` at bf5da80 on Gary's instruction).
 **Plan:** `specs/handoffs/plan-orchestrate-native-kestrel.md`, tagged and driven by `personal-plan-model-tiers` (passive). 8 waves, expected ~73M tokens, ~$38 API-equiv.
-**Status:** orchestrate driver, Agent-tool path (Gary's option 2), expected ~$54. Waves 1-2 (m1 s1-s6) done and reviewed PASS: criteria 1, 3, 5 (Edit/Write only), 6 and 10 held, 4 partial. Wave 3 (m1 s7-s10) done: m1 closed out, criteria 1, 2, 3, 6, 7 and 10 held, 4, 5, 8 and 9 partial, no fallback; milestone handoff `specs/handoffs/handoff-m2-orchestrate-native.md`. Wave 3 reviewed PASS by the orchestrator. Spend ~$59.5 against ~$54 expected for the whole plan: wave 3 cost ~$27.3 (its Opus worker ~$13.6, spike runs ~$13.7) against ~$12, plus ~$3.7 for this orchestrator. Wave 4 (m2 s1) done, reviewed PASS (~$0.35). Blocked at gate 2 before wave 5.
+**Status:** orchestrate driver, Agent-tool path (Gary's option 2), expected ~$54. Waves 1-2 (m1 s1-s6) done and reviewed PASS: criteria 1, 3, 5 (Edit/Write only), 6 and 10 held, 4 partial. Wave 3 (m1 s7-s10) done: m1 closed out, criteria 1, 2, 3, 6, 7 and 10 held, 4, 5, 8 and 9 partial, no fallback; milestone handoff `specs/handoffs/handoff-m2-orchestrate-native.md`. Wave 3 reviewed PASS by the orchestrator. Spend ~$59.5 against ~$54 expected for the whole plan: wave 3 cost ~$27.3 (its Opus worker ~$13.6, spike runs ~$13.7) against ~$12, plus ~$3.7 for this orchestrator. Wave 4 (m2 s1) done, reviewed PASS (~$0.35). Wave 5 (m2 s2-s3) done, reviewed PASS (~$8.7). Wave 6 [exec] m2 s4-s7 dispatched (no gate at [deep] -> [exec]).
 
 ## Done
 
@@ -158,7 +158,7 @@ Commits `17c5cd2` (m2.s2), `ca35e35` and `a3302cd` (m2.s3). Full detail: `.scrat
 
 ## Pending question (verbatim)
 
-> Gate 2 ([exec] -> [deep]): wave 4 (m2 s1) is in `6548274..2870822`: `test-orchestrate` wired into `agents/Makefile`, `make -C agents validate test` runs the 152 kit tests and passes. Start wave 5 [deep] m2 s2-s3 (the 12 m2.s2 kit changes with tests, then the `SKILL.md` rewrite; one Opus subagent, ~$5.4 expected)?
+None while wave 6 runs. Next: gate 2 ([exec] -> [deep]) before wave 7.
 
 ## How to resume
 
