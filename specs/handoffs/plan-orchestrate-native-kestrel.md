@@ -1,7 +1,7 @@
 ```
 --- KICKOFF: begin orchestration at [deep] ---
 
-  Status: 0/8 groups done | last review: โ€” | gate 5 approved 2026-10-06 ("continue wave 1") | gate 1 answered (CLI signed in via CLAUDE_CONFIG_DIR=~/.claude-lolay) | wave 1 re-dispatched | current: m1 s1-s3 [deep] | updated 2026-10-06
+  Status: 1/8 groups done | last review: wave-1 PASS | BLOCKED at gate 1 (scope: wave 1 changed ~/.claude-lolay/settings.json) | current: m1 s4-s6 [exec] | updated 2026-10-06
 
   review: every-wave (log-only โ€” parent writes Review log; no human review gate)
 
@@ -79,7 +79,7 @@ Until m2.s3 rewrites `SKILL.md`, the spike's parent follows proposal ยง1.5 and ย
 
 --- WAVE 1 [deep] ---
 
-#### s1 - [deep] Criterion 1: stage the kit and prove the launch, notification and relaunch loop on the Mac
+#### s1 - [deep] Criterion 1: stage the kit and prove the launch, notification and relaunch loop on the Mac (done)
 
 - **Stage the kit** (this is the file move of the PR's item 1; the `SKILL.md` split waits for m2.s3): `git mv` `kit/scripts`, `kit/claude-agents`, `kit/claude-workflows` and `tests/` into `plugins/personal/skills/personal-plan-orchestrate/`; `kit/hooks/claude-hooks.json` to `plugins/personal/hooks/`; merge `kit/plugin-manifest.json`'s `agents`, `workflows` and `hooks` fields into `plugins/personal/.claude-plugin/plugin.json` (delete the kit copy). Leave `brief.md`, `proposal.md` and `README.md` where they are; fix the README recipe to point at the moved files. Run `bash plugins/personal/skills/personal-plan-orchestrate/tests/test-orchestrate.sh plugins/personal` (152 pass), `claude plugin validate plugins/personal`, and `make -C agents validate test`.
 - **Install from the branch** through the local marketplace (runbook m3.s4: `claude plugin marketplace add ~/Projects/personal/public`, `claude plugin install personal@personal --scope user`, if not installed already), so a new local session loads the 5 agents, the workflow and the hook from the working tree. Note: every Workflow launch in Gary's local sessions now passes through `orchestrate_gate.py`; it should ignore anything that isn't a plan-segment launch, and if it doesn't, uninstall until fixed.
@@ -87,13 +87,13 @@ Until m2.s3 rewrites `SKILL.md`, the spike's parent follows proposal ยง1.5 and ย
 - **Drive an interactive session** (not `-p`): start `claude` in a tmux session in the fixture and send keystrokes with `tmux send-keys` (typed) or `tmux paste-buffer -p` (bracketed paste), so the agent can run it without Gary. If tmux is missing, ask Gary to `brew install tmux` or to type the listed prompts himself.
 - **Accept when:** the kickoff question is asked and answered, a launch runs, the completion notification wakes the parent, and the parent relaunches the next unit from the notification turn, with the hook allowing honest launches and denying a dishonest one (an edited `state`). Record the transcript paths and what each record looked like in the handoff.
 
-#### s2 - [deep] Criterion 4: typed and pasted prompts on the Mac look human to the hook
+#### s2 - [deep] Criterion 4: typed and pasted prompts on the Mac look human to the hook (done)
 
 - Read the interactive transcript from s1 and confirm the fields the hook relies on (`promptSource`, `turnOrigin`, `origin.kind`) for a typed prompt, a bracketed paste, a message typed while the parent works (`queued_command`), the `[Request interrupted by user]` marker and a compaction summary (`/compact`). The proposal saw the cloud values only (`sdk`, `human`); the Mac values are UNVERIFIED.
 - Check that a pasted Kickoff prompt's transcript text equals the plan's prompt after whitespace is collapsed (part of criterion 8, Mac side).
 - **Accept when:** the hook's human-turn test classifies each shape as the proposal intends, or the step lists the exact hook change m2.s2 must make, with a captured record for each shape saved under `.scratch/spike/` and summarized in the handoff.
 
-#### s3 - [deep] Criterion 10: `xhigh` and `high` reach the API
+#### s3 - [deep] Criterion 10: `xhigh` and `high` reach the API (done)
 
 - Capture the request bodies Claude Code sends (a local logging proxy via `ANTHROPIC_BASE_URL`, or whatever v1's probe used; find the cheapest method that works with Gary's sign-in) for: an `agent()` call with `effort: "xhigh"`, a `plan-worker-xdeep` and a `plan-reviewer-xdeep` launch (frontmatter xhigh), and a `plan-worker-exec` launch (frontmatter `sonnet`, high).
 - **Accept when:** each capture shows the expected model and effort on the wire. Keep the capture excerpts in `.scratch/spike/` and quote the relevant fields in the handoff. If frontmatter effort doesn't reach the wire, say which path does and what m2.s2 must change.
@@ -118,7 +118,11 @@ Until m2.s3 rewrites `SKILL.md`, the spike's parent follows proposal ยง1.5 and ย
       "## Review log" section of the plan file (create the section if
       absent), with <to> from `git rev-parse --short HEAD`:
         review wave-1 (m1-s1-s3) <from>..<to>: PASS|CONCERNS - <one-line note> - <YYYY-MM-DD>
-      Append one line per model this chat ran to "## Token log",
+      Append one line per model this chat ran to "## Review log
+
+review wave-1 (m1-s1-s3) bf5da80..0d0140d: PASS - kit staged (f356a2f); criteria 1 and 10 held, 4 partial with the m2.s2 hook changes listed; scope slip: the spike changed ~/.claude-lolay/settings.json - 2026-10-06
+
+## Token log",
       counted and priced per its counting header:
         tokens review-wave-1 m1-s1-s3 (<model>): input ~X / cache read ~R / cache write ~W / output ~Y | ~$C API-equiv
       If the verdict is CONCERNS, also set the Kickoff Status line to
@@ -627,3 +631,8 @@ Ship the Claude Code adapter in the `personal` plugin, with the standards edits 
 tokens kickoff plan-orchestrate-native-kestrel (claude-opus-5-5): input ~36 / cache read ~2.5M / cache write ~160k 1h / output ~44k | ~$2.70 API-equiv
 tokens orchestrator-kickoff plan-orchestrate-native-kestrel (claude-opus-5-5): input ~30 / cache read ~3.1M / cache write ~59k 1h / output ~21k | ~$1.51 API-equiv
 tokens wave-1 m1-s1-s3 (claude-opus-5-5): input ~92 / cache read ~6.3M / cache write ~200k / output ~51k | ~$3.27 API-equiv (output est.) session b5197fbf-6866-4e1f-8fad-b73a5d15573a
+tokens wave-1 m1-s1-s3 (claude-opus-5-5): input ~114 / cache read ~13M / cache write ~280k / output ~56k | ~$5.08 API-equiv (output est.) session b5197fbf-6866-4e1f-8fad-b73a5d15573a
+tokens wave-1 m1-s1-s3 (claude-opus-5-5): input ~150 / cache read ~4.3M / cache write ~170k 5m + ~120k 1h / output ~40k | ~$3.48 API-equiv (output est.) spike sessions in ~/.claude-lolay/projects/*scratch-spike*
+tokens wave-1 m1-s1-s3 (claude-sonnet-5-5): input ~38 / cache read ~790k / cache write ~130k 5m + ~130k 1h / output ~1.2k | ~$1.00 API-equiv spike sessions in ~/.claude-lolay/projects/*scratch-spike*
+tokens wave-1 m1-s1-s3 (claude-haiku-4-5): input ~230 / cache read ~660k / cache write ~46k / output ~24k | ~$0.24 API-equiv (output est.) spike sessions in ~/.claude-lolay/projects/*scratch-spike*
+tokens orchestrator-wave-1 m1-s1-s3 (claude-opus-5-5): input ~36 / cache read ~4.7M / cache write ~21k 1h / output ~14k | ~$1.39 API-equiv

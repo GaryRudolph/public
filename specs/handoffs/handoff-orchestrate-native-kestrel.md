@@ -2,7 +2,7 @@
 
 **Branch:** `feature/orchestrate-native` (task branch, cut from `main` at bf5da80 on Gary's instruction).
 **Plan:** `specs/handoffs/plan-orchestrate-native-kestrel.md`, tagged and driven by `personal-plan-model-tiers` (passive). 8 waves, expected ~73M tokens, ~$38 API-equiv.
-**Status:** driver switched to `personal-plan-orchestrate` on the Agent-tool path (Gary's option 2); expected ~$54. Wave 1 ran once and stopped at `needs_info`: the standalone `claude` CLI is signed out, so no live spike run happened. Blocked at gate 1 and the gate-5 canary.
+**Status:** orchestrate driver, Agent-tool path (Gary's option 2), expected ~$54. Wave 1 (m1 s1-s3) done and reviewed PASS; spend so far ~$19. Blocked at gate 1: wave 1's spike sessions changed Gary's `~/.claude-lolay/settings.json`, outside its scope.
 
 ## Done
 
@@ -22,6 +22,20 @@ Commit `f356a2f` (m1.s1 staging, reviewed by the parent): the kit's scripts, age
 - The CLI logged "applying 2 old allow rules to user settings" at launch; `settings.json` was not modified.
 - Rerun kit: `.scratch/spike/run-spike.sh s1|s3`, `parent-brief.md`, `wire/proxy.py`, `s2/*.py`; full detail in `.scratch/orchestrate-plan-orchestrate-native-kestrel-1-m1-s1-s3.md`.
 
+## Wave 1 result (second attempt, the evidence of record)
+
+No new repo commits; the wave's only commit is `f356a2f`. Evidence in `.scratch/spike/` (gitignored, Mac only) and `.scratch/orchestrate-plan-orchestrate-native-kestrel-1-m1-s1-s3.md`.
+
+- **Setup:** `.scratch/spike/env-clean.sh` exports `CLAUDE_CONFIG_DIR=/Users/gary/.claude-lolay`. That config has an account-synced `personal`; `--plugin-dir` outranks it (debug log: `Synced plugin "personal" shadowed by local copy personal@inline`), loading the branch's hooks file, 5 agents, 1 workflow and 10 skills with no double hooks.
+- **Criterion 1, held.** Transcript `~/.claude-lolay/projects/-Users-gary-Projects-personal-public--scratch-spike-fixture-repo-a/d26c40ed-19d2-4195-b00c-42fa13c0281b.jsonl`. Parent Opus high in auto mode. Kickoff question asked (`Proposed mode: gated.` … `Reply gated or unattended.`), `unattended` typed and recorded with the session id. Four `personal:plan-segment` runs: canary, an automatic `1-fix` after a real Haiku CONCERNS (missing trailing newline), the repo-b continuation, wave 2 `[deep]`; each `async_launched`, each relaunch from a `task_notification` turn; `check_wave.py` passed all four; the hook allowed every honest launch and denied an edited `state` (`args.state differs from plan_state.py …`). Parent checked: 5 Workflow calls, 1 denial, 4 notification turns in the transcript.
+- **Criterion 4, partial.** CLI 2.1.291: typed prompts `promptSource: "typed"`, prompts queued after a turn `"queued"`, both `turnOrigin`/`origin.kind` `human` (fine). A bracketed paste records as `"typed"` with its text wrapped in `<pasted_content id="…">…</pasted_content id="…">`, so `is_paste` fails (criterion 8's Mac side too); unwrapped, it equals the plan's prompt exactly. A message typed between tool calls is a `queued_command` attachment the hook never reads. The interrupt marker, `/compact` and other slash-command records, and the compaction summary (no `turnOrigin` on the CLI) all read as human.
+- **Criterion 10, held.** The logging proxy works with the Team OAuth sign-in. Workflow `agent()` with `effort: 'xhigh'` → `claude-opus-5-5`, `output_config.effort: "xhigh"`; `plan-worker-xdeep` and `plan-reviewer-xdeep` frontmatter → opus `"xhigh"`; `plan-worker-exec` frontmatter and the workflow's `[exec]` `plan-worker` call → sonnet `"high"`, even with the session at `low`. Captures in `.scratch/spike/wire/`.
+- **Fallback:** none applies.
+- **m2.s2 hook changes (`orchestrate_gate.py` and its suite):** (1) skip `isCompactSummary` / `isVisibleInTranscriptOnly`; (2) human only when `origin.kind` or `turnOrigin` is `human` and `promptSource` isn't `system` (drops the interrupt marker, slash-command records, `turnOrigin: "sdk"`); (3) read `queued_command` attachments as human text of the absorbing turn; (4) unwrap `<pasted_content>` before every paste, approval, answer and waiver comparison; (5) suite records for each shape, including CLI `typed` and `queued`.
+- **For m2.s3/s4:** the Agent path must pass `run_in_background: false`; the Agent tool ran probe agents in the background even when asked for foreground.
+- **Surprises:** `ANTHROPIC_DEFAULT_OPUS_MODEL` didn't remap `opus` (reviews and the `[deep]` worker ran real Opus); one of four mid-turn messages never reached the transcript (likely a tmux keystroke loss); a plain hook deny shows the model `PreToolUse:Workflow hook error: …` though the hook exited 0.
+- **Out-of-scope changes to Gary's lolay config, not reverted:** `/effort high` in a spike session saved `modelSettings."claude-opus-5-5".effortLevel: "high"` to `~/.claude-lolay/settings.json` (the subagent says Opus ran at xhigh before; `/effort xhigh` or removing the key restores it); approving the probe workflow's dialog added `"skipWorkflowUsageWarning": true`; workspace trust accepted for `.scratch/spike/fixture/repo-a` and `.scratch/spike/wire`. The settings file also has `claude-sonnet-5-5` `effortLevel: "medium"`, origin unknown.
+
 ## Key decisions
 
 - Gary's decisions 2-12 are recorded in the plan's "Decisions" section.
@@ -39,11 +53,7 @@ Commit `f356a2f` (m1.s1 staging, reviewed by the parent): the kit's scripts, age
 
 ## Pending question (verbatim)
 
-> Wave 1 is blocked: the standalone `claude` CLI on the Mac is signed out, so the spike sessions can't run. Please run `claude auth login` in a terminal and sign in with the account the spike should bill (a Console API key is the sure route for criterion 10's proxy capture; a claude.ai sign-in behind the proxy is untested), then reply `continue wave 1` and I'll re-dispatch m1 s1-s3 against the ready fixture. This also clears the canary: `f356a2f` (staging only) is the wave's commit so far.
-
-Gary replied `continue wave 1` (approves gate 5 and the re-dispatch), but `claude auth status` still reported `loggedIn: false`, in and out of the sandbox, so nothing was dispatched. Re-dispatch once the CLI is signed in.
-
-Resolved: Gary's fish `claude` wrapper sets `CLAUDE_CONFIG_DIR=$HOME/.claude-lolay` (lolay Team account, claude.ai sign-in) for this repo; agent shells don't run it, so every spike `claude` call needs that variable set explicitly. Spike transcripts then land in `~/.claude-lolay/projects/`. Wave 1 re-dispatched on 2026-10-06.
+> Gate 1 (scope): wave 1's spike sessions changed your `~/.claude-lolay/settings.json` — Opus `effortLevel` saved as `high` (the subagent says it was xhigh before) and `skipWorkflowUsageWarning: true` — and accepted workspace trust for two `.scratch/spike/` folders. Shall I restore Opus to `xhigh` and remove `skipWorkflowUsageWarning`, and continue to wave 2 (m1 s4-s6 on Sonnet), whose spike sessions will pass effort on the command line and use a throwaway settings file so they can't write your config again?
 
 ## How to resume
 
