@@ -2,7 +2,7 @@
 
 **Branch:** `feature/orchestrate-native` (task branch, cut from `main` at bf5da80 on Gary's instruction).
 **Plan:** `specs/handoffs/plan-orchestrate-native-kestrel.md`, tagged and driven by `personal-plan-model-tiers` (passive). 8 waves, expected ~73M tokens, ~$38 API-equiv.
-**Status:** orchestrate driver, Agent-tool path (Gary's option 2), expected ~$54. Waves 1-2 (m1 s1-s6) done and reviewed PASS: criteria 1, 3, 5 (Edit/Write only), 6 and 10 held, 4 partial. Blocked at gate 2 before wave 3 (m1 s7-s10, the cloud runner). Spend ~$25.
+**Status:** orchestrate driver, Agent-tool path (Gary's option 2), expected ~$54. Waves 1-2 (m1 s1-s6) done and reviewed PASS: criteria 1, 3, 5 (Edit/Write only), 6 and 10 held, 4 partial. Blocked at gate 2 before wave 3 (m1 s7-s10, the cloud runner). Spend ~$28.6 (this parent ~$11.4 of it; its context makes each wave ~$5.8, against ~$1.3 planned).
 
 ## Done
 
