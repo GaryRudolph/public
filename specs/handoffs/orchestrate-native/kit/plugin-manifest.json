@@ -1,0 +1,17 @@
+{
+  "name": "personal",
+  "description": "Gary Rudolph's engineering standards: an always-on core injected at session start, on-demand standards, and planning/Makefile skills.",
+  "author": {
+    "name": "Gary Rudolph"
+  },
+  "homepage": "https://github.com/GaryRudolph/public",
+  "agents": [
+    "./skills/personal-plan-orchestrate/claude-agents/plan-worker.md",
+    "./skills/personal-plan-orchestrate/claude-agents/plan-worker-exec.md",
+    "./skills/personal-plan-orchestrate/claude-agents/plan-worker-xdeep.md",
+    "./skills/personal-plan-orchestrate/claude-agents/plan-reviewer.md",
+    "./skills/personal-plan-orchestrate/claude-agents/plan-reviewer-xdeep.md"
+  ],
+  "workflows": "./skills/personal-plan-orchestrate/claude-workflows/",
+  "hooks": "./hooks/claude-hooks.json"
+}

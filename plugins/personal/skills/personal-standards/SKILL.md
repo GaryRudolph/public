@@ -2,14 +2,15 @@
 name: personal-standards
 description: >-
   Gary Rudolph's personal engineering standards: core working agreements
-  (never commit or push unless asked, except on a cloud or self-hosted
-  runner; stay on the current branch; pause after each step), plus code
-  style, architecture, testing, documentation, git, versioning, security,
-  secrets, Makefile, and plan-execution standards, with Python, Swift,
-  Kotlin, and Go specifics. Use whenever writing, reviewing, refactoring,
-  planning, or documenting code, specs, commits, or PRs for Gary, whenever
-  another personal-* skill cites a standards file, and whenever asked for
-  the personal canary phrase.
+  (commit and push freely on a task branch, only when asked on main or
+  another shared branch; stay on the current branch; pause after each
+  step), plus code style, architecture, testing, documentation, git, AI
+  attribution, versioning, security, secrets, Makefile, and plan-execution
+  standards, with Python, Swift, Kotlin, Go, and GCP/Firebase specifics.
+  Use whenever writing, reviewing, refactoring, planning, or documenting
+  code, specs, commits, or PRs for Gary, whenever another personal-* skill
+  cites a standards file, and whenever asked for the personal canary
+  phrase.
 ---
 
 # Personal standards
@@ -40,16 +41,17 @@ this skill's directory instead; the files are identical.
 | Task touches | Load |
 | --- | --- |
 | Naming, formatting, imports | `standards/code-style.md` |
-| Layering, DI, APIs, errors | `standards/architecture.md` |
+| Layering, DI, APIs, errors, resource history, activity logs, tenant admin vs ops | `standards/architecture.md` |
 | Starting a new project | the `personal-new-project` skill |
 | Swift/Kotlin parity | `standards/platform-parity.md` |
 | Tests | `standards/testing.md` |
 | Docs, ADRs, specs, milestones | `standards/documentation.md` |
 | Tiered plans, STOP gates | `standards/plan-execution.md` |
 | Handoffs, saved plans | the `personal-handoff` skill |
-| Branches, commits, PRs | `standards/git.md` |
+| Branches, commits, PRs, AI attribution | `standards/git.md`, and the `personal-repo-baseline` skill for a repo's `.claude/settings.json` attribution and GitHub merge settings |
 | Versions, releases | `standards/versioning.md`, and the `personal-release` skill for cutting releases and hotfixes |
-| Auth, crypto, input validation | `standards/security.md` |
+| Auth, authorization, cookies, crypto, erasure, input validation | `standards/security.md` |
+| GCP, Firebase, IAP, Terraform access groups, Identity Platform, Cloud KMS, Cloud Logging sinks | `standards/gcp.md` |
 | Secrets repos and Makefiles | `standards/secrets/README.md`, and the `personal-secrets` skill for procedures |
 | Makefiles | `standards/makefile.md` |
 | Python / Swift / Kotlin / Go | `standards/<language>/` (code-style, architecture, testing, documentation, security) |

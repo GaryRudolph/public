@@ -73,7 +73,8 @@ swap yourself.)
 
 Canonical reference for tier definitions, the `[fast]` downgrade checklist,
 tag placement, the no-thrash rule, the model picker (Cursor + Claude Code
-+ thinking levels), and the Kickoff template lives in:
++ thinking levels), the Kickoff template, token lines, expected cost, and
+the Cost table lives in:
 
 > `../personal-standards/standards/plan-execution.md` §"Model-tier stop
 > points"
@@ -89,14 +90,14 @@ cheaper-tier output are all `[deep]` work; weakening the orchestrator caps
 review quality at the level of the work being reviewed. The Kickoff block
 written in step 4 hardcodes Opus for the same reason.
 
-- `[xdeep]` waves go to a max-effort Opus subagent; the parent stays on
+- `[xdeep]` waves go to an xhigh Opus subagent; the parent stays on
   Opus high. The parent's job (dispatch, gates, summary review) is
-  `[deep]` work, and max effort on every summary it reads is waste.
+  `[deep]` work, and xhigh on every summary it reads is waste.
   Reviews of `[xdeep]` waves are the exception; see step 12.
 - Cursor has no ultracode equivalent, so an orchestrated `[xdeep]` wave
-  gets max effort without ultracode's multi-agent fan-out. When a wave
-  needs that, run it through `personal-plan-model-tiers` in Claude Code
-  instead.
+  gets xhigh without ultracode's multi-agent fan-out. When an
+  audit-shaped wave needs that, run it through `personal-plan-model-tiers`
+  in Claude Code instead.
 - Want a cheaper supervisor on a mostly-mechanical plan? Use
   [`personal-plan-model-tiers`](../personal-plan-model-tiers/SKILL.md)
   instead and let the human drive the model swaps. Same tagging, no opus
@@ -107,7 +108,7 @@ written in step 4 hardcodes Opus for the same reason.
 This skill assumes **Cursor's `Task` tool with a per-invocation `model`
 parameter** and the Cursor slugs from the standards model picker:
 
-- `[xdeep]`: `claude-opus-5-5[effort=max]` (alt: `claude-fable-5-1[effort=max]`)
+- `[xdeep]`: `claude-opus-5-5[effort=xhigh]` (alt: `claude-fable-5-1[effort=xhigh]`)
 - `[deep]` and the parent: `claude-opus-5-5[effort=high]`
 - `[exec]`: `grok-4-7[effort=high]` (alt: `claude-sonnet-5-5[effort=high]`)
 - `[fast]`: `composer-2.5[fast=false]`
@@ -120,11 +121,15 @@ do not need to verify the parameter "actually takes effect" beyond the
 schema.
 
 **Bracket parameters.** The `[effort=...]` and `[fast=false]` forms come
-from Cursor's subagent docs, which don't list the `Task` enum. If the enum
+from Cursor's subagent docs, which don't list the `Task` enum. Cursor's
+docs show only `high` and `max` as Claude effort values, so `xhigh`,
+`medium` and `low` are unverified; a dropped value runs Cursor's default,
+medium on Opus 5.5 (step 8 covers `[xdeep]`). If the enum
 offers plain or suffixed IDs instead, dispatch the entry for the same model
 at the same (or nearest) effort, and tell the user to refresh the standards
-model picker. If the only Composer entry is Fast, use it and note the 6×
-price in the token tally.
+model picker. If the only Composer entry is Fast, use it, name its token
+lines' model `composer-2.5 Fast`, and price them at the Fast row of the
+Model price table (6× standard on input and output, 2.5× on cache reads).
 
 **Use the newest version of each family.** Cursor has no version-less
 alias, so the slugs above go stale. If the enum offers a newer entry of the
@@ -137,10 +142,11 @@ Only STOP and ask the user when one of these is true:
 - `Task` is absent from your tool list entirely.
 - `Task` is present but has no `model` parameter, or its enum is missing
   Opus, Composer, or both Grok and Sonnet. (A missing Fable entry only
-  removes the `[xdeep]` alt; a missing max-effort Opus entry is handled in
+  removes the `[xdeep]` alt; a missing xhigh Opus entry is handled in
   step 8.)
-- You can tell you are running on **Claude Code**. `Task` there accepts
-  `model` on paper, but
+- You can tell you are running on **Claude Code**. Its subagent tool is
+  `Agent` (renamed from `Task` in 2.1.63; `Task` still works as an alias).
+  It accepts `model` on paper, but
   [anthropics/claude-code#43869](https://github.com/anthropics/claude-code/issues/43869)
   reports it is silently ignored; subagents inherit the parent model.
   Recommend `personal-plan-model-tiers` with `/model` swaps instead. (Once
@@ -150,8 +156,8 @@ Only STOP and ask the user when one of these is true:
 - You can tell you are running on **Codex CLI**, **Gemini CLI**, **Muse
   Code**, or **Grok Build**. Codex custom agents (`.codex/agents/*.toml`),
   Gemini CLI agents (`.gemini/agents/*.md`), and Grok Build's
-  `[subagents.models]` can each pin a model per subagent definition now,
-  but this skill is written against Cursor's `Task` and hasn't been ported.
+  `[subagents.models]` can each pin a model per subagent definition, but
+  this skill is written against Cursor's `Task` and doesn't drive them.
   Recommend `personal-plan-model-tiers`.
 
 When you do STOP, surface the specific concern, recommend the fallback,
@@ -165,30 +171,35 @@ The `[xdeep]` / `[deep]` / `[exec]` / `[fast]` definitions, default-up bias,
 Claude Code model picker live in the standards section above. Cursor picks
 for orchestrator subagents, repeated here for reading clarity only:
 
-- `[xdeep]` subagent (after gate 7): `claude-opus-5-5[effort=max]`; alt
-  `claude-fable-5-1[effort=max]` only as a different-model second opinion
-  after Opus max has already failed the step
-- `[deep]` subagent or parent: `claude-opus-5-5[effort=high]`
+- `[xdeep]` subagent (after gate 7): `claude-opus-5-5[effort=xhigh]`; alt
+  `claude-fable-5-1[effort=xhigh]` only as a different-model second opinion
+  after Opus xhigh has already failed the step; `[effort=max]` only for a
+  task type where a gain is measured
+- `[deep]` subagent or parent: `claude-opus-5-5[effort=high]`, never the
+  standards' medium row, which is for interactive planning with Gary in
+  the loop
 - `[exec]` subagent (default for delegated work): `grok-4-7[effort=high]`,
   or `claude-sonnet-5-5[effort=high]` once included Cursor-pool usage runs
   out (see the standards model picker notes)
 - `[fast]` subagent (only when no-thrash criterion met): `composer-2.5[fast=false]`
 
-As of 2026-10-01, `[xdeep]` on Opus max is a for-the-moment mapping: Opus
-5.5 beats Fable 5.1 on every benchmark Anthropic published, at 40% of the
-per-token price. Revisit when the next Fable ships. If the standards
-section and this list disagree, the standards section wins.
+`[xdeep]` maps to Opus at xhigh because Opus 5.5 beats Fable 5.1 on every
+benchmark Anthropic published, at 40% of the per-token price, and max adds
+little on code for its cost. Revisit when the next Fable ships. If the
+standards section and this list disagree, the standards section wins.
 
-**Step-up on subagent failure**: composer → the `[exec]` model (grok, or
-sonnet) → opus high → opus max as `[xdeep]`; fable is the different-model
-alt after that. Stepping up to opus usually means the step was
-mistagged; STOP, re-tag as `[deep]`, and
-dispatch an opus subagent for the re-attempt — the orchestrator-parent
-never executes plan work inline (see STOP gates below). Stepping up from
-opus high to opus max is the first condition of the `[xdeep]` upgrade
-checklist (a `[deep]` attempt already failed): re-tag as `[xdeep]` and pass
-gates 6 and 7 before dispatching. If opus max fails too, a fable
-re-attempt (the different-model alt) also goes through gates 6 and 7.
+**Step-up on subagent failure**: composer → the `[exec]` model at high
+(grok, or sonnet) → opus high → opus xhigh as `[xdeep]`; fable xhigh is the
+different-model alt after that, and max only for a task type where a gain
+is measured. `[exec]` never goes past high, so a failed `[exec]` step goes
+to opus. Stepping up to opus usually means the step was mistagged; STOP,
+re-tag as `[deep]`, and dispatch an opus subagent for the re-attempt — the
+orchestrator-parent never executes plan work inline (see STOP gates
+below). Stepping up from opus high to opus xhigh is the first condition of
+the `[xdeep]` upgrade checklist (a `[deep]` attempt already failed): re-tag
+as `[xdeep]` and pass gates 6 and 7 before dispatching. If opus xhigh fails
+too, a fable re-attempt (the different-model alt) also goes through gates 6
+and 7.
 
 ## Parallel-eligibility rule — one subagent per git working directory
 
@@ -216,7 +227,7 @@ for the user to run; do not ask the user to dispatch them. Each call
 takes:
 
 - `description` — the subagent's **title** in the Cursor agents list. Use
-  the canonical [Wave title format](../../../standards/plan-execution.md)
+  the canonical [Wave title format](../personal-standards/standards/plan-execution.md#wave-title-format)
   `Wave {n} of {t} [{tier}] {group-id}` (e.g.
   `Wave 2 of 3 [exec] repo-A m2 s1-s3`) so each wave is scannable at a glance.
   `{n}` is the 1-based wave number (the same `{wave-n}` used in the
@@ -271,7 +282,11 @@ Every subagent prompt **must** end with:
 Substitute:
 
 - `{plan-name}` — the base name of the plan file (no `.md`, no path).
-- `{wave-n}` — monotonic counter of orchestrator waves starting at `1`.
+- `{wave-n}` — the wave's number from its `--- WAVE` marker, starting at
+  `1`: `N-fix` for a fix-up wave for wave N (standards §"Wave annotation
+  format"). A retry reuses its wave's number in token lines, but its
+  artifact adds `-retry{k}` (`…-2-retry1-m2-s1-s3.md`) so the failed
+  attempt's output survives for gates 1 and 6.
 - `{task-id}` — the heading ID(s) from the plan, e.g. `m2-s1-s3`, or a
   short kebab-case slug derived from the title if there are no IDs.
 
@@ -297,13 +312,21 @@ waiver); if no explicit affirmative answer is received, re-post the exact
 gate question, write `BLOCKED at gate <N>` into the Kickoff `Status:`
 line, and end the turn. Never dispatch subagents while blocked.
 
+**Gate questions are about the plan.** On a task branch, every wave is
+committed by its subagents (and on a runner pushed by the parent) before
+any gate asks, so a gate never asks for commit or push permission; it
+names the wave's commit range so the user can review it. On a shared
+branch, nothing is committed: a gate that wants the wave committed offers
+that as its own choice in the same question. See standards §"STOP gate
+semantics (fail closed)".
+
 1. **Subagent error or self-reported low-quality output** — surface to the
    user; decide retry on same model, step up one tier, or re-plan.
 2. **`[exec] -> [deep]` or `[exec] -> [xdeep]` boundary** — review gate. STOP so the user can
    review the just-finished `[exec]` output before any opus tokens are
    spent on the next group. After review, the orchestrator-parent
    dispatches an opus subagent for the next group (high effort for
-   `[deep]`, max for `[xdeep]`); it does **not** execute that group inline.
+   `[deep]`, xhigh for `[xdeep]`); it does **not** execute that group inline.
 3. **`[fast] -> [deep]` or `[fast] -> [xdeep]` boundary** — same as above.
 4. **Milestone boundary** (`m{N}` → `m{N+1}`) — universal review per the
    standards section. Fires even on `[exec] -> [exec]` across a milestone
@@ -315,18 +338,24 @@ line, and end the turn. Never dispatch subagents while blocked.
 6. **Model step-up on retry** — when retrying a failed subagent on a
    stronger model or effort, or on the Fable alt as a different-model
    second opinion (composer → the `[exec]` model, the `[exec]` model →
-   opus high, opus high → opus max, or opus max → the fable alt),
-   STOP first so the user confirms the budget impact and the diagnosis.
+   opus high, opus high → opus xhigh, opus xhigh → the fable alt, or
+   xhigh → max where a gain is measured), STOP first so the user confirms
+   the budget impact and the diagnosis. Quote the re-attempt's expected
+   tokens and dollars from standards §"Expected cost" at the target model's
+   row, plus its review subagent when the re-attempt runs at `[xdeep]`; the
+   wave's Cost table row prices the original model.
 7. **`[xdeep]` budget gate** — STOP before every `[xdeep]` dispatch,
    including `[deep] -> [xdeep]` and `[xdeep] -> [xdeep]` across waves.
-   Name the steps, the checklist condition each one met, and a rough cost,
-   so the user approves `[xdeep]` spend wave by wave. The premium is token
-   volume, not rate: use the standards' CursorBench 4.0 table as the
-   volume proxy (Opus 5.5 at max costs $13.43 a task vs $3.97 at high,
-   about 3.4× a `[deep]` wave), and the Model price table for Fable-alt
-   rates. The read-only review subagent after an `[xdeep]` wave (step 12)
-   is covered by that wave's gate-7 approval and does not STOP again. When
-   gate 2 or 3 also fires, ask both in one question.
+   Name the steps, the checklist condition each one met, and the wave's
+   expected tokens and dollars, so the user approves `[xdeep]` spend wave
+   by wave. A wave planned at `[xdeep]` quotes its Cost table row (it
+   includes the wave's review subagent). A row with expected `—` (a wave
+   added after kickoff) and every step-up re-attempt (opus high → opus
+   xhigh, the Fable alt, or max) get theirs from standards §"Expected cost" at
+   the gate: the target model's row plus the review subagent, as gate 6
+   quotes it. The read-only review subagent after an `[xdeep]` wave
+   (step 12) is covered by that wave's gate-7 approval and does not STOP
+   again. When gate 2 or 3 also fires, ask both in one question.
 
 Deliberately **not** STOP gates: per-wave success on the same tier,
 large-diff thresholds, scope drift (already enforced at the git layer by
@@ -334,7 +363,7 @@ the one-subagent-per-working-dir rule).
 
 ## Subagent context contract
 
-Every `Task` prompt the orchestrator dispatches **must** include all seven of
+Every `Task` prompt the orchestrator dispatches **must** include all eight of
 these. The contract applies equally to `[deep]` and `[xdeep]` subagents — opus subagents
 dispatched at `[deep] -> [deep]`, `[exec] -> [deep]`, or `[fast] -> [deep]`
 boundaries are doing architecture work, so quote the spec excerpt verbatim
@@ -360,72 +389,108 @@ parent is.
 6. **Output contract** — the disk-backed compaction sentence above plus
    the requirement that the returned summary cover: what changed, what was
    decided, surprises, and the artifact path.
-7. **Token reporting** — end your returned summary with one line:
-   `tokens: input ~X / output ~Y / total ~Z / model <slug> | cost ~$C`.
-   Derive X and Y via the **source precedence** in
-   `../personal-standards/standards/plan-execution.md` §"Token accounting
-   — source precedence" (real harness usage when available, else
-   `~tokens ≈ chars / 4` — input chars = everything read, output chars =
-   everything written). Compute `C` with the cache-aware formula and the
-   model's rates from the same standards section. Cursor Task subagent
-   transcripts expose no usage, so the heuristic normally applies here —
-   label the line `(heuristic)` and treat it as ±40%.
+7. **Token reporting** — end your returned summary with one token line
+   per model you ran on, in the line format of the counting header at the
+   top of the plan's `## Token log` (step 4):
+   `tokens wave-N <task-id> (<slug>): input ~X / cache read ~R / cache write ~W / output ~Y | ~$C API-equiv (heuristic)`
+   (`review-wave-N` for the `[xdeep]` review subagent).
+   A Cursor `Task` subagent can't read its own usage, so it uses the
+   header's accumulation heuristic: it counts its model calls, the
+   characters it read and the characters it wrote, and applies the
+   formula. The subagent never reads the plan, so quote into the prompt,
+   from the header, the heuristic, the cache-aware formula and the rate
+   row of the subagent's model. Keep the `(heuristic)` label: off Claude
+   Code its constants are uncalibrated, and the line can be off by 2× or
+   more.
+8. **Git instruction** — on a task branch: "Commit each finished step on
+   the current branch as `m{N}.s{K} <imperative subject>`, staging only
+   the paths you changed. Do not push, create, or switch branches." On a
+   shared branch: "Do not commit, push, or switch branches." Spell it out
+   every time. This skill runs only on Cursor today, and a `Task`
+   subagent may not receive the always-on rules, so it can't be assumed
+   to know them.
 
 ## Token tally
 
-The orchestrator-parent maintains a running token tally across the run,
-deriving each row's tokens via the **source precedence** in
-`../personal-standards/standards/plan-execution.md` §"Token accounting —
-source precedence" (real harness usage when available, else
-`~tokens ≈ chars / 4`). Because the orchestrator and its subagents run on
-different models with different rates, **never blend their token counts into
-a single cost line** — always track per model slug.
+The orchestrator-parent keeps every token figure as token lines in the
+format of `../personal-standards/standards/plan-execution.md` §"Token line
+format", one per row, group and model, and appends each line to the plan's
+`## Token log`, below its counting header, as soon as it has it, so the
+tally survives a chat that ends at a gate:
 
-At every STOP gate, print a per-model running breakdown:
+- **Subagent lines** (contract item 7), labeled `wave-N <task-id>`: one per
+  working directory in a parallel wave. A step-up retry keeps its wave's
+  label, so it counts in that wave's actual. The xhigh Opus review
+  subagent after an `[xdeep]` wave reports its own `review-wave-N` line.
+- **Orchestrator lines** for this parent: `orchestrator-kickoff` once the
+  kickoff is written (step 6), then `orchestrator-wave-N` after each wave's
+  review and bookkeeping (step 12). Each covers the parent's tokens since
+  its previous line in this chat, gates included. Inline review work counts
+  here, not as `review-wave-N` lines (contrast the passive driver's
+  separate review-beat chats in `personal-plan-model-tiers`). On the
+  heuristic, each uses the standards' form for part of a chat: `T0` is the
+  tokens of this chat's earlier lines, and the first call after a
+  subagent run or a gate wait that outlasted the 5-minute cache TTL is a
+  cold start.
+
+Cursor exposes no usage to an agent, so both kinds normally come from the
+accumulation heuristic (standards §"Token accounting — source precedence",
+source 3) and carry `(heuristic)`. The counting header that step 4 writes
+holds that heuristic in its form for a chat covered by one line, with the
+rates of this plan's models and the formula, and every dispatch prompt
+quotes from it (contract item 7), so the subagents count from that one
+copy. When the user pastes Cursor usage (source 2), it replaces the lines
+it covers, per standards §"Token line format" ("Token log"): CSV rows that
+can't tell this parent from an Opus subagent become one combined line.
+Because the orchestrator and its subagents run on different models with
+different rates, **never blend their token counts into a single cost
+line**: each line is priced at its own model's list rates from the Model
+price table, API-equivalent, whatever the harness bills (standards §"Model
+price table", "Agent costs are API-equivalent"). The parent can recompute
+any line's dollars from its four counts when a subagent omits or
+miscomputes them.
+
+At every STOP gate, print the running block: the Token log lines so far,
+then a total.
 
 ```
 tokens so far:
-  orchestrator  (claude-opus-5-5):  input ~Xo / output ~Yo | ~$Co
-  wave-1 <id>   (grok-4-7):         input ~Xs / output ~Ys | ~$Cs
+  tokens orchestrator-kickoff <plan-name> (claude-opus-5-5): input ~… / cache read ~… / cache write ~… / output ~… | ~$… API-equiv (heuristic)
+  tokens wave-1 m1-s1-s3 (grok-4-7): input ~… / cache read ~… / cache write ~… / output ~… | ~$… API-equiv (heuristic)
   …
-  RUNNING TOTAL:                    input ~Xt / output ~Yt | ~$Ct (heuristic)
+  RUNNING TOTAL: input ~… / cache read ~… / cache write ~… / output ~… | ~$… API-equiv (heuristic)
 ```
 
-Review work is parent-side — include its tokens in the orchestrator row,
-not as separate `review-wave-N` rows (contrast the passive driver's
-separate review-beat chats in `personal-plan-model-tiers`). The one
-exception is the max-effort Opus review subagent after an `[xdeep]` wave,
-which gets its own `review-wave-N` row.
+The RUNNING TOTAL's dollars are the **sum of the lines' dollars**, not a
+blended rate applied to the summed tokens. It carries `(heuristic)` when
+any line does.
 
-Each row's cost uses **that row's model rates** from the Model price table.
-The RUNNING TOTAL cost is the **sum of per-row costs**, not a blended rate
-applied to the total token count.
-
-At plan completion, print a per-wave breakdown table:
-
-| wave | model | ~input | ~output | ~total | ~cost |
-|------|-------|--------|---------|--------|-------|
-| orchestrator | claude-opus-5-5 | … | … | … | … |
-| wave-1 (task-id) | <slug> | … | … | … | … |
-| … | | | | | |
-| **GRAND TOTAL** | | | | | … |
-
-Compute per-wave cost from the wave's model slug using the Model price table
-in `../personal-standards/standards/plan-execution.md` §"Model price table". Sum
-the per-wave costs for the GRAND TOTAL. The orchestrator-parent owns this
-computation — it can recompute from each wave's token counts even when a
-subagent omits the cost field.
-
-Accuracy follows the source each wave used (±15% from real harness usage,
-±40% from the `chars / 4` heuristic). These are rough estimates, not
-authoritative usage data.
+At plan completion, add the actual tokens and actual $ columns to the
+plan's Cost table from the `## Token log`, per standards §"Cost table":
+each wave row sums its `wave-N` and `review-wave-N` lines, and the
+`orchestrator` row sums the `orchestrator-*` lines. Print the completed
+table; the Token log keeps the per-model detail.
 
 ## Procedure
 
 1. **Identify the plan** using the same priority order as the sibling
    skill (named path → most recent `plan-*.md` in `.scratch/` or
    `specs/handoffs/` → in-conversation plan). Remember the resolved path.
-2. **Run the harness gate** above. STOP and ask if not Cursor.
+   On re-entry into a partially-executed plan, keep its Cost table as it
+   stands, per the re-entry rule in standards §"Cost table".
+2. **Run the harness gate** above. STOP and ask if not Cursor. Then
+   **check the branch and the git email in each working directory** the
+   plan touches (standards `git.md` §"Task branches and shared branches",
+   core.md "Verify git email"). A runner on any branch that isn't a task
+   branch cuts one without asking; a workstation on a shared branch asks
+   whether to cut one before the first dispatch, since subagents commit
+   (core.md "Cut a task branch off a shared branch"). Without a yes,
+   orchestrate on the shared branch and tell subagents not to commit. On a
+   workstation, a branch that's neither shared nor a task branch gets the
+   one-time ask, also before the first dispatch. If a pasted Kickoff names
+   another branch on its `On branch` line, a runner keeps its assigned
+   branch and says so in its first report; a workstation proposes
+   switching and waits, committing nothing until Gary answers.
 3. **Tag the plan, group into waves, and write wave markers.** If the plan
    is not already tagged, run
    [`personal-plan-tag-tiers`](../personal-plan-tag-tiers/SKILL.md) to tag
@@ -457,8 +522,9 @@ authoritative usage data.
    template". The model row is **always** `claude-opus-5-5[effort=high]`
    / `/model opus` + `/effort high` because the orchestrator-parent always
    runs at `[deep]` (see "Orchestrator-parent invariant" above). The prompt body
-   references the resolved plan path from step 1 and names this
-   skill (`personal-plan-orchestrate`). The Kickoff block is
+   references the resolved plan path from step 1, carries the `On branch
+   <name> (task branch)` line when step 2 left a task branch, and names
+   this skill (`personal-plan-orchestrate`). The Kickoff block is
    **idempotent**: if a Kickoff block already exists at the top of the
    file (any line matching `--- KICKOFF: ... ---`), replace it;
    otherwise insert above the first heading inside a fenced code block.
@@ -466,12 +532,39 @@ authoritative usage data.
    `Status:` line with `0/N groups done | last review: — | current:
    <first group> [deep] | updated <today>` where `N` is the total group
    count. Add `review: every-wave (log-only — parent writes Review log; no
-   human review gate)`. Do not modify any other content. **Record whether
-   matching Kickoff block (`--- KICKOFF: begin orchestration at [deep]
-   ---`) or inserted a new one — this "kickoff-replaced" signal is used
-   in step 5.** Do not write any separate progress checklist block into
-   the plan; the orchestrator-parent applies the progress updates itself
-   in step 12, so no in-plan reminder is needed.
+   human review gate)`. Apart from the Cost table and the counting header
+   below, do not modify any other content. **Record whether you replaced
+   an existing matching Kickoff block
+   (`--- KICKOFF: begin orchestration at [deep] ---`) or
+   inserted a new one — this "kickoff-replaced" signal is used in
+   step 5.** Do not write any
+   separate progress checklist block into the plan; the
+   orchestrator-parent applies the progress updates itself in step 12, so
+   no in-plan reminder is needed.
+
+   **Write the Cost table directly below the Kickoff block** (standards
+   §"Cost table"), labeled `**Cost (API-equiv, Cursor models)**`. Estimate
+   each wave per standards §"Expected cost" at the Cursor slug for its
+   execution tier, each `[xdeep]` row including its review subagent. Add
+   an `orchestrator` row for this parent: the kickoff, the start-up after
+   the default new-chat handoff, each wave, and each gate expected to wait
+   on a human (the canary, plus every gate 2, 3, 4 and 7 the plan
+   crosses, counting gates asked in one question once). Print the Kickoff
+   block and the table in chat. On a replace, keep the table; recompute
+   its expected columns only when re-grouping changed the waves before any
+   wave has run, and say so. After a wave has run, a re-plan adds rows
+   with expected `—` instead.
+
+   **Write the counting header at the top of `## Token log`** (standards
+   §"Token line format", "Counting header"), creating the section at the
+   bottom of the plan. It is the Cursor form: the token line format and
+   row labels, the accumulation heuristic, the price rows of the models
+   this plan runs (Opus for this parent, the `[deep]` and `[xdeep]` waves
+   and the `[xdeep]` reviews; Grok and the Sonnet alt for `[exec]`;
+   Composer for `[fast]`, at its Fast row when the harness gate found
+   only Fast), and the one-line formula. Contract item 7 quotes from it.
+   On a replace or re-entry, keep the header, refreshing it in place when
+   the plan's models changed; never write a second one.
 
    After writing the Kickoff block, **seed the native todo list**: one
    todo per group (in order), first group `in_progress`, rest `pending`.
@@ -498,12 +591,14 @@ authoritative usage data.
    question is itself a gate: if no explicit answer is received, write
    `BLOCKED at gate (kickoff-destination)` to the `Status:` line and end
    the turn. Do not dispatch subagents while blocked.
-6. **Branch on the answer.**
+6. **Branch on the answer.** In both branches, first append this chat's
+   `orchestrator-kickoff` token line to `## Token log` (see "Token
+   tally").
    - **New chat (default).** Print the modified plan (with the Kickoff
-     block at the top) so the user can see it. Halt. Do **not** dispatch
-     any `Task` subagents from this chat. The fresh Opus chat will
-     re-invoke this skill from the top, see the existing tagging and
-     Kickoff block, and begin dispatching.
+     block and Cost table at the top) so the user can see it. Halt. Do
+     **not** dispatch any `Task` subagents from this chat. The fresh Opus
+     chat will re-invoke this skill from the top, see the existing tagging
+     and Kickoff block, and begin dispatching.
    - **Current chat.** Print the modified plan, then continue to step 7.
      The first-subagent canary STOP (gate 5) still applies.
 7. **Walk to the next tier boundary** from the current cursor position
@@ -534,10 +629,12 @@ authoritative usage data.
      coming from `[exec]`/`[fast]`). Fail-closed: if no explicit answer is
      received, write `BLOCKED at gate 7` to the `Status:` line and end the
      turn. Then dispatch `Task(model=<[xdeep] Cursor slug>, ...)`
-     (`claude-opus-5-5[effort=max]` today), one per working directory. If
-     the `Task` enum has no max-effort Opus entry, dispatch the
-     highest-effort Opus entry and tell the user. Dispatch the Fable alt
-     only on a gate-6 step-up after Opus max has already failed the step.
+     (`claude-opus-5-5[effort=xhigh]` today), one per working directory.
+     If the `Task` enum has no xhigh Opus entry, or `model` takes a
+     free-form string so nothing confirms `[effort=xhigh]`, say so in the
+     gate-7 question and dispatch the Opus effort the user picks, for the
+     wave and its review. Dispatch the Fable alt only on a gate-6 step-up
+     after Opus xhigh has already failed the step.
    - **Leaving `[xdeep]`** → same rows as leaving `[deep]`.
    - `[deep] -> [deep]` → dispatch
      `Task(model="claude-opus-5-5[effort=high]", ...)`, one per working
@@ -562,9 +659,9 @@ authoritative usage data.
     completion notification does NOT count as an answer to the canary
     question.
 12. **Collect summaries**. Update "state so far". Re-read artifacts only
-    when needed. Parse the `tokens:` line from each subagent summary
-    into the rolling tally; include the running tally in the "state so
-    far" update.
+    when needed. Append each subagent's token lines (contract item 7) to
+    `## Token log`; include the running block (see "Token tally") in the
+    "state so far" update.
 
     After each successful wave, **update plan state**:
     - Append ` (done)` to every executable heading in the just-finished
@@ -579,37 +676,49 @@ authoritative usage data.
       returned subagent summary against the plan spec (read artifacts when
       needed). Append one line to `## Review log` in the plan file (create
       the section if absent) using the grammar from standards §"Review log":
-      `review wave-N (<group-id>): PASS|CONCERNS - <one-line note> -
-      <YYYY-MM-DD>`. This is orchestrate's **log-only** participation in
+      `review wave-N (<group-id>) <from>..<to>: PASS|CONCERNS - <one-line
+      note> - <YYYY-MM-DD>`. This is orchestrate's **log-only** participation in
       the [review beat](../personal-standards/standards/plan-execution.md) —
-      it adds **no new human STOP gate** (gates 1–7 unchanged). Review
-      tokens count toward the orchestrator-parent row in the token tally,
-      not a separate per-wave row. **Exception: an `[xdeep]` wave** is
-      reviewed by a read-only max-effort Opus subagent
+      it adds **no human STOP gate** beyond gates 1–7. Review
+      tokens count in this parent's `orchestrator-wave-N` token line, not
+      a separate `review-wave-N` line. **Exception: an `[xdeep]` wave** is
+      reviewed by a read-only xhigh Opus subagent
       (`Task(model=<[xdeep] Cursor slug>, ...)`), not inline, because the
       high-effort parent would cap the review at `[deep]`. The parent
-      writes that subagent's verdict to the Review log and gives its tokens
-      their own `review-wave-N` row.
+      writes that subagent's verdict to the Review log and appends its
+      `review-wave-N` token line to `## Token log`.
+    - **Commit and push (task branch).** After the review, whatever the
+      verdict, commit the plan file if it's tracked (on a runner, in
+      `specs/handoffs/`). A runner then pushes each working directory's
+      branch; a workstation pushes at will. A `CONCERNS` verdict adds a
+      fix-up wave on top; it never rewrites the wave's commits. The
+      fix-up wave is numbered `N-fix` and gets its own Cost table row with
+      expected `—` (standards §"Cost table").
+    - **Token log.** Append this parent's `orchestrator-wave-N` token
+      line for the wave (see "Token tally").
 13. **Handle errors / low-quality output** — STOP (gate 1) and offer
     retry / step-up / re-plan. Fail-closed: if no explicit answer is
     received, re-post the error gate question, write `BLOCKED at gate 1`
     to the `Status:` line, and end the turn. Stepping up tiers triggers
     gate 6, and the re-attempt itself is **dispatched** as a subagent on
     the next model in the step-up chain — composer → `[exec]` model → opus
-    high → opus max, then the fable alt — never executed inline.
+    high → opus xhigh, then the fable alt — never executed inline. The
+    re-attempt's token lines keep the wave's `wave-N` label. A re-plan's new
+    waves get Cost table rows with expected `—`, and a wave it drops keeps
+    its row.
 14. **Advance** to the next boundary. Repeat from step 7 until the plan
-    is complete, stopping at every gate. When the plan is complete,
-    print the final per-wave + orchestrator + grand-total token table
-    from the "Token tally" section above.
+    is complete, stopping at every gate. When the plan is complete, add
+    the actual columns to the Cost table and print it, as the "Token
+    tally" section above says.
 
-    When the **last group finishes**, perform the final-completion steps
-    from `§"Model-tier stop points" → "Progress tracking" → "Final
-    completion"` in the standards: flip all remaining todos to
-    `completed`, replace the Kickoff marker with
+    When the **last group finishes** and its review passes, perform the
+    final-completion steps from `§"Model-tier stop points" → "Progress
+    tracking" → "Final completion"` in the standards: flip all remaining
+    todos to `completed`, replace the Kickoff marker with
     `--- KICKOFF: plan complete ---`, update the Status line to
-    `N/N groups done | completed <date>`, and append the Completion
-    summary at the bottom of the plan file. Print this summary
-    alongside the final token table.
+    `N/N groups done | completed <date>`, add the Cost table's actual
+    columns, and append the Completion summary at the bottom of the plan
+    file. Print this summary alongside the completed Cost table.
 
 ## Out of scope
 
@@ -617,9 +726,10 @@ authoritative usage data.
   produces diffs in its own context. If you find yourself doing plan
   work directly, dispatch a `Task` subagent for the current group
   instead. The orchestrator's job is tagging, dispatching, reviewing
-  summaries, and advancing — nothing else.
+  summaries, and advancing — nothing else. Committing the plan file and
+  pushing the task branch are bookkeeping, not plan work.
 - Auto-executing `Task` calls without user approval at the gates above.
-- Re-enabling this skill on Claude Code. Flip the harness gate once
+- Running this skill on Claude Code. Flip the harness gate once
   [anthropics/claude-code#43869](https://github.com/anthropics/claude-code/issues/43869)
   closes, and use the version-less `opus` / `sonnet` / `haiku` aliases for
   the `model` parameter there.

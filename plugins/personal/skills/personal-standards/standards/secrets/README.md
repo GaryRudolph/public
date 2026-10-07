@@ -18,7 +18,7 @@ GitHub-only tooling and per-repo access control fit your estate.
 
 An **estate** is the operational scope served by one secrets repo: an org,
 product line, workspace, app family, or single project. Choose the boundary that
-matches today's access-control needs; split later if the estate grows.
+matches today's access-control needs; split it if the estate grows.
 
 ## When to use the secrets repository pattern
 

@@ -1,6 +1,6 @@
 # Versioning Standards
 
-Pick the regime by **what you're versioning**, not by personal preference. The two regimes regularly coexist in a single project: a backend service might be at SemVer `2.4.1` (the deployable artifact, Regime 2) while exposing `/api/v1/users` (the public HTTP contract, Regime 1) and writing `.acme v3` files (the file format, Regime 1). Bump them independently — the artifact bumps every release; the contract only bumps when it breaks.
+Pick the regime by **what you're versioning**, not by personal preference. The two regimes regularly coexist in a single project: a backend service might be at SemVer `2.4.1` (the deployable artifact, Regime 2) while exposing `/api/v1/users` (the public HTTP contract, Regime 1) and writing `example v3` files (the file format, Regime 1). Bump them independently — the artifact bumps every release; the contract only bumps when it breaks.
 
 | Regime | Use for | Format |
 |---|---|---|
@@ -25,9 +25,9 @@ For things consumers code against — URL paths, RPC schemas, wire formats, file
 - **Standard releases**: `v1`, `v2`, `v3`, `v4`, …
 - **Hotfixes** (rare): `v2.1`, `v2.2` — next planned contract is still `v3`.
 
-The contract version lives wherever the contract is exposed — typically a URL segment (`/api/v3/...`), a header field (`X-Schema-Version: 3`), or a literal in the file/message itself (`acme v3` declared inside an `.acme` file). It is **not** a git tag in its own right; the service binary that implements it is tagged via Regime 2.
+The contract version lives wherever the contract is exposed — typically a URL segment (`/api/v3/...`), a header field (`Example-Version: 3`, a [`{Product}-` header](architecture.md#custom-headers), never `X-`), or a literal in the file or message itself (an `example v3` line at the top). It is **not** a git tag in its own right; the service binary that implements it is tagged via Regime 2.
 
-Examples: `/api/v1/users`, the `acme v1` declaration inside an `.acme` file, a gRPC package version (`acme.users.v2`), a JSON Schema `$id` segment.
+Examples: `/api/v1/users`, an `example v1` line at the top of a file, a gRPC package version (`example.users.v2`), a JSON Schema `$id` segment.
 
 ## Regime 2: SemVer 2.0
 
@@ -194,7 +194,7 @@ Examples:
 
 ## Per-platform surfaces
 
-Every platform follows the same shape: **local** (developer machine) → **beta channel** (internal testers) → **store/registry** (real users) → **runtime display** (CLI banner / in-app About / HTTP header). Each section gives the platform's BNF for accepted formats, then the values to write at each stage.
+Every platform follows the same shape: **local** (developer machine) → **beta channel** (internal testers) → **store/registry** (real users) → **runtime display** (CLI banner / in-app About / a service's `/health` / the `{Product}-Build` header). Each section gives the platform's BNF for accepted formats, then the values to write at each stage.
 
 ### iOS
 
@@ -274,7 +274,7 @@ android {
 
 ```bnf
 <web-display>        ::= <build-version>      ; uniform across local, staging, production
-<x-version-header>   ::= <build-version>
+<build-header>       ::= <build-version>      ; {Product}-Build: 2.4.1+def5678
 <package-json-app>   ::= <release>            ; "private": true; never published to npm
 <sentry-release>     ::= "<app-name>@" <release>
                                               ; build metadata stripped; pair with dist=<build-code>
@@ -282,7 +282,7 @@ android {
 
 #### Surfaces
 
-| Channel | `package.json#version` (private app) | Footer / `/version` endpoint | `X-Version` HTTP header | Sentry release |
+| Channel | `package.json#version` (private app) | Footer / `/version` endpoint | `{Product}-Build` HTTP header | Sentry release |
 |---|---|---|---|---|
 | Local dev server | `2.4.0` | `2.4.0+abc1234` | `2.4.0+abc1234` | `app@2.4.0`, dist `1469` |
 | Staging deploy (canary) | `2.4.0` | `2.4.0+abc1234` | `2.4.0+abc1234` | `app@2.4.0`, dist `1469` |
@@ -292,6 +292,42 @@ Notes:
 
 - Web apps with `"private": true` aren't published to npm, so it's harmless to leave `+sha` in `package.json#version` — but `version.txt` remains the source of truth, with `package.json#version` derived during CI.
 - Crash reporters take `release` and `dist` as separate fields. Don't mash them together: `release="app@2.4.1"` (clean), `dist="1470"` (the build code).
+- The build header is `{Product}-Build` (`Example-Build`), never `X-Version` ([Custom Headers](architecture.md#custom-headers)). A cross-origin browser client reads it only if `Access-Control-Expose-Headers` lists it.
+
+### Backend service
+
+An HTTP service reports its own build on its health endpoint ([architecture.md](architecture.md#api-design) house conventions), so a deploy can be verified by polling it.
+
+#### Grammar
+
+```bnf
+<health-build>       ::= <build-version>      ; uniform across local, staging, production
+<health-build-code>  ::= <build-code>
+```
+
+#### Surfaces
+
+| Channel | `GET /health` `build` | `buildCode` |
+|---|---|---|
+| Local | `2.4.0+abc1234` | `1469` |
+| Staging deploy | `2.4.0+abc1234` | `1469` |
+| Production deploy | `2.4.1+def5678` | `1470` |
+
+```http
+HTTP/1.1 200 OK
+Content-Type: application/json
+Cache-Control: no-store
+Example-Request-Id: 7c1e3a0b-5f2d-4c8e-9a6b-2d4f8e1c3b5a
+
+{ "build": "2.4.1+def5678", "buildCode": 1470 }
+```
+
+Notes:
+
+- **Baked in at build time** — the same constants as a CLI binary ([per-language mechanisms](#homebrew-tap--github-releases)), never read from git or the deploy environment at runtime, so the answer is the artifact's own
+- **Only its own build** — `/health` is unauthenticated, so it never names the runtime, framework, third-party or bundled-tool versions; those go in logs or behind auth ([ASVS 5.0](https://github.com/OWASP/ASVS/blob/master/5.0/en/0x22-V13-Configuration.md) 13.4.6). The service's own build is the one deliberate exception, because deploy verification needs it
+- **`no-store`** — health responses send `Cache-Control: no-store`, so post-deploy polling through a CDN or proxy sees the build that's live
+- **Deploy check** — the pipeline polls `GET /health` until `build` names the commit it shipped
 
 ### npm (published library)
 
@@ -448,7 +484,7 @@ The `cut-release` flow:
    - Moves `## [Unreleased]` entries in `CHANGELOG.md` into `## [v2.4.1] - YYYY-MM-DD`.
 3. CI commits as `release v2.4.1`, tags `v2.4.1`, pushes both with a PAT (not `GITHUB_TOKEN`, which doesn't trigger downstream workflows).
 4. The tag push triggers the build/publish matrix for every platform that applies (npm, iOS, Android, Homebrew, GitHub Release, Docker, etc.).
-5. After release, `version.txt` on `main` is `2.4.1`. All dev builds now advertise `2.4.1+<sha>` until the next release.
+5. After release, `version.txt` on `main` is `2.4.1`, and every dev build advertises `2.4.1+<sha>` until the next release.
 
 ## Hotfix flow
 

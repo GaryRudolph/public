@@ -48,7 +48,7 @@ func calculateTotal(items: [Item], taxRate: Double) throws -> Double { }
  - Important: Intended for production and SwiftUI preview code only.
    Tests should call `init(...)` directly with mock dependencies.
 
- - Note: Prepares for eventual shift to DI via Resolver.
+ - Note: Returns a new instance on every call.
  */
 static func make() -> TicketsViewModel { }
 ```

@@ -34,19 +34,19 @@ fixture() {
   "dependencies": { "left-pad": "1.3.0" }
 }
 EOF
-    printf '{\n  "name": "@acme/a",\n  "version": "2.4.0"\n}\n' > packages/a/package.json
+    printf '{\n  "name": "@example/a",\n  "version": "2.4.0"\n}\n' > packages/a/package.json
     printf '{ "name": "dep", "version": "0.1.0" }\n' > node_modules/dep/package.json
     cat > pyproject.toml <<'EOF'
 [tool.other]
 version = "7"
 
 [project]
-name = "acme"
+name = "example"
 version = "2.4.0"
 EOF
     cat > Cargo.toml <<'EOF'
 [package]
-name = "acme"
+name = "example"
 version = "2.4.0"
 
 [dependencies]
@@ -100,7 +100,7 @@ expect_ok   "major"                                  python3 "$bump" major --dat
 expect_eq   "  ...3.0.0"                             "$(cat version.txt)" "3.0.0"
 git checkout -q -- .
 
-printf '{\n  "name": "@acme/a",\n  "version": "2.4.9"\n}\n' > packages/a/package.json
+printf '{\n  "name": "@example/a",\n  "version": "2.4.9"\n}\n' > packages/a/package.json
 snapshot=$(git status --porcelain; git diff)
 expect_fail "refuses out-of-step fields"             python3 "$bump" patch
 expect_grep "  ...names the file"                    "packages/a/package.json version is 2.4.9"
@@ -172,7 +172,7 @@ expect_grep "  ...names it"                          "release line: v2.4 (minor 
 
 printf '\nrelease_facts.py\n'
 fixture b
-printf '{\n  "name": "@acme/a",\n  "version": "2.4.1-rc.1"\n}\n' > packages/a/package.json
+printf '{\n  "name": "@example/a",\n  "version": "2.4.1-rc.1"\n}\n' > packages/a/package.json
 git commit -qam "bump a"
 expect_ok   "facts run"                              python3 "$facts" --next minor
 sha=$(git rev-parse --short=7 HEAD)

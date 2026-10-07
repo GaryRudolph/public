@@ -35,6 +35,7 @@ plugins/
       personal-new-project/         <- new repos on current stable versions
       personal-secrets/             <- SOPS + age secrets repo: procedures + tested kit
       personal-release/             <- cut releases and hotfixes; bump script + workflow
+      personal-repo-baseline/       <- per-repo settings the plugin can't carry; facts + merge scripts
       personal-plan-tag-tiers/ personal-plan-model-tiers/
       personal-plan-orchestrate/ personal-makefile/
   workstation/             <- needs this Mac's files
@@ -84,7 +85,7 @@ quietly on some surfaces, so `make validate` runs before every push.
 
 | Surface | Skills | Always-on core | How it gets the plugin |
 | --- | --- | --- | --- |
-| Claude Code, this Mac | Yes | Hook (the old `~/.claude/CLAUDE.md` block is removed by `make install`) | Local marketplace for live edits, or claude.ai sync |
+| Claude Code, this Mac | Yes | Hook (`make install` removes the personal `~/.claude/CLAUDE.md` block) | Local marketplace for live edits, or claude.ai sync |
 | Claude Code cloud and self-hosted runner | Yes | Hook | claude.ai sync |
 | Cowork | Yes | Hook | claude.ai account |
 | Claude chat | Yes | None (chat ignores hooks) | claude.ai account |
@@ -125,6 +126,7 @@ cleaned up, then push.
 | `personal` | `personal-new-project` | Start a new project on a boring stack at current stable versions (looked up from each registry, with EOL dates), laid out to the standards |
 | `personal` | `personal-secrets` | Run a SOPS + age secrets repo: set up from a tested kit, add secrets, grant access, mint and rotate consumer keys, wire consumer CI with least privilege |
 | `personal` | `personal-release` | Cut SemVer releases and hotfixes: propose the level from what changed, bump every version in lock-step, move the changelog, tag; set up version.txt and a Release workflow |
+| `personal` | `personal-repo-baseline` | Audit and apply the per-repo settings the plugin can't carry: `.claude/settings.json` attribution (`Assisted-by: Claude Code`) and GitHub squash-only merge settings. Dry-run first; re-run to bring a repo up to the current baseline |
 | `personal` | `personal-plan-tag-tiers` | Shared tagging layer: tag plan steps `[xdeep]` / `[deep]` / `[exec]` / `[fast]` to show complexity. Tags only; the two drivers call it automatically |
 | `personal` | `personal-plan-model-tiers` | Passive driver: group tagged steps into waves (no-thrash) and insert STOP markers with handoff blocks at tier boundaries |
 | `personal` | `personal-plan-orchestrate` | Active driver: same tagging and waves, but delegates each wave to a subagent on the right model and pauses only at mandatory STOP gates. Cursor-only today |

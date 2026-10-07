@@ -18,7 +18,7 @@ Include from the workspace root Makefile with `include repos.mk`.
 | `REPOS_FOLLOW_ONLY` | Generated mirrors; skip push; tag in roster |
 | `REPOS_GH` | Repos with Actions workflows; typically `$(filter-out $(REPOS_FOLLOW_ONLY),$(REPOS))` |
 
-Variable names use dots and hyphens in the suffix (`REPO_URL.nowline-api`) — GNU Make
+Variable names use dots and hyphens in the suffix (`REPO_URL.example-api`) — GNU Make
 permits this.
 
 Internal helper at parse time:
@@ -32,7 +32,7 @@ Parse in bash: `dir="${spec%%:*}"`, `rest="${spec#*:}"`, `url="${rest%:*}"`,
 
 ## Workspace doctor modes
 
-**Preferred (nowline pattern):** workspace root has `triage.yaml` with `delegate:`
+**Preferred:** workspace root has `triage.yaml` with `delegate:`
 entries. `make doctor` runs `triage --profile $(MODE)` once from the workspace root.
 
 **Fallback:** no root `triage.yaml`. Loop `$(MAKE) -C <r> doctor MODE=$(MODE)` for
@@ -40,7 +40,7 @@ each repo in `REPOS_MAKE_CI`.
 
 ## Workspace gh-runs fan-out
 
-Canon pattern (nowline):
+Canon pattern:
 
 - Iterate `REPOS_GH`, not raw `REPOS`
 - `$(MAKE) --no-print-directory -C "$$r" gh-runs-<verb> GH_LIMIT=$(GH_LIMIT) || true`
@@ -66,7 +66,7 @@ confirm = @if [ -z "$($(1))" ]; then \
 fi
 ```
 
-Two-tier prod guard (nowline-infra pattern): separate `CONFIRM_APPLY=1` (dev) from
+Two-tier prod guard: separate `CONFIRM_APPLY=1` (dev) from
 `CONFIRM_APPLY_PROD=1` (prod/org/platform stacks).
 
 ## Per-stack recipe expectations
@@ -74,19 +74,30 @@ Two-tier prod guard (nowline-infra pattern): separate `CONFIRM_APPLY=1` (dev) fr
 These are **expectations**, not prescriptions — preserve existing recipes when
 aligning; only add stubs when a core verb is missing.
 
-### Go (nowline-api, triage)
+Every stack's `lint` fails on drift in anything its `format` rewrites (see
+`makefile.md`). Flag a row whose `lint` can pass on unformatted code.
+
+### Go (example-api, triage)
 
 | Target | Typical recipe |
 |--------|----------------|
 | `init` | `go mod download` |
 | `build` | `go build ./...` |
-| `lint` | `go vet ./...` + gofmt drift check |
-| `format` | `gofmt -w .` |
+| `lint` | `go tool golangci-lint run` + `go mod tidy -diff` |
+| `format` | `go tool golangci-lint fmt` + `go mod tidy` |
 | `test` | `go test ./...` |
 | `ci` | `build lint test` |
 | `doctor` | `triage --profile $(MODE)` |
 
-### pnpm / Node (nowline, nowline-app, nowline-site)
+- `golangci-lint run` runs `go vet` and the formatters in `.golangci.yml`
+  (`gofmt`, `goimports`), reporting drift without rewriting; `fmt` rewrites
+  with the same formatters. Config: `../personal-standards/standards/go/code-style.md`.
+- `go mod tidy -diff` (Go 1.23+) prints the changes `go mod tidy` would make
+  and exits non-zero if there are any.
+- `govulncheck` runs as its own blocking PR check and on a schedule
+  (`go/security.md`); the standard doesn't fix which target runs it.
+
+### pnpm / Node (example, example-app, example-site)
 
 | Target | Typical recipe |
 |--------|----------------|
@@ -98,7 +109,10 @@ aligning; only add stubs when a core verb is missing.
 | `ci` | repo-specific gate chain |
 | `doctor` | `triage --profile $(MODE)` |
 
-### Terraform (nowline-infra)
+Doesn't meet the drift rule: `biome lint` and eslint skip formatting.
+`biome check` (no `--write`) or `prettier --check` in `lint` does.
+
+### Terraform (example-infra)
 
 | Target | Typical recipe |
 |--------|----------------|
@@ -121,6 +135,9 @@ checking inside `lint` — propose per repo, do not auto-rename without confirma
 | `lint` | swiftlint |
 | `format` | swiftformat |
 | `ci` | often absent — propose adding gate matching CI |
+
+Doesn't meet the drift rule: swiftlint doesn't check what swiftformat
+rewrites. Add `swiftformat --lint .` to `lint`.
 
 Domain families (`assets-*`, `secrets-*`, `profiles-*`) stay under their own `##@`
 sections.
@@ -215,8 +232,8 @@ Templates use `{{PLACEHOLDER}}` markers. Replace:
 
 | Placeholder | Example |
 |-------------|---------|
-| `{{ESTATE_NAME}}` | `nowline` |
-| `{{ESTATE_TITLE}}` | `nowline-workspace` |
+| `{{ESTATE_NAME}}` | `example` |
+| `{{ESTATE_TITLE}}` | `example-workspace` |
 | `{{REPOS}}` | space-separated dir list |
 | `{{INIT_SKIP_NOTES}}` | comments for repos skipped in workspace init |
 | `{{STACK_INIT_RECIPE}}` | leaf `init` recipe body |

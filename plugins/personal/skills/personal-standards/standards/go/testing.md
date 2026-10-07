@@ -95,6 +95,58 @@ func TestCreateUser(t *testing.T) {
 }
 ```
 
+## Conformance Suites
+
+One suite, written once against the interface, runs on the fake in every test run and on the real adapter (emulator or container) in CI, so the fake can't drift from what it stands in for ([testing.md](../testing.md#conformance-suites)). The Go idiom is [`nettest.TestConn`](https://pkg.go.dev/golang.org/x/net/nettest#TestConn): a `Run(t, newStore)` function in a `…test` package beside the interface, like `httptest` and `fstest`.
+
+```
+internal/book/
+├── store.go              # Store interface
+├── firestore.go          # the real adapter
+├── store_test.go         # booktest.Run on the fake
+├── firestore_test.go     # //go:build integration: booktest.Run on the emulator
+└── booktest/
+    ├── conformance.go    # Run(t, newStore)
+    └── fake.go           # in-memory Store
+```
+
+```go
+// internal/book/booktest/conformance.go
+
+// Run checks a Store against the contract. newStore returns an empty store;
+// each subtest gets its own.
+func Run(t *testing.T, newStore func(t *testing.T) book.Store) {
+    t.Run("GetMissing", func(t *testing.T) {
+        _, err := newStore(t).Get(t.Context(), uuid.NewV4().String())
+        require.ErrorIs(t, err, book.ErrNotFound)
+    })
+    t.Run("CreateTakenID", func(t *testing.T) {
+        s := newStore(t)
+        b := &book.Book{ID: uuid.NewV4().String(), Title: "Dune"}
+        require.NoError(t, s.Create(t.Context(), b))
+        require.ErrorIs(t, s.Create(t.Context(), b), book.ErrConflict)
+    })
+}
+```
+
+```go
+// internal/book/store_test.go
+func TestFake(t *testing.T) {
+    booktest.Run(t, func(*testing.T) book.Store { return booktest.NewFake() })
+}
+
+// internal/book/firestore_test.go (//go:build integration)
+func TestFirestoreStore(t *testing.T) {
+    booktest.Run(t, func(t *testing.T) book.Store {
+        return book.NewFirestoreStore(emulatorClient(t)) // a fresh demo- project each call
+    })
+}
+```
+
+- **Behavior, not calls** — the suite asserts what every implementation must do: the sentinel errors, ordering, no-op writes, preconditions. What only the real store can show (indexes, transactions under contention) goes in an adapter-only test
+- **An empty store per subtest** — a new fake, or the adapter on its own emulator project (`demo-<random>`), so subtests don't share data
+- **"Conformance suite"**, never "contract test", which means Pact-style consumer contracts to most people
+
 ## HTTP Handler Tests
 
 Use `net/http/httptest` — no running server needed:
@@ -137,7 +189,7 @@ func TestPostgresStore(t *testing.T) {
 
 For GCP services, use official emulators:
 
-- **Firestore**: `cloud.google.com/go/firestore/apiv1/firestorepb` with the Firestore emulator (`FIRESTORE_EMULATOR_HOST`)
+- **Firestore**: the regular `cloud.google.com/go/firestore` client, which connects to the emulator when `FIRESTORE_EMULATOR_HOST` is set, on a `demo-` project ([gcp.md](../gcp.md#firebase-emulator-guard))
 - **BigQuery**: BigQuery emulator or test project with `-short` skip
 
 Mark integration tests with build tags or `testing.Short()`:
@@ -153,13 +205,18 @@ Run with: `go test -tags=integration ./...`
 ## Coverage
 
 ```bash
-go test -race -cover -coverprofile=coverage.out ./...
-go tool cover -func=coverage.out
+go test -race -cover ./...                       # one line per package
+go test -race -coverprofile=coverage.out ./...
+go tool cover -func=coverage.out                 # per function
 ```
 
-| Threshold | When to Use |
+- **Per package** — read each package's line; one `total:` hides an untested package
+- **A review signal, not a CI gate** — a reviewer asks about a package below its target; no build fails on a percentage
+- **Written exemptions** — list exempt packages in the repo with a reason each: generated code, `cmd/*`, and conformance-suite packages, which report 0% because coverage counts only a package's own tests (`-coverpkg=./...` counts them from the packages that run them). A package tested only under `-tags=integration` is read from the integration run
+
+| Target | Packages |
 |---|---|
-| **80%** | Industry-standard minimum; most projects |
+| **80%** | Most packages |
 | **90%** | Libraries and shared packages |
 | **95%+** | Critical infrastructure, security-sensitive code |
 
@@ -173,19 +230,33 @@ go test -race ./...
 
 ## Fuzzing
 
-Use Go's built-in fuzzing (Go 1.18+) for functions with broad input spaces:
+Fuzz every hand-written parser or decoder of untrusted input: page cursors, path segments (the [custom method](architecture.md#custom-methods) split), header values, subprocess output.
+
+- **Properties** — at least "never panics", plus a round trip where one exists: decode, encode, decode again, and compare the two decoded values. Comparing against the input fails on spellings the decoder accepts but never writes
+- **`go test` replays the seed corpus only** — the `f.Add` seeds and `testdata/fuzz/<Name>/`, with no new inputs. Generating inputs needs `-fuzz`, one target per run, locally or in a scheduled job
+- **Keep what it finds** — `-fuzz` writes a failing input to `testdata/fuzz/<Name>/`; commit it with the fix, so every later `go test` replays it
 
 ```go
-func FuzzValidateEmail(f *testing.F) {
-    f.Add("alice@example.com")
+func FuzzDecodeCursor(f *testing.F) {
+    f.Add(page.Encode(page.Cursor{
+        CreatedAt: time.Date(2026, 9, 30, 17, 4, 0, 0, time.UTC),
+        ID:        uuid.MustParse("d221cf76-2e34-4dc2-b6b0-99a61522eaef"),
+    }))
     f.Add("")
-    f.Fuzz(func(t *testing.T, email string) {
-        _ = ValidateEmail(email) // should not panic
+    f.Add("not a cursor")
+    f.Fuzz(func(t *testing.T, s string) {
+        c, err := page.Decode(s) // never panics
+        if err != nil {
+            return
+        }
+        again, err := page.Decode(page.Encode(c)) // round trip
+        require.NoError(t, err)
+        require.Equal(t, c, again)
     })
 }
 ```
 
-Run with: `go test -fuzz=FuzzValidateEmail -fuzztime=30s`
+Run with: `go test -run='^$' -fuzz='^FuzzDecodeCursor$' -fuzztime=30s ./internal/page`
 
 ## Concurrent Code Testing
 
@@ -206,7 +277,7 @@ Use `testing.B.Loop` (Go 1.24+) instead of `for i := 0; i < b.N; i++`:
 ```go
 func BenchmarkGetUser(b *testing.B) {
     svc := NewService(fakeStore{})
-    ctx := context.Background()
+    ctx := b.Context()
     for b.Loop() {
         _, _ = svc.GetUser(ctx, "1")
     }

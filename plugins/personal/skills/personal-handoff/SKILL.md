@@ -57,7 +57,7 @@ them with the work, and push. Commit and push before every turn that waits
 for Gary; that turn may be the last one the container runs. Remove or
 promote them before the branch merges.
 The rules are in core.md under "Runner scratch rides the branch" and
-"Runners save before they stop".
+"Save before you wait".
 
 ## Contents
 
@@ -67,7 +67,9 @@ The rules are in core.md under "Runner scratch rides the branch" and
 - What's pending
 - Key decisions made
 - Gotchas for the next session
-- On a runner: the branch (and that it was a guess, if it was), the pending
+- The branch, and whether it's a task branch, so the resume prompt can
+  name it
+- On a runner also: that the branch name was a guess, if it was, the pending
   question verbatim, and how to resume
 
 **Saved plan** (`.scratch/plan-…`). The plan as produced. If it becomes

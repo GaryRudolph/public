@@ -149,6 +149,51 @@ func mapError(_ error: Error) -> Error {
 }
 ```
 
+## JSON (Codable)
+
+- **No key strategy** — Swift properties are already lowerCamel, the wire casing ([API Design](../architecture.md#api-design)). Never `.convertFromSnakeCase`, which is also slower
+- **Acronym properties need `CodingKeys`** — `userID`, the API Design Guidelines' and swift-protobuf's spelling, maps to the wire's `userId` with `case userID = "userId"`. `accountId`, as spelled in these examples, needs none
+- **Wire enums have explicit raw values** — `case active = "ACTIVE"`, the unprefixed `UPPER_SNAKE` wire value ([Resource State](../architecture.md#resource-state)); the case names stay lowerCamel
+- **Unknown values fall back** — synthesized `Codable` throws on an unknown raw value, so a value the server adds would fail the whole response. Give each wire enum an `unknown` case, never sent, and an `init(from:)` that falls back to it; that covers arrays too
+- **Unknown members are ignored** — `Codable` already skips keys it doesn't declare
+- **Dates are RFC 3339, fractional seconds optional** — servers send `…:00Z` or `…:00.123456Z`. Before Foundation shipped [SF-0021](https://github.com/swiftlang/swift-foundation/blob/main/Proposals/0021-ISO8601ComponentsStyle.md)'s lenient parser, `.iso8601` rejected fractions and `ISO8601FormatStyle` required exactly what `includingFractionalSeconds` said, so decode with a strategy that tries both. `ISO8601DateFormatter` keeps only milliseconds
+- **Encoding drops precision** — `.iso8601` writes whole seconds and `ISO8601FormatStyle(includingFractionalSeconds: true)` milliseconds. When an instant must round-trip exactly (a cursor, a filter bound), keep the server's string
+
+```swift
+enum OrderState: String, Codable, Sendable {
+    case pending = "PENDING"
+    case shipped = "SHIPPED"
+    case unknown = "UNKNOWN"  // client-only; never sent
+
+    init(from decoder: any Decoder) throws {
+        let raw = try decoder.singleValueContainer().decode(String.self)
+        self = OrderState(rawValue: raw) ?? .unknown
+    }
+}
+
+struct Order: Codable, Sendable {
+    let id: String
+    let userID: String
+    let state: OrderState
+    let createdAt: Date
+
+    enum CodingKeys: String, CodingKey {
+        case id, state, createdAt
+        case userID = "userId"
+    }
+}
+
+extension JSONDecoder.DateDecodingStrategy {
+    /// RFC 3339, with or without fractional seconds
+    static let rfc3339 = custom { decoder in
+        let text = try decoder.singleValueContainer().decode(String.self)
+        let fractional = Date.ISO8601FormatStyle(includingFractionalSeconds: true)
+        if let date = try? fractional.parse(text) { return date }
+        return try Date.ISO8601FormatStyle().parse(text)
+    }
+}
+```
+
 ## Dependency injection
 
 - Managers and ViewModels: constructor injection only.

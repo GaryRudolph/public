@@ -63,6 +63,10 @@ Do not scatter spec-level docs across the repo root or language-specific folders
 - Pause for review after substantive spec edits; specs are long-lived documents
 - When in doubt about scope, ask before adding content — it's cheaper to agree on the outline than to rewrite prose
 
+## Runbooks
+
+Operational procedures (environment setup, deploys, verification checks, incident and recovery steps) live in `{project-root}/runbooks/{topic}.md` (e.g. `runbooks/setup.md`, `runbooks/public-cache-check.md`). Not `ops/`: "ops" names the platform operations plane, meaning the ops console, ops API and `OPS` role that staff use to run the product for customers. A runbook says what to do. The reasoning behind it belongs in a spec or ADR, linked from the runbook.
+
 ## Implementation Milestones
 
 Large projects are broken into ordered milestones, each producing a user- or developer-visible deliverable before the next starts.
@@ -87,7 +91,7 @@ Reserve plain "step" prose for procedural steps in user-facing docs (onboarding 
 
 ### Plan execution
 
-Model-tier tagging, the model picker and price table, STOP markers, kickoff and progress conventions, STOP-gate semantics, and subagent delegation now live in [plan-execution.md](plan-execution.md).
+Model-tier tagging, the model picker and price table, STOP markers, kickoff and progress conventions, STOP-gate semantics, and subagent delegation are in [plan-execution.md](plan-execution.md).
 
 ### Handoffs between milestones
 

@@ -110,7 +110,7 @@ expect_fail "KEY must be a variable name"         as_consumer "$app" make -s dis
 expect_fail "agents can't read the signing key"   as_consumer "$agents" make -s dist-decrypt FILE=ios/AuthKey.p8
 expect_ok   "app decrypts the signing key"         as_consumer "$app" make -s dist-decrypt FILE=ios/AuthKey.p8
 expect_ok   "binary round-trips"                   cmp dist/ios/AuthKey.p8 "$work/p8.orig"
-expect_eq   "decrypted file is owner-only"         "$(stat -f '%Lp' dist/ios/AuthKey.p8 2>/dev/null || stat -c '%a' dist/ios/AuthKey.p8)" "600"
+expect_eq   "decrypted file is owner-only"         "$(stat -c '%a' dist/ios/AuthKey.p8 2>/dev/null || stat -f '%Lp' dist/ios/AuthKey.p8)" "600"
 expect_ok   "all-env export skips what it can't open" as_consumer "$site" make -s dist-decrypt-env
 expect_grep "  ...and emits only oss.env"          "PUBLIC_API_URL="
 make -s clean >/dev/null

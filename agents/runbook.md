@@ -60,7 +60,7 @@ default for marketplaces added this way.
 - Install **`personal`**. This is the one that has to be on the account.
 - Leave **`workstation`** off the account and install it locally in m3.s4,
   so cloud and runner sessions don't carry a Mac-only skill description.
-  The whisper skills Cowork runs now live in the notes repo (see their
+  The whisper skills Cowork runs live in the notes repo (see their
   `COWORK.md` there).
 
 #### s5 - Optional: a nudge for chat
@@ -114,12 +114,12 @@ make status       # modes line first; ~/.claude/CLAUDE.md "no personal block (pl
 ```
 
 `CLAUDE_MODE` defaults to `plugin`, so this install removes what the
-installer used to write for Claude Code: the `~/.claude/CLAUDE.md` block and
-the `~/.claude/skills` symlinks, including any still pointing at the old
-`agents/skills/`. Anything else in those places is left alone. From then on,
-Claude Code on the Mac gets the core the same way cloud and the runner do,
-from the plugin's hook. With the local marketplace from s4, that hook reads
-your working tree, so edits still apply without a push.
+installer writes for Claude Code in `home` mode: the `~/.claude/CLAUDE.md`
+block and the `~/.claude/skills` symlinks, including any still pointing at
+the old `agents/skills/`. Anything else in those places is left alone.
+From then on, Claude Code on the Mac gets the core the same way cloud and
+the runner do, from the plugin's hook. With the local marketplace from s4,
+that hook reads your working tree, so edits still apply without a push.
 
 The other tools stay on `home` until you move them (m7). Each tool has a
 mode: `CLAUDE_MODE`, `CODEX_MODE`, `GEMINI_MODE`, `CURSOR_MODE`, each `home` or
@@ -362,7 +362,7 @@ Ask "What is the personal canary phrase?" in each surface. Expect
   session start.
 - **Canary works but standards files can't be found.** The agent tried
   `~/Projects/...`. The hook's first part gives the in-plugin path; make sure
-  part 1 of 2 appears in `/context`.
+  part 1 appears in `/context`.
 - **Skills appear twice on the Mac.** Something still symlinks into
   `~/.claude/skills`. Run `make status`: the modes line should say
   `CLAUDE_MODE=plugin`, and `agents/local.mk` shouldn't override it.
@@ -386,7 +386,7 @@ Ask "What is the personal canary phrase?" in each surface. Expect
 
 - Take one surface out: `claude plugin disable personal@synced` (Mac or
   runner user settings), or uninstall it under **Customize > Plugins**.
-- Go back to the old way for Claude: add `CLAUDE_MODE := home` to
+- Put Claude back on home mode: add `CLAUDE_MODE := home` to
   `agents/local.mk` and run `make -C agents install`. That restores the
   `~/.claude/CLAUDE.md` block and the skill symlinks.
 - Remove everything the installer wrote, for every tool:

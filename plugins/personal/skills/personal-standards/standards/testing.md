@@ -5,6 +5,7 @@
 - **Unit Tests**: 80% code coverage for business logic
 - **Integration Tests**: all critical user paths
 - **E2E Tests**: core user flows and happy paths
+- **Per package**: read coverage per package (module, target), not only the total, which hides an untested package. It's a review signal, not a CI gate: a reviewer asks about a package below target, and no build fails on a percentage. Exemptions are written down in the repo with a reason each (generated code, entry points, conformance-suite packages, integration-only packages)
 
 ### What to Test
 
@@ -42,6 +43,16 @@ Simple pure functions, the code under test, internal business logic
 - **Fakes** (in-memory implementations) over mock objects — more realistic, don't couple to call sequences
 - **Dependency injection** over patching/monkey-patching — explicit setup, no hidden coupling
 - Never mock what you don't own — wrap third-party APIs and mock the wrapper
+
+### Conformance Suites
+
+A fake is only as good as its match to the real thing. Write one suite against the interface and run it on both:
+
+- **On the fake** in every test run
+- **On the real adapter** (an emulator or a container) in CI
+- **Behavior, not calls** — the suite asserts what every implementation must do (errors, ordering, preconditions). What only the real store can show (indexes, contention) goes in an adapter-only test
+- **Empty store per test**, so tests don't share data
+- **Call it a conformance suite**, never a "contract test", which most people read as Pact-style consumer contracts
 
 ## Anti-Patterns
 

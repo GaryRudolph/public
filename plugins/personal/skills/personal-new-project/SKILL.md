@@ -6,7 +6,8 @@ description: >-
   runtime, framework, SDK, build tool, and library from its registry (never
   from training data), check end-of-life dates, record the version baseline,
   and lay the project out per his architecture, testing, documentation,
-  Makefile, and git standards. Use when asked to "start a new project",
+  Makefile, and git standards, then apply the per-repo agent baseline
+  (personal-repo-baseline). Use when asked to "start a new project",
   "scaffold", "bootstrap", "set up a new repo/service/package", or "create
   a new app". Not for upgrading an existing repo.
 ---
@@ -111,5 +112,15 @@ starting point.
 Don't copy a stack snapshot from an older sibling project. Re-run step 3
 for every new repo.
 
+## 7. Apply the repo baseline
+
+Finish with the
+[`personal-repo-baseline`](../personal-repo-baseline/SKILL.md) skill. It
+writes `.claude/settings.json` with the agent attribution the plugin can't
+carry, which belongs in the first commit. Its GitHub merge settings wait
+until the repo exists on GitHub; it asks before changing them.
+
 Follow the core working agreements throughout: pause after each step,
-and commit only when asked (or on a runner, per `core.md`).
+and commit per `core.md`. A brand-new repo starts on `main`, so commits
+wait until Gary asks; a task branch can follow once `main` has its first
+commit.

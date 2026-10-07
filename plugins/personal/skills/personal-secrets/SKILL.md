@@ -136,13 +136,15 @@ Edit the `age:` list in `.sops.yaml`, then
 
 `templates/secrets-repo/` implements the standard's Makefile contract, and
 `tests/test-kit.sh` exercises every flow above in a sandbox (it needs `sops`
-and `age`). Two fixes relative to the standard's original script sketches:
+and `age`). It meets the two constraints in the standard's "Reference
+implementation":
 
 - `build.sh` runs `sops --config /dev/null` for `dist/`. With the committed
   `.sops.yaml`, sops otherwise refuses stdin with "no matching creation
-  rules", and the sketch's redirect left an empty `dist/` file behind.
+  rules". It writes through a temp file, so a failed encrypt never leaves an
+  empty `dist/` file behind.
 - The scripts run under macOS's bash 3.2, with no associative arrays.
 
-Beyond the sketch, the kit adds `verify` (grants, denials, and freshness,
-checked with each consumer key), `retire`, a keyless `check.sh` shared by
-the hook and CI, and `dist/` cleanup when a file leaves `access.map`.
+The kit also carries `verify` (grants, denials, and freshness, checked with
+each consumer key), `retire`, a keyless `check.sh` shared by the hook and
+CI, and `dist/` cleanup when a file leaves `access.map`.

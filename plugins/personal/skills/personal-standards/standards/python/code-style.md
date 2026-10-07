@@ -50,18 +50,36 @@ class UserStore:
 
 ## Enumerations
 
-Use `StrEnum` with `auto()` for string-valued enums. Nest enums inside the class they belong to when tightly coupled:
+Use `StrEnum` for string-valued enums. Nest enums inside the class they belong to when tightly coupled.
+
+- **Wire enums spell out their values** — an enum whose values reach an API, a protobuf or another service uses explicit unprefixed `UPPER_SNAKE` values ([Resource State](../architecture.md#resource-state)). `auto()` would give lowercase (`"pending"`)
+- **`auto()` only for internal enums** — values that never leave the process
+- **No `*_UNSPECIFIED` member** — then that value is a 422 on input, like any unknown one
+- **A client's copy of another service's enum falls back** — an `UNKNOWN` member and `_missing_`, so a value added later doesn't break decoding. A server's own request enums never do, so an unknown value stays a 422
 
 ```python
 class Order(Base):
     __tablename__ = "orders"
 
     class State(StrEnum):
-        PENDING = auto()
-        APPROVED = auto()
-        SHIPPED = auto()
+        PENDING = "PENDING"
+        APPROVED = "APPROVED"
+        SHIPPED = "SHIPPED"
 
     state: Mapped[str] = mapped_column(default=State.PENDING)
+
+
+class PartnerShipment(ApiModel):  # decoded from a partner's API
+    class State(StrEnum):
+        IN_TRANSIT = "IN_TRANSIT"
+        DELIVERED = "DELIVERED"
+        UNKNOWN = "UNKNOWN"  # never sent
+
+        @classmethod
+        def _missing_(cls, value: object) -> "PartnerShipment.State":
+            return cls.UNKNOWN
+
+    state: State
 ```
 
 ## File Headers
@@ -79,27 +97,29 @@ class OrderService:
     def create_order(self, user_id: str, items: list[Item]) -> Order:
         log.debug("enter user_id=%s, items=%d", user_id, len(items))
         order = Order.create(user_id=user_id, items=items)
-        log.debug("exit order_id=%s", order.order_id)
+        log.debug("exit order_id=%s", order.id)
         return order
 ```
 
 ## Model Serialization
 
-Pydantic models serialize via `model_dump()`. Use `model_validate()` to construct from ORM objects:
+API models inherit the shared `ApiModel` ([architecture.md](architecture.md#request--response-schemas--pydantic)), so `model_dump()` and FastAPI both write lowerCamel keys. Use `model_validate()` to construct from ORM objects:
 
 ```python
-class UserResponse(BaseModel):
-    name: str
-    email: str
+class UserResponse(ApiModel):
+    display_name: str
+    photo_url: str | None
 
     model_config = ConfigDict(from_attributes=True)
 
-# Serialize to dict
-data = user_response.model_dump()
+# Serialize with wire keys: {"displayName": ..., "photoUrl": ...}
+data = user_response.model_dump(mode="json")
 
 # Construct from SQLAlchemy model
 response = UserResponse.model_validate(user_row)
 ```
+
+Construct and read models by field name (`UserResponse(display_name=…)`). pyright knows only field names, and `validate_by_name=True` makes them valid at runtime.
 
 ## Error Handling
 
