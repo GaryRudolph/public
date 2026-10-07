@@ -1,7 +1,7 @@
 ```
 --- KICKOFF: begin orchestration at [deep] ---
 
-  Status: 2/8 groups done | last review: wave-2 PASS | current: m1 s7-s10 [deep] (wave 3 dispatched, gate 2 approved) | updated 2026-10-07
+  Status: 2/8 groups done | last review: wave-2 PASS | BLOCKED at gate 5 (canary; wave 3 Mac half done, cloud sessions C1/C2 pending) | current: m1 s7-s10 [deep] | updated 2026-10-07
 
   review: every-wave (log-only — parent writes Review log; no human review gate)
 
@@ -647,3 +647,5 @@ tokens wave-2 m1-s4-s6 (claude-sonnet-5-5): input ~72 / cache read ~1.8M / cache
 tokens wave-2 m1-s4-s6 (claude-opus-5-5): input ~16 / cache read ~24k / cache write ~20k / output ~6.9k | ~$0.25 API-equiv (output est.) spike sessions in ~/.claude-lolay/projects/*scratch-spike*
 tokens wave-2 m1-s4-s6 (claude-haiku-4-5): input ~158 / cache read ~270k / cache write ~9.6k 5m + ~76k 1h / output ~7.7k | ~$0.23 API-equiv spike sessions in ~/.claude-lolay/projects/*scratch-spike*
 tokens orchestrator-wave-2 m1-s4-s6 (claude-opus-5-5): input ~68 / cache read ~10M / cache write ~390k 1h / output ~31k | ~$5.76 API-equiv
+tokens wave-3 m1-s7-s10 (claude-sonnet-5-5): input ~300 / cache read ~9.1M / cache write ~190k 5m + ~260k 1h / output ~100k | ~$4.37 API-equiv (output est.) spike sessions in ~/.claude-lolay/projects/*scratch-spike-w3*
+tokens wave-3 m1-s7-s10 (claude-opus-5-5): input ~46 / cache read ~230k / cache write ~86k / output ~18k | ~$0.83 API-equiv (output est.) spike sessions in ~/.claude-lolay/projects/*scratch-spike-w3*
