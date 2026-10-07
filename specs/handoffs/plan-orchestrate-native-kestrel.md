@@ -1,7 +1,7 @@
 ```
 --- KICKOFF: begin orchestration at [deep] ---
 
-  Status: 5/8 groups done | last review: wave-5 PASS | current: m2 s4-s7 [exec] (wave 6 dispatched) | updated 2026-10-07
+  Status: 6/8 groups done | last review: wave-6 PASS | BLOCKED at gate 2 ([exec]->[deep], before wave 7) | current: m2 s8-s9 [deep] | updated 2026-10-07
 
   review: every-wave (log-only — parent writes Review log; no human review gate)
 
@@ -130,6 +130,7 @@ review wave-2 (m1-s4-s6) 0d0140d..c793202: PASS - criteria 5 (Edit/Write only; r
 review wave-3 (m1-s7-s10) c793202..14a76b7: PASS - criteria 2 and 7 held on the runner, 8 and 9 partial (compaction false deny; typed gated switch on the runner left to m2.s9); m1 closed with no fallback, 12 m2.s2 items, m2 handoff written; spike runs ~$13.7 vs ~$5 allowance - 2026-10-07
 review wave-4 (m2-s1) 6548274..2870822: PASS - test-orchestrate wired into agents/Makefile (.PHONY, test, help); manifest fields and the || exit 2 fallback already in place; validate test passes with 152 kit tests; claude plugin validate passes - 2026-10-07
 review wave-5 (m2-s2-s3) 5802f23..5704254: PASS - 12 m2.s2 kit changes plus decision 9 and the take-back (suite 152 -> 172); SKILL.md rewritten harness-neutral with the Claude Code path marked phase 1: dogfood; orch-spike rebuilt, not pushed; new reviewer_guard.py Bash hook runs on every Bash call (fails open); reviewer agent_type naming unverified live (m2.s9) - 2026-10-07
+review wave-6 (m2-s4-s7) dd6cf23..f63187c: PASS - adapters/claude-code.md and cursor.md split out of SKILL.md; plan-execution (a)-(g) and decision 12; core.md kickoff cut and decision 9 line, Cursor rule regenerated; other skills, plugins/README, agent-distribution, runbook updated; Cursor [exec] slug now grok-4-7[effort=high,fast=false] (unverified on Cursor); orch-spike not rebuilt - 2026-10-07
 
 ## Token log",
       counted and priced per its counting header:
@@ -457,25 +458,25 @@ Ship the Claude Code adapter in the `personal` plugin, with the standards edits 
 
 --- WAVE 6 [exec] ---
 
-#### s4 - [exec] `adapters/claude-code.md` and `adapters/cursor.md`
+#### s4 - [exec] `adapters/claude-code.md` and `adapters/cursor.md` (done)
 
 - `claude-code.md`: proposal §2.3-2.6 (the parent's loop, the Agent path, runners and recovery, permissions, the token tally and routing check), each naming its runner signal; it points back to `SKILL.md` for the core rather than repeating it.
 - `cursor.md`: today's `Task` text moved out of `SKILL.md`, unchanged in substance (the §3 Cursor fixes are phase 3).
 - **Accept when:** `SKILL.md` plus the adapter reads as one procedure for each harness, nothing is said twice, and `make -C agents validate test` passes.
 
-#### s5 - [exec] `standards/plan-execution.md`
+#### s5 - [exec] `standards/plan-execution.md` (done)
 
 - Proposal §4's row, items (a) through (g): orchestrate's review as a subagent per working directory; one unit per dispatch; gates from `plan_state.py`; non-answers; Claude Code `[xdeep]` in orchestrate without ultracode, drafts opt-in; Haiku thinks; Cursor's `[exec]` slug `fast=false`; line 14 drops "Cursor". (a) STOP gate semantics, the kickoff answer as the opt-in, including decision 9's plain yes to an unattended proposal, and the pasted Kickoff prompt; (b) fix-up numbering `N-fix<k>` and the new marker regex; (c) the failed-check CONCERNS line and `WAIVED`; (d) the active Kickoff variant's `mode:` line and prompt; (e) progress tracking and final completion in `specs/handoffs/` on any machine; (f) delegation on a task branch; (g) the token-accounting exemption for the workflow path.
 - Decision 12: "Who updates progress" and "Delegating execution to subagents" gain the exception for unreviewed commits pushed at a stop, labeled `UNREVIEWED`.
 - **Accept when:** the kit's consistency check (it reads the picker row and price table) and `make -C agents validate test` pass.
 
-#### s6 - [exec] `core.md` and the Cursor core rule
+#### s6 - [exec] `core.md` and the Cursor core rule (done)
 
 - Drop "(Cursor)" after `personal-plan-orchestrate`. "Runner scratch rides the branch", "Write handoff files" and "Save ephemeral agent plans" name the orchestrate case; "Cut a task branch off a shared branch" and "Stay on the current branch" gain the kickoff cut (proposal §4 row, quoted there).
 - Decision 9's one line in "Wait for approval": a plain yes to a kickoff question that says `Proposed mode: unattended` is that explicit instruction.
 - Run `make -C agents cursor-core-rule`, then `make -C agents validate test` (it fails on a stale rule, and checks each SessionStart part stays under the 10,000-character hook cap).
 
-#### s7 - [exec] The other skills and docs
+#### s7 - [exec] The other skills and docs (done)
 
 - `personal-plan-model-tiers/SKILL.md`: proposal §1.7 (no unattended mode; on a runner, save and stop at each STOP; point to orchestrate on Claude Code; a later fix-up wave is `N-fix2`). Its "See also" stops calling orchestrate Cursor-only.
 - `personal-handoff/SKILL.md`: the "Which file" table and "On a runner" cover every orchestrate run on any machine, in both modes.
@@ -661,3 +662,5 @@ tokens orchestrator-wave-4 m2-s1 (claude-opus-5-5): input ~14 / cache read ~1.4M
 tokens wave-5 m2-s2-s3 (claude-opus-5-5): input ~150 / cache read ~20M / cache write ~400k / output ~95k | ~$7.95 API-equiv (output est.) session 350579b9-70e1-4f99-a901-444b0c4a63eb subagent af56f201cdd8bca66
 tokens wave-5 m2-s2-s3 (claude-opus-5-5): input ~16 / cache read ~520k / cache write ~105k / output ~5.8k | ~$0.74 API-equiv (output est.) session 350579b9-70e1-4f99-a901-444b0c4a63eb subagent a35e02d8fdea83413 (Explore gap check)
 tokens orchestrator-wave-5 m2-s2-s3 (claude-opus-5-5): input ~14 / cache read ~1.5M / cache write ~13k 1h / output ~8k | ~$0.56 API-equiv
+tokens wave-6 m2-s4-s7 (claude-sonnet-5-5): input ~150 / cache read ~15M / cache write ~300k / output ~88k | ~$4.57 API-equiv (output est.) session 350579b9-70e1-4f99-a901-444b0c4a63eb subagent a950686099d42d729
+tokens orchestrator-wave-6 m2-s4-s7 (claude-opus-5-5): input ~10 / cache read ~1.1M / cache write ~11k 1h / output ~6.5k | ~$0.44 API-equiv
