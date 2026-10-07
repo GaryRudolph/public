@@ -2,7 +2,7 @@
 
 **Branch:** `feature/orchestrate-native` (task branch, cut from `main` at bf5da80 on Gary's instruction).
 **Plan:** `specs/handoffs/plan-orchestrate-native-kestrel.md`, tagged and driven by `personal-plan-model-tiers` (passive). 8 waves, expected ~73M tokens, ~$38 API-equiv.
-**Status:** orchestrate driver, Agent-tool path (Gary's option 2), expected ~$54. Waves 1-2 (m1 s1-s6) done and reviewed PASS: criteria 1, 3, 5 (Edit/Write only), 6 and 10 held, 4 partial. Wave 3 (m1 s7-s10) done: m1 closed out, criteria 1, 2, 3, 6, 7 and 10 held, 4, 5, 8 and 9 partial, no fallback; milestone handoff `specs/handoffs/handoff-m2-orchestrate-native.md`. Wave 3 reviewed PASS by the orchestrator. Spend ~$59.5 against ~$54 expected for the whole plan: wave 3 cost ~$27.3 (its Opus worker ~$13.6, spike runs ~$13.7) against ~$12, plus ~$3.7 for this orchestrator. Wave 4 (m2 s1) done, reviewed PASS (~$0.35). Wave 5 (m2 s2-s3) done, reviewed PASS (~$8.7). Wave 6 (m2 s4-s7) done, reviewed PASS (~$4.6 against ~$1.2). Spend ~$74.6 against ~$54 for the whole plan. Blocked at gate 2 before wave 7.
+**Status:** orchestrate driver, Agent-tool path (Gary's option 2), expected ~$54. Waves 1-2 (m1 s1-s6) done and reviewed PASS: criteria 1, 3, 5 (Edit/Write only), 6 and 10 held, 4 partial. Wave 3 (m1 s7-s10) done: m1 closed out, criteria 1, 2, 3, 6, 7 and 10 held, 4, 5, 8 and 9 partial, no fallback; milestone handoff `specs/handoffs/handoff-m2-orchestrate-native.md`. Wave 3 reviewed PASS by the orchestrator. Spend ~$59.5 against ~$54 expected for the whole plan: wave 3 cost ~$27.3 (its Opus worker ~$13.6, spike runs ~$13.7) against ~$12, plus ~$3.7 for this orchestrator. Wave 4 (m2 s1) done, reviewed PASS (~$0.35). Wave 5 (m2 s2-s3) done, reviewed PASS (~$8.7). Wave 6 (m2 s4-s7) done, reviewed PASS (~$4.6 against ~$1.2). Spend ~$74.6 against ~$54 for the whole plan. Wave 7 dispatched (gate 2 approved, split into short Agent calls).
 
 ## Done
 
@@ -158,7 +158,7 @@ Commits `17c5cd2` (m2.s2), `ca35e35` and `a3302cd` (m2.s3). Full detail: `.scrat
 
 ## Pending question (verbatim)
 
-> Gate 2 ([exec] -> [deep]): wave 6 (m2 s4-s7) is in `dd6cf23..f63187c`, reviewed PASS. Start wave 7 [deep] m2 s8-s9 (promote the proposal to `specs/plan-orchestration.md`, then the three dogfood runs with you, and flip the gate; one Opus subagent, ~$5.4 expected plus the dogfood plans' own spend, likely more given waves 3 and 5)?
+None. Gate 2 before wave 7 approved 2026-10-07 with Gary's option (a): wave 7 runs as short Agent calls, not one long-lived subagent. First an Opus subagent for s8 plus the s9 setup and run sheet; Gary runs the three dogfood plans himself in their own sessions (no relay subagent); then a fresh subagent reads their transcripts and handoffs, applies the fixes and flips the gate.
 
 ## How to resume
 
