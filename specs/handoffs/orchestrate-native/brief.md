@@ -32,6 +32,7 @@ Gary, this page is the short form of `proposal.md` (v6, revised after review). S
 - Handoff: "If unattended it should also commit the result to the branch in a handoff update or post handoff summary in the event the work is lost." Then: "Actually, for each work, let's keep the handoff and also keep the handoff summaries whether it's attended or unattended".
 - Kickoff prompt: "Continue keeping the idea that a plan has a prompt to kick off the workflow in a new session if desired." The branch carries the plan to the new session.
 - Task branches: "What's the easy path? If it's to just use a task branch each time, I'm fine with that. Even on a workstation."
+- Effort: "[fast]: low. Haiku 4.5 has no effort setting, so this applies only when you run fast work on Sonnet." "[exec]: medium. Step up to high on large codebases or when a task stalls, and never go past high." "[deep]: high. Drop to medium for interactive planning where you're in the loop to catch mistakes." "[xdeep]: xhigh. Save max for task types where you've measured a gain, and ultracode for audit-shaped steps." And: "In this case exec is sonnet, deep and xdeep is opus". The kit runs `[exec]` on Sonnet medium, `[deep]`, the parent and the reviews after `[deep]`, `[exec]` and `[fast]` waves on Opus high, `[xdeep]` and its review on Opus xhigh, and `[fast]` on Haiku with no effort setting (§2.2).
 - Also settled, not quoted here: API list rates for every cost; one kickoff question that proposes unattended on a runner and gated on a workstation.
 
 ## Open decisions (§5), with my recommendation
@@ -47,7 +48,7 @@ Gary, this page is the short form of `proposal.md` (v6, revised after review). S
 11. Nowhere to push (no repo, or no remote): allow gated only? Yes; unattended needs a remote.
 12. Unreviewed commits at a stop on a workstation: push them labeled `UNREVIEWED`? Yes, as on a runner, so a resume elsewhere sees them; `plan-execution.md` gains the exception.
 
-Also mine, for your veto: cutting a task branch off your own branch; the answer checks (right after the question, no question back or negation); the paste rule and the runner tokens; the cloud branch rewrite and the folded switch; the re-ask after a declined branch cut.
+Also mine, for your veto: cutting a task branch off your own branch; the answer checks (right after the question, no question back or negation); the paste rule and the runner tokens; the cloud branch rewrite and the folded switch; the re-ask after a declined branch cut; the `-xdeep` agent names, and `plan-worker-exec` so the Agent path's `[exec]` runs at medium; `execHigh` and the unattended `[exec]` retry at Sonnet high before `[deep]`; `max` per launch on `[xdeep]` or Fable, with gate 7 unattended; no ultracode in orchestrate, so an audit that needs it runs on the passive driver.
 
 ## What phase 0 must prove
 
@@ -55,8 +56,9 @@ Also mine, for your veto: cutting a task branch off your own branch; the answer 
 2. The runner Stop-hook rule holds, and worker commits pass in auto mode.
 3. Reviewers can't edit (the `tools` allowlist holds).
 4. Org sync and Cowork accept the new manifest fields, before the kit merges to main.
-5. A fresh cloud session gets the synced skills, the 4 agents, the workflow and the gate hook.
+5. A fresh cloud session gets the synced skills, the 5 agents, the workflow and the gate hook.
 6. Unattended on a runner runs from the kickoff answer to the PR question with no other stop, and a short `gated` stops the next launch.
 7. Which branch a cloud session started on a task branch gets, and that a paste there starts without a question.
 8. In both modes every wave is committed and pushed before the next launch; a planted check failure gets `N-fix`, and a third failure stops.
 9. Gated on `main` cuts the branch only after the answer; a runner plan pasted into a Mac clone on `main` switches after the question; a hook exit 2 blocks the launch.
+10. `xhigh` reaches the API from an `agent()` call and from the `-xdeep` agents' frontmatter, and `medium` from `plan-worker-exec`'s.

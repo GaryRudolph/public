@@ -28,9 +28,9 @@ row = next(l for l in (root / f"skills/{org}-standards/standards/plan-execution.
 cells = [c.strip() for c in row.strip("|").split("|")][1:5]
 picked = {}
 for tier, cell in zip(("xdeep", "deep", "exec", "fast"), cells):
-    m = re.search(r"`/model (\w+)` \((\w+)\)", cell)
+    m = re.search(r"`/model (\w+)` \((\w+)", cell)  # the first word in the parentheses is the default effort
     picked[tier] = (m.group(1), None if m.group(2) == "none" else m.group(2))
-alt = re.search(r"alt: `/model (\w+)` \((\w+)\)", cells[0])
+alt = re.search(r"alt: `/model (\w+)` \((\w+)", cells[0])
 if alt:
     picked["fable"] = (alt.group(1), alt.group(2))
 
@@ -47,8 +47,8 @@ def front(path):
 
 
 agents = {p.stem: front(p) for p in sorted((kit / "claude-agents").glob("*.md"))}
-want = {"plan-worker": ("inherit", None), "plan-worker-max": picked["xdeep"],
-        "plan-reviewer": picked["deep"], "plan-reviewer-max": picked["xdeep"]}
+want = {"plan-worker": ("inherit", None), "plan-worker-exec": picked["exec"], "plan-worker-xdeep": picked["xdeep"],
+        "plan-reviewer": picked["deep"], "plan-reviewer-xdeep": picked["xdeep"]}
 for name, (model, effort) in want.items():
     a = agents.get(name)
     if not a:
@@ -58,7 +58,7 @@ for name, (model, effort) in want.items():
         errors.append(f"{name}: frontmatter {a.get('model')}/{a.get('effort')}, expected {model}/{effort}")
     if "reviewer" in name and {t.strip() for t in a.get("tools", "Edit").split(",")} - {"Read", "Grep", "Glob", "Bash"}:
         errors.append(f"{name}: tools must be read-only (Read, Grep, Glob, Bash)")
-for n in (":plan-worker", ":plan-reviewer", "-max"):
+for n in (":plan-worker", ":plan-reviewer", "-xdeep"):
     if n not in src:
         errors.append(f"plan-segment.js never builds an agentType with {n}")
 extra = set(agents) - set(want)

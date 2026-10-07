@@ -112,7 +112,7 @@ every-wave` (see step 5).
 **REVIEW markers first, then STOP markers** at each inter-wave boundary.
 For each wave N, insert an inline-complete `--- REVIEW: wave-N [deep] ---`
 block (`--- REVIEW: wave-N [xdeep] ---` after an `[xdeep]` wave, so Opus at
-max effort reviews it) immediately after that wave's last executable
+xhigh reviews it) immediately after that wave's last executable
 heading and **before**
 the next `--- STOP …` or `--- WAVE …` marker (for the final wave, after
 its last heading and before end-of-file or the Completion section). Use
@@ -122,7 +122,7 @@ the prompt is self-contained. Add its `On branch` line only on a task
 branch with the plan file tracked (`specs/handoffs/` on a runner): a plan
 in gitignored `.scratch/` isn't committed, and never `git add -f` it.
 After an `[xdeep]` wave, also apply the `[xdeep]` note under that
-template: `[xdeep]` in the marker, title, and prompt, its Opus max-effort
+template: `[xdeep]` in the marker, title, and prompt, its Opus xhigh
 rows, and no ultracode. The final wave's REVIEW prompt also carries the
 standards' final-completion paragraph, so that review finishes the plan
 on `PASS`; with `review:` off, the STOP or Kickoff prompt that launches the
@@ -144,7 +144,9 @@ include:
    name if their harness supports it. Emit it even though there is no
    guarantee it will be used. See the standards §"Wave title format".
 3. The next model + thinking level for **both** Cursor and Claude Code
-   (look up from the model picker in standards). When the plan runs in
+   (look up from the model picker in standards). Name the level on every
+   row, even a model's default: Claude Code saves a typed `/effort` level
+   as that model's default for later chats. When the plan runs in
    Codex, Gemini CLI, Muse Code, or Grok Build, use that harness's row in
    place of Cursor's.
 4. A copy-pasteable prompt that names the next group using whatever
@@ -167,12 +169,15 @@ include:
    never omit them, and do not move them into a separate checklist block in
    the plan.
 5. For a STOP into an `[xdeep]` wave, the extras from the standards'
-   `[xdeep]` escalation note: start the prompt with the keyword `ultracode`
-   so that turn runs under ultracode (for a wave that may take more than
-   one turn, run `/effort ultracode` in that chat instead), and add one
-   line naming the `[xdeep]` upgrade checklist condition each step met. Cursor has no
-   ultracode equivalent; its `[xdeep]` row is Opus at max effort alone.
-   Name the Fable alt only when Opus at max has already failed the step.
+   `[xdeep]` escalation note: for an audit-shaped wave (a whole-codebase or
+   cross-repo audit, or a broad sweep over many files), start the prompt
+   with the keyword `ultracode` so that turn runs under ultracode (for a
+   wave that may take more than one turn, run `/effort ultracode` in that
+   chat instead), and leave it out otherwise. Add one line naming the
+   `[xdeep]` upgrade checklist condition each step met. Cursor has no
+   ultracode equivalent; its `[xdeep]` row is Opus at xhigh alone.
+   Name the Fable alt only when Opus at xhigh has already failed the step,
+   and max only for a task type where a gain is measured.
 
 Use `->` ASCII arrows in the marker so it stays safe in terminals and grep.
 
@@ -197,7 +202,8 @@ after the no-thrash folding pass. Add a `review: every-wave` line
   uses the matching body for the tier (the `[fast]` body adds the
   "mechanical edits, do not refactor" reminder; `[deep]` and `[exec]`
   use the standard body; an `[xdeep]` first wave uses the standard body
-  plus the step 4 `[xdeep]` extras: the `ultracode` opt-in and the checklist line).
+  plus the step 4 `[xdeep]` extras: the `ultracode` opt-in for an
+  audit-shaped wave and the checklist line).
 - On a task branch, the prompt body carries the same `On branch <name>
   (task branch)` line as the STOP prompts (step 4).
 - Include a `Suggested chat title:` line in the Wave title format for the
@@ -220,9 +226,10 @@ reads.
 
 **Write the Cost table directly below the Kickoff block** (standards
 §"Cost table"). Estimate each wave per standards §"Expected cost": each
-step at the row for the model that runs the wave's execution tier in this
-harness (or the harness the user names), times the step's size factor,
-plus the wave's review beat. Label the table with that harness (e.g.
+step at the row for the model and effort that run the wave's execution
+tier in this harness (or the harness the user names), with only an
+audit-shaped `[xdeep]` step on the ultracode row, times the step's size
+factor, plus the wave's review beat. Label the table with that harness (e.g.
 `**Cost (API-equiv, Claude Code models)**`), give it one row per wave, a
 `kickoff` row for this chat (standards §"Expected cost", "Kickoff row")
 and a **Total** row, and keep the one-line accuracy note under it. Print

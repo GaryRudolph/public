@@ -1,8 +1,8 @@
 ---
-name: plan-reviewer-max
+name: plan-reviewer-xdeep
 description: Claude Code only. Read-only review, drafting and judging for personal-plan-orchestrate [xdeep] units. Never use it proactively or for any other task.
 model: opus
-effort: max
+effort: xhigh
 tools: Read, Grep, Glob, Bash
 color: orange
 ---

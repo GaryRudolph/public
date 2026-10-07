@@ -181,18 +181,23 @@ is set with `/effort`, since Opus 5.5 and Sonnet 5.5 can't turn thinking off.
 
 The 2026-10-01 refresh added an `[xdeep]` tier above `[deep]`, turned the
 picker into one row per harness (Claude Code, Cursor, Codex, Gemini CLI,
-Muse Code, Grok Build), and priced every model in it. For the moment,
-`[xdeep]` runs Opus 5.5 at max effort, plus ultracode (Claude Code's
-multi-agent mode) in Claude Code, with Fable 5.1 as the alt when a
-different model is wanted. Opus 5.5 beats Fable 5.1 on every benchmark
-Anthropic published, at 40% of the per-token price, so `[xdeep]` now buys
-depth with token volume rather than a pricier model. Claude Code `[deep]`
+Muse Code, Grok Build), and priced every model in it. It ran `[xdeep]` on
+Opus 5.5 at max effort, plus ultracode (Claude Code's multi-agent mode) in
+Claude Code, with Fable 5.1 as the alt when a different model is wanted.
+Opus 5.5 beats Fable 5.1 on every benchmark Anthropic published, at 40% of
+the per-token price, so `[xdeep]` now buys depth with token volume rather
+than a pricier model. Claude Code `[deep]`
 dropped from `xhigh` to `high`, matching Cursor. Revisit when the next
 Fable ships. In Cursor,
 `[exec]` moved to Grok 4.7, which bills from Cursor's included pool and
-scores within 4 points of Sonnet 5.5 on CursorBench 4.0; `[deep]` stays on
-Opus because Grok trails it by about 10. Cursor slugs now use the bracket
-parameters from Cursor's subagent docs.
+scores within 4 points of Sonnet 5.5 on CursorBench 4.0 (both at high);
+`[deep]` stays on Opus because Grok trails it by about 10. Cursor slugs now
+use the bracket parameters from Cursor's subagent docs. Gary's effort rules
+of 2026-10-07 set `[xdeep]` to Opus 5.5 at xhigh (max only where a gain is
+measured, ultracode only on audit-shaped steps), `[deep]` to Opus at high
+(medium for interactive planning), and `[exec]` to Sonnet at medium, high
+on a large codebase or a stall; `plan-execution.md`'s Model picker has the
+current rows.
 
 Still open: whether `personal-plan-orchestrate` should drive Claude Code
 subagents. Their `model` parameter takes aliases, but

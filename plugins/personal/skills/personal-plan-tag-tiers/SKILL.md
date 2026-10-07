@@ -81,8 +81,10 @@ picking a driver:
 
 - Tag counts: `X xdeep / N deep / M exec / K fast`.
 - The top-down tier sequence (e.g. `xdeep, deep, exec, exec, fast, fast, deep`).
-- For each `[xdeep]` step, the checklist condition it met, so the `[xdeep]`
-  spend is easy to second-guess.
+- For each `[xdeep]` step, the checklist condition it met and whether it is
+  audit-shaped (a whole-codebase or cross-repo audit, or a broad sweep over
+  many files: the one case that takes ultracode in Claude Code), so the
+  `[xdeep]` spend is easy to second-guess.
 - A one-line recommendation:
   - Mostly `[exec]` / `[fast]` with little `[deep]` → good fit for
     [`personal-plan-orchestrate`](../personal-plan-orchestrate/SKILL.md)
