@@ -1,28 +1,27 @@
 ```
---- KICKOFF: begin execution at [deep] ---
+--- KICKOFF: begin orchestration at [deep] ---
 
   Status: 0/8 groups done | last review: — | current: m1 s1-s3 [deep] | updated 2026-10-06
 
-  review: every-wave
-
-  Suggested chat title: Wave 1 of 8 [deep] m1 s1-s3
+  review: every-wave (log-only — parent writes Review log; no human review gate)
 
   Next model
     Cursor:      claude-opus-5-5[effort=high]
     Claude Code: /model opus                (/effort high)
 
   Prompt to paste into the next chat:
-    Wave 1 of 8 [deep] m1 s1-s3
-    Read /Users/gary/Projects/personal/public/specs/handoffs/plan-orchestrate-native-kestrel.md.
-    Begin execution at the top of the plan: execute m1 s1-s3.
-    On branch feature/orchestrate-native (task branch): commit each finished step.
-    Before you stop, update plan progress: append ` (done)` to the
-    headings you finished, update the Kickoff Status line, and flip the
-    matching todos. Append one line per model this chat ran to the
-    plan's "## Token log", counted and priced per its counting header:
-      tokens wave-1 m1-s1-s3 (<model>): input ~X / cache read ~R / cache write ~W / output ~Y | ~$C API-equiv
-    Then stop at the next STOP marker and report what you changed and
-    any deviations from the plan.
+    Read /Users/gary/Projects/personal/public/specs/handoffs/plan-orchestrate-native-kestrel.md. The plan is already tagged.
+    On branch feature/orchestrate-native (task branch): subagents commit each finished step.
+    Run the personal-plan-orchestrate skill from the top: walk to
+    each tier boundary, dispatch subagents per the skill's
+    procedure, and pause only at the mandatory STOP gates. Do not
+    execute plan work inline. Update plan progress after each wave
+    returns per the skill's procedure. You are the kickoff destination
+    chat; skip the "continue here or new chat?" question and begin
+    dispatching immediately. Harness: Claude Code. Gary chose the
+    Agent-tool path on 2026-10-06 (model set per call, no per-call
+    effort), so pass the harness gate. The plan's STOP and REVIEW
+    markers belong to the passive driver; ignore them.
 
 ---
 ```
@@ -31,18 +30,19 @@
 
 | wave | expected tokens | expected $ |
 |---|---|---|
-| 1 [deep] m1 s1-s3 | ~15M | ~$8.0 |
-| 2 [exec] m1 s4-s6 | ~3.3M | ~$1.4 |
-| 3 [deep] m1 s7-s10 | ~24M | ~$13 |
-| 4 [exec] m2 s1 | ~2.0M | ~$0.89 |
-| 5 [deep] m2 s2-s3 | ~11M | ~$5.9 |
-| 6 [exec] m2 s4-s7 | ~4.3M | ~$1.7 |
-| 7 [deep] m2 s8-s9 | ~11M | ~$5.9 |
+| 1 [deep] m1 s1-s3 | ~14M | ~$7.5 |
+| 2 [exec] m1 s4-s6 | ~2.3M | ~$0.81 |
+| 3 [deep] m1 s7-s10 | ~23M | ~$12 |
+| 4 [exec] m2 s1 | ~1.0M | ~$0.35 |
+| 5 [deep] m2 s2-s3 | ~10M | ~$5.4 |
+| 6 [exec] m2 s4-s7 | ~3.3M | ~$1.2 |
+| 7 [deep] m2 s8-s9 | ~10M | ~$5.4 |
 | 8 [fast] m2 s10 | ~0.6M | ~$0.09 |
-| kickoff | ~1.5M | ~$1.0 |
-| **Total** | ~73M | ~$38 |
+| kickoff (passive driver, superseded) | ~1.5M | ~$1.0 |
+| orchestrator | ~18M | ~$20 |
+| **Total** | ~84M | ~$54 |
 
-Expected values are estimates, good to about 2-3× per wave. Waves 1 and 3 include an allowance for the spike's own kit runs (about $3 and $5: Haiku stand-ins where the tier doesn't matter, real Opus xhigh for criterion 10, real tiers for the runner's unattended run). Wave 7 excludes the dogfood plans' own spend, which their own Cost tables carry. Wave 8 has no review beat (see m2.s10).
+Expected values are estimates, good to about 2-3× per wave. Waves 1 and 3 include an allowance for the spike's own kit runs (about $3 and $5). Wave 7 excludes the dogfood plans' own spend. The orchestrator row is this Opus parent: 8 waves of review and bookkeeping (~$10.7), 5 gate waits (canary, gates 2 before waves 3, 5 and 7, gate 4 before wave 4; ~$4.0), and about 6 more waits where a spike step needs Gary and its subagent returns to ask (~$4.8). Recomputed on 2026-10-06 when the driver changed from personal-plan-model-tiers to orchestrate, before any wave ran: the per-wave review beats moved into the orchestrator row.
 
 # Plan: harness-native plan orchestration, Claude Code first
 
