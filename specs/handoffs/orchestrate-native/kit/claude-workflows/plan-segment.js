@@ -22,7 +22,7 @@ export const meta = {
 // -xdeep agents' frontmatter (orchestrate_check.py checks both).
 const ROUTE = {
   fast: { model: 'haiku' },
-  exec: { model: 'sonnet', effort: 'medium' },
+  exec: { model: 'sonnet', effort: 'high' },
   deep: { model: 'opus', effort: 'high' },
   xdeep: { model: 'opus', effort: 'xhigh' },
   fable: { model: 'fable', effort: 'xhigh' },
@@ -52,14 +52,11 @@ const tier = (args && args.stepUp) || (U && U.tier)
 const P = args && args.plugin
 const unattended = !!(S && S.mode && S.mode.value === 'unattended')
 const NEVER_APPROVED = ['gate-0', 'gate-mode']  // cleared only by fixing the plan or recording the kickoff answer
-// The standard's effort step-ups, set per launch: execHigh runs [exec] at high (a large codebase, a stalled step;
-// never past high), and max runs an [xdeep] or Fable worker at max (a task type with a measured gain). Reviews,
-// drafts and judges keep the tier's effort.
-function route(t, high = !!args.execHigh) {
-  if (t === 'exec' && high) return { ...ROUTE.exec, effort: 'high' }
-  return PREMIUM[t] && args.max ? { ...ROUTE[t], effort: 'max' } : ROUTE[t]
-}
-function worker(t = tier, high) { return { agentType: `${P}:plan-worker${PREMIUM[t] ? '-xdeep' : ''}`, ...route(t, high) } }
+// The standard's one effort step-up, set per launch: max runs an [xdeep] or Fable worker at max (a task type with a
+// measured gain). Reviews, drafts and judges keep the tier's effort. [exec] has none: it runs at high and never past
+// it, so a stalled [exec] step re-tags to [deep] (stepUp, or the unattended retry below).
+function route(t) { return PREMIUM[t] && args.max ? { ...ROUTE[t], effort: 'max' } : ROUTE[t] }
+function worker(t = tier) { return { agentType: `${P}:plan-worker${PREMIUM[t] ? '-xdeep' : ''}`, ...route(t) } }
 function reader(t = tier) { return PREMIUM[t] ? { agentType: `${P}:plan-reviewer-xdeep`, ...ROUTE.xdeep } : { agentType: `${P}:plan-reviewer`, ...ROUTE.deep } }
 function norm(x) { return String(x || '').replace(/\s+/g, ' ').trim() }
 
@@ -158,7 +155,6 @@ function validate() {
   if (e.length || !U) return e
   if (!ROUTE[U.tier]) e.push(`unknown tier ${U.tier}`)
   if (args.stepUp && !(CHAIN.indexOf(args.stepUp) > CHAIN.indexOf(U.tier))) e.push(`stepUp ${args.stepUp} is not above [${U.tier}]`)
-  if (args.execHigh && tier !== 'exec') e.push(`execHigh is only for an [exec] dispatch, not [${tier}]; past high, step up to [deep]`)
   if (args.max && !PREMIUM[tier]) e.push(`max is only for an [xdeep] or Fable dispatch, on a task type with a measured gain, not [${tier}]`)
   const d = args.xdeepDrafts || 0
   if (d && (!PREMIUM[tier] || d < 2 || d > ANGLES.length)) e.push(`xdeepDrafts ${d}: only 2..${ANGLES.length}, and only on an [xdeep] or Fable dispatch`)
@@ -260,25 +256,24 @@ const isBroken = x => !x.work || x.work.status !== 'done' || !x.review
 
 // Unattended only: one automatic retry per broken group, never at [xdeep] or Fable, never on a launch that is
 // already a human-approved step-up, never for needs_info. A crash or a missing review retries on the same tier;
-// failed or low_quality at [exec] medium retries at high (the stall step-up, no gate), and otherwise steps up
-// one tier, into [exec] or [deep] only (gate 6 becomes a checkpoint).
-function retryOf(x) {
+// failed or low_quality steps up one tier, into [exec] or [deep] only (gate 6 becomes a checkpoint), so a stalled
+// [exec] group re-tags to [deep].
+function retryTier(x) {
   if (!unattended || args.stepUp || PREMIUM[tier]) return null
   if (x.work && x.work.status === 'needs_info') return null
-  if (!x.work || x.work.status === 'done') return { t: tier }
-  if (tier === 'exec' && !args.execHigh) return { t: tier, high: true }
+  if (!x.work || x.work.status === 'done') return tier
   const up = CHAIN[CHAIN.indexOf(tier) + 1]
-  return up === 'exec' || up === 'deep' ? { t: up, high: false } : null
+  return up === 'exec' || up === 'deep' ? up : null
 }
 const retries = []
-const again = out.filter(isBroken).map(x => ({ x, ...retryOf(x) })).filter(r => r.t)
+const again = out.filter(isBroken).map(x => ({ x, t: retryTier(x) })).filter(r => r.t)
 if (again.length) {
-  const redo = await parallel(again.map(({ x, t, high }) => async () => {
+  const redo = await parallel(again.map(({ x, t }) => async () => {
     const g = groups.find(y => y.id === x.id)
     const why = !x.work ? 'with no result' : x.work.status === 'done' ? 'with its review missing' : `as ${x.work.status}: ${x.work.surprises}`
-    retries.push({ id: x.id, from: tier, to: t, effort: route(t, high).effort || null, reason: why })
+    retries.push({ id: x.id, from: tier, to: t, effort: route(t).effort || null, reason: why })
     const work = x.work && x.work.status === 'done' ? x.work
-      : await agent(workerPrompt(g, null, t, why), { label: `${title(g, t)} (retry)`, phase: ph, schema: RESULT, ...worker(t, high) })
+      : await agent(workerPrompt(g, null, t, why), { label: `${title(g, t)} (retry)`, phase: ph, schema: RESULT, ...worker(t) })
     const r = work && work.status === 'done' ? await review(g, work, t) : null
     return { ...x, tier: t, work: work || null, review: r || null }
   }))

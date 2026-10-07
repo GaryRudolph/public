@@ -195,9 +195,8 @@ scores within 4 points of Sonnet 5.5 on CursorBench 4.0 (both at high);
 use the bracket parameters from Cursor's subagent docs. Gary's effort rules
 of 2026-10-07 set `[xdeep]` to Opus 5.5 at xhigh (max only where a gain is
 measured, ultracode only on audit-shaped steps), `[deep]` to Opus at high
-(medium for interactive planning), and `[exec]` to Sonnet at medium, high
-on a large codebase or a stall; `plan-execution.md`'s Model picker has the
-current rows.
+(medium for interactive planning), and `[exec]` to Sonnet at high, never
+past high; `plan-execution.md`'s Model picker has the current rows.
 
 Still open: whether `personal-plan-orchestrate` should drive Claude Code
 subagents. Their `model` parameter takes aliases, but

@@ -5,7 +5,7 @@ Design proposal and prototype kit for running `personal-plan-orchestrate` native
 - `brief.md`: the decision brief for Gary, one page.
 - `proposal.md`: the design, v6, revised after an adversarial review. §5 lists the decisions and the review fixes.
 - `kit/`: the prototype. `scripts/` (`plan_state.py`, `check_wave.py`, `orchestrate_gate.py`, `token_tally.py`), `claude-workflows/plan-segment.js`, five `claude-agents/`, `hooks/claude-hooks.json`, and `plugin-manifest.json` (the manifest fields the kit adds).
-- `tests/`: 154 offline tests. They expect the plugin layout, so copy the plugin and the kit into a fresh scratch tree first (a reused one would nest the plugin copy and test stale files):
+- `tests/`: 152 offline tests. They expect the plugin layout, so copy the plugin and the kit into a fresh scratch tree first (a reused one would nest the plugin copy and test stale files):
 
       k=specs/handoffs/orchestrate-native; root=$(mktemp -d "${TMPDIR:-/tmp}/kit-check.XXXXXX")/personal
       echo "testing $root"; cp -r plugins/personal "$root"
@@ -17,7 +17,7 @@ Design proposal and prototype kit for running `personal-plan-orchestrate` native
 
 ## State
 
-Settled by Gary: API list rates for every cost; a cost guard at 3× the expected total or $50, whichever is higher; one kickoff question that proposes unattended on a runner and gated on a workstation; unattended runs continue with automatic fix-ups; a committed handoff after every wave and a handoff summary in every message that stops or asks, in both modes; the plan keeps a Kickoff prompt for starting the run in a new session; orchestrate always runs on a task branch, workstation included; the effort rules (`[exec]` Sonnet medium, high on a large codebase or a stall; `[deep]` Opus high; `[xdeep]` Opus xhigh, with max only where a gain is measured and ultracode only for audit-shaped steps).
+Settled by Gary: API list rates for every cost; a cost guard at 3× the expected total or $50, whichever is higher; one kickoff question that proposes unattended on a runner and gated on a workstation; unattended runs continue with automatic fix-ups; a committed handoff after every wave and a handoff summary in every message that stops or asks, in both modes; the plan keeps a Kickoff prompt for starting the run in a new session; orchestrate always runs on a task branch, workstation included; the effort rules (`[exec]` Sonnet high, never past high; `[deep]` Opus high; `[xdeep]` Opus xhigh, with max only where a gain is measured and ultracode only for audit-shaped steps).
 
 In v6: the Kickoff prompt names the repo, the plan's path, the branch and the confirmed mode, and pasting it confirms the mode in a new session (hook rule 7); the kickoff commits and pushes the plan before it halts or dispatches; the shared-branch paths are gone; a bare yes re-asks. The review fixes (`proposal.md` §5): a paste never answers a gate, a waiver or the kickoff question; a mode answer counts only right after the kickoff question; the hook denies with exit 2 when it fails; the runner signal is tokens with the harness; a cloud session keeps its assigned branch and another machine switches after the question; rule 9 fails closed on an unknown default branch and on git errors.
 

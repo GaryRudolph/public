@@ -2,7 +2,7 @@
 name: plan-worker-exec
 description: Claude Code only. Runs one [exec] unit that personal-plan-orchestrate dispatches on the Agent path, which can't pass effort. Never use it proactively or for any other task.
 model: sonnet
-effort: medium
+effort: high
 color: green
 ---
 

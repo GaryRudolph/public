@@ -143,8 +143,8 @@ One row per harness, one column per tier, effort in parentheses. "Switch harness
 
 | Harness | `[xdeep]` | `[deep]` | `[exec]` | `[fast]` |
 |---|---|---|---|---|
-| Claude Code | `/model opus` (xhigh), plus ultracode on audit-shaped steps (alt: `/model fable` (xhigh)) | `/model opus` (high; medium for interactive planning) | `/model sonnet` (medium; high on a large codebase or a stall) | `/model haiku` (none) (alt: `/model sonnet` (low)) |
-| Cursor | `claude-opus-5-5[effort=xhigh]` (alt: `claude-fable-5-1[effort=xhigh]`) | `claude-opus-5-5[effort=high]` (`[effort=medium]` for interactive planning) | `grok-4-7[effort=high]` (alt: `claude-sonnet-5-5[effort=medium]`, `[effort=high]` on a large codebase or a stall) | `composer-2.5[fast=false]` (alt: `claude-sonnet-5-5[effort=low]`) |
+| Claude Code | `/model opus` (xhigh), plus ultracode on audit-shaped steps (alt: `/model fable` (xhigh)) | `/model opus` (high; medium for interactive planning) | `/model sonnet` (high) | `/model haiku` (none) (alt: `/model sonnet` (low)) |
+| Cursor | `claude-opus-5-5[effort=xhigh]` (alt: `claude-fable-5-1[effort=xhigh]`) | `claude-opus-5-5[effort=high]` (`[effort=medium]` for interactive planning) | `grok-4-7[effort=high]` (alt: `claude-sonnet-5-5[effort=high]`) | `composer-2.5[fast=false]` (alt: `claude-sonnet-5-5[effort=low]`) |
 | Codex | `gpt-6-astra` (xhigh) | `gpt-6.1-sol` (xhigh) | `gpt-6.1-sol` (medium) | `gpt-6-luna` (low) |
 | Gemini CLI | switch harness | `gemini-3.1-pro-preview` (high) | `gemini-3.8-flash` (high) | `gemini-3.5-flash-lite` (low) |
 | Muse Code | switch harness | `muse-spark-1.3` (xhigh) | `muse-spark-1.3` (medium) | `muse-spark-1.3` (low) |
@@ -158,9 +158,9 @@ Notes:
 - **Ultracode** is Claude Code's multi-agent orchestration mode: Claude writes and runs workflow scripts that fan the work out to many subagents in parallel, keeping intermediate results in script variables instead of its context. Turn it on for one prompt with the keyword `ultracode`, for a session with `/effort ultracode` (it keeps the session's level, so xhigh after `/effort xhigh`), or launch with `claude --effort ultracode` (xhigh with ultracode on), and off with `/effort ultracode off`. It needs Claude Code v2.1.203+; on Pro, enable it once from `/config` first. Versions before v2.1.284 force `xhigh` under ultracode, so max plus ultracode needs v2.1.284+. It opts into large runs (no 25-agent warning, no approval prompts in auto mode, up to 1,000 agents a run), so keep it off by default and use it only on audit-shaped `[xdeep]` steps ([upgrade checklist](#xdeep-upgrade-checklist)): don't leave `"ultracode": true` on in settings. Anthropic measured fan-out saving money only on work larger than one context or split into independent pieces, with workers on a cheaper model: on a 21.6M-token corpus, a Fable 5.1 lead over 25 Sonnet 5 workers cost 47-55% less than Fable solo and scored 10-12 points lower. When the work is one dependent chain, or fits in one context, the solo model at lower effort came out ahead in every case measured. Ultracode's agents run on the session's model unless the script names one, so on Opus it buys coverage and wall-clock time, not savings: about 22× a solo xhigh step ([Expected cost](#expected-cost)). So a cross-repo plan, one dependent chain, runs without it. It fans out inside one wave, so the plan's wave boundaries still hold. Cursor has no ultracode equivalent; Cursor `[xdeep]` is Opus 5.5 at xhigh alone.
 - **Claude Code uses version-less aliases.** `opus`, `sonnet`, `haiku`, and `fable` (the `[xdeep]` alt) resolve to the newest model of each tier, so the row never needs a version bump. Set effort with `/effort <level>`. A level typed after `/effort`, or confirmed with `Enter` in its slider, is saved as that model's default and carries into its next chat: an Opus chat after an `[xdeep]` one starts at xhigh, and a Sonnet chat after `low` fast work starts at low. So every Next model row names its level, even a model's default; `s` in the slider (v2.1.257+) keeps a level to the session. `/effort max` is never saved and lasts only the session. Opus 5.5 and Sonnet 5.5 default to `medium` and can't turn thinking off; Fable defaults to `high` and always thinks. Haiku takes no effort level and gains nothing from thinking on bounded mechanical work. On Pro, Max, and Team plans Fable bills to usage credits and asks for consent first.
 - **`[deep]` runs Opus at `high`, or `medium` for interactive planning with Gary in the loop.** On CursorBench 4.0, Opus 5.5 high scores 56.0% at $3.97 a task, level with xhigh at $6.98. Medium matches high on FrontierCode (65.3 vs 65.2, at 0.74× the cost) and returns a starting point sooner, but drops on CursorBench 4.0 (52.5%), Terminal-Bench 4.0 (57.6% vs 64.2%) and GDPval-AA (-116 Elo), so it fits only where Gary reviews each result and steers the next step. The orchestrate parent, dispatched `[deep]` subagents and review beats aren't interactive and run at high, or xhigh for the review of an `[xdeep]` wave.
-- **`[exec]` runs Sonnet at `medium`, `high` on a large codebase or a stalled step, and never past `high`.** Medium is Claude Code's level for clear-scope work such as implementing a feature, at $0.21 a step against high's $0.35; its docs put fixing a bug in an existing codebase at high. Medium scores lower on every benchmark measured: FrontierCode 50.5 vs 61.5 (36.5 vs 49.4 on its hardest 100), CursorBench 4.0 39.2% vs 47.8%, and the Artificial Analysis Coding Agent Index 45.9 vs 55.0. Re-running every failure at high costs about 1.04× running high outright, so medium saves only where its misses are fixed for less than a re-run, or not caught at all; check it against the [Review log](#review-log)'s verdicts. A step that stalls at high re-tags to `[deep]`: Opus 5.5 at medium or high beats Sonnet at xhigh on FrontierCode for less (65.3 at $0.67 and 65.2 at $0.90, against 64.4 at $1.24).
+- **`[exec]` runs Sonnet at `high`, and never past `high`.** Claude Code's docs suggest medium for clear-scope work, but medium scores lower on every benchmark measured: FrontierCode 50.5 vs 61.5 (36.5 vs 49.4 on its hardest 100), CursorBench 4.0 39.2% vs 47.8%, and the Artificial Analysis Coding Agent Index 45.9 vs 55.0. Its lower price doesn't pay for that: $0.21 a step against high's $0.35, and running medium first, then re-running every failure at high, costs about 1.04× running high outright. A step that stalls at high re-tags to `[deep]`: Opus 5.5 at medium or high beats Sonnet at xhigh on FrontierCode for less (65.3 at $0.67 and 65.2 at $0.90, against 64.4 at $1.24).
 - **Cursor billing has two pools, and Auto no longer protects the expensive one.** "Cursor Models" (Composer, Grok) carries much more included usage. "Other Models" (Anthropic, OpenAI, Google) bills at provider list price. Every Auto request bills the routed model's list price from that model's pool, and a subagent that names a third-party model bills Other Models even under an Auto or Grok parent. Teams and Enterprise add $0.25/Mtok on third-party models; Cursor's own models are exempt. Pin the model at every tier.
-- **In Cursor, prefer the Cursor pool when it's close.** Take Grok or Composer over a third-party model when it scores within about 5 points on CursorBench 4.0 (table below). That puts `[exec]` on Grok 4.7 at high: 43.9%, 4.7 points above the Sonnet alt at medium (39.2%) and 3.9 below it at high (47.8%). It keeps `[deep]` on Opus 5.5 (Grok 4.7 at xhigh is 46.3%, against Opus 5.5 at high 56.0% and at medium 52.5%). The pool is the saving, not the per-task price: at list, Grok 4.7 high costs $4.69 a task against the Sonnet alt's $0.70 at medium (6.7×) and $1.67 at high. Grok has no step-up of its own: a stalled Grok step steps up to the Sonnet alt at high, which beats Grok at xhigh on score and list cost (46.3%, $6.01). Once included Cursor usage runs out and on-demand billing starts, move `[exec]` to the Sonnet alt, at medium with the same step-up to high as in Claude Code. This decides the model only; cost figures still use list rates ([Model price table](#model-price-table)).
+- **In Cursor, prefer the Cursor pool when it's close.** Take Grok or Composer over a third-party model when it scores within about 5 points on CursorBench 4.0 (table below). That puts `[exec]` on Grok 4.7 at high: 43.9%, 3.9 points below the Sonnet alt at high (47.8%). It keeps `[deep]` on Opus 5.5 (Grok 4.7 at xhigh is 46.3%, against Opus 5.5 at high 56.0% and at medium 52.5%). The pool is the saving, not the per-task price: at list, Grok 4.7 high costs $4.69 a task against the Sonnet alt's $1.67 (2.8×). A stalled Grok step re-tags to `[deep]`, as a stalled Sonnet step does: Opus 5.5 at high beats Grok at xhigh on score and list cost (56.0% at $3.97, against 46.3% at $6.01). Once included Cursor usage runs out and on-demand billing starts, move `[exec]` to the Sonnet alt, at high as in Claude Code. This decides the model only; cost figures still use list rates ([Model price table](#model-price-table)).
 - **Cursor `[fast]` is Composer 2.5 standard** ($0.50/$2.50). Fast is the product default and costs 6× on input and output (2.5× on cache reads); `[fast=false]` or empty brackets (`composer-2.5[]`) select standard. `[fast]` is the one exception to the pool rule: Composer scores 27.7% on CursorBench 4.0, 8.1 points below the Sonnet alt at low (35.8%), at a higher list price ($0.68 vs $0.50 a task), but it bills from the Cursor pool and is enough for steps that pass the [`[fast]` checklist](#fast-downgrade-checklist). Once included Cursor usage runs out, move `[fast]` to the Sonnet alt.
 - **Cursor slugs** use the bracket parameters from Cursor's subagent docs (`[effort=...]`, `[fast=false]`). Cursor publishes no full ID list, so confirm with `agent --list-models`. Cursor runs Sonnet 5.5 at high by default (Claude Code: medium), and Opus 5.5 at medium and Fable 5.1 at high in both, so every slug names its effort: a bare `claude-sonnet-5-5` runs at high. Cursor's docs show only `high` and `max` as Claude effort values; `xhigh`, `medium` and `low` rest on CursorBench 4.0's runs, so confirm them too. The Fable alt in Cursor needs the data-retention opt-in under Privacy Mode, and Cursor reroutes guardrail-tripped Fable requests to Opus. Cursor doesn't offer GPT-6, and GPT-5.6 Sol scores 41.7%, so the Cursor row has no OpenAI alt.
 - **Review beats are a high-ROI place to pin the top model.** A [review beat](#review-beat) reads the prior wave's diff and emits a short verdict, but its cost is mostly input, not output: every call re-sends the whole context, so cache reads and writes make up about 70% of a reviewer's API-equivalent cost (output about 30%). It still costs only about 0.6× a [medium step](#expected-cost) at the reviewer's model because it makes fewer calls, so a review is a cheap way to spend `[deep]` credit. Point it at the diff and the plan rather than the whole repo, since its cost scales with calls × context. Pin it rather than letting Auto downgrade it.
@@ -328,8 +328,7 @@ The [Cost table](#cost-table) budgets each wave at kickoff from per-step anchors
 | Fable 5.1 (max) | `[xdeep]` alt on terminal or CLI-heavy steps | 15M | $11 | FrontierCode ($10.72, 78k output). Tokens range 6-15M depending on the cache split |
 | Opus 5.5 (high) | `[deep]` (Claude Code, Cursor); review beats; orchestrate parent | 1.7M | $0.90 | FrontierCode ($0.90, 21k output) |
 | Opus 5.5 (medium) | `[deep]` interactive planning | 1.3M | $0.67 | FrontierCode ($0.67, 15k output) |
-| Sonnet 5.5 (medium) | Claude Code `[exec]`; Cursor `[exec]` alt | 0.59M | $0.21 | FrontierCode ($0.21, 6.5k output) |
-| Sonnet 5.5 (high) | `[exec]` step-up (Claude Code, Cursor alt) | 1.0M | $0.35 | FrontierCode ($0.35, 11k output) |
+| Sonnet 5.5 (high) | Claude Code `[exec]`; Cursor `[exec]` alt | 1.0M | $0.35 | FrontierCode ($0.35, 11k output) |
 | Sonnet 5.5 (low) | `[fast]` work run on Sonnet | 0.48M | $0.17 | FrontierCode ($0.17, 5.4k output) |
 | Haiku 4.5 | Claude Code `[fast]` | ~2M | ~$0.3 | est.: Sonnet 5.5 high's token volume ×1.8, the Haiku 4.5 / Sonnet 4.5 input ratio on SWE-bench Verified |
 | Grok 4.7 (high), Cursor | Cursor `[exec]` | ~1.6M | ~$1.0 | est.: CursorBench 4.0 cost ratio of Grok to Sonnet/Opus high, applied to their FrontierCode steps |
@@ -379,13 +378,13 @@ The per-wave share grows with the parent's context, by about 16k tokens a wave. 
 
 **Example** (Claude Code, passive driver; the [Cost table](#cost-table) shows the result):
 
-- Wave 1 `[exec]`, 3 medium steps on Sonnet 5.5 (medium): 3 × (0.59M, $0.21) = 1.8M and $0.63, plus its review, 0.6 × (1.7M, $0.90) = 1.0M and $0.54. About 2.8M and $1.2.
+- Wave 1 `[exec]`, 3 medium steps on Sonnet 5.5 (high): 3 × (1.0M, $0.35) = 3.0M and $1.05, plus its review, 0.6 × (1.7M, $0.90) = 1.0M and $0.54. About 4.0M and $1.6.
 - Wave 2 `[deep]`, 1 large step on Opus 5.5 (high): 3 × (1.7M, $0.90) = 5.1M and $2.70, plus its review. About 6.1M and $3.2.
 - Wave 3 `[fast]`, 4 small steps on Haiku 4.5: 4 × 0.3 × (2M, $0.30) = 2.4M and $0.36, plus its review. About 3.4M and $0.90.
 - Kickoff on Opus 5.5 (high): about 1.5M and $1.0.
-- Total: about 14M and $6.3. The reviews are 26% of it, and wave 3's review costs more than the wave.
+- Total: about 15M and $6.7. The reviews are 24% of it, and wave 3's review costs more than the wave.
 
-**Accuracy.** A single step's figure is good to about 2-3× either way, and so are a wave's and a plan total's: the largest errors (the harness's base context, how a plan step compares to a FrontierCode task) are shared by every wave, so they don't cancel. Token counts also depend on the assumed cache split, while the dollars don't, since the anchors are dollars. Harness matters: Grok 4.7 (high) costs $5.6 a step in Grok Build against the Cursor row's estimated $1.0, and Composer's FrontierCode cost is 3.8× its CursorBench cost on a longer task, for reasons unknown. The Opus and Sonnet rows below max come from Claude Code runs that carried about 23-36k tokens of context per model call on average (input backed out of FrontierCode's dollars, over its call counts), so a setup with a 50k base context (skills, MCP and tool listings) runs above them: the cache reads of the extra base alone take the Opus 5.5 rows at medium, high and xhigh to at least about 1.45×, 1.35× and 1.15×, and the Sonnet 5.5 rows at low, medium and high to about 1.45×, 1.4× and 1.3×.
+**Accuracy.** A single step's figure is good to about 2-3× either way, and so are a wave's and a plan total's: the largest errors (the harness's base context, how a plan step compares to a FrontierCode task) are shared by every wave, so they don't cancel. Token counts also depend on the assumed cache split, while the dollars don't, since the anchors are dollars. Harness matters: Grok 4.7 (high) costs $5.6 a step in Grok Build against the Cursor row's estimated $1.0, and Composer's FrontierCode cost is 3.8× its CursorBench cost on a longer task, for reasons unknown. The Opus and Sonnet rows below max come from Claude Code runs that carried about 23-36k tokens of context per model call on average (input backed out of FrontierCode's dollars, over its call counts), so a setup with a 50k base context (skills, MCP and tool listings) runs above them: the cache reads of the extra base alone take the Opus 5.5 rows at medium, high and xhigh to at least about 1.45×, 1.35× and 1.15×, and the Sonnet 5.5 rows at low and high to about 1.45× and 1.3×.
 
 *As of 2026-10-07. Sources: [FrontierCode v1.1](https://cognition.com/frontiercode) (Cognition; extended set, cost per rollout in each vendor's own harness at list prices; leaderboard of 2026-09-29; v1 for the Gemini 3.1 Pro and Flash-Lite rows), [CursorBench 4.0](https://cursor.com/evals) (2026-09-10), Anthropic's [SWE-bench Pro subset](https://platform.claude.com/docs/en/about-claude/models/optimizing-for-cost-and-intelligence) (runs of 2026-09-19 and 20) and [Terminal-Bench 4.0 results](https://www.anthropic.com/claude-opus-5-5) (2026-09-22), the [Artificial Analysis Coding Agent Index](https://artificialanalysis.ai/agents/coding-agents) v1.5 (2026-10-05), [swebench.com](https://www.swebench.com/) bash-only trajectories (2026-02), and 97 Claude Code work agents on Opus 5.5 at xhigh (of 131 analysed) in Gary's standards repo (2026-10) for the ultracode, review and orchestrator figures.*
 
@@ -420,8 +419,8 @@ Template (a `[deep] -> [exec]` transition):
       Suggested chat title: Wave <n> of <t> [exec] <next group>
 
       Next model
-        Cursor:      grok-4-7[effort=high]      (or claude-sonnet-5-5[effort=medium])
-        Claude Code: /model sonnet              (/effort medium)
+        Cursor:      grok-4-7[effort=high]      (or claude-sonnet-5-5[effort=high])
+        Claude Code: /model sonnet              (/effort high)
 
       Prompt to paste into the next chat:
         Wave <n> of <t> [exec] <next group>
@@ -628,8 +627,8 @@ Passive variant — `[exec]` first wave (the most common shape):
       Suggested chat title: Wave 1 of N [exec] <first group>
 
       Next model
-        Cursor:      grok-4-7[effort=high]      (or claude-sonnet-5-5[effort=medium])
-        Claude Code: /model sonnet              (/effort medium)
+        Cursor:      grok-4-7[effort=high]      (or claude-sonnet-5-5[effort=high])
+        Claude Code: /model sonnet              (/effort high)
 
       Prompt to paste into the next chat:
         Read <absolute path to the plan file>. Begin execution at the top
@@ -723,11 +722,11 @@ At kickoff, for the [Expected cost](#expected-cost) example:
 
     | wave | expected tokens | expected $ |
     |---|---|---|
-    | 1 [exec] m1 s1-s3 | ~2.8M | ~$1.2 |
+    | 1 [exec] m1 s1-s3 | ~4.0M | ~$1.6 |
     | 2 [deep] m2 s1 | ~6.1M | ~$3.2 |
     | 3 [fast] m3 s1-s4 | ~3.4M | ~$0.90 |
     | kickoff | ~1.5M | ~$1.0 |
-    | **Total** | ~14M | ~$6.3 |
+    | **Total** | ~15M | ~$6.7 |
 
     Expected values are estimates, good to about 2-3× per wave.
 
@@ -742,12 +741,12 @@ Completed, with a fix-up wave after wave 1's review:
 
     | wave | expected tokens | expected $ | actual tokens | actual $ |
     |---|---|---|---|---|
-    | 1 [exec] m1 s1-s3 | ~2.8M | ~$1.2 | … | … |
+    | 1 [exec] m1 s1-s3 | ~4.0M | ~$1.6 | … | … |
     | 1-fix [exec] m1 s2 | — | — | … | … |
     | 2 [deep] m2 s1 | ~6.1M | ~$3.2 | … | … |
     | 3 [fast] m3 s1-s4 | ~3.4M | ~$0.90 | … | … |
     | kickoff | ~1.5M | ~$1.0 | … | … |
-    | **Total** | ~14M | ~$6.3 | … | … |
+    | **Total** | ~15M | ~$6.7 | … | … |
 
 ## Who updates progress, and how
 

@@ -100,7 +100,7 @@ test('two working directories run in parallel and each gets one review', async (
   assert.deepEqual(kinds(calls).sort(), ['Review', 'Review', 'Wave', 'Wave'])
   assert.deepEqual(result.groups.map(g => g.id), ['repo-a m1 s2', 'repo-b m1 s3'])
   const w = calls.find(c => c.label === 'Wave 2 of 4 [exec] repo-a m1 s2')
-  assert.deepEqual([w.agentType, w.model, w.effort], ['personal:plan-worker', 'sonnet', 'medium'])
+  assert.deepEqual([w.agentType, w.model, w.effort], ['personal:plan-worker', 'sonnet', 'high'])
   assert.match(w.prompt, /exactly these trailer lines[\s\S]*Assisted-by: Claude Code/)
   assert.match(w.prompt, /Never add `Co-authored-by`/)
   assert.match(w.prompt, /log --format=%s aaa0000\.\.HEAD/)
@@ -125,16 +125,6 @@ test('xdeepDrafts 3 adds three drafts and a judge, on the [xdeep] reviewer at xh
   assert.deepEqual(kinds(calls), ['Draft', 'Draft', 'Draft', 'Judge', 'Wave', 'Review'])
   assert.match(calls[4].prompt, /Chosen design[\s\S]*syn/)
   for (const c of calls.slice(0, 4)) assert.deepEqual([c.agentType, c.model, c.effort], ['personal:plan-reviewer-xdeep', 'opus', 'xhigh'], c.label)
-})
-
-test('execHigh runs [exec] on Sonnet high, and on any other tier it is gate 0', async () => {
-  const { calls } = await harness({ ...base, execHigh: true, state: st(unit(2, 'exec', ['m1.s2'])), groups: [G('/r/a', ['m1.s2'])] })
-  assert.deepEqual(calls.map(c => [c.agentType, c.model, c.effort]), [['personal:plan-worker', 'sonnet', 'high'], ['personal:plan-reviewer', 'opus', 'high']])
-  for (const t of ['fast', 'deep']) {
-    const { result, calls: none } = await harness({ ...base, execHigh: true, state: st(unit(2, t, ['m1.s2'])), groups: [G('/r/a', ['m1.s2'])] })
-    assert.deepEqual(result.gates, ['gate-0'], t)
-    assert.equal(none.length, 0)
-  }
 })
 
 test('xdeepDrafts on an [exec] wave is gate 0', async () => {
@@ -304,29 +294,19 @@ test('unattended: a worker that dies is retried once on the same tier', async ()
   assert.equal(result.stop, 'done')
   assert.deepEqual(kinds(calls), ['Wave', 'Wave', 'Review'])
   assert.equal(calls[1].label, 'Wave 2 of 4 [exec] a m1 s2 (retry)')
-  assert.deepEqual([calls[1].model, calls[1].effort], ['sonnet', 'medium'])
+  assert.deepEqual([calls[1].model, calls[1].effort], ['sonnet', 'high'])
   assert.match(calls[1].prompt, /Earlier attempt[\s\S]*with no result/)
   assert.deepEqual(result.retries.map(r => [r.from, r.to]), [['exec', 'exec']])
   assert.deepEqual(result.checkpoints, [])
 })
 
-test('unattended: low_quality at [exec] medium retries once at Sonnet high, with no gate 6', async () => {
+test('unattended: low_quality at [exec] steps up to Opus high once, never Sonnet past high, logged as a gate-6 checkpoint', async () => {
   const { result, calls } = await harness({ ...base, state: un(unit(2, 'exec', ['m1.s2'])), groups: [G('/r/a', ['m1.s2'])] },
-    { Wave: o => (o.effort === 'medium' ? { ...DONE, status: 'low_quality', surprises: 'tests flaky' } : DONE) })
-  assert.equal(result.stop, 'done')
-  assert.deepEqual(calls.map(c => [c.label.split(' ')[0], c.model, c.effort]), [['Wave', 'sonnet', 'medium'], ['Wave', 'sonnet', 'high'], ['Review', 'opus', 'high']])
-  assert.match(calls[1].label, /^Wave 2 of 4 \[exec\] a m1 s2 \(retry\)$/)
-  assert.deepEqual(result.retries.map(r => [r.from, r.to, r.effort]), [['exec', 'exec', 'high']])
-  assert.deepEqual(result.checkpoints, [])
-  assert.equal(result.groups[0].tier, 'exec')
-})
-
-test('unattended: low_quality at [exec] high steps up to Opus high once, logged as a gate-6 checkpoint', async () => {
-  const { result, calls } = await harness({ ...base, execHigh: true, state: un(unit(2, 'exec', ['m1.s2'])), groups: [G('/r/a', ['m1.s2'])] },
     { Wave: o => (o.model === 'sonnet' ? { ...DONE, status: 'low_quality', surprises: 'tests flaky' } : DONE) })
   assert.equal(result.stop, 'done')
   assert.deepEqual(calls.map(c => [c.label.split(' ')[0], c.model, c.effort]), [['Wave', 'sonnet', 'high'], ['Wave', 'opus', 'high'], ['Review', 'opus', 'high']])
   assert.match(calls[1].label, /^Wave 2 of 4 \[deep\] a m1 s2 \(retry\)$/)
+  assert.deepEqual(result.retries.map(r => [r.from, r.to, r.effort]), [['exec', 'deep', 'high']])
   assert.deepEqual(result.checkpoints, ['gate-6'])
   assert.equal(result.groups[0].tier, 'deep')
 })
@@ -334,7 +314,7 @@ test('unattended: low_quality at [exec] high steps up to Opus high once, logged 
 test('unattended: a second failure stops at gate 1', async () => {
   const { result, calls } = await harness({ ...base, state: un(unit(1, 'fast', ['m1.s1'])), groups: [G('/r/a', ['m1.s1'])] }, { Wave: () => ({ ...DONE, status: 'failed' }) })
   assert.deepEqual(result.gates, ['gate-1'])
-  assert.deepEqual(calls.map(c => [c.model, c.effort]), [['haiku', undefined], ['sonnet', 'medium']])
+  assert.deepEqual(calls.map(c => [c.model, c.effort]), [['haiku', undefined], ['sonnet', 'high']])
   assert.match(result.reason, /after one automatic retry/)
 })
 
