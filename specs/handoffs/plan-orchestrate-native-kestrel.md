@@ -1,7 +1,7 @@
 ```
 --- KICKOFF: begin orchestration at [deep] ---
 
-  Status: 2/8 groups done | last review: wave-2 PASS | BLOCKED at gate 5 (canary; wave 3 Mac half done, cloud sessions C1/C2 pending) | current: m1 s7-s10 [deep] | updated 2026-10-07
+  Status: 3/8 groups done | last review: wave-3 PASS | BLOCKED at gate 4 (milestone m1 -> m2, before wave 4) | current: m2 s1 [exec] | updated 2026-10-07
 
   review: every-wave (log-only — parent writes Review log; no human review gate)
 
@@ -127,6 +127,7 @@ Until m2.s3 rewrites `SKILL.md`, the spike's parent follows proposal §1.5 and �
 
 review wave-1 (m1-s1-s3) bf5da80..0d0140d: PASS - kit staged (f356a2f); criteria 1 and 10 held, 4 partial with the m2.s2 hook changes listed; scope slip: the spike changed ~/.claude-lolay/settings.json - 2026-10-06
 review wave-2 (m1-s4-s6) 0d0140d..c793202: PASS - criteria 5 (Edit/Write only; reviewer Bash writes possible), 3 and 6 held; orch-spike synced by org and account, chat and Cowork list it - 2026-10-07
+review wave-3 (m1-s7-s10) c793202..14a76b7: PASS - criteria 2 and 7 held on the runner, 8 and 9 partial (compaction false deny; typed gated switch on the runner left to m2.s9); m1 closed with no fallback, 12 m2.s2 items, m2 handoff written; spike runs ~$13.7 vs ~$5 allowance - 2026-10-07
 
 ## Token log",
       counted and priced per its counting header:
@@ -238,23 +239,23 @@ review wave-2 (m1-s4-s6) 0d0140d..c793202: PASS - criteria 5 (Edit/Write only; r
 
 --- WAVE 3 [deep] ---
 
-#### s7 - [deep] Criterion 7: a fresh cloud session gets the synced skills, agents, workflow and hooks
+#### s7 - [deep] Criterion 7: a fresh cloud session gets the synced skills, agents, workflow and hooks (done)
 
 - Write the verification prompt for Gary to start a fresh claude.ai/code session on the scratch repo: list the skills and answer the canary, list Agent's subagent types (the 5 `orch-spike:plan-*` agents), list the Workflow tool's workflows (`orch-spike:plan-segment`), confirm the SessionStart core arrived, and attempt one dishonest launch, which the `PreToolUse` hook must deny. Ask the session to end with a one-block report for Gary to paste back here.
 - **Accept when:** all of these hold. Otherwise apply the m1 fallbacks and record which one.
 
-#### s8 - [deep] Criterion 2: the runner Stop-hook rule holds
+#### s8 - [deep] Criterion 2: the runner Stop-hook rule holds (done)
 
 - In a cloud session on the scratch repo, launch a fixture wave and end the launch turn while workers still edit, so the runner's Stop hook fires ("Please commit and push").
 - **Accept when:** the parent treats the continuation as no instruction, replies with one line, doesn't commit or push, and the second stop goes through (`stop_hook_active`); the run's results arrive in the next notification turn. Record whether the hook process sees `CLAUDE_CODE_REMOTE` (rule 7's and rule 9's runner token).
 
-#### s9 - [deep] Criterion 8: unattended on the runner, from the kickoff answer to the PR question
+#### s9 - [deep] Criterion 8: unattended on the runner, from the kickoff answer to the PR question (done)
 
 - On the cloud runner, with real tiers: a typed `unattended` (and, per decision 9 once m2.s2 lands, note that a bare yes would also count) satisfies rule 7, and the smoke plan runs to the PR question with no other stop, across a `/compact` and a later "yes" to another question. A short `gated` typed mid-run stops the next launch.
 - Record which branch a cloud session started on an existing task branch is assigned (its own `claude/…` branch or the task branch). A new cloud session started there from the pasted Kickoff prompt records its own confirmation and dispatches with no question, rewriting the prompt's `On branch` line if its branch is its own; the transcript's paste equals the plan's prompt, whitespace collapsed. The same paste on the Mac gets the kickoff question, and so does a paste used to answer a `BLOCKED` gate, which the session re-posts.
 - **Accept when:** each of these is observed, or the gap is written up as an m2.s2 change.
 
-#### s10 - [deep] Criterion 9: per-wave commits and pushes in both modes; close out m1
+#### s10 - [deep] Criterion 9: per-wave commits and pushes in both modes; close out m1 (done)
 
 - In both modes, on the runner and on the Mac: every wave's bookkeeping commit carries the plan and handoff and is pushed before the next launch; every message that stops or asks carries the handoff summary.
 - Unattended: a planted check failure (a step left without a commit) gets `N-fix` with no stop, and that fix-up passes `check_wave.py`; a group that fails three times in a row stops at gate 1.
@@ -647,5 +648,9 @@ tokens wave-2 m1-s4-s6 (claude-sonnet-5-5): input ~72 / cache read ~1.8M / cache
 tokens wave-2 m1-s4-s6 (claude-opus-5-5): input ~16 / cache read ~24k / cache write ~20k / output ~6.9k | ~$0.25 API-equiv (output est.) spike sessions in ~/.claude-lolay/projects/*scratch-spike*
 tokens wave-2 m1-s4-s6 (claude-haiku-4-5): input ~158 / cache read ~270k / cache write ~9.6k 5m + ~76k 1h / output ~7.7k | ~$0.23 API-equiv spike sessions in ~/.claude-lolay/projects/*scratch-spike*
 tokens orchestrator-wave-2 m1-s4-s6 (claude-opus-5-5): input ~68 / cache read ~10M / cache write ~390k 1h / output ~31k | ~$5.76 API-equiv
-tokens wave-3 m1-s7-s10 (claude-sonnet-5-5): input ~300 / cache read ~9.1M / cache write ~190k 5m + ~260k 1h / output ~100k | ~$4.37 API-equiv (output est.) spike sessions in ~/.claude-lolay/projects/*scratch-spike-w3*
-tokens wave-3 m1-s7-s10 (claude-opus-5-5): input ~46 / cache read ~230k / cache write ~86k / output ~18k | ~$0.83 API-equiv (output est.) spike sessions in ~/.claude-lolay/projects/*scratch-spike-w3*
+tokens wave-3 m1-s7-s10 (claude-opus-5-5): input ~180 / cache read ~23M / cache write ~1.4M / output ~99k | ~$13.60 API-equiv (output est.) session 350579b9-70e1-4f99-a901-444b0c4a63eb subagent ae2f66e37ff657b06
+tokens wave-3 m1-s7-s10 (claude-sonnet-5-5): input ~350 / cache read ~10M / cache write ~220k 5m + ~320k 1h / output ~120k | ~$5.07 API-equiv (output est.) spike sessions in ~/.claude-lolay/projects/*scratch-spike-w3*
+tokens wave-3 m1-s7-s10 (claude-opus-5-5): input ~50 / cache read ~240k / cache write ~93k / output ~19k | ~$0.90 API-equiv (output est.) spike sessions in ~/.claude-lolay/projects/*scratch-spike-w3*
+tokens wave-3 m1-s7-s10 (claude-opus-5-5): input ~220 / cache read ~9.5M / cache write ~110k 5m + ~330k 1h / output ~80k | ~$6.69 API-equiv (output est.) cloud sessions C1 04efa574 and C2 d8be745c, from their own usage.py
+tokens wave-3 m1-s7-s10 (claude-sonnet-5-5): input ~46 / cache read ~1.0M / cache write ~240k / output ~22k | ~$1.02 API-equiv (output est.) cloud sessions C1 04efa574 and C2 d8be745c, from their own usage.py
+tokens orchestrator-wave-3 m1-s7-s10 (claude-opus-5-5): input ~78 / cache read ~4.9M / cache write ~240k 1h / output ~36k | ~$3.65 API-equiv
