@@ -53,7 +53,9 @@ No new repo commits; the wave's only commit is `f356a2f`. Evidence in `.scratch/
 
 ## Pending question (verbatim)
 
-> Gate 1 (scope): wave 1's spike sessions changed your `~/.claude-lolay/settings.json` — Opus `effortLevel` saved as `high` (the subagent says it was xhigh before) and `skipWorkflowUsageWarning: true` — and accepted workspace trust for two `.scratch/spike/` folders. Shall I restore Opus to `xhigh` and remove `skipWorkflowUsageWarning`, and continue to wave 2 (m1 s4-s6 on Sonnet), whose spike sessions will pass effort on the command line and use a throwaway settings file so they can't write your config again?
+Gary on the gate-1 question: "high is fine" (Opus `effortLevel: high` in `~/.claude-lolay/settings.json` stays). Still open:
+
+> Keep `skipWorkflowUsageWarning: true` or remove it, and shall I start wave 2 (m1 s4-s6 on Sonnet, ~$0.81)? Reply e.g. "keep, go" or "remove, go".
 
 ## How to resume
 
