@@ -1,7 +1,7 @@
 ```
 --- KICKOFF: begin orchestration at [deep] ---
 
-  Status: 0/8 groups done | last review: — | current: m1 s1-s3 [deep] | updated 2026-10-06
+  Status: 0/8 groups done | last review: — | BLOCKED at gate 1 (needs_info: claude CLI signed out) and gate 5 (canary) | current: m1 s1-s3 [deep] | updated 2026-10-06
 
   review: every-wave (log-only — parent writes Review log; no human review gate)
 
@@ -625,3 +625,5 @@ Ship the Claude Code adapter in the `personal` plugin, with the standards edits 
 - In another harness, or on a model not listed here, count and price per plan-execution.md "Token accounting" and "Model price table" instead.
 
 tokens kickoff plan-orchestrate-native-kestrel (claude-opus-5-5): input ~36 / cache read ~2.5M / cache write ~160k 1h / output ~44k | ~$2.70 API-equiv
+tokens orchestrator-kickoff plan-orchestrate-native-kestrel (claude-opus-5-5): input ~30 / cache read ~3.1M / cache write ~59k 1h / output ~21k | ~$1.51 API-equiv
+tokens wave-1 m1-s1-s3 (claude-opus-5-5): input ~92 / cache read ~6.3M / cache write ~200k / output ~51k | ~$3.27 API-equiv (output est.) session b5197fbf-6866-4e1f-8fad-b73a5d15573a
