@@ -168,7 +168,7 @@ Run as short Agent calls (gate 2, option (a)). First call: s8 done, s9 set up; t
 
 ## Pending question (verbatim)
 
-None. Gate 2 before wave 7 approved 2026-10-07 with Gary's option (a): wave 7 runs as short Agent calls, not one long-lived subagent. First an Opus subagent for s8 plus the s9 setup and run sheet; Gary runs the three dogfood plans himself in their own sessions (no relay subagent); then a fresh subagent reads their transcripts and handoffs, applies the fixes and flips the gate.
+> m2.s9 dogfood: pick three plans per the shortlist in `specs/handoffs/dogfood-orchestrate-native.md` §1 (A: Mac gated, B: Mac unattended, C: runner unattended on orch-spike), do the one-time setup in §2 (re-sync orch-spike from the org source and check it with the diff there, add the frozen kit worktree, add each repo's test command to the settings files, set run C's allow rules), then run them per §3-§5 and tell the parent when each is done (or paste C's report). A fresh subagent then reads the runs and applies the fixes.
 
 ## How to resume
 
