@@ -3,8 +3,9 @@
 Code row of plan-execution.md's model picker, the ROUTE table in
 plan-segment.js, and the agent frontmatter; that reviewers are read-only;
 and that the Claude manifest is named for the org and lists exactly the
-agent files, the workflows folder and the gate hook. Skips when the org's
-plugin has no orchestrate kit (ORG=agerpoint before it's ported).
+agent files, the workflows folder, the gate hook on Workflow and the reviewer
+guard on Bash. Skips when the org's plugin has no orchestrate kit
+(ORG=agerpoint before it's ported).
 
 Usage: orchestrate_check.py <plugin-root>
 """
@@ -74,8 +75,12 @@ if not (root / manifest.get("workflows", "missing")).joinpath("plan-segment.js")
     errors.append("manifest workflows does not point at the folder with plan-segment.js")
 hooks = manifest.get("hooks")
 hooks = [hooks] if isinstance(hooks, str) else hooks or []
-if not any("orchestrate_gate.py" in (root / h).read_text() for h in hooks if isinstance(h, str) and (root / h).exists()):
-    errors.append("manifest hooks do not register orchestrate_gate.py")
+entries = [e for h in hooks if isinstance(h, str) and (root / h).exists()
+           for e in json.loads((root / h).read_text()).get("hooks", {}).get("PreToolUse", [])]
+for matcher, script in (("Workflow", "orchestrate_gate.py"), ("Bash", "reviewer_guard.py")):
+    if not any(e.get("matcher") == matcher and any(script in c.get("command", "") and f"skills/{org}-plan-orchestrate/" in c.get("command", "")
+                                                   for c in e.get("hooks", [])) for e in entries):
+        errors.append(f"manifest hooks do not register {script} on PreToolUse {matcher} under skills/{org}-plan-orchestrate/")
 
 for e in errors:
     print(f"FAIL: {e}", file=sys.stderr)

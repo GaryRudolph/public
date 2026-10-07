@@ -4,7 +4,13 @@
       {
         "matcher": "Workflow",
         "hooks": [
-          { "type": "command", "command": "python3 -I \"${CLAUDE_PLUGIN_ROOT}\"/skills/personal-plan-orchestrate/scripts/orchestrate_gate.py || { echo 'personal-plan-orchestrate gate: the hook could not run; fail closed' >&2; exit 2; }", "timeout": 30 }
+          { "type": "command", "command": "python3 -I \"${CLAUDE_PLUGIN_ROOT}\"/skills/personal-plan-orchestrate/scripts/orchestrate_gate.py; s=$?; [ \"$s\" = 0 ] || [ \"$s\" = 2 ] || { echo 'personal-plan-orchestrate gate: the hook could not run; fail closed' >&2; s=2; }; exit $s", "timeout": 30 }
+        ]
+      },
+      {
+        "matcher": "Bash",
+        "hooks": [
+          { "type": "command", "command": "python3 -I \"${CLAUDE_PLUGIN_ROOT}\"/skills/personal-plan-orchestrate/scripts/reviewer_guard.py", "timeout": 10 }
         ]
       }
     ]

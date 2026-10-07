@@ -479,6 +479,31 @@ def a_kickoff_prompt_must_name_the_plans_repo_and_path():
     assert s["errors"] == [] and s["prompt_plan"] == {"repo": None, "path": "/Users/gary/work/.scratch/plan-x.md"}, s["errors"]
 
 
+# ---- m2.s2: the guard on split waves, the fix-up marker grammar ----
+
+@test
+def a_split_waves_later_unit_adds_nothing_to_the_projection():
+    body = "--- WAVE 1 [exec] ---\n#### m1.s1 - [exec] A (done)\n#### m2.s1 - [exec] B\n"
+    cost = COST.replace("| 1 [fast] m1 s1-s3 | ~3.4M | ~$0.90 |", "| 1 [exec] m1 s1, m2 s1 | ~3.4M | ~$9.0 |")
+    tokens = "tokens wave-1 repo-a-m1-s1 (claude-sonnet-5-5): input ~1k / cache read ~1M / cache write ~0.1M / output ~20k | ~$45.00 API-equiv\n"
+    s = state(plan(body, mode=UNATTENDED, cost=cost, tokens=tokens))
+    assert s["next"]["start"] and s["next"]["milestone"] == "m2", s["next"]  # a unit of its own, gate 4
+    assert s["cost"]["next_expected"] == 9.0 and s["cost"]["projected"] == 45.0 and not s["cost"]["tripped"], s["cost"]
+    fresh = state(plan(body.replace(" (done)", ""), mode=UNATTENDED, cost=cost, tokens=tokens))
+    assert fresh["cost"]["projected"] == 54.0 and fresh["cost"]["tripped"], fresh["cost"]  # its first unit counts the row
+
+
+@test
+def wave_markers_follow_the_standards_fix_up_grammar():
+    import re
+    standard = re.compile(r"^--- WAVE \d+(-fix([2-9]|[1-9]\d+)?)? \[(xdeep|deep|exec|fast)\] ---$")  # proposal §4 (b)
+    for label in ("2", "2-fix", "2-fix2", "2-fix9", "2-fix10", "2-fix23", "2-fix1", "2-fix0", "2-fix01", "2-fix-2", "2fix"):
+        line = f"--- WAVE {label} [exec] ---"
+        body = marked(5).replace("## m2 - Logic", f"{line}\n#### m1.s6 - [exec] Fix\n\n## m2 - Logic") if label != "2" else marked(0)
+        ok = not any("not a wave marker" in e for e in state(plan(body))["errors"])
+        assert ok == bool(standard.match(line)), (label, ok)
+
+
 failed = 0
 for fn in tests:
     try:

@@ -6,8 +6,9 @@ true, from disk and from the transcript, and fails closed:
 
 1. args.state must equal plan_state.py run now on args.plan.path.
 2. Approvals may ride only on a launch made in a turn that a human prompt
-   started (not a completion notification, a hook, or a timer), and
-   args.approval must be that prompt, verbatim. A pasted Kickoff prompt, or
+   started or that a human message typed mid-turn joined (not a completion
+   notification, a hook, or a timer), and args.approval must be the latest
+   such message, verbatim. A pasted Kickoff prompt, or
    any words that hold its mode line, never answer anything: not a gate, a
    needs_info question, a waiver, or the kickoff question.
 3. canaryDone needs an earlier canary launch of plan-segment in this session.
@@ -17,12 +18,14 @@ true, from disk and from the transcript, and fails closed:
 7. An unattended mode in args.state must be confirmed in this session: the
    Kickoff mode line names this session, its proposed signal names this
    harness (claude-code) and this runner (from CLAUDE_CODE_REMOTE, its
-   environment type, and CI), and no later human turn names gated.
-   Confirmed by an answer, a human-started turn here is its words verbatim,
-   it comes right after the kickoff question ("Proposed mode: ... Reply"),
-   unless CI=true, where the invoking words are the answer, and it names
-   unattended, not gated, and asks or negates nothing: a bare yes re-asks
-   (decision 9). Confirmed by the Kickoff prompt, the words are its mode line
+   environment type, and CI), and no later human message of 10 words or
+   fewer names gated and not unattended (the take-back).
+   Confirmed by an answer, a human message here is its words verbatim, it
+   comes right after the kickoff question ("Proposed mode: ... Reply"),
+   unless CI=true, where the invoking words are the answer, and it asks or
+   negates nothing; it names unattended and not gated, or it is a plain yes
+   to a question that carried "Proposed mode: unattended." (decision 9). A
+   yes to a gated proposal records gated, never unattended. Confirmed by the Kickoff prompt, the words are its mode line
    "Run in unattended mode.", and a human turn here is the plan's whole
    Kickoff prompt verbatim (whitespace collapsed; its On branch lines may
    differ, since a runner keeps its assigned branch and rewrites them). A
@@ -43,7 +46,9 @@ true, from disk and from the transcript, and fails closed:
    where nothing can be pushed: a plan in no git repo (a plain folder of
    sibling repos) skips the plan check, a plan in a repo with no remote
    skips only its push check, and a working directory with no remote is not
-   checked. Unattended needs the plan in a repo with a remote. A repo with a
+   checked; a plan git ignores, in a repo where no group runs, is in no repo
+   (a plain folder nested in another repo's work tree). Unattended needs the
+   plan in a repo with a remote. A repo with a
    remote must record origin's default branch (refs/remotes/origin/HEAD), and
    any git error other than "not a git repository" denies.
 10. A WAIVED Review log line added since this session's last launch must be
@@ -57,6 +62,18 @@ plan_state.py, an exception, no decision within DEADLINE seconds) denies
 with exit 2, which blocks even without valid JSON; the hooks file adds
 "|| exit 2" for a python3 that won't start. A hook that Claude Code times
 out (30 s) doesn't block, hence the shorter deadline.
+
+Which records are human. A user record is human only when origin.kind or
+turnOrigin is "human" and promptSource isn't "system" (typed and queued on
+the CLI, sdk on the desktop app and the web). Compaction summaries
+(isCompactSummary, isVisibleInTranscriptOnly), isMeta records (a runner's
+Stop hook feedback), the "[Request interrupted by user" marker, slash-command
+records and turnOrigin "sdk" records never are. A message typed while the
+parent works is a queued_command attachment (commandMode "prompt", origin
+human): it is human text of the turn that absorbed it. A record whose uuid
+was seen before (a replay after a compaction) counts once. The Mac CLI wraps
+a bracketed paste in <pasted_content id="..."> tags; they are removed before
+every comparison.
 """
 
 import json
@@ -73,6 +90,13 @@ MODE_LINES = ("Run in unattended mode.", "Run in gated mode.")
 KICKOFF_ASK = re.compile(r"Proposed mode: (?:gated|unattended)\b[\s\S]*\bReply\b")
 # An answer that asks back or negates is not an opt-in; a false trip re-asks, which errs toward stopping.
 NOT_OPT_IN = re.compile(r"\?|\b(?:no|not|never|without|don't|dont|do not)\b|n't\b", re.I)
+PROPOSED_UNATTENDED = re.compile(r"Proposed mode: unattended\.")
+# A plain yes (decision 9): only these words, at least one from YES, nothing that asks back or adds a condition.
+YES = {"yes", "yep", "yeah", "yup", "y", "ok", "okay", "sure", "confirm", "confirmed", "proceed", "go", "lgtm", "approved", "good"}
+YES_FILLER = {"please", "thanks", "thank", "you", "ahead", "sounds", "that", "works"}
+TAKE_BACK_WORDS = 10  # a later human message this short that names gated, and not unattended, ends unattended
+PASTE_TAG = re.compile(r"</?pasted_content\b[^>]*>")  # the Mac CLI's wrapper around a bracketed paste
+INTERRUPT = "[Request interrupted by user"
 DEADLINE = 20  # seconds; Claude Code cancels this hook at 30, and a canceled hook blocks nothing
 
 
@@ -85,8 +109,35 @@ def deny(reason, code=0):
     sys.exit(code)
 
 
+def unwrap(s):
+    return PASTE_TAG.sub("\n", s or "")
+
+
 def norm(s):
-    return re.sub(r"\s+", " ", s or "").strip()
+    return re.sub(r"\s+", " ", unwrap(s)).strip()
+
+
+def plain_yes(text):
+    words = re.findall(r"[a-z']+", norm(text).lower())
+    return (bool(words) and len(words) <= 6 and not re.search(r"[^a-z' ,.!]", norm(text).lower())
+            and all(w in YES or w in YES_FILLER for w in words) and any(w in YES for w in words))
+
+
+def is_human(r):
+    """A user record a person typed or pasted; never a notification, a hook's feedback, a compaction summary, a slash
+    command's records, the interrupt marker, or an SDK-injected prompt."""
+    if r.get("isMeta") or r.get("isCompactSummary") or r.get("isVisibleInTranscriptOnly") or r.get("promptSource") == "system":
+        return False
+    return "human" in ((r.get("origin") or {}).get("kind"), r.get("turnOrigin"))
+
+
+def queued_text(r):
+    """The text of a message typed while the parent worked (absorbed into the running turn), or None."""
+    a = r.get("attachment") if r.get("type") == "attachment" else None
+    if isinstance(a, dict) and a.get("type") == "queued_command" and a.get("commandMode") == "prompt" \
+            and ((a.get("origin") or {}).get("kind") == "human" or a.get("humanTurn") is True) and isinstance(a.get("prompt"), str):
+        return a["prompt"]
+    return None
 
 
 def records(path):
@@ -109,13 +160,25 @@ def text_of(content):
 
 
 def turn_and_launches(path):
-    """The record that started the current turn, every prompt turn, and earlier plan-segment launches."""
-    turn, uses, launched = None, {}, []
-    run_ids, turns, said = [], [], ""
+    """The current turn's messages (the record that started it, then human messages absorbed into it), every
+    message, and earlier plan-segment launches."""
+    turn, uses, launched = [], {}, []
+    run_ids, turns, said, seen = [], [], "", set()
     for r in records(path):
         if r.get("isSidechain"):
             continue
+        uid = r.get("uuid")
+        if uid:
+            if uid in seen:
+                continue  # a record replayed after a compaction counts once
+            seen.add(uid)
         msg = r.get("message") or {}
+        q = queued_text(r)
+        if q is not None:
+            t = {"human": True, "text": unwrap(q), "after": said}
+            turns.append(t)
+            turn.append(t)
+            continue
         if r.get("type") == "assistant":
             text = "\n".join(b.get("text", "") for b in msg.get("content") or [] if isinstance(b, dict) and b.get("type") == "text")
             said = text or said  # the assistant's latest words, which the next human turn answers
@@ -132,11 +195,12 @@ def turn_and_launches(path):
                             run_ids.append(res["runId"])
                 continue
             text = text_of(msg.get("content"))
-            if text is not None and not r.get("isMeta"):
-                origin = (r.get("origin") or {}).get("kind")
-                human = origin in (None, "human") and r.get("promptSource") != "system" and r.get("turnOrigin") != "task_notification"
-                turn = {"human": human, "text": text, "after": said}
-                turns.append(turn)
+            if text is None or r.get("isMeta") or r.get("isCompactSummary") or r.get("isVisibleInTranscriptOnly") \
+                    or text.lstrip().startswith(INTERRUPT):
+                continue  # none of these starts a turn
+            t = {"human": is_human(r), "text": unwrap(text), "after": said}
+            turns.append(t)
+            turn = [t]
     return turn, launched, run_ids, turns
 
 
@@ -198,12 +262,28 @@ def unattended_proof(mode, session_id, turns, prompt, prompt_mode):
         hits = [i for i in hits if ci or KICKOFF_ASK.search(turns[i]["after"])]
         if not hits:
             return "the recorded answer doesn't follow the kickoff question; an invoking message only proposes the mode, so ask it"
-        t = turns[hits[-1]]
-        if not names("unattended", t["text"]) or names("gated", t["text"]) or NOT_OPT_IN.search(t["text"]):
-            return "the recorded answer does not name unattended plainly (a bare yes, a question or a negation re-asks, decision 9)"
-    if any(u["human"] and names("gated", u["text"]) for u in turns[hits[-1] + 1:]):
-        return "a later human turn names gated; record gated, or ask the kickoff question again"
+
+        def opts_in(t):
+            if NOT_OPT_IN.search(t["text"]) or names("gated", t["text"]):
+                return False
+            # Decision 9: a plain yes counts when the kickoff question right before it proposed unattended.
+            return names("unattended", t["text"]) or (plain_yes(t["text"]) and bool(PROPOSED_UNATTENDED.search(t["after"])))
+        good = [i for i in hits if opts_in(turns[i])]
+        if not good:
+            if plain_yes(turns[hits[-1]]["text"]):
+                return "the recorded answer is a yes to a gated proposal, which records gated, never unattended (decision 9)"
+            return ("the recorded answer does not name unattended plainly (a question or a negation re-asks; a bare yes counts "
+                    "only when the question proposed unattended, decision 9)")
+        hits = good
+    if any(took_back(u) for u in turns[hits[-1] + 1:]):
+        return "a later short human message names gated; record gated, or ask the kickoff question again"
     return None
+
+
+def took_back(t):
+    """A human message of 10 words or fewer that names gated and not unattended ends unattended."""
+    return t["human"] and len(norm(t["text"]).split()) <= TAKE_BACK_WORDS and names("gated", t["text"]) \
+        and not names("unattended", t["text"])
 
 
 def git(d, *a):
@@ -243,6 +323,18 @@ def branch_problem(d, want=None):
     if SHARED_NAME.match(head) or (default and default.split("/", 1)[-1] == head):
         return f"{head} in {d} is a shared branch; orchestrate runs only on a task branch: cut one with --no-track"
     return None
+
+
+def plan_home(plan_path, groups):
+    """remote_of for the repo that holds the plan, except that a plan git ignores, in a repo that holds no group, is in
+    no repo: a plain folder of sibling repos nested in another repo's work tree keeps its plan in its own .scratch/."""
+    p = Path(plan_path).resolve()
+    home = remote_of(str(p.parent))
+    if home is None or git(str(p.parent), "check-ignore", "-q", str(p)).returncode:
+        return home
+    top = git(str(p.parent), "rev-parse", "--show-toplevel").stdout.strip()
+    tops = {git(g.get("workdir") or "", "rev-parse", "--show-toplevel").stdout.strip() for g in groups}
+    return home if top in tops else None
 
 
 def handoff_problem(plan_path, push=True):
@@ -325,7 +417,7 @@ def check(inp):
     groups = [g for g in args.get("groups") or [] if isinstance(g, dict)]
     runner = os.environ.get("CLAUDE_CODE_REMOTE") == "true"
     prompt = kickoff_prompt(text)
-    home = remote_of(str(Path(path).resolve().parent))
+    home = plan_home(path, groups)
     for d, want in [(g.get("workdir") or "", g.get("branch") or "") for g in groups] + \
             ([(str(Path(path).resolve().parent), None)] if home is not None else []):
         why = branch_problem(d, want)
@@ -374,9 +466,10 @@ def check(inp):
                 deny(f"the WAIVED line for wave {w.get('wave')} ({w.get('group')}) is not a human message of this session, verbatim; a waiver records Gary's answer")
     answers = [(g.get("answer") or {}).get("answer") for g in groups if isinstance(g.get("answer"), dict)]
     if args.get("approved") or answers:
-        if not turn or not turn["human"]:
-            deny("approvals can ride only on a launch in the turn a human answer started; relaunch with approved: []")
-        if norm(turn["text"]) != norm(args.get("approval")):
+        said_now = [t for t in turn if t["human"]]  # the human message that started this turn, or one typed into it
+        if not said_now:
+            deny("approvals can ride only on a launch in the turn a human answer started or joined; relaunch with approved: []")
+        if norm(said_now[-1]["text"]) != norm(args.get("approval")):
             deny("args.approval is not the human's last message verbatim")
         if any(not_an_answer(a, prompt) for a in [args.get("approval")] + answers):
             deny("the approval is the pasted Kickoff prompt, or holds its mode line; a paste answers no gate or question: "
