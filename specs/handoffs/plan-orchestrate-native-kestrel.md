@@ -1,7 +1,7 @@
 ```
 --- KICKOFF: begin orchestration at [deep] ---
 
-  Status: 4/8 groups done | last review: wave-4 PASS | BLOCKED at gate 2 ([exec]->[deep], before wave 5) | current: m2 s2-s3 [deep] | updated 2026-10-07
+  Status: 4/8 groups done | last review: wave-4 PASS | current: m2 s2-s3 [deep] (wave 5 dispatched, gate 2 approved) | updated 2026-10-07
 
   review: every-wave (log-only — parent writes Review log; no human review gate)
 
