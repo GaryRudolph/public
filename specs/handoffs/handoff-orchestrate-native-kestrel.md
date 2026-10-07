@@ -2,7 +2,7 @@
 
 **Branch:** `feature/orchestrate-native` (task branch, cut from `main` at bf5da80 on Gary's instruction).
 **Plan:** `specs/handoffs/plan-orchestrate-native-kestrel.md`, tagged and driven by `personal-plan-model-tiers` (passive). 8 waves, expected ~73M tokens, ~$38 API-equiv.
-**Status:** orchestrate driver, Agent-tool path (Gary's option 2), expected ~$54. Waves 1-2 (m1 s1-s6) done and reviewed PASS: criteria 1, 3, 5 (Edit/Write only), 6 and 10 held, 4 partial. Wave 3 (m1 s7-s10) in progress: the Mac half of criterion 9 is done; waiting on Gary's two cloud sessions. Spend before wave 3 ~$28.6 (this parent ~$11.4 of it; its context makes each wave ~$5.8, against ~$1.3 planned).
+**Status:** orchestrate driver, Agent-tool path (Gary's option 2), expected ~$54. Waves 1-2 (m1 s1-s6) done and reviewed PASS: criteria 1, 3, 5 (Edit/Write only), 6 and 10 held, 4 partial. Wave 3 (m1 s7-s10) done: m1 closed out, criteria 1, 2, 3, 6, 7 and 10 held, 4, 5, 8 and 9 partial, no fallback; milestone handoff `specs/handoffs/handoff-m2-orchestrate-native.md`. Spend before wave 3 ~$28.6 (this parent ~$11.4 of it; its context makes each wave ~$5.8, against ~$1.3 planned).
 
 ## Done
 
@@ -51,7 +51,7 @@ Commit `94c710f` (m1.s6, reviewed): `specs/handoffs/orchestrate-native/spike-plu
 
 Org sync of `GaryRudolph/orchestrate-spike` (commit `409b3ff`): "Synced with warnings. Every plugin synced, but these items were left out." One warning, on `orch-spike`: "Plugin 'orch-spike' has unrecognized key in plugin.json: 'workflows' (stripped — the SDK ignores unknown top-level fields)". So the manifest is accepted (no rejection) and `agents` and `hooks` are kept, but `workflows` is dropped on org-synced surfaces. Docs (https://code.claude.com/docs/en/plugins/manifest-reference, checked by the parent): `workflows` is a documented top-level key ("Workflow `.js` files or directories. Replaces the default `workflows/` scan"), and the Standard layout's default for workflows is `workflows/` at the plugin root ("Workflow `.js` files"); an unrecognized top-level key "is stripped, and the plugin loads". So org sync's validator lags the CLI on this key. **Planned fix (parent's proposal, for wave 3 to apply first and m2 to keep):** move `plan-segment.js` from `skills/<org>-plan-orchestrate/claude-workflows/` to `<plugin>/workflows/`, drop the `workflows` key, update the tests and the spike builder, rebuild `orch-spike`, and have Gary re-sync to confirm the warning is gone; criterion 7 then checks the workflow arrives in a cloud session. **Update 2026-10-07:** Gary reports neither the account install nor the org sync shows a warning any more, with no plugin change pushed (commits after `94c710f` touch only the plan and handoff). This desktop session (account install) now lists the 5 `orch-spike:plan-*` agents and `orch-spike:plan-segment` (the workflow, listed among the skills), so the `workflows` key registered there. The warning looks transient or was cleared by a newer validator; the `workflows/` move is held as the fix only if criterion 7 shows the workflow missing in a cloud session. Gary then found the Claude GitHub App hadn't been configured correctly for the scratch repo, which likely explains the transient warning; after fixing it, both routes sync with no warning. Soon after, this desktop session's list dropped the `orch-spike` agents and skills (account install changed during the fix?). Gary: `orch-spike` is now installed through the organization (not the account); wave 3's cloud sessions get it by org sync, so its access must not be "Not available" for Gary. Gary: it works in a claude.ai chat, and Cowork lists it too. **Criterion 6 held.**
 
-## Wave 3 (m1 s7-s10), in progress
+## Wave 3 (m1 s7-s10)
 
 Gate 2 passed; the worker ran the Mac half of criterion 9 and built the cloud fixture, then stopped for Gary's cloud sessions. Full detail: `.scratch/orchestrate-plan-orchestrate-native-kestrel-3-m1-s7-s10.md`. Fixtures and logs: `.scratch/spike/w3/` (Mac), `.scratch/spike/cloud/` (a clone of the scratch repo).
 
@@ -68,7 +68,66 @@ Gate 2 passed; the worker ran the Mac half of criterion 9 and built the cloud fi
 - **C1 plan A done:** `2-fix2` made the empty commit `80698bc` and passed `check_wave.py`; wave 3 `[deep]` PASS (`5c22f89..143590f`); final `2ba5c3e` on `claude/vigilant-knuth-q493yv`; gates 5 and 2 logged as checkpoints. The first relaunch after the gate-1 answer was denied because the parent put `approval` inside `approved[]` items; with a top-level `approval` it passed (m2.s3: SKILL.md shows the `args` shape; the spike brief is fixed). No `/compact` happened in C1, so it moves to C2, with a third wave added to plan ibis after C1 ends.
 - **C1 REPORT (session `04efa574-…`, CLI 2.1.292, branch `claude/vigilant-knuth-q493yv` assigned at start from `master`):** criterion 7 **held** on the cloud: `CLAUDE_CODE_REMOTE=true` (`cloud_default`); the 4 orch-spike skills plus `orch-spike:plan-segment` in the skills list; all 5 `orch-spike:plan-*` agent types; the SessionStart marker and `personal`'s core; the synced manifest keeps `agents`, `workflows`, `hooks`; a dishonest launch (`done` edited) denied by rule 1. The Workflow schema lists no named workflows, yet the name launched, so the held `workflows/` move isn't needed. The typed `unattended` satisfied rule 7 with `runner=cloud`, so the hook process sees `CLAUDE_CODE_REMOTE`. Every wave's plan and handoff were committed and pushed before the next launch. The runner's Stop hook (`~/.claude/stop-hook-git-check.sh`) ran at 8 turn ends with no output, since each turn ended clean and pushed: criterion 2 not exercised yet. C1 cost ~$4.71 (Opus ~$4.10, Sonnet ~$0.61). m2.s3: SKILL.md shows the `args` shape (top-level `approval`), and detection can't rely on the Workflow schema listing plugin workflows.
 - **C2 fixture** pushed to `claude/vigilant-knuth-q493yv` as `a27bf52`: plan ibis gains wave 3 (m3, gate 4); waves 1-2 pause 90 s before committing so the Stop hook should fire at a launch turn's end and Gary has time to type `/compact` (wave 1) and `gated` (wave 2); `c2.md` and the brief updated. The Kickoff prompt is unchanged.
-- Pending: s7 (criterion 7), s8 (criterion 2), s9 (criterion 8) and the runner half of s10 need Gary's cloud sessions C1 and C2; then path (c) on the Mac with plan B, and the m1 close-out.
+- **C2 REPORT (session `d8be745c-…`, plan ibis from the pasted Kickoff prompt):** Gary started it "from" `claude/vigilant-knuth-q493yv`, but it got its own branch `claude/orchestrate-spike-smoke-test-4c639y`, checked out at `master` (`fc6ff35`) and not yet on the remote. The parent fast-forwarded that branch to the prompt's branch (`a27bf52`), pushed it, and rewrote the prompt's `On branch` line and the handoff. The paste equals the committed prompt exactly (no `<pasted_content>` wrapper on the web) and was recorded `by Kickoff prompt: Run in unattended mode.` (`868f1ac`); wave 1 dispatched with no question. The runner's Stop hook (`~/.claude/stop-hook-git-check.sh`) fired twice while wave 1's worker had an untracked `gamma.txt` ("There are untracked files in the repository. Please commit and push these changes to the remote branch."); the parent replied one line each time and didn't commit or push, the next stop went through, and the results came in the notification turn. `/compact` ran twice; wave 2's launch was then denied ("unattended mode is not confirmed: a later human turn names gated"), a false positive from the compaction summaries (m2.s2 item 1, confirmed on the runner); the parent re-asked the kickoff question and Gary's `unattended` resumed it. Gary missed the `gated` cue (wave 3 launched 31 s after wave 2's notification), so the gated switch, the runner's gate-4 stop, its BLOCKED re-paste and the approval launch weren't exercised. The harness refused the parent's `sleep 30; git status` ("use Monitor … or run_in_background"). Plan ibis 3/3, PASS each wave. Cost ~$3.00 (Opus ~$2.59, Sonnet ~$0.41).
+- **No C3.** The pieces C2 missed are covered elsewhere or are parent procedure: the hook's take-back fired live on the runner (on the compaction summaries; a typed web turn classifies as human, so a typed `gated` takes the same path); the re-paste at a BLOCKED gate was re-posted on the Mac; a top-level `approval` was accepted on the runner (C1's `2-fix2`) and gate approvals on the Mac. What no run showed is the parent recording a typed `gated` switch and then stopping at the next gate: m2.s9's dogfood must type one.
+- **Path (c), Mac:** `plan-smoke-jay` on `feature/smoke-jay` in the scratch repo (`c44bd04`; its unattended `runner=cloud` record copies C2's form, synthetic). Pasted into a clone on `master` (`.scratch/spike/w3/pc/`, transcript `…-w3-pc-orchestrate-spike/2588ffd5-….jsonl`): the session read the plan from `origin/feature/smoke-jay` without switching, said the record's `runner=cloud` differs from its `runner=none`, proposed gated and folded the switch into the question; after `gated here` it switched to `feature/smoke-jay` tracking `origin/feature/smoke-jay`, recorded the answer (`c3342d2`), pushed, ran the canary and stopped at gate 5 with the handoff summary.
+
+## m1 close-out: the ten exit criteria
+
+| # | Criterion | Result | Evidence |
+|---|---|---|---|
+| 1 | Launch, notification and relaunch loop (Mac) | held | Wave 1: 4 launches, each relaunch from a `task_notification` turn; dishonest `state` denied (`d26c40ed-…`). Wave 3 repeated it 4 times (`c66eb517-…`, `8ca498a7-…`, `1630f145-…`). |
+| 2 | Runner Stop-hook rule | held | C2: `stop-hook-git-check.sh` fired twice on wave 1's untracked file; one-line replies, no commit or push, next stop passed, results in the notification turn. The hook fires only on a dirty or unpushed tree (C1: 8 silent runs). The gate hook sees `CLAUDE_CODE_REMOTE` (C1's `runner=cloud` confirmation passed rule 7). |
+| 3 | Worker commits in auto mode | held | Wave 2 `s5`: no prompt, `check_wave.py` ok, pushes went through. |
+| 4 | Typed and pasted prompts look human to the hook | partial | Every shape captured (wave 1). Wrong today: compaction summaries (also a false take-back deny on the runner, C2), the interrupt marker, slash-command records, `queued_command` attachments unread, the Mac's `<pasted_content>` wrapper. Fixes are m2.s2 items 1-5. |
+| 5 | Reviewer `tools` allowlist enforced | partial | Edit and Write absent; Bash writes possible, refused by instruction only (wave 2). m2.s2 item 9. |
+| 6 | Org sync and Cowork accept the manifest fields | held | Org sync with no warning after the GitHub App fix; chat and Cowork list orch-spike; the CLI's and the cloud's synced manifests keep `agents`, `workflows`, `hooks`. |
+| 7 | A fresh cloud session gets skills, agents, workflow, hooks | held | C1: 5 `orch-spike:plan-*` agent types, `orch-spike:plan-segment` launchable by name (listed as a skill, not in the Workflow schema), the SessionStart marker and `personal`'s core, a dishonest launch denied. Mac CLI the same by org sync (wave 3). |
+| 8 | Unattended on the runner, kickoff answer to PR question | partial | Held: a typed `unattended` satisfies rule 7; plan heron reached the PR question, its only stop the check-only step's `needs_info` (m2.s2 item 11); a later yes didn't void it; a new cloud session gets its own `claude/…` branch from the default branch, fast-forwards it to the prompt's branch, rewrites `On branch`, records `by Kickoff prompt` and dispatches with no question; the web paste equals the prompt exactly; on the Mac the same paste gets the kickoff question (path (c)) and a paste at a BLOCKED gate is re-posted. Failed: across `/compact` (false deny, item 1). Not observed: a typed `gated` switch on the runner (m2.s9 dogfood). |
+| 9 | Per-wave commits and pushes, both modes; fix-ups; Mac branch cases; exit 2 | partial | Held: each wave's plan and handoff committed and pushed before the next launch (runner unattended C1/C2, Mac unattended and gated); every stop or ask carried the handoff summary; a planted step with no commit got `N-fix` with no stop and passed on the Mac (on the runner the fix-up worker escalated, item 11); gated on `main` asked, then cut and pushed; a plain folder kept the plan in `.scratch/` and the hook allowed it (not when nested in another repo, item 7); path (c); a hook exit 2 blocked the Workflow call. Not live: the third failure in a row (offline `plan_state.py` only; the plant was beaten by the worker); gated mode on the runner. |
+| 10 | `xhigh` and `high` on the wire | held | Wave 1 proxy captures: `agent()` xhigh, `-xdeep` frontmatter xhigh, `plan-worker-exec` high. |
+
+**Fallback:** none applies. Criteria 1, 2 and 3 held, so the workflow path ships first; criterion 7 held for the agents, the workflow and the hook, so cloud sessions use the workflow path. The held `workflows/` move isn't needed.
+
+### Kit changes m2.s2 must make (the full list)
+
+`orchestrate_gate.py` and its suite:
+1. Skip compaction summaries (`isCompactSummary`, `isVisibleInTranscriptOnly`). On the runner they caused a false "a later human turn names gated" deny after `/compact` (C2).
+2. Count a user record human only when `origin.kind` or `turnOrigin` is `human` and `promptSource` isn't `system`; accept `promptSource` `typed`, `queued` (CLI) and `sdk` (desktop, web). This drops the `[Request interrupted by user` marker (also skip it by text), `/compact` and other `<command-name>` / `<local-command-stdout>` records, `turnOrigin: "sdk"` records, and keeps skipping `isMeta` records (the runner's "Stop hook feedback" is `isMeta`).
+3. Read `queued_command` attachments with `commandMode: "prompt"` and `origin.kind: "human"` (or `humanTurn: true`) as human text of the turn that absorbed them; ignore those with `commandMode: "task-notification"` (seen on the runner) and `queue-operation` records.
+4. Remove `<pasted_content id="…">` and `</pasted_content id="…">` before every comparison (`is_paste`, rule 2's approval, rule 7's answer, rule 10's waiver). The Mac CLI wraps a bracketed paste; the web doesn't.
+5. Check that records the transcript replays after a compaction (C2's shapes.py saw the pre-compaction segment twice) don't double-count turns or launches; dedupe by `uuid` if they do.
+6. Suite records for each shape: CLI `typed` and `queued`, web `sdk`, a wrapped paste, both compaction-summary shapes, the interrupt marker, `/compact`, `queued_command` for a prompt and for a task notification, `turnOrigin: "sdk"`, the `isMeta` Stop hook feedback.
+7. A plain folder of sibling repos nested in another repo's work tree reads as a plan in that repo, so rule 9 denies the `.scratch/` plan: treat a plan path `git check-ignore` reports as ignored as "no repo", or document that the folder mustn't nest.
+8. Optional: the hooks file's fallback echo fires on the hook's own exit 2 too; echo only when the status isn't 2.
+
+Reviewer agents:
+9. Block reviewer Bash writes: a reviewer-scoped `PreToolUse` Bash deny (first check the hook input names the subagent type), or drop Bash and give reviewers the diff in the prompt. Keep the instruction either way.
+
+`check_wave.py`:
+10. A directory with no group but holding the plan reports the parent's bookkeeping commit as `others` (`ok: false`, `problems: []`); apply the `--plan` bookkeeping filter there too.
+
+`plan-segment.js`:
+11. A step that changes no file: the worker prompt says it gets an empty commit (`git commit --allow-empty`, subject `<step-id> …`, the trailers). Without it the Mac fix-up made one and passed, while the runner's fix-up worker returned `needs_info` and stopped an unattended run.
+12. `fixupSection`: rewording a commit below the parent's bookkeeping commits replays them; say to keep their content (not the commits "as they are"), and the parent force-pushes the plan's repo with `--force-with-lease --force-if-includes`.
+
+Plus the plan's own m2.s2 items (decision 9, the take-back rule, `N-fix<k>` numbering, the split-wave guard, the model's date suffix, the decision checks).
+
+### For m2.s3 (`SKILL.md`, the adapter)
+
+- Order before a launch: refresh and commit plan and handoff, push, snapshot, launch. Never write to the tree while a run works; record a mode switch in the next notification turn.
+- `args` shape: `approved: [{gate, wave}]` with `wave` the launched unit's, and `approval` a top-level string beside it (C1's nested `approval` was denied).
+- The canary runs only the first group; `(done)` goes at the end of the heading; a fix-up worker's `needs_info` stops even unattended.
+- `trailers` carries `Assisted-by: Claude Code` and any trailer the harness adds (`Claude-Session:` on the web, which C2's workers dropped); the parent's own commits carry `Assisted-by` and no `Co-authored-by`.
+- Detection: on the web the Workflow schema lists no named plugin workflows; look for `<P>:plan-segment` in the skills list, or launch by name.
+- Path (b): a new cloud session gets its own `claude/…` branch from the default branch; when it has no commits of its own, fast-forward it to `origin/<prompt branch>`, push, rewrite the `On branch` line and the handoff (C2), instead of the proposal's gate-0 stop.
+- The runner's Stop hook is a git check (dirty or unpushed tree at turn end); reply in one line while a run works. Don't chain `sleep` in the parent (the harness blocks it); the notification is the wait.
+- Agent path: pass `run_in_background: false`. A plain deny shows as `PreToolUse:Workflow hook error: …` even at exit 0.
+- The Kickoff prompt names the skill; the spike's prompts named `spike/brief.md` only because the synced SKILL.md is still the old one.
+
+### Wave 3 cost
+
+Mac spike sessions (`~/.claude-lolay/projects/*scratch-spike-w3*`): `claude-sonnet-5-5` ~$5.07, `claude-opus-5-5` ~$0.90. Cloud sessions (from their `usage.py`): C1 ~$4.71, C2 ~$3.00. About $13.7 of runs against the plan's ~$5 allowance, mostly real Sonnet workers on the Mac (the Haiku remap stopped working) and two Opus cloud parents.
 
 ## Key decisions
 
@@ -87,29 +146,7 @@ Gate 2 passed; the worker ran the Mac half of criterion 9 and built the cloud fi
 
 ## Pending question (verbatim)
 
-> Can you run two cloud sessions on `GaryRudolph/orchestrate-spike` for wave 3 (criteria 7, 2, 8 and 9 on the runner)? The fixture is on `master` (`fc6ff35`). Expect about an hour of mostly waiting and roughly $6-8 API-equiv. Before you start, check that `orch-spike` is available to you through the org on claude.ai/code. Pick Opus for both sessions if the UI offers a model.
->
-> **Session C1.** Start a new claude.ai/code session on `GaryRudolph/orchestrate-spike`, branch `master`, and send exactly:
->
-> ```
-> Read spike/c1.md in this repo and follow it.
-> ```
->
-> Then answer as it asks:
-> 1. Plan heron's kickoff question (`Proposed mode: unattended.`): type `unattended`.
-> 2. At `SPIKE: Gary, type /compact now.`: type `/compact`. If the web UI has no `/compact`, type `no compact here` instead.
-> 3. At the `SPIKE side question`: type `yes`.
-> 4. If a hook deny makes it ask the kickoff question again: type `unattended`.
-> 5. At the PR question: type `no`.
-> 6. Plan ibis's kickoff question: type `unattended`.
-> 7. It prints plan ibis's Kickoff prompt in a fenced block, names its branch, and then prints a `C1 REPORT` block. Copy all three.
->
-> **Session C2.** Start a new session on the same repo, from the branch C1 named in step 7 (not `master`). Send the Kickoff prompt from step 7 exactly as printed, with nothing before or after it. Then:
-> 1. At `SPIKE: Gary, type gated now.`: type `gated`.
-> 2. At the gate 4 question: paste the same Kickoff prompt again. It should re-post the question. Then type `yes`.
-> 3. At the PR question: type `no`. It prints a `C2 REPORT` block.
->
-> **Paste back here:** the `C1 REPORT` and `C2 REPORT` blocks, the branch each session showed in the UI, and anything that looked off (a permission prompt you approved, an error, a step that never came). If C1's part 1 says the `orch-spike` agents or workflow are missing, it skips to its report; paste that and skip C2.
+None from wave 3: m1 is closed out. Next is the wave-3 review beat, then gate 4 (milestone m1 → m2) before wave 4.
 
 ## How to resume
 
