@@ -1,7 +1,7 @@
 ```
 --- KICKOFF: begin orchestration at [deep] ---
 
-  Status: 1/8 groups done | last review: wave-1 PASS | BLOCKED at gate 1 (scope: wave 1 changed ~/.claude-lolay/settings.json) | current: m1 s4-s6 [exec] | updated 2026-10-06
+  Status: 1/8 groups done | last review: wave-1 PASS | gate 1 answered ("high is fine"; "keep, go") | current: m1 s4-s6 [exec] | updated 2026-10-06
 
   review: every-wave (log-only — parent writes Review log; no human review gate)
 

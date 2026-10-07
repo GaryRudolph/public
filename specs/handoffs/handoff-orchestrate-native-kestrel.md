@@ -2,7 +2,7 @@
 
 **Branch:** `feature/orchestrate-native` (task branch, cut from `main` at bf5da80 on Gary's instruction).
 **Plan:** `specs/handoffs/plan-orchestrate-native-kestrel.md`, tagged and driven by `personal-plan-model-tiers` (passive). 8 waves, expected ~73M tokens, ~$38 API-equiv.
-**Status:** orchestrate driver, Agent-tool path (Gary's option 2), expected ~$54. Wave 1 (m1 s1-s3) done and reviewed PASS; spend so far ~$19. Blocked at gate 1: wave 1's spike sessions changed Gary's `~/.claude-lolay/settings.json`, outside its scope.
+**Status:** orchestrate driver, Agent-tool path (Gary's option 2), expected ~$54. Wave 1 (m1 s1-s3) done and reviewed PASS; spend so far ~$19. Wave 2 running.
 
 ## Done
 
@@ -53,9 +53,7 @@ No new repo commits; the wave's only commit is `f356a2f`. Evidence in `.scratch/
 
 ## Pending question (verbatim)
 
-Gary on the gate-1 question: "high is fine" (Opus `effortLevel: high` in `~/.claude-lolay/settings.json` stays). Still open:
-
-> Keep `skipWorkflowUsageWarning: true` or remove it, and shall I start wave 2 (m1 s4-s6 on Sonnet, ~$0.81)? Reply e.g. "keep, go" or "remove, go".
+None. Gate 1 answered: "high is fine" (Opus `effortLevel: high` stays), then "keep, go" (`skipWorkflowUsageWarning: true` stays; start wave 2). Wave 2 (m1 s4-s6, Sonnet) dispatched 2026-10-06.
 
 ## How to resume
 
