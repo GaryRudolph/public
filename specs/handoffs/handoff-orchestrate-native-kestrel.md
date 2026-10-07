@@ -43,6 +43,8 @@ Commit `f356a2f` (m1.s1 staging, reviewed by the parent): the kit's scripts, age
 
 Gary replied `continue wave 1` (approves gate 5 and the re-dispatch), but `claude auth status` still reported `loggedIn: false`, in and out of the sandbox, so nothing was dispatched. Re-dispatch once the CLI is signed in.
 
+Resolved: Gary's fish `claude` wrapper sets `CLAUDE_CONFIG_DIR=$HOME/.claude-lolay` (lolay Team account, claude.ai sign-in) for this repo; agent shells don't run it, so every spike `claude` call needs that variable set explicitly. Spike transcripts then land in `~/.claude-lolay/projects/`. Wave 1 re-dispatched on 2026-10-06.
+
 ## How to resume
 
 Paste the Kickoff prompt from the top of the plan into a new Claude Code chat on `/model opus` with `/effort high`; it re-posts the pending question above.
