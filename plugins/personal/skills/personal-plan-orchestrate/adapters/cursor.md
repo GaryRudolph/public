@@ -29,7 +29,7 @@ parameter and the Cursor slugs from the standard's model picker:
   after Opus xhigh failed the step; `[effort=max]` only where a gain is
   measured)
 - `[deep]` and the parent: `claude-opus-5-5[effort=high]`
-- `[exec]`: `grok-4-7[effort=high]`, or `claude-sonnet-5-5[effort=high]`
+- `[exec]`: `grok-4-7[effort=high,fast=false]`, or `claude-sonnet-5-5[effort=high]`
   once included Cursor-pool usage runs out
 - `[fast]`: `composer-2.5[fast=false]`
 
@@ -97,7 +97,7 @@ skill.
 steps `m2 s1-s3` in repo A and `m2 s4-s6` in repo B, distinct working
 directories. One assistant message calls `Task` twice, with `description`
 `Wave 2 of 3 [exec] repo-A m2 s1-s3` and `Wave 2 of 3 [exec] repo-B m2
-s4-s6`, `model: "grok-4-7[effort=high]"`, and each prompt scoped to its
+s4-s6`, `model: "grok-4-7[effort=high,fast=false]"`, and each prompt scoped to its
 repo. After both return, collect the summaries and drop the full outputs
 (they are on disk), then go on to "When a unit completes". A fix-up of that
 wave is the same with `Wave 2-fix of 3` (`2-fix2` for the second).
