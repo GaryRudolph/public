@@ -47,6 +47,10 @@ Commit `94c710f` (m1.s6, reviewed): `specs/handoffs/orchestrate-native/spike-plu
 - **m2.s3 SKILL.md notes:** state the order (refresh and commit plan and handoff, snapshot, launch; hook rule 6 otherwise denies a relaunch); say a canary launch runs only the first group (the Sonnet parent read it as a failure) and that `(done)` goes at the end of the heading.
 - Parent's change to the subagent's question: keep the account install of `orch-spike` until wave 3 is done (its cloud checks need it); only the org source can go after criterion 6.
 
+## Criterion 6, org route (Gary, 2026-10-06 22:08)
+
+Org sync of `GaryRudolph/orchestrate-spike` (commit `409b3ff`): "Synced with warnings. Every plugin synced, but these items were left out." One warning, on `orch-spike`: "Plugin 'orch-spike' has unrecognized key in plugin.json: 'workflows' (stripped — the SDK ignores unknown top-level fields)". So the manifest is accepted (no rejection) and `agents` and `hooks` are kept, but `workflows` is dropped on org-synced surfaces. Pending: whether that drops the workflow in cloud sessions, whether a convention folder would avoid the key, and the account and Cowork routes.
+
 ## Key decisions
 
 - Gary's decisions 2-12 are recorded in the plan's "Decisions" section.
