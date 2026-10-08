@@ -222,15 +222,19 @@ cat > CHANGELOG.md <<'EOF'
 EOF
 git add -A && commit_at 1700000000 "adopt fragments"
 adopted=$(git rev-parse HEAD)
+# Written in one order, merged in the other, and named against both: the
+# release must follow merge order, not authoring time or file name.
 git switch -q -c one
 fragment .changelog/zeta-feature.txt added 'Zeta feature, merged first'
-git add -A && commit_at 1700000100 "add zeta"
+git add -A && commit_at 1700000200 "add zeta"
 git switch -q main && git switch -q -c two
 fragment .changelog/alpha-fix.txt fixed $'Alpha fix with a long body\nthat wraps onto a second line'
 printf '```release-note:added\nAlpha feature, merged second\n```\n' >> .changelog/alpha-fix.txt
-git add -A && commit_at 1700000200 "add alpha"
+git add -A && commit_at 1700000100 "add alpha"
 git switch -q main
-expect_ok   "branches with fragments merge cleanly"  git merge -q --no-edit one two
+merge_at() { GIT_AUTHOR_DATE="@$1 +0000" GIT_COMMITTER_DATE="@$1 +0000" git merge -q --no-ff --no-edit "$2"; }
+expect_ok   "branches with fragments merge cleanly"  merge_at 1700000300 one
+expect_ok   "  ...in either order"                   merge_at 1700000400 two
 expect_ok   "check passes on valid fragments"        python3 "$changelog" check
 expect_ok   "preview"                                python3 "$changelog" preview
 expect_grep "  ...shows a fragment entry"            "- Zeta feature, merged first"

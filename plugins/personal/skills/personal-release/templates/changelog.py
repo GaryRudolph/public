@@ -106,7 +106,7 @@ def fragments(directory):
 
 def added_at(root, directory):
     """Commit time each fragment was added, so entries list in merge order."""
-    out = git(root, "log", "--diff-filter=A", "--name-only", "--format=@%ct", "--", str(directory.relative_to(root))) or ""
+    out = git(root, "log", "--first-parent", "--diff-filter=A", "--name-only", "--format=@%ct", "--", str(directory.relative_to(root))) or ""
     times, stamp = {}, None
     for line in out.splitlines():
         if line.startswith("@"):
