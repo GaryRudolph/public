@@ -1,7 +1,7 @@
 ```
 --- KICKOFF: begin orchestration at [deep] ---
 
-  Status: 6/8 groups done | last review: wave-6 PASS | current: m2 s8-s9 [deep] (wave 7: s8 and s9 setup done; waiting on Gary to pick three dogfood plans and do the setup) | updated 2026-10-07
+  Status: 6/8 groups done | last review: wave-6 PASS | current: m2 s8-s9 [deep] (wave 7: s8 done, s9 dogfood retargeted to lolay/ghx; gate 1: plan_state.py rejects per-milestone s1 step ids, fix before the dogfood?) | updated 2026-10-07
 
   review: every-wave (log-only — parent writes Review log; no human review gate)
 
@@ -667,3 +667,4 @@ tokens orchestrator-wave-6 m2-s4-s7 (claude-opus-5-5): input ~10 / cache read ~1
 tokens wave-7 m2-s8-s9 (claude-opus-5-5): input ~100 / cache read ~11M / cache write ~300k / output ~76k | ~$5.12 API-equiv (output est.) session 350579b9-70e1-4f99-a901-444b0c4a63eb subagent a7570e992d1de4e03 (s8 and s9 setup)
 tokens wave-7 m2-s8-s9 (claude-opus-5-5): input ~24 / cache read ~1.3M / cache write ~180k / output ~8.6k | ~$1.31 API-equiv (output est.) session 350579b9-70e1-4f99-a901-444b0c4a63eb subagent a713d0b455fd08ecb (spec gap check)
 tokens orchestrator-wave-7 m2-s8-s9 (claude-opus-5-5): input ~18 / cache read ~2.2M / cache write ~19k 1h / output ~12k | ~$0.83 API-equiv (gate 2, option talk, s8 and s9 setup review)
+tokens wave-7 m2-s8-s9 (claude-opus-5-5): input ~130 / cache read ~10M / cache write ~260k / output ~89k | ~$5.18 API-equiv (output est.) session 350579b9-70e1-4f99-a901-444b0c4a63eb subagent a811f0a1443b12f69 (ghx plans and run sheet)
