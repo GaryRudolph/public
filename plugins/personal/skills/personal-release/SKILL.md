@@ -9,8 +9,10 @@ description: >-
   <release>+<sha> (<buildCode>) string, and set up a repo's versioning and
   Release workflow. Also decides when an API/file-format contract gets a new
   integer major (v1 to v2). Use for "cut a release", "release this", "bump
-  the version", "tag v…", "ship a hotfix", "what version is this build", or
-  "set up versioning".
+  the version", "tag v…", "ship a hotfix", "what version is this build",
+  "set up versioning", or to move a repo's changelog to per-PR fragment
+  files (HashiCorp-style .changelog/) so PRs stop conflicting on
+  CHANGELOG.md.
 ---
 
 # personal-release
@@ -56,8 +58,9 @@ recommendation. Decide from these facts.
 
    On `0.x`, a breaking change may be a minor, but call it out in the
    changelog. Give Gary the level and a sentence of evidence. **He picks.**
-3. **Check the changelog.** Unreleased should describe what ships. Offer to
-   fill gaps from the commits, but don't invent entries.
+3. **Check the changelog.** Unreleased (or, with fragments,
+   `python3 scripts/changelog.py preview`) should describe what ships.
+   Offer to fill gaps from the commits, but don't invent entries.
 4. **Release.** With Gary's go-ahead:
    - If the repo has a Release workflow:
      `gh workflow run release.yml -f level=<level>` (add
@@ -131,4 +134,54 @@ undercounts the build code; fetch the full history first.
 5. Bake `<release>`, `<sha>`, and `<buildCode>` into the binary or app at
    build time, so `--version` and About screens show the full string. The
    standard's Homebrew section lists the mechanism per language.
-6. Add `CHANGELOG.md` with a `## [Unreleased]` section if there isn't one.
+6. Add `CHANGELOG.md` and set up changelog fragments (next section). A new
+   repo starts on fragments; its `CHANGELOG.md` is just the title, the
+   preamble, and no `## [Unreleased]` heading.
+
+## Changelog fragments
+
+Each PR adds `.changelog/<name>.txt` instead of editing `CHANGELOG.md`;
+the release step assembles them. The format and rules are in
+[`documentation.md`](../personal-standards/standards/documentation.md#changelog).
+It fixes conflicts with or without a merge queue, so it fits repos that
+can't have one (Team plan private repos) or don't need one.
+
+### Set it up
+
+1. Copy [`templates/changelog.py`](templates/changelog.py) to
+   `scripts/changelog.py`, beside `scripts/bump_version.py`, which then
+   assembles the fragments on its own. A repo with its own release script
+   calls `python3 scripts/changelog.py release X.Y.Z` in place of its
+   changelog step.
+2. Create `.changelog/` beside each `CHANGELOG.md` that ships (a monorepo
+   package with its own changelog gets its own), each with
+   [`templates/changelog-readme.md`](templates/changelog-readme.md) as its
+   `README.md`.
+3. Copy [`templates/changelog.yml`](templates/changelog.yml) to
+   `.github/workflows/changelog.yml`, create a `no-changelog` label, and
+   once it has run, make the `changelog` job a required check. Ask before
+   changing labels or branch protection: they're outward-facing.
+4. Make the release commit stage the deletions. `git commit -am` does;
+   a workflow that `git add`s named paths needs the `.changelog/`
+   directories added to its list.
+5. Rewrite every place that tells contributors or agents to append to
+   `## [Unreleased]`: `AGENTS.md`, `CONTRIBUTING.md`, the PR template, the
+   release doc, agent workflow prompts. `grep -rn Unreleased` finds them.
+
+### Adopt it in an existing repo
+
+Do steps 1 to 5 in one PR, plus:
+
+- **Leave the pending Unreleased entries where they are.** The next
+  release folds them in ahead of the fragments, under the same headings,
+  and drops the `## [Unreleased]` heading. Splitting them into fragments
+  is churn that conflicts with every open PR.
+- **Rewrite the preamble** so it points at `.changelog/` instead of
+  `## [Unreleased]`.
+- **Open PRs that already add a `CHANGELOG.md` entry** fail the new check.
+  Each moves its entry into a fragment: a small edit, and it can't
+  conflict. Pending legacy entries can't be reworded until they ship.
+- **Retire the old changelog-promotion script** and its tests, and point
+  any Make target at `changelog.py`.
+- **Prove it before merging**: `changelog.py release <next> --dry-run`
+  on the branch, and diff its output against the old script's.

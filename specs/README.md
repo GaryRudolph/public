@@ -14,6 +14,7 @@ ALL_CAPS filename allowed here. Throwaway drafts and research go to `.scratch/`
 | Spec | What it covers |
 |---|---|
 | [agent-distribution.md](agent-distribution.md) | How the personal standards and skills reach every agent (Claude surfaces, Codex, Cursor, Gemini, Muse Code): the plugin layout, the home-directory installer, and the milestones that built them. |
+| [changelog-fragments.md](changelog-fragments.md) | Why changelog entries ship as `.changelog/` fragment files instead of `CHANGELOG.md` edits: the departures from HashiCorp's model, the nowline evidence, and nowline's migration checklist. |
 
 The MacWhisper database spec lives in the notes repo with the whisper skills
 that use it (`specs/macwhisper-database.md` there).

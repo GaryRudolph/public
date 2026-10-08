@@ -96,6 +96,10 @@ Load only what the stack needs from `../personal-standards/standards/`:
 - `testing.md` plus `<language>/testing.md`: test layout and the first test
 - `documentation.md`: `README.md` with a "Requirements" section listing the
   version baseline; specs go in `specs/`
+- `versioning.md`: `version.txt`, `CHANGELOG.md` with `.changelog/`
+  fragments from the first commit, and the Release and Changelog
+  workflows (the `personal-release` skill's "Set up versioning in a repo"
+  and "Changelog fragments" sections)
 - `makefile.md`: a self-documenting `Makefile` with the standard target
   vocabulary (the `personal-makefile` skill can audit it afterwards)
 - `git.md`: `.gitignore` essentials, including `.scratch/`

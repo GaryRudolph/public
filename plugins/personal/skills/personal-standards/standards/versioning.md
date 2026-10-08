@@ -481,7 +481,7 @@ The `cut-release` flow:
    - Reads `version.txt` (e.g. `2.4.0`).
    - Computes new value (`2.4.1` for patch).
    - Rewrites `version.txt` and every package's version field in lock-step.
-   - Moves `## [Unreleased]` entries in `CHANGELOG.md` into `## [v2.4.1] - YYYY-MM-DD`.
+   - Writes `## [v2.4.1] - YYYY-MM-DD` into `CHANGELOG.md`: assembled from the `.changelog/` fragments, which it then deletes (see [documentation.md](documentation.md#changelog)), or, in a repo without fragments, moved from the `## [Unreleased]` entries.
 3. CI commits as `release v2.4.1`, tags `v2.4.1`, pushes both with a PAT (not `GITHUB_TOKEN`, which doesn't trigger downstream workflows).
 4. The tag push triggers the build/publish matrix for every platform that applies (npm, iOS, Android, Homebrew, GitHub Release, Docker, etc.).
 5. After release, `version.txt` on `main` is `2.4.1`, and every dev build advertises `2.4.1+<sha>` until the next release.
