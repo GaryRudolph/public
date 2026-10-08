@@ -1,8 +1,10 @@
-# Changelog fragments: recommendation and nowline migration
+# Changelog fragments
 
-Status: tooling and standards landed on `claude/zen-planck-mw77w8` in this
-repo. nowline is untouched; this is the checklist for that PR. Runner draft:
-remove or promote it before this branch merges.
+Why the standards replace `## [Unreleased]` edits with per-PR fragment files,
+where the design departs from HashiCorp's, the evidence from nowline, and
+the checklist for moving nowline over. The rules are in
+`standards/documentation.md` (Changelog); the tooling and the generic
+set-up and migration steps are in the `personal-release` skill.
 
 ## Recommendation
 
@@ -53,7 +55,7 @@ plan private repos the trigger never fires.
   (plus two copies of one entry a later PR had reworded in place; with
   fragments, a reword edits the earlier fragment file).
 
-## nowline migration checklist (one PR)
+## nowline migration checklist (one PR, not done yet)
 
 1. `scripts/changelog.py` from the template; `.changelog/README.md` and
    `packages/vscode-extension/.changelog/README.md` from
