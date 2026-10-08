@@ -20,7 +20,7 @@ containers run today.
 
 ## Base
 
-Any development: `triage` and `protoc`.
+Any development: `triage`.
 
 ```bash
 #!/bin/bash
@@ -39,18 +39,12 @@ curl -fsSL -o "$tmp/checksums.txt" "https://github.com/lolay/triage/releases/dow
 (cd "$tmp" && sha256sum -c --ignore-missing checksums.txt)
 tar -xzf "$tmp/$f" -C /usr/local/bin triage
 
-# protoc (Ubuntu's protobuf-compiler is 3.21, from 2022)
-v=$(latest_tag protocolbuffers/protobuf)
-curl -fsSL -o "$tmp/protoc.zip" \
-  "https://github.com/protocolbuffers/protobuf/releases/download/$v/protoc-${v#v}-linux-x86_64.zip"
-unzip -q -o "$tmp/protoc.zip" -d /usr/local bin/protoc 'include/*'
-
 rm -rf "$tmp"
 ```
 
 ## Amazon
 
-Base, plus `terraform` and `aws`.
+Base, plus `protoc`, `terraform`, and `aws`.
 
 ```bash
 #!/bin/bash
@@ -94,9 +88,9 @@ rm -rf "$tmp"
 
 ## Google
 
-Base, plus `terraform`, `gcloud`, and `firebase`. The default image ships an
-older `gcloud` under `/opt/google-cloud-sdk`, so the script updates it in
-place, and installs it from Google's apt repo only when it's missing.
+Base, plus `protoc`, `terraform`, `gcloud`, and `firebase`. The default image
+ships an older `gcloud` under `/opt/google-cloud-sdk`, so the script updates
+it in place, and installs it from Google's apt repo only when it's missing.
 
 ```bash
 #!/bin/bash
