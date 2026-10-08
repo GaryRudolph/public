@@ -1,10 +1,11 @@
 # Changelog check: copy to .github/workflows/changelog.yml, next to
 # scripts/changelog.py, and make the "changelog" job a required check.
 #
-# On a PR it fails when a fragment is malformed, when the PR edits a
-# CHANGELOG.md that has a .changelog/ beside it (only the release commit
-# writes that file), or when the PR adds no fragment and isn't labelled
-# no-changelog. Adding or removing the label re-runs it.
+# On a PR it fails when a fragment is malformed, when the PR adds an entry
+# or heading above the latest release in a CHANGELOG.md that has a
+# .changelog/ beside it (only the release step writes new entries; fixing
+# a released one is fine), or when the PR adds no fragment and isn't
+# labelled no-changelog. Adding or removing the label re-runs it.
 #
 # It also runs on merge_group, because a required check that never reports
 # there stalls the merge queue. In the queue it only validates: the PR run

@@ -288,9 +288,14 @@ expect_fail "PR without a fragment fails --require" python3 "$changelog" check -
 expect_grep "  ...points at the label"               "no-changelog"
 expect_ok   "  ...passes without --require"          python3 "$changelog" check --base main
 git switch -q main && git switch -q -c pr-edit
-printf -- '- Sneaky\n' >> CHANGELOG.md && git commit -qam edit
-expect_fail "PR editing CHANGELOG.md fails"          python3 "$changelog" check --base main
-expect_grep "  ...says to add a fragment"            "CHANGELOG.md is edited directly"
+sed -i.bak 's/^# Changelog$/# Changelog\n\n## [Unreleased]\n\n- Sneaky/' CHANGELOG.md && rm CHANGELOG.md.bak && git commit -qam edit
+expect_fail "PR adding an entry to CHANGELOG.md fails" python3 "$changelog" check --base main
+expect_grep "  ...says to add a fragment"            "gains '- Sneaky' above the latest release"
+expect_grep "  ...and the heading"                   "gains '## [Unreleased]'"
+git switch -q main && git switch -q -c pr-fix-released
+sed -i.bak 's/^- Earlier work$/- Earlier work, typo fixed/; s/^# Changelog$/# Changelog\n\nNotable changes, by release./' CHANGELOG.md && rm CHANGELOG.md.bak
+git commit -qam fix
+expect_ok   "PR fixing a released entry passes"      python3 "$changelog" check --base main
 git switch -q main
 fragment .changelog/bad-kind.txt bugfix 'Wrong kind'
 expect_fail "unknown kind fails"                     python3 "$changelog" check

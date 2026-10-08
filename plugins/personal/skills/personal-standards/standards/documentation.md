@@ -137,7 +137,9 @@ Follow [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) format: `Added`,
 
 - **File**: `.changelog/<name>.txt`, any unique name: the branch slug (`serve-grayscale-theme.txt`) or the PR number. An agent usually commits before the PR exists, so the slug is the default.
 - **Body**: one fenced block per entry, ` ```release-note:<kind> `, where the kind is a Keep a Changelog section in lowercase (`added`, `changed`, `deprecated`, `removed`, `fixed`, `security`). Write the entry as it should read in the changelog; one file can hold several blocks.
-- **No user-visible change, no fragment**: label the PR `no-changelog`. A CI check fails a PR with neither, and a PR that edits `CHANGELOG.md` directly; only the release commit writes it.
+- **No user-visible change, no fragment**: label the PR `no-changelog`. A CI check fails a PR with neither, and a PR that adds an entry or heading to `CHANGELOG.md` above its latest release; only the release step writes new entries.
+- **Order** is merge order: when each file landed on the branch, not its name.
+- **Released entries live only in `CHANGELOG.md`.** The release deletes the fragments it used, so `.changelog/` holds exactly what's pending. HashiCorp keeps every file and diffs git refs to find each release's set; that buys nothing here once the entry is in `CHANGELOG.md` and git history, and costs a directory that grows forever. To fix a released entry, edit `CHANGELOG.md`; the check allows it.
 - **More than one changelog** (a monorepo package that ships its own): each gets its own `.changelog/` beside it.
 - `.changelog/README.md` documents the format for contributors and keeps the directory in git between releases.
 

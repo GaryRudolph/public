@@ -178,8 +178,9 @@ Do steps 1 to 5 in one PR, plus:
   is churn that conflicts with every open PR.
 - **Rewrite the preamble** so it points at `.changelog/` instead of
   `## [Unreleased]`.
-- **Open PRs that already edit `CHANGELOG.md`** fail the new check. Each
-  moves its entry into a fragment: a small edit, and it can't conflict.
+- **Open PRs that already add a `CHANGELOG.md` entry** fail the new check.
+  Each moves its entry into a fragment: a small edit, and it can't
+  conflict. Pending legacy entries can't be reworded until they ship.
 - **Retire the old changelog-promotion script** and its tests, and point
   any Make target at `changelog.py`.
 - **Prove it before merging**: `changelog.py release <next> --dry-run`

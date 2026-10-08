@@ -1,9 +1,10 @@
 # Changelog fragments
 
-Don't edit `CHANGELOG.md` in a PR. Add your entry here as its own file, and
-the release step folds every file into the new release section and deletes
-them. Separate files mean PRs never conflict over the changelog, in a merge
-queue or out of it.
+Don't add entries to `CHANGELOG.md` in a PR. Add your entry here as its own
+file, and the release step folds every file into the new release section,
+in merge order, and deletes them. Separate files mean PRs never conflict
+over the changelog, in a merge queue or out of it. To fix an entry that
+already shipped, edit `CHANGELOG.md` directly.
 
 Name the file anything unique, ending in `.txt`: the branch slug
 (`serve-grayscale-theme.txt`) or the PR number (`123.txt`). Write one fenced

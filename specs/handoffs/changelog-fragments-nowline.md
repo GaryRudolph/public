@@ -22,8 +22,16 @@ Where it deliberately departs from HashiCorp's `go-changelog`:
 - **One stdlib Python script** (`personal-release/templates/changelog.py`),
   not a Go toolchain. It sits beside `bump_version.py`, which calls it.
 - **No `## [Unreleased]` heading in a migrated file.** An empty one invites
-  agents trained on KaC to append there; the CI check fails any PR that
-  edits `CHANGELOG.md`. `changelog.py preview` shows what's pending.
+  agents trained on KaC to append there; the CI check fails a PR that adds
+  an entry or heading above the latest release, while fixes to released
+  entries pass. `changelog.py preview` shows what's pending.
+- **The release deletes the fragments it used.** HashiCorp keeps every file
+  forever and diffs two git refs to find each release's set
+  (terraform-provider-aws carries thousands). Once an entry is in
+  `CHANGELOG.md` and git history, keeping its file adds nothing, and an
+  empty-but-for-README `.changelog/` means "nothing pending" at a glance.
+  Order comes from git (first-parent merge time), not names, so deleting
+  loses nothing there either.
 
 Merge queues: needed for none of this. The CI check lists `merge_group:` so a
 repo can turn a queue on later without a stalled required check; on Team

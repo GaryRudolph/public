@@ -25,8 +25,9 @@ unique: the branch slug (serve-grayscale-theme.txt) or the PR number
 Commands:
     changelog.py check [--base REF] [--require]
         Validates every fragment. With --base, also fails if the branch
-        edits a CHANGELOG.md that has a .changelog/ beside it, and with
-        --require, if the branch adds or edits no fragment at all.
+        adds an entry or heading above the latest release in a CHANGELOG.md
+        that has a .changelog/ beside it (fixing a released entry is fine),
+        and with --require, if the branch adds or edits no fragment.
     changelog.py preview
         Prints the section each CHANGELOG.md would gain at the next release.
     changelog.py release X.Y.Z [--date YYYY-MM-DD] [--dry-run]
@@ -220,6 +221,27 @@ def release(root, version, date):
     return writes, deletes, notes
 
 
+def unreleased_additions(root, base, path):
+    """Entry and heading lines a branch adds to CHANGELOG.md above its latest release.
+
+    That is where the conflicts come from. Fixing a released entry, or the
+    preamble's prose, touches lines nobody else is editing, so it passes.
+    """
+    text = (root / path).read_text().splitlines()
+    first_release = next((i + 1 for i, line in enumerate(text) if re.match(r"^## \[v?\d", line)), len(text) + 1)
+    diff = git(root, "diff", "-U0", f"{base}...HEAD", "--", path) or ""
+    added, lineno = [], 0
+    for line in diff.splitlines():
+        m = re.match(r"^@@ -\S+ \+(\d+)", line)
+        if m:
+            lineno = int(m.group(1))
+        elif line.startswith("+") and not line.startswith("+++"):
+            if lineno < first_release and re.match(r"^(#{2,3} |[-*] )", line[1:]):
+                added.append(line[1:].strip())
+            lineno += 1
+    return added
+
+
 def check(root, base, require):
     dirs = fragment_dirs(root)
     if not dirs:
@@ -240,8 +262,10 @@ def check(root, base, require):
             status, path = line.split("\t", 1)
             p = Path(path)
             if path in managed:
-                errors.append(f"{path} is edited directly; add a {p.parent / FRAGMENT_DIR}/<name>.txt fragment instead "
-                              "(only the release commit writes CHANGELOG.md)")
+                for added in unreleased_additions(root, base, path):
+                    errors.append(f"{path} gains {added!r} above the latest release; add a "
+                                  f"{p.parent / FRAGMENT_DIR}/<name>.txt fragment instead (only the release step "
+                                  "writes new entries; fixing a released entry is fine)")
             elif p.parent.name == FRAGMENT_DIR and p.suffix == ".txt" and status in ("A", "M"):
                 touched.append(path)
         for path in touched:
