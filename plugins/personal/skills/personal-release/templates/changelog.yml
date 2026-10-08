@@ -1,0 +1,40 @@
+# Changelog check: copy to .github/workflows/changelog.yml, next to
+# scripts/changelog.py, and make the "changelog" job a required check.
+#
+# On a PR it fails when a fragment is malformed, when the PR edits a
+# CHANGELOG.md that has a .changelog/ beside it (only the release commit
+# writes that file), or when the PR adds no fragment and isn't labelled
+# no-changelog. Adding or removing the label re-runs it.
+#
+# It also runs on merge_group, because a required check that never reports
+# there stalls the merge queue. In the queue it only validates: the PR run
+# already checked for a fragment, and the queue's merge commit has no labels.
+name: Changelog
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, labeled, unlabeled]
+  merge_group:
+
+permissions:
+  contents: read
+
+jobs:
+  changelog:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0              # the check diffs against the base branch
+
+      - name: Check fragments
+        env:
+          EVENT: ${{ github.event_name }}
+          BASE: ${{ github.event.pull_request.base.sha || github.event.merge_group.base_sha }}
+          SKIP: ${{ contains(github.event.pull_request.labels.*.name, 'no-changelog') }}
+        run: |
+          if [ "$EVENT" = pull_request ] && [ "$SKIP" != true ]; then
+            python3 scripts/changelog.py check --base "$BASE" --require
+          else
+            python3 scripts/changelog.py check --base "$BASE"
+          fi

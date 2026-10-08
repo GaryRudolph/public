@@ -131,7 +131,17 @@ What was decided.
 
 ## Changelog
 
-Follow [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) format: `Added`, `Changed`, `Deprecated`, `Removed`, `Fixed`, `Security`
+Follow [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) format: `Added`, `Changed`, `Deprecated`, `Removed`, `Fixed`, `Security`
+
+**Entries ship as fragments, not edits to `CHANGELOG.md`.** Every PR that appends to `## [Unreleased]` edits the same lines, so open PRs conflict with each other and each merge forces the rest to be fixed up (a merge queue just ejects them). Instead, as HashiCorp does, each PR adds its own file to `.changelog/` beside the `CHANGELOG.md` it feeds, and the release step assembles the files into the new `## [vX.Y.Z] - YYYY-MM-DD` section and deletes them:
+
+- **File**: `.changelog/<name>.txt`, any unique name: the branch slug (`serve-grayscale-theme.txt`) or the PR number. An agent usually commits before the PR exists, so the slug is the default.
+- **Body**: one fenced block per entry, ` ```release-note:<kind> `, where the kind is a Keep a Changelog section in lowercase (`added`, `changed`, `deprecated`, `removed`, `fixed`, `security`). Write the entry as it should read in the changelog; one file can hold several blocks.
+- **No user-visible change, no fragment**: label the PR `no-changelog`. A CI check fails a PR with neither, and a PR that edits `CHANGELOG.md` directly; only the release commit writes it.
+- **More than one changelog** (a monorepo package that ships its own): each gets its own `.changelog/` beside it.
+- `.changelog/README.md` documents the format for contributors and keeps the directory in git between releases.
+
+The `personal-release` skill ships the tooling (`changelog.py`, the CI check, the README) and the steps to adopt it in an existing repo. Repos that haven't adopted it keep appending to `## [Unreleased]`.
 
 ## Documentation Review Checklist
 

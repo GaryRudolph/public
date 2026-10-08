@@ -119,6 +119,12 @@ Each commit = one logical change. Makes reverting and reviewing straightforward.
 - One feature or fix per PR; keep PRs < 400 lines changed
 - PR titles follow commit message format: `PROJ-123 add user authentication`
 
+### Hot files
+
+Don't make every PR edit one shared file. A file most PRs touch (`CHANGELOG.md`, a hand-kept index or registry, a shared list of routes or flags) turns every merge into a conflict for the PRs behind it, whether approvals land back to back or through a merge queue, which ejects the conflicting PR. Give each change its own file and let a script or the release step build the aggregate: changelog fragments in `.changelog/` ([documentation.md](documentation.md#changelog)), one file per migration or registry entry. Generated files (lockfiles, golden hashes, snapshots) still conflict; regenerate them with the repo's tooling, never merge them by hand.
+
+Merge queues need GitHub Enterprise Cloud for private org repos, and a small repo doesn't need one. Nothing here depends on a queue. A required check's workflow should still list `merge_group:` among its triggers (inert until a queue is enabled), so turning one on later can't stall on a check that never reports.
+
 ### PR Body
 
 ```markdown
