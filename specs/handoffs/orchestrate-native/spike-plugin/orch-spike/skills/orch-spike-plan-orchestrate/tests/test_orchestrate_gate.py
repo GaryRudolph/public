@@ -53,7 +53,7 @@ def write_plan(mode="gated | proposed gated (harness=claude-code runner=none) | 
     paste = "".join(f"      {line}\n" for line in prompt) if prompt else ""
     plan.write_text(f"```\n--- KICKOFF: begin orchestration at [deep] ---\n  Status: {status}\n"
                     f"  mode: {mode}\n" + (f"\n    Prompt to paste into the next chat:\n{paste}\n---\n" if prompt else "")
-                    + "```\n" + COST + "## m1 - A\n--- WAVE 1 [exec] ---\n#### m1.s1 - [exec] One\n"
+                    + "```\n" + COST + "## m1 - A\n--- WAVE 1 [exec] ---\n#### s1 - [exec] One\n"
                     + (f"\n## Review log\n\n{log}" if log else ""))
     resume = " / ".join(prompt) if prompt else "none yet"
     handoff.write_text(f"# Handoff plan-x\n\nmode: {mode}\nStatus: {status}\nResume: {resume}\nNext: wave 1\n{log}")
@@ -66,6 +66,7 @@ def write_plan(mode="gated | proposed gated (harness=claude-code runner=none) | 
 
 
 ST = write_plan()
+assert ST["errors"] == [] and ST["next"]["steps"] == ["m1.s1"], ST  # a standard s1 heading under m1 is step m1.s1
 # Unattended, confirmed by an answer on a workstation (the hook's default environment): Gary overrode a gated proposal.
 UN = "unattended | proposed gated (harness=claude-code runner=none) | guard 2x | fixups 2 | confirmed 2026-10-06 session s: "
 

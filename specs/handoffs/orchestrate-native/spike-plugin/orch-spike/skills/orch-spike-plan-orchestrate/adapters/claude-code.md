@@ -67,11 +67,13 @@ one dispatch unit, at the end of "Each unit" step 4.
   "approval": "yes, continue wave 1",
   "trailers": ["Assisted-by: Claude Code"],
   "groups": [{ "workdir": "/abs/path/repo-b", "branch": "feature/auth-otter",
-               "steps": ["m1.s2"], "spec": "#### m1.s2 - [exec] Add beta.txt\n…",
+               "steps": ["m1.s2"], "spec": "#### s2 - [exec] Add beta.txt\n…",
                "acceptance": "…", "standards": [], "from": "a08d5d2" }] }
 ```
 
 - `canaryDone` is false on this session's first launch and true after.
+- `steps` are the IDs `plan_state.py` reports, which commit subjects carry:
+  a heading `#### s2` under `## m1` is `m1.s2`.
 - `approved` is `[]` except in the turn Gary's answer started (or joined):
   then one `{gate, wave}` per gate he answered, `wave` being the launched
   unit's wave number ("After an answer" in `SKILL.md` says which gates).

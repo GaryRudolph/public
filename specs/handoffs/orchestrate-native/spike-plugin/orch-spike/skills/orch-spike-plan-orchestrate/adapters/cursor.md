@@ -136,8 +136,9 @@ the re-attempt's expected cost from the standard's §"Expected cost" at the
 gate.
 
 **Checking.** `check_wave.py check --snapshot <s> --group '<json>'` per
-group (`{"id","workdir","steps","from","trailers"}`), where `trailers` is
-what the worker was told. Cursor has no run record, so there is no `--run`.
+group (`{"id","workdir","steps","from","trailers"}`), where `steps` are the
+IDs `plan_state.py` reports (`m2.s1` for an `s1` heading under `m2`, the
+prefix its commits carry) and `trailers` is what the worker was told. Cursor has no run record, so there is no `--run`.
 
 ## Cost table and counting header
 

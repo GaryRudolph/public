@@ -75,6 +75,17 @@ code, out = run("snapshot", nog)
 cases.append(("snapshot flags a .scratch/ that is not ignored", code == 1 and out["problems"]))
 cases.append(("v6: a snapshot records HEAD and dirty paths only, no tree object", all(set(v) == {"head", "dirty", "attribution"} for v in snap["dirs"].values())))
 
+# ---- m2.s9: a step's ID is plan_state.py's m{N}.s{K}, never the heading's bare s{K} ----
+bare = repo("bare")
+(tmp / "sb.json").write_text(json.dumps(run("snapshot", bare)[1]))
+bare_from = sh(bare, "rev-parse", "HEAD")
+commit(bare, "b.txt", "s2 Add b\n\nAssisted-by: Claude Code")
+code, out = run("check", "--snapshot", tmp / "sb.json", "--group", group(bare, ["m1.s2"], bare_from))
+p = " ".join(out["groups"][0]["problems"])
+cases.append(("a commit under the heading's bare s2 for step m1.s2 fails", code == 1 and "does not start with one of m1.s2" in p and "m1.s2 has no commit" in p))
+code, out = run("check", "--snapshot", tmp / "sb.json", "--group", group(bare, ["s2"], bare_from))
+cases.append(("a bare s2 is the ID in a plan with no milestones", code == 0 and not out["groups"][0]["problems"]))
+
 # ---- v4: fix-ups in the repo that holds a tracked plan, and a leftover path checked again ----
 
 T = "\n\nAssisted-by: Claude Code"
