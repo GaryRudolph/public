@@ -1,7 +1,7 @@
 ```
 --- KICKOFF: begin orchestration at [deep] ---
 
-  Status: 6/8 groups done | last review: wave-6 PASS | current: m2 s8-s9 [deep] (wave 7: s8 done, s9 dogfood retargeted to lolay/ghx; gate 1: plan_state.py rejects per-milestone s1 step ids, fix before the dogfood?) | updated 2026-10-07
+  Status: 6/8 groups done | last review: wave-6 PASS | current: m2 s8-s9 [deep] (wave 7: s8 done, s9 dogfood retargeted to lolay/ghx; gate 1 answered: fixing the per-milestone step-id bug before the dogfood) | updated 2026-10-08
 
   review: every-wave (log-only — parent writes Review log; no human review gate)
 
