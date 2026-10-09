@@ -5,7 +5,7 @@
   "plugins": [
     {
       "name": "orch-spike",
-      "description": "Spike copy of the personal plugin with the orchestrate kit's manifest fields (agents, workflows, hooks).",
+      "description": "Spike copy of the personal plugin with the orchestrate kit's manifest fields (agents, workflows, hooks). Rebuilt 2026-10-08 as 0.1.200.",
       "source": {
         "source": "git-subdir",
         "url": "https://github.com/GaryRudolph/public.git",

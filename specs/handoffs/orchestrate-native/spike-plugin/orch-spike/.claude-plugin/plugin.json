@@ -13,5 +13,6 @@
     "./skills/orch-spike-plan-orchestrate/claude-agents/plan-reviewer-xdeep.md"
   ],
   "workflows": "./skills/orch-spike-plan-orchestrate/claude-workflows/",
-  "hooks": "./hooks/claude-hooks.json"
+  "hooks": "./hooks/claude-hooks.json",
+  "version": "0.1.200"
 }

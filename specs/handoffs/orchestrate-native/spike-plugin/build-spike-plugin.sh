@@ -9,12 +9,17 @@
 # planning skills the kit cites (standards, plan-orchestrate, plan-model-tiers, plan-tag-tiers) under the new
 # prefix, and a SessionStart hook that prints one marker line instead of the core standards (so a session with both
 # plugins doesn't inject the standards twice, and the marker shows whether the synced copy's hook ran).
+# The copy's plugin.json carries version 0.1.<N>, N = commit count of this repo at build time, so each rebuild from a
+# newer branch head is a new release (org sync only offers an update when the plugin's version changes). The
+# marketplace entry carries no version, only a description that names the rebuild date and version.
 # The kit's namespace rule: the folder, the manifest name, args.plugin and the skill prefix all agree.
 set -euo pipefail
 name=${1:-orch-spike}
 here=$(cd "$(dirname "$0")" && pwd)
 src=$(cd "$here/../../../../plugins/personal" && pwd)
 out=$here/$name
+version="0.1.$(git -C "$here" rev-list --count HEAD)"
+built=$(date +%F)
 case "$name" in personal|*[!a-z0-9-]*|-*) echo "bad name: $name" >&2; exit 1;; esac
 
 rm -rf "$out"
@@ -23,10 +28,10 @@ for s in standards plan-orchestrate plan-model-tiers plan-tag-tiers; do
   rsync -a --exclude __pycache__ --exclude '*.pyc' "$src/skills/personal-$s/" "$out/skills/$name-$s/"
 done
 
-python3 - "$name" "$src" "$out" <<'PY'
+python3 - "$name" "$src" "$out" "$version" <<'PY'
 import json, re, sys
 from pathlib import Path
-name, src, out = sys.argv[1], Path(sys.argv[2]), Path(sys.argv[3])
+name, src, out, version = sys.argv[1], Path(sys.argv[2]), Path(sys.argv[3]), sys.argv[4]
 
 # Rename the skill prefix in every text file the copy carries.
 pat = re.compile(r"personal-(standards|plan-orchestrate|plan-model-tiers|plan-tag-tiers)")
@@ -42,6 +47,7 @@ for p in out.rglob("*"):
 
 m = json.loads((src / ".claude-plugin/plugin.json").read_text())
 m["name"] = name
+m["version"] = version
 m["description"] = (f"Phase 0 spike copy of the personal plugin ({name}): the orchestrate kit's manifest fields "
                     "(agents, workflows, hooks) for checking org sync and Cowork. Not for daily use.")
 m["agents"] = [a.replace("personal-plan-orchestrate", f"{name}-plan-orchestrate") for a in m["agents"]]
@@ -69,7 +75,7 @@ cat > "$here/.claude-plugin/marketplace.json" <<JSON
   "plugins": [
     {
       "name": "$name",
-      "description": "Spike copy of the personal plugin with the orchestrate kit's manifest fields (agents, workflows, hooks).",
+      "description": "Spike copy of the personal plugin with the orchestrate kit's manifest fields (agents, workflows, hooks). Rebuilt $built as $version.",
       "source": {
         "source": "git-subdir",
         "url": "https://github.com/GaryRudolph/public.git",
@@ -80,4 +86,4 @@ cat > "$here/.claude-plugin/marketplace.json" <<JSON
   ]
 }
 JSON
-echo "built $out and $here/.claude-plugin/marketplace.json"
+echo "built $out ($version) and $here/.claude-plugin/marketplace.json"
