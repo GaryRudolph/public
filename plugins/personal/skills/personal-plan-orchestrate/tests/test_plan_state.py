@@ -153,6 +153,68 @@ def milestone_comes_from_the_enclosing_heading_when_ids_lack_it():
     body = "--- WAVE 1 [exec] ---\n#### s1 - [exec] A (done)\n\n## m2 - Next\n\n--- WAVE 2 [exec] ---\n#### s2 - [exec] B\n"
     s = state(plan(body))
     assert s["next"]["milestone"] == "m2" and s["gates"] == ["gate-4"]
+    assert s["next"]["steps"] == ["m2.s2"]
+
+
+# ---- step IDs: s{K} restarts in each milestone (documentation.md), so the ID is m{N}.s{K} ----
+STANDARD = """--- WAVE 1 [exec] ---
+#### s1 - [exec] One{d1}
+#### s2 - [fast] Two{d2}
+
+## m2 - Phase 1: Claude Code
+
+--- WAVE 2 [deep] ---
+#### s1 - [deep] Decide{d3}
+#### s2 - [deep] Build{d4}
+"""
+
+
+def standard(n):
+    return STANDARD.format(**{f"d{i}": " (done)" if i <= n else "" for i in range(1, 5)})
+
+
+@test
+def steps_restarting_at_s1_in_each_milestone_get_qualified_ids():
+    s = state(plan(standard(0)))
+    assert s["errors"] == [], s["errors"]
+    assert s["next"]["steps"] == ["m1.s1", "m1.s2"] and s["next"]["milestone"] == "m1"
+    s = state(plan(standard(2)))
+    assert s["errors"] == [], s["errors"]
+    assert s["next"]["steps"] == ["m2.s1", "m2.s2"] and s["next"]["milestone"] == "m2"
+    assert s["gates"] == ["gate-4", "gate-2"], s["gates"]
+
+
+@test
+def a_level_3_milestone_heading_qualifies_its_steps_too():
+    body = standard(2).replace("## m2 - Phase 1", "### m2 - Phase 1")
+    s = state(plan(body))
+    assert s["errors"] == [] and s["next"]["steps"] == ["m2.s1", "m2.s2"], (s["errors"], s["next"])
+
+
+@test
+def a_real_duplicate_within_a_milestone_is_still_gate_0():
+    s = state(plan(standard(0).replace("#### s2 - [deep] Build", "#### s1 - [deep] Build")))
+    assert s["gates"][0] == "gate-0" and "step id m2.s1 appears twice" in s["errors"], s["errors"]
+    s = state(plan(standard(0).replace("#### s1 - [deep] Decide", "#### m1.s1 - [deep] Decide")))
+    assert "step id m1.s1 appears twice" in s["errors"], s["errors"]  # an explicit ID equal to a qualified one
+
+
+@test
+def explicit_and_bare_prefixes_in_one_milestone_give_the_same_ids():
+    mixed = state(plan(standard(2).replace("#### s1 - [deep] Decide", "#### m2.s1 - [deep] Decide")))
+    assert mixed["errors"] == [] and mixed["next"]["steps"] == ["m2.s1", "m2.s2"], (mixed["errors"], mixed["next"])
+    assert state(plan(marked(0)))["next"]["steps"] == ["m1.s1", "m1.s2", "m1.s3"]
+
+
+@test
+def a_plan_with_no_milestones_keeps_bare_ids():
+    text = KICK.format(status="0/1 groups done | updated 2026-10-06", mode=GATED) + "# Plan: x\n\n## Steps\n\n" \
+        + "--- WAVE 1 [exec] ---\n#### s1 - [exec] One\n#### s2 - [exec] Two\n#### [exec] Wire Redis client\n"
+    s = state(text)
+    assert s["errors"] == [] and not s["milestones"], s["errors"]
+    assert s["next"]["steps"] == ["s1", "s2", "wire-redis-client"] and s["next"]["milestone"] is None
+    s = state(text.replace("#### s2 - [exec] Two", "#### s1 - [exec] Two"))
+    assert "step id s1 appears twice" in s["errors"], s["errors"]
 
 
 @test

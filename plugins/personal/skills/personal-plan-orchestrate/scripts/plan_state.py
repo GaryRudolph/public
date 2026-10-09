@@ -9,6 +9,13 @@ Reads only the plan file: wave markers, tagged headings and their (done)
 markers, the Kickoff Status and mode lines and its prompt, the Cost table,
 the Review log and the Token log.
 
+A step's ID is its heading prefix, qualified by its milestone: step numbers
+restart at s1 in each milestone (documentation.md "Steps within a
+milestone"), so "#### s2 - [exec] ..." under "## m3 - ..." is m3.s2, the
+prefix its commits carry. An explicit m3.s2 prefix is the same ID; a step in
+no milestone keeps its bare prefix, and one with no prefix gets its title's
+slug.
+
 Every gate derives from the plan in every mode. The mode only splits them:
 in gated mode every gate stops; in unattended mode gates 2, 3, 4, a planned
 wave's gate 7, and gate 1 on an automatic fix-up within the mode line's cap
@@ -51,6 +58,7 @@ HEADING_RE = re.compile(r"^(#+)\s+(.*?)\s*$")
 TAG_RE = re.compile(r"\[(xdeep|deep|exec|fast)\]")
 DONE_RE = re.compile(r"\(done\)\s*$")
 MILESTONE_RE = re.compile(r"^(?:m(\d+)\b|milestone\s+(\d+)\b)", re.I)
+BARE_STEP_RE = re.compile(r"^s\d+$")  # a step heading's s{K} prefix with no m{N} before it
 BLOCKED_RE = re.compile(r"BLOCKED at gate ([\w-]+)")
 # A fix-up's review is logged as wave-N-fix, wave-N-fix2, ...; it counts toward wave N's group.
 # WAIVED is never a review: it records Gary's answer to a gate 1, verbatim, and ends the streak.
@@ -184,6 +192,8 @@ def parse(text):
         title = DONE_RE.sub("", body[tag.end():]).strip()
         sid = prefix or re.sub(r"[^a-z0-9]+", "-", title.lower()).strip("-")
         ms = milestone_of(prefix) or next((v for k, v in sorted(enclosing.items(), reverse=True) if k < level and v), None)
+        if ms and BARE_STEP_RE.match(prefix):
+            sid = f"{ms}.{prefix}"  # s{K} restarts in each milestone (documentation.md), so its ID is m{N}.s{K}, as in commits
         if wave is None:
             errors.append(f"line {no}: tagged step {sid} comes before any wave marker")
             continue

@@ -780,8 +780,10 @@ the prompt from the group you pass; on Cursor you write it.
    `<path>`. Do not edit anything outside this directory.").
 3. **Acceptance criteria:** the plan's, quoted, or derived from the step
    titles.
-4. **Hard scope limit:** the exact step IDs, and "stop at the end of this
-   group; do not start the next group or any work not listed here."
+4. **Hard scope limit:** the exact step IDs as `plan_state.py` reports
+   them (a heading's `s1` under `m2` is `m2.s1`, since step numbers
+   restart in each milestone), and "stop at the end of this group; do not
+   start the next group or any work not listed here."
 5. **Standards pointers:** the specific standards files the work needs.
    Don't skimp for `[deep]` and `[xdeep]` work.
 6. **Output contract:** "Write your full output (diffs, decisions,
@@ -799,10 +801,11 @@ the prompt from the group you pass; on Cursor you write it.
 8. **Git instruction:** "Commit each finished step on the current branch
    (`<branch>`) as its own commit, staging only the paths you changed. A
    step that changes no file gets an empty commit (`git commit
-   --allow-empty`). The first line is the step ID, a space, and an
-   imperative subject (`m2.s3 Wire the results view`); then a blank line;
-   then, as the last paragraph, exactly these trailer lines: <the harness's
-   trailers>. Never add `Co-authored-by` or `Signed-off-by` lines. Do not
+   --allow-empty`). The first line is the step ID as the scope lists it,
+   a space, and an imperative subject (`m2.s3 Wire the results view`);
+   then a blank line; then, as the last paragraph, exactly these trailer
+   lines: <the harness's trailers>. Never add `Co-authored-by` or
+   `Signed-off-by` lines. Do not
    push, create, or switch branches." Plus: "If the spec reads two ways
    with materially different results, or you lack an access the step
    needs, return `needs_info` with one question. Don't open or merge a PR,

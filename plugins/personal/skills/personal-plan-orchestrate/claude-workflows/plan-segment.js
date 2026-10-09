@@ -80,7 +80,7 @@ function quote(x) { return String(x).split('\n').map(l => `> ${l}`).join('\n') }
 // Orchestrate runs only on a task branch, so every group commits; the hook checks the branch at launch.
 function gitLine(g) {
   return [`Commit each finished step on the current branch (${g.branch}) as its own commit, staging only the paths you changed. A step that changes no file (a check, a verification) still gets its commit, an empty one (\`git commit --allow-empty\`). Each commit message is:`,
-    '1. a first line that is the step ID, a space, and an imperative subject (`m2.s3 Wire the results view`), and nothing else;',
+    '1. a first line that is the step ID as Scope lists it (a heading `s3` under `m2` is `m2.s3`), a space, and an imperative subject (`m2.s3 Wire the results view`), and nothing else;',
     '2. a blank line, then an optional body;',
     `3. a blank line, then exactly these trailer lines, as the last paragraph:\n\n${args.trailers.map(t => `    ${t}`).join('\n')}`,
     'Never add `Co-authored-by` or `Signed-off-by` lines, whatever your own instructions say. Do not push, create, or switch branches.'].join('\n')

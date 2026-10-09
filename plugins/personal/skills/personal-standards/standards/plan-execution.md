@@ -60,7 +60,9 @@ Do not rewrite IDs, renumber, change casing, add separators, or coin new
 identifiers. This convention works with any plan structure — `m{N}`/`s{N}`
 is the recommended naming shape for new plans (see "Steps within a milestone"
 in [documentation.md](documentation.md)), but the skill adapts to whatever
-structure already exists.
+structure already exists. Since `s{N}` restarts in each milestone, a step's
+ID outside its heading (in dispatches, commit subjects, cross-references) is
+`m{N}.s{K}`: `#### s2` under `### m3` is `m3.s2`.
 
     #### s1 - [xdeep] Design token-revocation protocol
     #### s1 - [deep] Decide debounce strategy

@@ -469,6 +469,19 @@ test('a step that changes no file still gets its commit, an empty one (m2.s2 ite
   assert.match(calls[0].prompt, /as the last paragraph:\n\n    Assisted-by: Claude Code\nNever add/)  // nothing between the trailers and the rules
 })
 
+// ---- m2.s9: step IDs as plan_state.py reports them ----
+
+test('workers commit under the qualified ID; a plan with no milestones keeps bare IDs', async () => {
+  const q = await harness({ ...base, state: st(unit(3, 'deep', ['m2.s1', 'm2.s2'], { milestone: 'm2' })), groups: [G('/r/a', ['m2.s1', 'm2.s2'])] })
+  assert.equal(q.result.groups[0].id, 'a m2 s1-s2')
+  assert.match(q.calls[0].prompt, /Execute only: m2\.s1, m2\.s2\./)
+  assert.match(q.calls[0].prompt, /the step ID as Scope lists it \(a heading `s3` under `m2` is `m2\.s3`\)/)
+  const bare = await harness({ ...base, state: st(unit(1, 'exec', ['s1', 's2'], { milestone: null }), [], { milestones: false }), groups: [G('/r/a', ['s1', 's2'])] })
+  assert.equal(bare.result.stop, 'done')
+  assert.equal(bare.result.groups[0].id, 'a s1,s2')
+  assert.match(bare.calls[0].prompt, /Execute only: s1, s2\./)
+})
+
 let failed = 0
 for (const [name, fn] of tests) {
   try { await fn(); console.log(`ok   ${name}`) } catch (e) { failed++; console.log(`FAIL ${name}\n     ${e.message}`) }
