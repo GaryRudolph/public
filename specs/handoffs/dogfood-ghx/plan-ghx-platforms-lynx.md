@@ -18,7 +18,7 @@ Run B of the orchestrate phase 1 dogfood (`GaryRudolph/public` `specs/handoffs/d
 
 ## m1 - Cross-platform correctness
 
-#### m1.s1 - [exec] Hermetic tests for the cloner against local git repos
+#### s1 - [exec] Hermetic tests for the cloner against local git repos
 
 - A test helper that makes a bare repo with one commit on a named default branch (`git init --bare`, a seed clone, a commit, a push) under `t.TempDir()`, using `filepath` throughout and setting `user.name`, `user.email` and `init.defaultBranch` per command (`-c`), so a runner's global git config doesn't matter.
 - `RepoInfo.CloneURL` set to the bare repo's path passes through `resolveURL` unchanged (only `https://` URLs get the token), so `CloneRepos` runs for real: clone, a second run that pulls a new upstream commit, a dirty working tree skipped, a wiki that doesn't exist reported as skipped, `--git-author` / `--git-email` written to the clone's config, concurrency above 1, and a cancelled context.
@@ -26,19 +26,19 @@ Run B of the orchestrate phase 1 dogfood (`GaryRudolph/public` `specs/handoffs/d
 - Table tests for `resolveURL`, `resolveWikiURL` and `authenticatedHTTPS` (SSH, HTTPS, a URL without `.git`).
 - **Accept when:** `go test -race ./internal/cloner/...` passes on the Mac; `cloner` is at or above 80% statement coverage; `GOOS=windows go vet ./...` passes.
 
-#### m1.s2 - [exec] A seam for the GitHub API and its tests
+#### s2 - [exec] A seam for the GitHub API and its tests
 
 - Give `ghapi` an unexported way to point the go-github client at a base URL (one constructor both `ValidateToken` and `ListOrgRepos` use; tests set it through an `export_test.go` or an option), with no behaviour change for users.
 - `httptest` tests: token validation (ok, 401, a network error), listing with pagination across two pages, the repo type filter passed through, `toRepoInfo`'s nil-safe fields, and `formatAPIError`'s messages.
 - **Accept when:** `ghapi` is at or above 80% statement coverage; no test reaches `api.github.com` (run them with the network off, or check the base URL in each test).
 
-#### m1.s3 - [exec] End-to-end tests for the run flow
+#### s3 - [exec] End-to-end tests for the run flow
 
 - Drive the cobra root command in-process (`newRootCmd`, args, a buffer for `ui.Out`, `t.Setenv` for `HOME`, `USERPROFILE` and `GITHUB_TOKEN`) against the `httptest` server from m1.s2 and bare repos from m1.s1: a first sync, a second sync that pulls, a repo removed upstream moved to `DELETED/`, an archived one moved to `ARCHIVED/`, `--delete` removing both, `--dry-run` changing nothing on disk, and `--include` / `--exclude`.
 - Assert on the directory tree and the `.ghx.json` manifest, not on the progress bar's frames.
 - **Accept when:** `internal/cli` is at or above 70% statement coverage (the rest listed in `specs/testing.md` with a reason); `make ci` passes.
 
-#### m1.s4 - [deep] Make every OS touchpoint correct on Windows
+#### s4 - [deep] Make every OS touchpoint correct on Windows
 
 - Audit each place ghx meets the OS and decide, with a test where one can show it: paths (`filepath` everywhere, `filepath.Base` on user input, the manifest's names); repo names Windows can't hold as directories (`CON`, `AUX`, `NUL`, `COM1`, a trailing `.`), which today would fail mid-sync, so skip them with a clear message or document the limit; `os.Rename` of a directory onto a path just removed, and anything holding a handle open; `os.RemoveAll` on read-only git objects; finding `git` (`exec.LookPath` once, a clear error when it's missing, `git.exe` on Windows); `git status --porcelain` with CRLF output; the home directory (`USERPROFILE`); ANSI colour and the progress bar on a Windows console (enable virtual terminal processing, or turn colour off when it can't be); `os.Interrupt` and `SIGTERM`; file modes; long paths (`core.longpaths`, or document the limit).
 - Fix what's wrong, behind build tags only where the standard library can't do it portably (`_windows.go` / `_unix.go` files, each with a test).
@@ -47,19 +47,19 @@ Run B of the orchestrate phase 1 dogfood (`GaryRudolph/public` `specs/handoffs/d
 
 ## m2 - CI on three operating systems
 
-#### m2.s1 - [exec] CI workflow for macOS, Linux and Windows
+#### s1 - [exec] CI workflow for macOS, Linux and Windows
 
 - `.github/workflows/ci.yml` modelled on triage's: on `push` (every branch, so a task branch is checked before its PR) and `pull_request`, with a `concurrency` group per ref that cancels superseded runs; `permissions: contents: read`; `actions/checkout` and `actions/setup-go` (`go-version-file: .go-version`, module cache) at their current major versions, looked up now.
 - Jobs: Linux `go mod verify`, golangci-lint installed at the Makefile's pinned version, `make ci`, `make vuln`; macOS `make ci` (same lint install); Windows `go build ./...`, `go vet ./...`, `go test ./...` (no `-race`: it needs cgo there), under `shell: bash`. Each job shows its OS in its name.
 - Lint the workflow with `actionlint` (installed, or `go run github.com/rhysd/actionlint/cmd/actionlint@latest`).
 - **Accept when:** `actionlint` reports nothing; the golangci-lint version in `ci.yml` equals `GOLANGCI_LINT_VERSION` in the Makefile; `make ci` passes locally.
 
-#### m2.s2 - [fast] Document the CI map
+#### s2 - [fast] Document the CI map
 
 - `Makefile.md`: fill the "CI map" (each workflow job and the make target or command it runs). README: a CI badge for `ci.yml` on `main`. `CONTRIBUTING.md`: CI runs on macOS, Linux and Windows; Windows runs without `-race`.
 - **Accept when:** the CI map names every job in `ci.yml`; the badge URL points at `lolay/ghx`'s `ci.yml`.
 
-#### m2.s3 - [deep] Read this branch's CI run and fix what fails
+#### s3 - [deep] Read this branch's CI run and fix what fails
 
 - The orchestrator pushed this branch after m2.s1-m2.s2. Find the `ci` run for this branch's head (`gh run list --branch <branch> --workflow ci.yml`), wait for it (`gh run watch <id>`), and read each failed job's log (`gh run view <id> --log-failed`).
 - Fix each failure at its cause (most likely Windows: path separators, CRLF in fixtures, file locking, `bash` vs `pwsh`), with the fix tested locally where it can be and cross-compiled where it can't. If every job passed, make an empty commit for this step whose body records the run URL and each job's result.

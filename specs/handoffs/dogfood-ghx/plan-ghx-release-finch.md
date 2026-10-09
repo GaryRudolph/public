@@ -18,7 +18,7 @@ Run C of the orchestrate phase 1 dogfood (`GaryRudolph/public` `specs/handoffs/d
 
 ## m1 - Version and release artifacts
 
-#### m1.s1 - [deep] Version source of truth and `ghx --version`
+#### s1 - [deep] Version source of truth and `ghx --version`
 
 - `version.txt` per the `personal-release` skill's set-up section (`0.1.0`, since nothing has shipped), `scripts/bump_version.py` copied from the template unchanged, and an `internal/buildinfo` package with `Version`, `Sha` and `BuildCode` set by `-ldflags -X` (defaults for an unstamped `go build`/`go run`, such as `dev`).
 - `ghx --version` prints `ghx <release>+<sha> (<buildCode>)`, with `.dirty` on the metadata for a dirty tree, per the standard's "Reading a build version" (not triage's format). Wire it through cobra's `Version` with a template.
@@ -26,25 +26,25 @@ Run C of the orchestrate phase 1 dogfood (`GaryRudolph/public` `specs/handoffs/d
 - Tests for the version string (stamped, unstamped, dirty), and a `make build && bin/ghx --version` check in the step's artifact.
 - **Accept when:** `bin/ghx --version` prints `ghx 0.1.0+<sha> (<count>)` on a clean tree; `python3 scripts/bump_version.py patch --dry-run` reports `0.1.1` and changes nothing; `make ci` passes.
 
-#### m1.s2 - [exec] goreleaser configuration and a local snapshot
+#### s2 - [exec] goreleaser configuration and a local snapshot
 
 - `.goreleaser.yaml` (v2 schema) from triage's: `main: ./cmd/ghx`, binary `ghx`, `CGO_ENABLED=0`, `-trimpath`, ldflags into `github.com/lolay/ghx/internal/buildinfo` as m1.s1 decided (`BUILD_CODE` from the environment, `{{ .ShortCommit }}`), darwin, linux and windows × amd64 and arm64, archives `ghx_<version>_<os>_<arch>` (tar.gz, zip on Windows) carrying `README.md`, `LICENSE` and `CHANGELOG.md`, `checksums.txt`, `release.github` `lolay/ghx`. Snapshot naming without a pre-release suffix (`<release>+<sha>`), per the standard.
 - Makefile `##@ Release`: `snapshot` (`goreleaser release --snapshot --clean`) and `release-check` (`goreleaser check`), with `GORELEASER ?= goreleaser` so the runner can pass the `go run` form.
 - **Accept when:** `goreleaser check` passes; `make snapshot` builds all six archives and `checksums.txt` under `dist/`; the darwin or linux binary for this machine prints the same `--version` string as `make build` for this commit, apart from `.dirty`; `dist/` stays ignored.
 
-#### m1.s3 - [exec] Homebrew formula and Scoop manifest publishers
+#### s3 - [exec] Homebrew formula and Scoop manifest publishers
 
 - `scripts/publish-formula.sh` + `scripts/ghx.rb.tmpl` and `scripts/publish-scoop.sh` + `scripts/ghx.json.tmpl`, ported from triage's: `class Ghx`, the description from the GitHub repo ("Clones and refreshes all repos for a GitHub organization"), homepage `https://github.com/lolay/ghx`, license `Apache-2.0`, `bin.install "ghx"` (no man pages), a `test do` that matches the version in `ghx --version`, Scoop `"bin": "ghx.exe"` with `checkver` and `autoupdate`. Same flow as triage: render from `dist/checksums.txt`, `DRY_RUN=1` prints and exits, otherwise clone the target repo with its token, commit `ghx <version>` as a bot identity, push.
 - **Accept when:** after `make snapshot`, `DRY_RUN=1 scripts/publish-formula.sh <snapshot version> dist` and `DRY_RUN=1 scripts/publish-scoop.sh <snapshot version> dist` print a formula and a manifest whose every sha256 matches `dist/checksums.txt`; `ruby -c` on the rendered formula and `python3 -m json.tool` on the manifest pass (skip either tool if missing and say so); `shellcheck` on both scripts is clean if installed; neither script ran without `DRY_RUN=1`.
 
-#### m1.s4 - [fast] Danger targets for the publish steps
+#### s4 - [fast] Danger targets for the publish steps
 
 - Makefile `##@ Danger`, copied from triage's shape with the standard's `confirm` macro: `publish-formula` (`CONFIRM_PUBLISH_FORMULA=1`, `VERSION=x.y.z`), `publish-scoop` (`CONFIRM_PUBLISH_SCOOP=1`), `release` (`CONFIRM_RELEASE=1`, `goreleaser release --clean` for the current tag). No `tag` target: tags come from the Release workflow.
 - **Accept when:** each Danger target refuses without its `CONFIRM_*` variable (run each bare and see the refusal; never set the variable); `make help` lists them under Danger.
 
 ## m2 - Release workflows and docs
 
-#### m2.s1 - [deep] Release and publish workflows
+#### s1 - [deep] Release and publish workflows
 
 - `.github/workflows/release.yml` from the `personal-release` template (dispatch with `level`, from `main` or a `release/vX[.Y]` line branch, bump with `bump_version.py`, commit `release vX.Y.Z`, tag, push with `RELEASE_TOKEN`) and `.github/workflows/publish.yml` on `push` of `v[0-9]+.[0-9]+.[0-9]+` tags: checkout with `fetch-depth: 0`, `setup-go` from `.go-version`, `BUILD_CODE` computed, `goreleaser release --clean` with `GITHUB_TOKEN`, then `scripts/publish-formula.sh`, then `scripts/publish-scoop.sh`, in that order so the formula and manifest only point at assets that exist (triage's `specs/releasing.md` "remote pushes happen LAST"). A `workflow_dispatch` on `publish.yml` re-runs a failed publish for an existing tag, as triage's does.
 - Decide, and record in the step's artifact with a reason each: floating `vX.Y` / `vX` tags (triage has them for its GitHub Action consumers; a CLI likely doesn't need them); least-privilege `permissions` per job; `concurrency`; pinning third-party actions to a major or a SHA (`go/security.md`); what happens when the tap push succeeds and the bucket push fails.
@@ -52,7 +52,7 @@ Run C of the orchestrate phase 1 dogfood (`GaryRudolph/public` `specs/handoffs/d
 - Secrets the workflows name, and nothing else: `RELEASE_TOKEN` (contents write on `lolay/ghx`, so its tag push starts `publish.yml`), `HOMEBREW_TAP_TOKEN` (contents write on `lolay/homebrew-tap`), `SCOOP_BUCKET_TOKEN` (contents write on `lolay/scoop-bucket`). Gary creates them; the step only lists them.
 - **Accept when:** `actionlint` reports nothing on all workflows; no workflow references a secret outside that list or echoes one; the publish job's order is goreleaser, formula, Scoop; `make ci` passes.
 
-#### m2.s2 - [exec] Release docs
+#### s2 - [exec] Release docs
 
 - `specs/releasing.md` modelled on triage's, for this repo's flow: the core rule (remote pushes last, in order), versioning (`version.txt`, lazy bump, `<release>+<sha> (<buildCode>)`), pre-flight, cutting a release (Actions, Release, Run workflow, level), re-running a failed publish, the emergency local path with the Danger targets, the three secrets with the scope each needs, and a first-release checklist: create the secrets, add a `ghx` row to the tap's and the bucket's README tables, confirm `brew install lolay/tap/ghx` and `scoop install lolay/ghx` afterwards.
 - README "Install": `brew trust lolay/tap`, `brew install lolay/tap/ghx`; `scoop bucket add lolay https://github.com/lolay/scoop-bucket`, `scoop install lolay/ghx`; GitHub Releases; from source. Marked as available from the first release.

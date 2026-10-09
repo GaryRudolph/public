@@ -10,7 +10,7 @@ Plan `specs/handoffs/plan-orchestrate-native-kestrel.md`, step m2.s9; design `sp
 
 ## 1. The three ghx plans
 
-The plans are in this repo at `specs/handoffs/dogfood-ghx/`, tagged, with acceptance criteria per step and no Kickoff block, wave markers or Cost table (the kickoff writes those). Each run's plan goes into ghx as described in §3. Step headings carry `m{N}.s{K}` IDs (`#### m1.s2 - [fast] …`): `plan_state.py` reports a repeated bare `s1` under two milestones as gate 0, so a plan you write yourself needs them too.
+The plans are in this repo at `specs/handoffs/dogfood-ghx/`, tagged, with acceptance criteria per step and no Kickoff block, wave markers or Cost table (the kickoff writes those). Each run's plan goes into ghx as described in §3. Step headings are the standard `#### s{K} - [tier] Title` under their `## m{N}` milestone, numbered from `s1` in each; `plan_state.py` qualifies each as `m{N}.s{K}`, the ID that dispatches and commit subjects carry.
 
 | Plan | What it does | Waves after grouping | Gates it crosses | Expected |
 |---|---|---|---|---|
