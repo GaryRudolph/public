@@ -170,7 +170,7 @@ Run as short Agent calls (gate 2, option (a)). First call: s8 done, s9 set up; t
 
 ## Pending question (verbatim)
 
-> Gate 1 (kit bug found before the dogfood): `plan_state.py` uses a step's bare heading prefix as its id, so a standard plan whose steps restart at `s1` in each milestone fails with "step id s1 appears twice" and every kickoff stops. The ghx plans work around it with `#### m{N}.s{K}` headings. Fix it now with a short Opus subagent (qualify a bare `s{K}` with its milestone, keep `check_wave.py`'s `m{N}.s{K}` commit matching, add tests, rebuild orch-spike; ~$2-4), and switch the ghx plans back to standard `#### s{K}` headings? Or keep the workaround and fix it in the post-dogfood fix-up? Also decide: rename the binary `ghx-go` to `ghx` (collides with the Python `ghx` if still on PATH), and start `version.txt` at `0.1.0` (first release 0.1.1/0.2.0) or `0.0.0` (first release 0.1.0).
+> m2.s9 dogfood on lolay/ghx: do the one-time setup in `specs/handoffs/dogfood-orchestrate-native.md` §2 (re-sync orch-spike and check the diff; the frozen kit worktree; ghx `main` prep: `/.scratch/` in `.gitignore`, `.claude/settings.json` from the baseline), then run A (Mac CLI, gated), merge its PR, run B (Mac CLI, unattended), merge, run C (runner, unattended) per §3, and report each run per §5. A fresh subagent then reads the runs and applies the fixes. Gary's ghx decisions: binary `ghx`; `version.txt` 0.1.0, first release 0.2.0.
 
 ## How to resume
 

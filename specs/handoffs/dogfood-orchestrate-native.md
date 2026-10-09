@@ -28,7 +28,9 @@ Expected figures are mine from the standard's anchors; each kickoff's Cost table
 
 ## 2. One-time setup
 
-1. **Push this branch.** The orchestrating parent pushes `feature/orchestrate-native` after this wave; that carries the rebuilt spike plugin (`b75c58c`) and the three plans.
+1. **Push this branch.** The orchestrating parent pushes `feature/orchestrate-native` after this wave; that carries the rebuilt spike plugin (`49573fb`, with the step-ID fix) and the three plans.
+
+   **Gary's ghx decisions (2026-10-08):** rename the binary `ghx-go` to `ghx` (plan A); `version.txt` starts at `0.1.0` (plan C), and the first release is `0.2.0` (a minor bump, done by Gary by hand after the dogfood).
 2. **Re-sync `orch-spike`.** In claude.ai's organization plugin settings, sync the `orch-spike-lab` source (`GaryRudolph/orchestrate-spike`), as for criterion 6. Its marketplace pins `ref: feature/orchestrate-native`, so it now serves the wave-6 kit; the scratch repo itself needs no push. The Mac's synced copy (`~/.claude-lolay/plugins/synced/…/orch-spike/`, synced 2026-10-07 10:39) is pre-wave-5: no `reviewer_guard.py`, and a gate hook without the compaction, queued-message and `<pasted_content>` fixes, so it would deny run B's pasted confirmation. Check the Mac copy after the sync (start any `CLAUDE_CONFIG_DIR=~/.claude-lolay claude` session once, quit, then):
 
        cd ~/Projects/personal/public
