@@ -254,11 +254,22 @@ def main(argv):
         print(f"  latest released heading: {latest.group(1) if latest else 'none'}")
     else:
         print("  no CHANGELOG.md")
+    for directory in sorted({p.parent for p in files if p.parent.name == ".changelog"}):
+        kinds, bare = {}, 0
+        fragment_files = sorted(directory.glob("*.txt"))
+        for frag in fragment_files:
+            found = re.findall(r"^```release-note:([A-Za-z-]*)", frag.read_text(errors="replace"), re.M)
+            bare += not found
+            for kind in found:
+                kinds[kind] = kinds.get(kind, 0) + 1
+        blocks = ", ".join(f"{k} {n}" for k, n in sorted(kinds.items())) or "none"
+        print(f"  {directory.relative_to(root).as_posix()}/: {len(fragment_files)} fragment file(s); "
+              f"release-note blocks: {blocks}" + (f"; {bare} file(s) with no block" if bare else ""))
 
     print("\n== release tooling")
     rels = [p.relative_to(root).as_posix() for p in files]
     for rel in rels:
-        if re.search(r"(^|/)(scripts/)?bump[-_]version\.", rel) or re.match(r"\.github/workflows/.*(release|backport|publish|deploy).*\.ya?ml$", rel):
+        if re.search(r"(^|/)bump[-_]version\.|(^|/)scripts/changelog\.py$", rel) or re.match(r"\.github/workflows/.*(release|backport|publish|deploy|changelog).*\.ya?ml$", rel):
             print(f"  {rel}")
     for rel in rels:
         if rel.startswith(".github/workflows/") and rel.endswith((".yml", ".yaml")):

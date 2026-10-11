@@ -4,8 +4,11 @@
 Implements the release step of Gary Rudolph's versioning standard:
 version.txt holds the LAST released version; at release time this reads it,
 computes the next version for the chosen level, rewrites version.txt and
-every managed version field to it, and moves the CHANGELOG.md
-"## [Unreleased]" entries under "## [vX.Y.Z] - YYYY-MM-DD".
+every managed version field to it, and writes the CHANGELOG.md
+"## [vX.Y.Z] - YYYY-MM-DD" section. With changelog.py beside this script and
+a .changelog/ directory in the repo, that section is assembled from the
+fragment files (which are then deleted); otherwise the "## [Unreleased]"
+entries move under it.
 
 Managed fields (edited in place; the rest of each file is left byte-for-byte):
     package.json    top-level "version"   (every package.json outside node_modules)
@@ -33,6 +36,11 @@ import re
 import subprocess
 import sys
 from pathlib import Path
+
+try:
+    import changelog as fragments  # scripts/changelog.py, for repos on .changelog/ fragments
+except ImportError:
+    fragments = None
 
 RELEASE = re.compile(r"^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$")
 LINE = re.compile(r"^v(0|[1-9]\d*)(\.(0|[1-9]\d*))?$")
@@ -196,9 +204,12 @@ def main(argv):
     writes = {version_file: new + "\n"}
     for f in fields:
         writes[f.path] = f.rewritten(new)
-    notes = []
+    notes, deletes = [], []
     changelog = root / "CHANGELOG.md"
-    if changelog.exists():
+    if fragments and fragments.targets(root):
+        changelog_writes, deletes, notes = fragments.release(root, new, date)
+        writes.update(changelog_writes)
+    elif changelog.exists():
         updated, note = changelog_update(changelog.read_text(), new, date)
         if updated is not None:
             writes[changelog] = updated
@@ -207,11 +218,15 @@ def main(argv):
 
     for path in writes:
         print(f"{'would update' if dry_run else 'updated'} {path.relative_to(root)}")
+    for path in deletes:
+        print(f"{'would remove' if dry_run else 'removed'} {path.relative_to(root)}")
     for note in notes:
         print(f"note: {note}", file=sys.stderr)
     if not dry_run:
         for path, content in writes.items():
             path.write_text(content)
+        for path in deletes:
+            path.unlink()
     print(f"{current} -> {new}")
     print(new)
     return 0

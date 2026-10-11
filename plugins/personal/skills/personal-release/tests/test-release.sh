@@ -1,11 +1,13 @@
 #!/usr/bin/env bash
-# Tests for templates/bump_version.py and scripts/release_facts.py against
+# Tests for templates/bump_version.py, templates/changelog.py, and
+# scripts/release_facts.py against
 # fixture repos. Needs only git and python3.
 set -uo pipefail
 
 here=$(cd "$(dirname "$0")" && pwd)
 bump="$here/../templates/bump_version.py"
 facts="$here/../scripts/release_facts.py"
+changelog="$here/../templates/changelog.py"
 work=$(mktemp -d)
 trap 'rm -rf "$work"' EXIT
 failures=0
@@ -193,6 +195,138 @@ printf 'y\n' >> work.txt
 expect_ok   "facts on a dirty tree"                  python3 "$facts"
 expect_grep "  ...dirty build-version"               "2.4.0+$sha.dirty ($count)"
 if grep -qiE 'recommend|should (bump|release)' "$work/out"; then fail "facts made a recommendation"; else pass "facts make no recommendation"; fi
+
+printf '\nchangelog.py\n'
+fragment() {  # fragment <path> <kind> <body>
+    mkdir -p "$(dirname "$1")"
+    printf '```release-note:%s\n%s\n```\n' "$2" "$3" > "$1"
+}
+commit_at() {  # commit_at <epoch> <message>: fixed times make merge order testable
+    GIT_AUTHOR_DATE="@$1 +0000" GIT_COMMITTER_DATE="@$1 +0000" git commit -qm "$2"
+}
+fixture frag
+git branch -M main
+mkdir .changelog && printf 'keeps the directory\n' > .changelog/README.md
+cat > CHANGELOG.md <<'EOF'
+# Changelog
+
+## [Unreleased]
+
+### Added
+
+- Legacy entry from before fragments
+
+## [v2.4.0] - 2026-01-01
+
+- Earlier work
+EOF
+git add -A && commit_at 1700000000 "adopt fragments"
+adopted=$(git rev-parse HEAD)
+# Written in one order, merged in the other, and named against both: the
+# release must follow merge order, not authoring time or file name.
+git switch -q -c one
+fragment .changelog/zeta-feature.txt added 'Zeta feature, merged first'
+git add -A && commit_at 1700000200 "add zeta"
+git switch -q main && git switch -q -c two
+fragment .changelog/alpha-fix.txt fixed $'Alpha fix with a long body\nthat wraps onto a second line'
+printf '```release-note:added\nAlpha feature, merged second\n```\n' >> .changelog/alpha-fix.txt
+git add -A && commit_at 1700000100 "add alpha"
+git switch -q main
+merge_at() { GIT_AUTHOR_DATE="@$1 +0000" GIT_COMMITTER_DATE="@$1 +0000" git merge -q --no-ff --no-edit "$2"; }
+expect_ok   "branches with fragments merge cleanly"  merge_at 1700000300 one
+expect_ok   "  ...in either order"                   merge_at 1700000400 two
+expect_ok   "check passes on valid fragments"        python3 "$changelog" check
+expect_ok   "preview"                                python3 "$changelog" preview
+expect_grep "  ...shows a fragment entry"            "- Zeta feature, merged first"
+
+# The same two changes as CHANGELOG.md appends conflict: the problem fragments solve.
+git switch -q -c append-one "$adopted" && printf -- '- One\n' >> CHANGELOG.md && git commit -qam one
+git switch -q -c append-two "$adopted" && printf -- '- Two\n' >> CHANGELOG.md && git commit -qam two
+expect_fail "  ...while two CHANGELOG.md appends conflict" git merge -q --no-edit append-one
+git merge --abort 2>/dev/null
+git switch -q main
+
+expect_ok   "bump assembles the fragments"           python3 "$bump" patch --date 2026-10-08
+expect_grep "  ...reports removed fragments"         "removed .changelog/alpha-fix.txt"
+cat > "$work/want" <<'EOF'
+# Changelog
+
+## [v2.4.1] - 2026-10-08
+
+### Added
+
+- Legacy entry from before fragments
+- Zeta feature, merged first
+- Alpha feature, merged second
+
+### Fixed
+
+- Alpha fix with a long body
+  that wraps onto a second line
+
+## [v2.4.0] - 2026-01-01
+
+- Earlier work
+EOF
+if diff -u "$work/want" CHANGELOG.md >"$work/out" 2>&1; then pass "  ...release section in merge order"; else fail "  ...release section"; sed 's/^/        /' "$work/out" >&2; fi
+expect_eq   "  ...fragments deleted, README kept"    "$(ls -A .changelog)" "README.md"
+git add -A && git commit -qm "release v2.4.1"
+expect_ok   "an empty release still works"           python3 "$changelog" release 2.4.2 --date 2026-10-09 --dry-run
+expect_grep "  ...and says it's empty"               "the release heading is empty"
+expect_fail "refuses a version already released"     python3 "$changelog" release 2.4.1 --dry-run
+expect_grep "  ...naming the heading"                "already has ## [v2.4.1]"
+
+printf '\nchangelog.py check\n'
+git switch -q -c pr-good
+fragment .changelog/good.txt changed 'Something changed'
+git add -A && git commit -qm good
+expect_ok   "PR with a fragment passes --require"   python3 "$changelog" check --base main --require
+expect_grep "  ...lists it"                          "fragment: .changelog/good.txt"
+git switch -q main && git switch -q -c pr-none
+printf 'code\n' > code.txt && git add -A && git commit -qm none
+expect_fail "PR without a fragment fails --require" python3 "$changelog" check --base main --require
+expect_grep "  ...points at the label"               "no-changelog"
+expect_ok   "  ...passes without --require"          python3 "$changelog" check --base main
+git switch -q main && git switch -q -c pr-edit
+sed -i.bak 's/^# Changelog$/# Changelog\n\n## [Unreleased]\n\n- Sneaky/' CHANGELOG.md && rm CHANGELOG.md.bak && git commit -qam edit
+expect_fail "PR adding an entry to CHANGELOG.md fails" python3 "$changelog" check --base main
+expect_grep "  ...says to add a fragment"            "gains '- Sneaky' above the latest release"
+expect_grep "  ...and the heading"                   "gains '## [Unreleased]'"
+git switch -q main && git switch -q -c pr-fix-released
+sed -i.bak 's/^- Earlier work$/- Earlier work, typo fixed/; s/^# Changelog$/# Changelog\n\nNotable changes, by release./' CHANGELOG.md && rm CHANGELOG.md.bak
+git commit -qam fix
+expect_ok   "PR fixing a released entry passes"      python3 "$changelog" check --base main
+git switch -q main
+fragment .changelog/bad-kind.txt bugfix 'Wrong kind'
+expect_fail "unknown kind fails"                     python3 "$changelog" check
+expect_grep "  ...lists the kinds"                   "unknown kind 'bugfix'"
+printf '```release-notes:fixed\nTypo in the fence\n```\n' > .changelog/bad-kind.txt
+expect_fail "misspelled fence fails"                 python3 "$changelog" check
+printf '```release-note:fixed\n\n```\n' > .changelog/bad-kind.txt
+expect_fail "empty block fails"                      python3 "$changelog" check
+expect_fail "release refuses bad fragments"          python3 "$changelog" release 2.4.2 --dry-run
+rm .changelog/bad-kind.txt
+
+printf '\nchangelog.py, several changelogs\n'
+fixture multi
+rm CHANGELOG.md
+printf '# Changelog\n\n## [0.8.6] - 2026-10-01\n\n### Fixed\n\n- Old fix\n' > CHANGELOG.md
+mkdir -p .changelog packages/a/.changelog
+printf 'x\n' > .changelog/README.md && printf 'x\n' > packages/a/.changelog/README.md
+printf '# Changelog\n\n## [Unreleased]\n\n## [0.3.0] - 2026-01-01\n\n- First\n' > packages/a/CHANGELOG.md
+fragment .changelog/root.txt added 'Root entry'
+fragment packages/a/.changelog/ext.txt fixed '- Already a bullet'
+git add -A && git commit -qm multi
+expect_ok   "release covers every CHANGELOG.md"     python3 "$changelog" release 0.8.7 --date 2026-10-10
+expect_eq   "  ...keeps the file's no-v headings"   "$(grep -m1 '^## \[' CHANGELOG.md)" "## [0.8.7] - 2026-10-10"
+expect_eq   "  ...inserts above the last release"   "$(sed -n '3,8p' CHANGELOG.md | tr '\n' '|')" "## [0.8.7] - 2026-10-10||### Added||- Root entry||"
+expect_eq   "  ...nested changelog, bullet kept"    "$(sed -n '3,8p' packages/a/CHANGELOG.md | tr '\n' '|')" "## [0.8.7] - 2026-10-10||### Fixed||- Already a bullet||"
+expect_eq   "  ...empty Unreleased heading dropped" "$(grep -c 'Unreleased' packages/a/CHANGELOG.md)" "0"
+git add -A && git commit -qm "release" && fragment .changelog/next.txt security 'A fix'
+git add -A && git commit -qm next
+expect_ok   "facts report fragments"                 python3 "$facts"
+expect_grep "  ...per directory"                     ".changelog/: 1 fragment file(s); release-note blocks: security 1"
+expect_grep "  ...and the tooling"                   "  .changelog"
 
 printf '\n'
 if [ "$failures" -gt 0 ]; then
