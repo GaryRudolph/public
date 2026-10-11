@@ -5,15 +5,16 @@ description: >-
   each wave to subagents on the tier's model and keeps control, pausing
   only where the plan's recorded mode stops (gated: every STOP gate;
   unattended: only questions, failures, premium work and the cost guard).
-  Same `[xdeep]` / `[deep]` / `[exec]` / `[fast]` tagging and no-thrash rule
-  as `orch-spike-plan-model-tiers`. Runs on a task branch and commits and
-  pushes the plan and a handoff after every wave. On Claude Code it calls
-  the Workflow tool to launch the plugin's plan-segment workflow (phase 1:
-  dogfood); on Cursor it dispatches `Task` subagents; elsewhere it points
-  to the passive driver. Use when the user asks to "orchestrate this
-  plan", "delegate exec groups", "run the plan unattended", "run plan in
-  parallel where possible across repos / worktrees", or wants the cascade
-  run automatically rather than stopping at each handoff.
+  Same `[xdeep]` / `[deep]` / `[exec]` / `[fast]` tagging and no-thrash
+  rule as `orch-spike-plan-model-tiers`. Runs on a task branch and commits
+  and pushes the plan and a handoff after every wave. On Claude Code it
+  calls the Workflow tool to launch the plugin's plan-segment workflow,
+  with hooks that check each launch and keep reviewers read-only; on
+  Cursor it dispatches `Task` subagents; elsewhere it points to the
+  passive driver. Use when the user asks to "orchestrate this plan",
+  "delegate exec groups", "run the plan unattended", "run plan in parallel
+  where possible across repos / worktrees", or wants the cascade run
+  automatically rather than stopping at each handoff.
 ---
 
 # orch-spike-plan-orchestrate
@@ -49,6 +50,15 @@ Read it when in doubt. Where this file and the standard disagree on how an
 orchestrate run works (the kickoff question, unattended mode, the per-wave
 handoff, fix-up numbering), this file is newer and wins until the standard
 catches up.
+
+**Read the plugin's own copy.** Every standards file this skill cites
+(`plan-execution.md`, `core.md`, `git.md`, and those you pass to workers) is
+read at its path relative to this skill's base directory, inside the plugin
+that ships this skill, never from `~/Projects/personal/public/standards/` or
+another checkout. The kit and its standards are versioned together, so a
+plugin installed from a branch or a frozen copy runs against the standards it
+was tested with. This beats core.md's "read the `~/Projects/...` path first"
+rule for this skill's run. Pass workers absolute paths into the same copy.
 
 ## Anti-pattern: read this before you start
 
@@ -111,9 +121,6 @@ Work down this list and take the first that matches.
      schema, which on the web lists no plugin workflows. If it isn't
      listed, launch it by name anyway; an unknown-workflow error is gate 0,
      and then use the Agent path.
-   - **Phase 1: dogfood.** The Claude Code path is new and is being proven
-     on real plans. Say so in the kickoff question, and report anything the
-     procedure below doesn't cover as a deviation.
 3. **Cursor: `Task` with a `model` parameter, and no `Agent`** →
    `adapters/cursor.md`. Cursor imports Claude plugins and may list the
    `<P>:plan-*` agents with `model: inherit`; never dispatch them there.
@@ -164,8 +171,10 @@ disagree, the picker wins and the kit's consistency check fails.
   directories (separate repos, or `git worktree`s of one repo) run in
   parallel; within one directory, serially. Gary opts into in-repo
   parallelism by creating worktrees before he invokes the skill.
-- **One read-only reviewer per working directory per wave**, at the
-  author's tier: Opus high, or Opus xhigh after an `[xdeep]` wave.
+- **One read-only reviewer per working directory per unit**, at the
+  author's tier: Opus high, or Opus xhigh after an `[xdeep]` unit. On
+  Cursor, until its phase 3, the parent reviews below `[xdeep]` inline
+  (`adapters/cursor.md`).
 - **Task branches only** (below). Subagents commit each finished step and
   never push; the parent pushes.
 - **The plan and its handoff are committed and pushed** at kickoff and
@@ -174,8 +183,16 @@ disagree, the picker wins and the kit's consistency check fails.
   nothing. The plan is tracked, so an edit shows up as a new dirty path to
   `check_wave.py`. Reply to anything that arrives with one line.
 - **Outward actions wait for Gary in every mode:** opening or merging a PR,
-  pushing a tag, deleting a remote branch, deploying, posting anywhere
-  outside the branch and the chat, and permission prompts.
+  pushing a tag, deleting a remote branch, deploying, publishing a release
+  or a package, posting anywhere outside the branch and the chat, and
+  permission prompts. Workers never take one (contract item 8).
+- **A compaction changes nothing.** The plan, the handoff, the snapshot
+  files and the run record are the state, not the chat. After a `/compact`
+  (Gary's or automatic), re-read the plan's Status and the handoff before
+  acting, and find a run in flight by its notification. A compaction never
+  answers, confirms or takes back anything.
+- **What this procedure doesn't cover:** take the conservative choice, and
+  list it under **Deviations from plan** in the handoff.
 
 ## Files a run keeps
 
@@ -194,7 +211,13 @@ disagree, the picker wins and the kit's consistency check fails.
   directory with no remote. Unattended needs the plan in a repo with a
   remote, so there the kickoff question proposes gated and says why.
 - **Worker artifacts:** `<workdir>/.scratch/orchestrate-{plan-name}-{wave-n}-{task-id}.md`,
-  gitignored. `{wave-n}` is the unit's label: `2`, `2-fix`, `2-fix2`.
+  gitignored. `{wave-n}` is the unit's label: `2`, `2-fix`, `2-fix2`;
+  `{task-id}` is the group id with every run of other characters than
+  letters, digits, `.`, `_` and `-` turned into `-` (`repo-b-m1-s4-s5`). An
+  automatic retry writes the same path.
+- **Snapshots:** `<plan repo>/.scratch/orchestrate-{plan-name}-{wave-n}-snapshot.json`
+  (in a plain folder, its `.scratch/`), so a session that compacted finds
+  them.
 
 ## Task branches
 
@@ -314,9 +337,9 @@ canary; 2 or 3 before a `[deep]` or `[xdeep]` wave after an `[exec]` or
 `[fast]` one; 4 at a new milestone; 7 before each `[xdeep]` wave, with its
 cost), what each mode does, the guard's dollar limit, the handoff path,
 and on a workstation the branch it will cut. It always carries the exact
-words `Proposed mode: <mode>.` and ends with a line that starts `Reply`;
-the Claude Code hook looks for both before it counts an answer. It ends
-with the short handoff summary. On a runner:
+words `Proposed mode: <mode>.` and, after them, a line that starts `Reply`;
+the Claude Code hook looks for both, in that order, before it counts an
+answer. The short handoff summary follows the `Reply` line. On a runner:
 
     Plan plan-auth-otter: 4 waves, expected ~$26 API-equiv (Cost table above).
     Gates it crosses: 5 (canary, wave 1); 4 and 2 (before wave 3); 7 (before wave 4, [xdeep], ~$14).
@@ -342,8 +365,7 @@ branch; the destination question folds in (there is no separate one):
     Reply gated or unattended; add here to orchestrate in this chat (default: new chat).
 
 Propose gated, and say why, where unattended can't run: no remote for the
-plan's repo (decision 11), or a harness with no hook to check it. On the
-Claude Code path, add one line: `Claude Code path: phase 1 dogfood.`
+plan's repo (decision 11), or a harness with no hook to check it.
 
 An invoking message that names a mode ("orchestrate this unattended") only
 sets the proposed mode; the question still runs, so Gary sees the waves,
@@ -496,6 +518,13 @@ only decides which ones stop. Gate names are `gate-<N>` in its output and
 | guard | Projected spend passes the guard | Stops | Stops |
 | any | Status reads `BLOCKED at gate N` | Stops | Stops |
 
+**Gate 5 on a one-group unit.** Gated, the canary stops at gate 5 even when
+it was the unit's only group, so nothing was held back: the stop checks the
+session's setup (permissions, hooks, models) on real work before more spend.
+Ask it in one question together with every gate the next unit stops at (as
+gate 5 and gate 2 before a `[deep]` wave), so it adds a stop only when the
+next unit has none, and approve all of them on the relaunch.
+
 A first review CONCERNS (not a failed check) gets its `N-fix` without a
 gate in both modes. Opening a PR, tags, remote branch deletes, deploys and
 permission prompts wait in both modes; on a runner, commit and push before a
@@ -503,8 +532,9 @@ call likely to trip a permission prompt.
 
 **Checkpoints are logged, not asked.** End the unit's Review log note with
 them (`; passed unattended: gate 4, gate 2`; an automatic fix-up's
-`; passed unattended: gate 1 (fix-up 2 of 2)`), keep the latest on the Status
-line (`| passed unattended: gate 4, gate 2 before wave 3`), and list every
+`; passed unattended: gate 1 (fix-up 2 of 2)`), keep only the latest unit's on
+the Status line, replacing the earlier ones rather than adding to them
+(`| passed unattended: gate 4, gate 2 before wave 3`), and list every
 checkpoint, automatic retry and fix-up with its reason under **Deviations
 from plan** in the handoff and the Completion summary.
 
@@ -562,6 +592,11 @@ next whole one above the projection, or to what Gary names; the raise needs
 his approval of `gate-guard`. Unplanned premium work stops whatever the
 spend.
 
+**Over expected, a note.** Once `plan_state.py`'s `cost.actual` passes
+`cost.expected_total`, add `| over expected: ~$<actual> of ~$<total>` to
+Status, say so in the handoff and in the next message Gary sees, and carry
+on: it is not a stop in either mode, only the guard is.
+
 **Scope breaches stop at gate 1 in both modes** (decision 10), since no
 fix-up can repair them: edits in a directory with no group, a `from` that
 is no longer an ancestor of HEAD (both in `check_wave.py`'s `scope`), and,
@@ -588,15 +623,23 @@ verbatim (the Claude Code hook checks); a paste never waives.
      turn doesn't answer: write `BLOCKED at gate <N>` in Status, save, ask
      one question, end the turn. `checkpoints` ask nothing.
 3. **Snapshot:** `python3 $K/check_wave.py snapshot <each working directory>
-   > <a temp file named for the unit>`. Keep the snapshot from before each
-   wave until its groups' streaks end: a fix-up's check uses it as
-   `--baseline`.
+   > <the unit's snapshot path>` ("Files a run keeps"). Keep the snapshot
+   from before each wave until its groups' streaks end: a fix-up's check
+   uses it as `--baseline`.
+   **Access:** before a group whose steps need the network, `gh` or another
+   service, check that access once from the parent with a read-only call
+   (`gh api repos/<owner>/<repo> --jq .full_name`, `git ls-remote <url>`).
+   If it fails and a step can't meet its acceptance without it, that is
+   missing access: save and ask, in both modes. If the step can still be
+   met (a stub, a dry run), pass the failure on as an environment note.
 4. **Dispatch the unit** per the harness's steps. Build one group per
    working directory: split `next.steps` by the working directory each
    step's spec names (one directory for a single-repo plan), and give each
    group its steps, their headings and text verbatim, the acceptance
    criteria, the standards to read, the directory's task branch and its
-   HEAD SHA now as `from`. A group's id is `<workdir basename> <steps>`
+   HEAD SHA now as `from`. Pass the unit's carry-forward too (contract
+   item 9): the decisions so far and the environment notes, from the
+   handoff. A group's id is `<workdir basename> <steps>`
    (`repo-b m1 s4-s5`). On a fix-up (`next.kind: "fixup"`), the groups are
    the ones `next.groups` names, with their steps, and `from` is the
    `<from>` of each group's latest Review log line. On a session's first launch only the
@@ -630,6 +673,20 @@ verbatim (the Claude Code hook checks); a paste never waives.
      quotes the failing output on one line, and ends `; review PASS` or
      `; review CONCERNS: <its note>`. Checkpoints go at the end of the note.
    - A scope breach gets no line (above).
+   - **A worker's disclosed breach** (a rule of its prompt it broke or
+     tried to break: an outward command, an edit outside its directory, a
+     push; on Claude Code the result's `breaches`, elsewhere its summary)
+     makes the group's verdict CONCERNS whatever the review said, with a
+     note that starts `worker disclosed: <its words>` and ends with the
+     review's verdict and what it found. One that was blocked before it
+     ran gets the usual `N-fix`. One that ran (anything left the machine or
+     the directory) is gate 1 in both modes, as a scope breach is, since no
+     fix-up can undo it: no Review log line, steps open, save, ask.
+   - **Carry forward:** add a decision the group made that changes a later
+     step's text (its review passed) to the handoff's "Decisions so far",
+     quoted from its Review log line or the worker's `decided`; and every
+     `env:` line in a worker's surprises to the handoff's "Environment
+     notes".
 4. **Update Status:** `<done>/<total> groups done | last review: wave-<label>
    PASS|CONCERNS | current: <next group> | updated <today>`, plus
    `| passed unattended: <gates>` when any, `BLOCKED at gate <N>` at a stop,
@@ -666,8 +723,9 @@ record the kickoff answer), and nothing accepts an approval for them. A
 being the same words. A gate answer counts only in the turn his message
 starts or joins; never reuse it in a later turn. Gated, an answer at gate 1
 may also be a step-up (gate 6, plus gate 7 into `[xdeep]` or Fable), a
-re-plan (new waves take the next unused numbers and get Cost table rows
-with expected `—`), or a waiver.
+re-plan (new waves take the next unused numbers, with their markers after
+the last marker in the file, since gate 0 checks the numbering in file
+order, and get Cost table rows with expected `—`), or a waiver.
 
 ## Mode switch
 
@@ -699,8 +757,11 @@ Gated mode asks all of these, plus every gate, every failed check and every
 repeat CONCERNS.
 
 **Save, then ask** (core.md "Save before you wait"), in this order:
-1. Update the plan: `(done)` markers, the Review log, the Token log, and
-   Status's `BLOCKED at gate N`.
+1. Update the plan: `(done)` markers, the Review log, the Token log
+   (including the parent's own open stretch, "Token tally"), and Status's
+   `BLOCKED at gate N`. This holds for every save that ends a turn to wait
+   or ends the session: a gate, a question, the kickoff question, the halt
+   for a new chat, and final completion.
 2. Refresh the handoff with the question verbatim.
 3. Commit the plan and the handoff. On a runner, commit everything in the
    tree, a partial step under an honest subject; a workstation stages only
@@ -725,7 +786,11 @@ repo's, when they differ), the mode, what's done with each group's commit
 range, the Review log verdicts, the fix-ups, retries and checkpoints with
 their reasons, the Token log total against the Cost table's expected total,
 the next unit, how to resume ("paste the plan's Kickoff prompt"), and any
-pending question verbatim. At a stop and at completion it is final: the
+pending question verbatim. Two carry-forward sections ride along, quoted
+into each later launch (contract item 9): **Decisions so far** (decisions a
+passed unit made that change later steps' text) and **Environment notes**
+(workarounds the run's agents found, such as a tool version or a missing
+binary). At a stop and at completion it is final: the
 same fields plus the question or the PR ask, and at completion the
 Completion summary.
 
@@ -742,10 +807,20 @@ appended to `## Token log` below its counting header as soon as it exists:
 - **Workers and reviewers:** `wave-<label> <group-id>` and
   `review-wave-<label> <group-id>`, per model; a fix-up's lines use its
   label (`wave-2-fix2`); a retry keeps its wave's.
-- **The parent:** `orchestrator-kickoff <plan name>` for the stretch up to
-  the first launch, then `orchestrator-wave-<N> <group-id>` for each stretch
-  between two launches, where wave N is the unit the earlier launch carried.
-  Windows don't overlap, so the guard never counts the parent twice.
+- **The parent:** `orchestrator-kickoff <plan name>` for the session that
+  kicked off, up to its first launch; `orchestrator-resume <plan name>` for
+  any later session (a pasted Kickoff prompt, a re-entry), up to its first
+  launch; then `orchestrator-wave-<N> <group-id>` for each stretch after a
+  launch, where wave N is the unit that launch carried. Windows don't
+  overlap, so the guard never counts the parent twice.
+- **The open stretch.** Every save that ends a turn to wait or ends the
+  session ("Questions, and saving before them") first appends the parent's
+  stretch since its last line, up to now, under that stretch's row. If the
+  same session goes on (Gary answers here), the next line for the same row
+  covers the longer span and replaces the one written at the stop (the
+  standard's replace rule). So a session that ends at a gate, at the
+  kickoff's halt for a new chat, or at completion leaves no parent spend
+  unlogged.
 
 Price each line at its own model's list rates (API-equivalent, whatever the
 harness bills), never a blended rate. At a stop, print the lines so far and
@@ -760,7 +835,12 @@ When `plan_state.py` has no `next` and the last review passed:
    completed <date>`.
 2. Replace the `(output est.)` lines of sessions that have ended with their
    `cost-state` totals (standard §"Final completion"), then add the Cost
-   table's actual columns.
+   table's actual columns. A `cost-state` that covers several rows (the
+   parent's own session, with every wave it launched) never replaces their
+   lines; when one is found, at completion or by any later turn while the
+   plan still exists, add one line under the Cost table, `Exact
+   (cost-state, session <id>): ~$<costUSD>, covering <rows>.`, and leave
+   the lines and the actual columns as they are.
 3. Append the Completion summary (standard §"Final completion"), with every
    checkpoint, retry and fix-up under **Deviations from plan**.
 4. Write the final handoff; commit; push.
@@ -771,8 +851,9 @@ When `plan_state.py` has no `next` and the last review passed:
 
 ## Subagent context contract
 
-Every worker prompt carries all eight. On Claude Code the workflow writes
-the prompt from the group you pass; on Cursor you write it.
+Every worker prompt carries items 1-8, and item 9 whenever the handoff has
+anything to carry. On Claude Code the workflow writes the prompt from the
+group and `args` you pass; on Cursor you write it.
 
 1. **Spec excerpt:** the plan section, verbatim. Quote, don't paraphrase.
 2. **Working-directory scope:** the absolute path of the one git working
@@ -790,9 +871,11 @@ the prompt from the group you pass; on Cursor you write it.
    surprises, follow-ups) to
    `.scratch/orchestrate-{plan-name}-{wave-n}-{task-id}.md`. Return only a
    structured 1-paragraph summary covering: what changed, what was decided,
-   any surprises, and the artifact path." `{wave-n}` is the unit's label
-   (`2`, `2-fix`, `2-fix2`); a retry adds `-retry{k}`; `{task-id}` is the
-   step IDs (`m2-s1-s3`). The result's status is `done`, `failed`,
+   any surprises (a workaround the environment needed on a line that
+   starts `env:`), every rule of this prompt you broke or tried to break
+   and whether it ran or was blocked (`breaches`, none when there is
+   none), and the artifact path." `{wave-n}` and `{task-id}` are as in
+   "Files a run keeps". The result's status is `done`, `failed`,
    `low_quality` or `needs_info` (with one question); never report partial
    work as `done`.
 7. **Token reporting (Cursor `Task` subagents only):** see `adapters/cursor.md`.
@@ -808,19 +891,30 @@ the prompt from the group you pass; on Cursor you write it.
    `Signed-off-by` lines. Do not
    push, create, or switch branches." Plus: "If the spec reads two ways
    with materially different results, or you lack an access the step
-   needs, return `needs_info` with one question. Don't open or merge a PR,
-   push a tag, delete a remote branch or deploy; if a step needs one,
-   return `needs_info` naming it." Plus the resume rule: "Run `git -C
+   needs, return `needs_info` with one question. Never run a command that
+   acts outside this working directory: a push, opening or merging a PR, a
+   release, pushing a tag, deleting a remote branch, deploying, publishing
+   a package, posting anywhere, or the repo's own publish, release or
+   deploy scripts; when the spec names a dry-run form, run exactly that
+   form. If a step needs an outward action, return `needs_info` naming
+   it." Plus the resume rule: "Run `git -C
    <workdir> log --format=%s <from>..HEAD` first. A step that already has a
    commit whose subject starts with its ID was done by an earlier attempt:
    check it against the acceptance criteria and skip it if it holds. If a
    file you need already has uncommitted changes, don't touch it: return
    `failed` and name it." A retry's prompt also names the earlier attempt
    and how it ended.
+9. **Carry-forward** (when any): the handoff's "Decisions so far",
+   verbatim, with "where one changes what the spec excerpt says, follow
+   the decision and say so under decided", and its "Environment notes",
+   with "use them rather than finding them again". On Claude Code these
+   are `args.decisions` and `args.environment`.
 
-Reviewers are read-only and get the spec, the acceptance criteria, the
-standards, the worker's summary and the commit range; they back every
-finding with evidence and report only defects the plan must fix.
+Reviewers are read-only and get the spec, the carry-forward, the
+acceptance criteria, the standards, the worker's summary (with any breach
+it disclosed, to look for traces of) and the commit range; they read
+command output inline rather than through a file, back every finding with
+evidence and report only defects the plan must fix.
 
 ## Harness steps
 

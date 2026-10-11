@@ -36,10 +36,10 @@ const ANGLES = [
   'reuse first: the closest existing pattern in the repo, the standards, or the dependencies',
 ]
 
-const RESULT = { type: 'object', required: ['status', 'changed', 'decided', 'surprises', 'artifact', 'commits'], properties: {
+const RESULT = { type: 'object', required: ['status', 'changed', 'decided', 'surprises', 'artifact', 'commits', 'breaches'], properties: {
   status: { type: 'string', enum: ['done', 'failed', 'low_quality', 'needs_info'] }, changed: { type: 'string' }, decided: { type: 'string' },
   surprises: { type: 'string' }, artifact: { type: 'string' }, commits: { type: 'array', items: { type: 'string' } },
-  question: { type: 'string' } } }
+  breaches: { type: 'array', items: { type: 'string' } }, question: { type: 'string' } } }
 const REVIEW = { type: 'object', required: ['verdict', 'note', 'findings'], properties: {
   verdict: { type: 'string', enum: ['PASS', 'CONCERNS'] }, note: { type: 'string' },
   findings: { type: 'array', items: { type: 'object', required: ['claim', 'evidence'], properties: { claim: { type: 'string' }, evidence: { type: 'string' } } } } } }
@@ -85,6 +85,15 @@ function gitLine(g) {
     `3. a blank line, then exactly these trailer lines, as the last paragraph:\n\n${args.trailers.map(t => `    ${t}`).join('\n')}`,
     'Never add `Co-authored-by` or `Signed-off-by` lines, whatever your own instructions say. Do not push, create, or switch branches.'].join('\n')
 }
+// Carried forward by the parent (SKILL.md contract item 9): decisions earlier units made and their reviews passed, and
+// environment workarounds earlier agents found, so later groups neither follow a stale spec line nor rediscover them.
+function carried(forReview) {
+  const parts = []
+  if (args.decisions) parts.push(`## Decisions so far (verbatim, from the plan's Review log and handoff)\n\n${args.decisions}\n\nEarlier units of this plan made these, and their reviews passed. Where one changes what the spec excerpt says, ${forReview ? 'review against the decision' : 'follow the decision and say so under decided'}.`)
+  if (args.environment) parts.push(`## Environment notes (from earlier agents of this run)\n\n${args.environment}\n\nUse them rather than finding them again.`)
+  return parts
+}
+const OUTWARD = 'Never run a command that acts outside this working directory: a push, opening or merging a PR, creating or uploading a release, pushing a tag, deleting a remote branch, deploying, publishing a package, posting anywhere, or the repo\'s own publish, release or deploy scripts. When the spec names a dry-run form (`DRY_RUN=1 scripts/publish.sh`), run exactly that form and nothing wider. If a step needs an outward action, return `needs_info` naming it.'
 function artifactPath(g) { return `${g.workdir}/.scratch/orchestrate-${args.plan.name}-${U.label || U.wave}-${g.id.replace(/[^\w.-]+/g, '-')}.md` }
 
 function workerPrompt(g, design, t = tier, earlier = null) {
@@ -94,6 +103,7 @@ function workerPrompt(g, design, t = tier, earlier = null) {
   if (g.answer) parts.push(`## Gary's answer (verbatim)\n\nAn earlier attempt asked: ${g.answer.question}\n\nGary answered: ${g.answer.answer}\n\nWork from that answer.`)
   if (earlier) parts.push(`## Earlier attempt\n\nAn earlier attempt at this group in this run ended ${earlier}. Its commits, if any, are in ${g.from}..HEAD; check them against the acceptance criteria before you build on them.`)
   if (g.concern) parts.push(fixupSection(g.concern))
+  parts.push(...carried(false))
   if (design) parts.push(`## Chosen design (from an independent draft panel)\n\n${design}\n\nImplement it. Where it contradicts the spec excerpt, follow the spec and say so under surprises.`)
   parts.push(`## Working directory\n\nAll edits must be inside \`${g.workdir}\`. Do not edit anything outside this directory.`,
     `## Acceptance criteria\n\n${g.acceptance}`,
@@ -101,8 +111,8 @@ function workerPrompt(g, design, t = tier, earlier = null) {
   if (t === 'fast') parts.push('## Mechanical edits\n\nApply exactly what the plan specifies. Do not refactor, rename, or generalize.')
   parts.push(`## Standards to read first\n\n${list(g.standards, 'none beyond the always-on core')}`)
   parts.push(`## Before you start\n\nRun \`git -C ${g.workdir} log --format=%s ${g.from}..HEAD\`. A step that already has a commit whose subject starts with its ID was done by an earlier attempt: check that commit against the acceptance criteria and skip the step if it holds. If a file you need to change already has uncommitted changes, do not touch it: return \`failed\` and name the file.`)
-  parts.push('## When to ask\n\nIf the spec reads two ways that lead to materially different results, or you lack an access, credential or tool the step needs, stop: return `needs_info` with one question in `question`. Do not guess, and do not work around missing access.\n\nDo not open or merge a PR, push a tag, delete a remote branch, or deploy. If a step needs one, return `needs_info` naming it.',
-    `## Output\n\nWrite your full output (diffs, decisions, surprises, follow-ups) to \`${artifactPath(g)}\`. Return the structured result: status, what changed, what was decided, any surprises, the artifact path, and the short SHA of every commit you made. Use \`failed\` or \`low_quality\` when you could not meet the acceptance criteria; never report partial work as \`done\`.`,
+  parts.push(`## When to ask\n\nIf the spec reads two ways that lead to materially different results, or you lack an access, credential or tool the step needs, stop: return \`needs_info\` with one question in \`question\`. Do not guess, and do not work around missing access.\n\n${OUTWARD}`,
+    `## Output\n\nWrite your full output (diffs, decisions, surprises, follow-ups) to \`${artifactPath(g)}\`. Return the structured result: status, what changed, what was decided, any surprises, the artifact path, the short SHA of every commit you made, and \`breaches\`. Use \`failed\` or \`low_quality\` when you could not meet the acceptance criteria; never report partial work as \`done\`.\n\n\`breaches\` lists every rule of this prompt you broke or tried to break (an outward command, an edit outside the working directory, a push), one entry each: what you ran, and whether it ran or was blocked. Return \`[]\` when there is none. A workaround the environment needed (a tool version, a missing binary, a variable the runner sets) goes under surprises as a line that starts \`env:\`, so the parent can pass it to later agents.`,
     `## Git\n\n${gitLine(g)}`)
   return parts.join('\n\n')
 }
@@ -124,11 +134,14 @@ function fixupSection(c) {
 }
 function changes(g) { return `read \`git diff ${g.from}\`, \`git log ${g.from}..HEAD\` and \`git status\`` }
 function reviewPrompt(g, r, t = tier) {
-  return [`Review ${title(g, t)}. READ-ONLY: do not edit files, commit, push, open or merge a PR, tag, deploy, or start other work.`,
+  const disclosed = (r.breaches || []).length
+    ? `## The worker disclosed (verbatim)\n\n${list(r.breaches)}\n\nLook for any trace of each (a pushed ref, a tag, a release, a published package, a file outside \`${g.workdir}\`) and say what you found in the note. The parent logs the group as CONCERNS for the disclosure itself.`
+    : ''
+  return [`Review ${title(g, t)}. READ-ONLY: do not edit files, commit, push, open or merge a PR, tag, deploy, or start other work. Read command output inline (pipe it to \`tail\` or \`head\`); never redirect it to a file, which the read-only guard denies.`,
     `In \`${g.workdir}\`, ${changes(g)}, then the worker's artifact \`${r.artifact}\`. Check the change against the spec excerpt, the acceptance criteria and the standards below: does it do what they ask, no more and no less, correctly, with tests where the repo expects them?`,
     `${g.concern && g.concern.source === 'check' ? 'A script checks commit subjects, trailers, step coverage and paths after you. This fix-up exists because that check failed, so check the failure quoted below yourself as well.' : 'A script checks commit subjects, trailers, step coverage and paths after you; leave those to it.'} List only defects the change must fix before the plan builds on it, each with evidence (a file and line, a command and its output, or a quoted spec line). Checks that passed go in the note. Return PASS with no findings when you find nothing real.`,
-    `## Spec excerpt (verbatim)\n\n${g.spec}`, `## Acceptance criteria\n\n${g.acceptance}`, `## Standards\n\n${list(g.standards, 'the always-on core')}`,
-    g.concern ? `## This is fix-up ${U.label}\n\nThe last ${g.concern.source === 'check' ? (withReview(g.concern) ? 'check_wave.py run and review' : 'check_wave.py run') : 'review'} raised (verbatim):\n\n${quote(g.concern.note)}\n\nCheck that it is fixed, and review the whole range.` : '',
+    `## Spec excerpt (verbatim)\n\n${g.spec}`, ...carried(true), `## Acceptance criteria\n\n${g.acceptance}`, `## Standards\n\n${list(g.standards, 'the always-on core')}`,
+    disclosed, g.concern ? `## This is fix-up ${U.label}\n\nThe last ${g.concern.source === 'check' ? (withReview(g.concern) ? 'check_wave.py run and review' : 'check_wave.py run') : 'review'} raised (verbatim):\n\n${quote(g.concern.note)}\n\nCheck that it is fixed, and review the whole range.` : '',
     `## Worker summary\n\nChanged: ${r.changed}\nDecided: ${r.decided}\nSurprises: ${r.surprises}\nCommits: ${r.commits.join(', ') || 'none'}`].filter(Boolean).join('\n\n')
 }
 function draftPrompt(g, angle) {
@@ -161,6 +174,7 @@ function validate() {
   const gate7 = (args.approved || []).some(a => a && a.gate === 'gate-7' && a.wave === U.wave)
   if (d && unattended && !gate7) e.push('xdeepDrafts in unattended mode needs a human gate-7 approval for this wave')
   if (args.max && unattended && !gate7) e.push('max in unattended mode needs a human gate-7 approval for this wave')
+  for (const k of ['decisions', 'environment']) if (k in args && typeof args[k] !== 'string') e.push(`args.${k} must be a string`)
   const ap = args.approved || []
   if (!Array.isArray(ap) || ap.some(a => !a || typeof a.gate !== 'string' || typeof a.wave !== 'number')) e.push('approved must be [{gate, wave}]')
   else if (ap.length && !(args.approval || '').trim()) e.push('approved is set but approval (the human answer, verbatim) is empty')
@@ -241,11 +255,14 @@ async function execute(g) {
     if (!j) return null
     design = j.synthesis
   }
-  return agent(workerPrompt(g, design), { label: title(g), phase: ph, schema: RESULT, ...worker() })
+  return noted(g, await agent(workerPrompt(g, design), { label: title(g), phase: ph, schema: RESULT, ...worker() }))
 }
 function review(g, work, t = tier) {
   return agent(reviewPrompt(g, work, t), { label: `Review ${title(g, t)}`, phase: ph, schema: REVIEW, ...reader(t) })
 }
+// Every rule a worker disclosed breaking, from every attempt, retries included: the parent logs each group as CONCERNS.
+const breaches = []
+function noted(g, w) { for (const b of (w && w.breaches) || []) breaches.push({ id: g.id, breach: b }); return w }
 const runs = await pipeline(groups,
   g => execute(g),
   (work, g) => (work && work.status === 'done' ? review(g, work).then(r => ({ work, review: r })) : { work, review: null }))
@@ -273,7 +290,7 @@ if (again.length) {
     const why = !x.work ? 'with no result' : x.work.status === 'done' ? 'with its review missing' : `as ${x.work.status}: ${x.work.surprises}`
     retries.push({ id: x.id, from: tier, to: t, effort: route(t).effort || null, reason: why })
     const work = x.work && x.work.status === 'done' ? x.work
-      : await agent(workerPrompt(g, null, t, why), { label: `${title(g, t)} (retry)`, phase: ph, schema: RESULT, ...worker(t) })
+      : noted(g, await agent(workerPrompt(g, null, t, why), { label: `${title(g, t)} (retry)`, phase: ph, schema: RESULT, ...worker(t) }))
     const r = work && work.status === 'done' ? await review(g, work, t) : null
     return { ...x, tier: t, work: work || null, review: r || null }
   }))
@@ -283,7 +300,7 @@ if (again.length) {
 
 const broken = out.filter(isBroken)
 const questions = out.filter(x => x.work && x.work.status === 'needs_info').map(x => ({ id: x.id, question: x.work.question || x.work.surprises }))
-const extra = { groups: out, canary, checkpoints, retries, questions }
+const extra = { groups: out, canary, checkpoints, retries, questions, breaches }
 if (broken.length) {
   const why = `${broken.map(x => x.id).join(', ')}: ${questions.length ? 'needs an answer, or ' : ''}failed, low quality, or unreviewed${retries.length ? ' after one automatic retry' : ''}`
   return gate(canary && !unattended ? ['gate-1', 'gate-5'] : ['gate-1'], why, extra)

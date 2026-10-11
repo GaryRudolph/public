@@ -14,5 +14,5 @@
   ],
   "workflows": "./skills/orch-spike-plan-orchestrate/claude-workflows/",
   "hooks": "./hooks/claude-hooks.json",
-  "version": "0.1.200"
+  "version": "0.1.209"
 }

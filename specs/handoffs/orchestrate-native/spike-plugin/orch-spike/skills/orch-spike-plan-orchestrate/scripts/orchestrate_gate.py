@@ -59,8 +59,8 @@ true, from disk and from the transcript, and fails closed:
 It prints a deny decision or nothing; it never allows, so the session's
 permission rules still apply. Any failure of its own (bad input, a missing
 plan_state.py, an exception, no decision within DEADLINE seconds) denies
-with exit 2, which blocks even without valid JSON; the hooks file adds
-"|| exit 2" for a python3 that won't start. A hook that Claude Code times
+with exit 2, which blocks even without valid JSON; the hooks file turns
+any other status (a python3 that won't start) into exit 2. A hook that Claude Code times
 out (30 s) doesn't block, hence the shorter deadline.
 
 Which records are human. A user record is human only when origin.kind or

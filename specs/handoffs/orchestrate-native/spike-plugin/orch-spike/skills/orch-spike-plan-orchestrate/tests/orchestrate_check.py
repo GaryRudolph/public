@@ -77,7 +77,7 @@ hooks = manifest.get("hooks")
 hooks = [hooks] if isinstance(hooks, str) else hooks or []
 entries = [e for h in hooks if isinstance(h, str) and (root / h).exists()
            for e in json.loads((root / h).read_text()).get("hooks", {}).get("PreToolUse", [])]
-for matcher, script in (("Workflow", "orchestrate_gate.py"), ("Bash", "reviewer_guard.py")):
+for matcher, script in (("Workflow", "orchestrate_gate.py"), ("Bash", "agent_guard.py")):
     if not any(e.get("matcher") == matcher and any(script in c.get("command", "") and f"skills/{org}-plan-orchestrate/" in c.get("command", "")
                                                    for c in e.get("hooks", [])) for e in entries):
         errors.append(f"manifest hooks do not register {script} on PreToolUse {matcher} under skills/{org}-plan-orchestrate/")
