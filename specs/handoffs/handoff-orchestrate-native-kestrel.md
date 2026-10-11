@@ -175,6 +175,13 @@ Run as short Agent calls (gate 2, option (a)). First call: s8 done, s9 set up; t
 - Findings for the fix-up: (1) the skill reads `plan-execution.md` from `~/Projects/personal/public/standards/` before the plugin's own copy, so a frozen kit doesn't pin the standards; (2) a session that ends at a gate doesn't append its own orchestrator token line before asking (the next session tallied it from the transcript): "save before you wait" should include it; (3) a resumed session labels its first stretch `orchestrator-kickoff`, duplicating the label (use e.g. `orchestrator-resume`); (4) gate 5 on a single-group wave adds a stop without adding a check (decide: skip, or fold into the next gate as it already did with gate 2); (5) plan bug, not kit: heron's acceptance passed three paths to one `git check-ignore -q`.
 - Pending on Gary: merge lolay/ghx#2; answer the session's question about a draft security advisory for the token-in-clone-URL issue; then run B.
 
+### Dogfood run B (Mac CLI, unattended, lolay/ghx `plan-ghx-platforms-lynx`): completed 2026-10-10
+
+- Sessions: kickoff `98cba6b5` (typed `unattended`, new-chat default; branch `feature/ghx-platforms-lynx` cut and pushed), run `43a767ca` (pasted Kickoff prompt: mode line `confirmed 2026-10-10 session 43a767ca-… by Kickoff prompt: Run in unattended mode.`, no question; Gary's `/compact` during wave 1 (one compaction summary in the transcript) and every later launch passed, no hook deny).
+- Waves 1-4 all PASS, no fix-ups; gates 5, 2, 4, 2 logged as `passed unattended`; the CI workflow ran green on Linux, macOS and Windows in wave 4. Branch head `47c8456`. Plan B's added m1.s5 (token out of clone URLs) landed in wave 2, which also closed a manifest-name path traversal with `--delete`.
+- ghx follow-ups the run found: `resolveWikiURL` replaces the first `.git` anywhere (`acme.github.io`); the manifest lists repos `--include`/`--exclude` filtered out; decide `GIT_TERMINAL_PROMPT=0` on a 401; `golang.org/x/text` v0.22.0 bump.
+- Pending on Gary: answer `pr`, merge after CI is green; then run C.
+
 ## Pending question (verbatim)
 
 > m2.s9 dogfood on lolay/ghx: do the one-time setup in `specs/handoffs/dogfood-orchestrate-native.md` §2 (re-sync orch-spike and check the diff; the frozen kit worktree; ghx `main` prep: `/.scratch/` in `.gitignore`, `.claude/settings.json` from the baseline), then run A (Mac CLI, gated), merge its PR, run B (Mac CLI, unattended), merge, run C (runner, unattended) per §3, and report each run per §5. A fresh subagent then reads the runs and applies the fixes. Gary's ghx decisions: binary `ghx`; `version.txt` 0.1.0, first release 0.2.0.
