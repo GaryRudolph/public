@@ -64,8 +64,9 @@ default for marketplaces added this way.
   `plan-segment` workflow (so `personal:plan-segment`), and
   `hooks/claude-hooks.json` with two `PreToolUse` hooks: a gate on `Workflow`
   (`orchestrate_gate.py`, which denies an orchestrate launch unless the plan,
-  the approval and the branch check out) and a read-only guard on `Bash` for
-  the plan reviewers (`reviewer_guard.py`). All are for
+  the approval and the branch check out) and a guard on `Bash` that keeps
+  the plan reviewers read-only and the plan workers from clearly outward
+  commands such as `git push` (`agent_guard.py`). All are for
   `personal-plan-orchestrate`; the other tools ignore them.
 - **Permissions for orchestrate.** An interactive session offers "don't ask
   again" for the plugin workflow. A headless run (`claude -p`, the SDK) has

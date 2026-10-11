@@ -7,11 +7,13 @@ Cursor-specific rest: the models and what to check before using them, the
 dispatch call, the boundary rows, the tally, and what the harness can't
 enforce. Read `SKILL.md` first.
 
-This text is the Cursor procedure as it stood before the Claude Code
-adapter. The Cursor fixes (the list at the end) are phase 3 of the
-orchestrate-native plan; until they ship, the parent applies the core by
-hand: it checks the gates itself, and reviews `[deep]`, `[exec]` and
-`[fast]` waves inline and `[xdeep]` waves with a read-only xhigh subagent.
+The Cursor fixes (the list at the end) are phase 3 of the orchestrate-native
+plan; until they ship, the parent applies the core by hand: it runs
+`plan_state.py` before every dispatch and applies its stops itself (no hook
+checks them), and reviews `[deep]`, `[exec]` and `[fast]` units inline and
+`[xdeep]` units with a read-only xhigh subagent. A worker that discloses a
+rule it broke is handled as `SKILL.md` "When a unit completes" says, from
+its summary.
 
 ## Runner signal
 
@@ -201,15 +203,16 @@ line does.
 
 ## Mode on Cursor
 
-Unattended is proposed on a Cursor cloud agent and rests on the parent: no
-hook checks the confirmation, and none checks the gates either. A
-workstation proposes gated.
+Every Cursor session proposes gated, a cloud agent included, and says why:
+no hook checks an unattended confirmation or the gates (`SKILL.md` "The
+kickoff question"). Gary may still answer unattended; the mode then rests
+on the parent.
 
 ## Phase 3
 
 Not built yet; the parent applies the core by hand until it is:
-- The gates computed by `plan_state.py` and checked in code, not read off
-  the plan by the parent.
+- The gates `plan_state.py` computes enforced in code at dispatch, not only
+  applied by the parent from its output.
 - A review subagent per working directory, on Opus, in place of the inline
   review.
 - An optional fail-closed `subagentStart` hook that checks a dispatch the

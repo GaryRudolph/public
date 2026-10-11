@@ -8,9 +8,8 @@ what a runner and a limit do to it, and the tally. Read `SKILL.md` first;
 "Each unit" and "When a unit completes" there say when each step below
 happens.
 
-`<P>` is the plugin's name (`personal`), as in `SKILL.md` "Detection". `K`
-is this skill's `scripts/` folder. The Claude Code path is new and is being
-proven on real plans.
+`<P>` is the plugin's name, read as in `SKILL.md` "Detection" (a renamed
+copy of the plugin has its own). `K` is this skill's `scripts/` folder.
 
 ## Runner signal and setup
 
@@ -41,7 +40,7 @@ Once per session:
 |---|---|
 | `<P>:plan-segment` workflow (`claude-workflows/plan-segment.js`) | Runs one dispatch unit. It checks its `args` against `plan_state.py`'s unit and refuses a stopping gate not approved for that wave. While `canaryDone` is false it runs only the first group. It then runs each group's worker and, as soon as that finishes, its reviewer. Unattended, it retries a broken group once and returns the checkpoints it passed. A fix-up unit quotes its failed check or concern, verbatim, into the worker's and reviewer's prompts. It returns a result object only. |
 | Five plugin agents (`claude-agents/`) | `plan-worker` (`model: inherit`; the call sets model and effort), `plan-worker-exec` (Sonnet, high), `plan-worker-xdeep` (Opus, xhigh), `plan-reviewer` (Opus, high; tools Read, Grep, Glob, Bash) and `plan-reviewer-xdeep` (Opus, xhigh; same tools). |
-| `hooks/claude-hooks.json` | A `PreToolUse` hook on `Workflow` (`orchestrate_gate.py`) and one on `Bash` (`reviewer_guard.py`). The plugin manifest loads it beside `hooks/hooks.json`. |
+| `hooks/claude-hooks.json` | A `PreToolUse` hook on `Workflow` (`orchestrate_gate.py`) and one on `Bash` (`agent_guard.py`). The plugin manifest loads it beside `hooks/hooks.json`. |
 | `plan_state.py`, `check_wave.py`, `token_tally.py` | `SKILL.md` lists them after "Detection"; below are the Claude Code arguments. |
 
 The tiers table, with each agent's model and effort, is in `SKILL.md`
@@ -68,7 +67,9 @@ one dispatch unit, at the end of "Each unit" step 4.
   "trailers": ["Assisted-by: Claude Code"],
   "groups": [{ "workdir": "/abs/path/repo-b", "branch": "feature/auth-otter",
                "steps": ["m1.s2"], "spec": "#### s2 - [exec] Add beta.txt\n…",
-               "acceptance": "…", "standards": [], "from": "a08d5d2" }] }
+               "acceptance": "…", "standards": [], "from": "a08d5d2" }],
+  "decisions": "review wave-1 (repo-b m1 s1) …: PASS - … (verbatim, from the handoff)",
+  "environment": "golangci-lint 2.5.0 fails on this module: use 2.6.0" }
 ```
 
 - `canaryDone` is false on this session's first launch and true after.
@@ -81,6 +82,9 @@ one dispatch unit, at the end of "Each unit" step 4.
   items, holding his message verbatim.
 - A `needs_info` group adds `"answer": {"question": "…", "answer": "<the same words as approval>"}`.
 - A fix-up unit's groups are the ones `plan_state.py`'s `next.groups` names.
+- `decisions` and `environment` are optional strings, the handoff's
+  "Decisions so far" and "Environment notes" verbatim (contract item 9);
+  every worker and reviewer of the unit gets them.
 - Optional, each needing Gary's approval: `stepUp` (`"deep"`, `"xdeep"`,
   `"fable"`: gate 6, plus gate 7 into `[xdeep]` or Fable), `max: true` and
   `xdeepDrafts: 2-4` (an `[xdeep]` or Fable unit only; gate 7 in every
@@ -110,12 +114,15 @@ deny reads `PreToolUse:Workflow hook error: personal-plan-orchestrate gate:
 7. An unattended mode was confirmed in this session, for this harness and
    runner, and not taken back (`SKILL.md` "Reading the answer", decision 9
    and the mode switch).
-8. Every group's directory and the plan's repo are on a task branch with
-   `origin/HEAD` known, the branch being the group's.
-9. The plan and a refreshed handoff are committed and pushed, and so is
-   every working directory of the last run.
-10. A raised guard or fix-up cap carries its approval, and a new `WAIVED`
-    line is Gary's message verbatim.
+8. A raised guard carries an approval of `gate-guard`, and a raised fix-up
+   cap one of `gate-1`.
+9. Every group's directory and the plan's repo are on a task branch with
+   `origin/HEAD` known, the branch being the group's; the plan and a
+   refreshed handoff are committed and pushed, and so is every working
+   directory of the last run.
+10. A new `WAIVED` line is Gary's message verbatim, typed in this session.
+
+The numbers are `orchestrate_gate.py`'s.
 
 It never allows a launch outright, so the session's permission rules still
 apply. It fails closed: bad input, a missing or older `plan_state.py`, any
@@ -143,17 +150,29 @@ loaded checks nothing. Quote the reason, then:
 | `the WAIVED line … is not a human message of this session` | The waiver must be Gary's message verbatim, typed in this session. |
 | `hook error (…)` | A bug or a missing file; report it, don't retry blind. |
 
-**The reviewer guard** denies a Bash call that writes (git write
-subcommands, file writers, `gh`, in-place edits, redirection to a file)
-when the hook input's `agent_type` is `<P>:plan-reviewer` or
-`<P>:plan-reviewer-xdeep`. It fails open for every other caller: it sees
-every Bash call of every session. It is defence in depth; the reviewer's
-instructions still say read-only. UNVERIFIED: that a workflow `agent()`
-reviewer reports that `agent_type`; the dogfood tries one denied write.
+**The agent guard** (`agent_guard.py`) reads the hook input's
+`agent_type`, which a workflow `agent()` subagent reports as `<P>:plan-…`
+(seen in phase 1's dogfood, on the Mac and the web):
+- for `<P>:plan-reviewer` and `<P>:plan-reviewer-xdeep` it denies a Bash
+  call that writes: git write subcommands, file writers, `gh`, in-place
+  edits, and redirection to a file (so a reviewer reads output inline);
+- for `<P>:plan-worker`, `-exec` and `-xdeep` it denies the clearly outward
+  commands: `git push`, `gh pr` and `gh release` subcommands that write,
+  `gh workflow run`, a goreleaser release without `--snapshot` or
+  `--skip=publish` (and `goreleaser publish`, `announce`, `continue`), and
+  the package publishers without `--dry-run`.
 
-**What nothing checks:** a worker's outward commands (the prompts forbid
-them and ask for `needs_info`), the Kickoff prompt's `plan` line naming this
-plan's repo, and the runner tokens against an assigned branch.
+It sets heredoc bodies and quoted strings aside first, and fails open for
+every other caller, since it sees every Bash call of every session. It is
+defence in depth: the prompts still forbid all of it. A deny reaches the
+agent as `PreToolUse:Bash hook error: personal-plan-orchestrate reviewer: …`
+(or `worker: …`).
+
+**What nothing checks:** a worker's other outward commands, such as a
+repo's own publish script run without its dry-run flag (the prompt forbids
+them, and the worker reports any it ran or tried under `breaches`), the
+Kickoff prompt's `plan` line naming this plan's repo, and the runner tokens
+against an assigned branch.
 
 ## The result
 
@@ -165,8 +184,12 @@ completes" in `SKILL.md`:
 - **tally:** see "Tokens" below.
 - **The record's `result`:** `stop` (`done`, `gate`, `end`), `gates`,
   `checkpoints` (log them), `retries` (log them), `questions` (a
-  `needs_info` group's question, asked verbatim), and per group `work`,
-  `review` (verdict, note, findings), `from`, `branch`, `tier`.
+  `needs_info` group's question, asked verbatim), `breaches` (`{id,
+  breach}` for every rule a worker disclosed breaking, retries included:
+  `SKILL.md` "When a unit completes" makes each group CONCERNS, or gate 1
+  when it ran), and per group `work` (with `breaches` and `surprises`,
+  whose `env:` lines go to the handoff's Environment notes), `review`
+  (verdict, note, findings), `from`, `branch`, `tier`.
 - A `stop` of `gate` or a failed check goes to the branch step in `SKILL.md`
   (a fix-up is the next unit, or the stop is asked); `done` goes back to
   "Each unit"; `end` is final completion.
@@ -193,8 +216,11 @@ avoids the runner Stop hook.
   `--run`: it reads the session's `subagents/` transcripts and labels rows
   from each call's `description`, so tally once per wave and append only
   that wave's new lines. This path has no workflow run ids to bound parent
-  windows, so write one `orchestrator` line at final completion with
-  `--parent-window start:end --parent-row "orchestrator <plan name>"`.
+  windows, so the parent writes one line per session: at every save that
+  ends a turn to wait or ends the session, `--parent-window start:end
+  --parent-row "orchestrator-kickoff <plan name>"` (or
+  `orchestrator-resume` in a later session), replacing the line it wrote
+  at its previous stop. The guard counts it from then on.
 - The unattended mode rests on the parent here, as its gates do.
 
 ## Runners, recovery and limits
@@ -246,8 +272,10 @@ avoids the runner Stop hook.
 - Start the session with `--add-dir <repo>` for each working directory
   outside the current one.
 - In auto mode, the prompt the script passes to `agent()` doesn't count as
-  a request from Gary (Claude Code's workflow docs). That worker commits
-  pass under auto mode is a dogfood check.
+  a request from Gary (Claude Code's workflow docs); worker commits pass
+  under auto mode with the allow rules above (phase 1's dogfood, on the
+  Mac and the web). The auto-mode classifier also refused a worker's
+  publish script run without its dry-run flag there; don't rely on it.
 - Unattended answers no permission prompt: one mid-run still waits for
   Gary. A run works best with the allow rules above in place.
 - When the snapshot reports a repo whose `.claude/settings.json`
@@ -274,11 +302,16 @@ After a launch completes:
       --check-routing --parent-window <prevRunId>:<runId> \
       --parent-row "orchestrator-wave-<N> <group-id>"
 
-Wave N is the unit the previous run carried. For the first run, the window
-is `start:<runId>` and the row `orchestrator-kickoff <plan name>`. Windows
-don't overlap, so the guard never counts the parent twice. Parent lines are
-exact; the final completion turn isn't flushed yet, a small tail the
-standard says to ignore. Subagent lines in a live session stay `(output
+Wave N is the unit the previous run carried. For a session's first run,
+the window is `start:<runId>` and the row `orchestrator-kickoff <plan
+name>` in the session that kicked off, `orchestrator-resume <plan name>` in
+any later one. At a save that ends a turn to wait or ends the session
+(`SKILL.md` "Token tally", the open stretch), tally `--parent-window
+<lastRunId>:end` (or `start:end` before any launch) under the same row,
+and let the later line of that row replace it if the session goes on.
+Windows don't overlap, so the guard never counts the parent twice. Parent
+lines are exact; the turn being written isn't flushed yet, a small tail
+the standard says to ignore. Subagent lines in a live session stay `(output
 est.)` at completion: their session's `cost-state` record also covers the
 parent and every other wave, so keep the lines rather than merging them.
 `--check-routing` exits 2 when an agent ran on another model than its
@@ -290,8 +323,8 @@ tier's (an `availableModels` substitution, or a wrong alias): that is gate 1
 - While an org-synced copy of the plugin under another name (`orch-spike`)
   is installed beside `personal`, two gate hooks run, and a copy that is
   older applies its older rules too.
-- The desktop app wraps a pasted message in `<pasted_content>` tags; the
-  hook unwraps them before it compares anything, so an unwrapped paste is
-  still a paste.
+- The Mac CLI wraps a bracketed paste in `<pasted_content>` tags (the web
+  doesn't); the hook unwraps them before it compares anything, so a
+  wrapped paste is still a paste.
 - `ANTHROPIC_DEFAULT_*_MODEL` no longer remaps the workflow's models; the
   routing check catches a substitution anyway.
