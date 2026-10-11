@@ -143,7 +143,7 @@ Run A's session read `plan-execution.md` from the `~/Projects/personal/public` c
 
 - Phase 0: a reviewer's Bash could write; only its instructions stopped it. m2.s2 added a `PreToolUse` Bash guard keyed on `agent_type`.
 - Run C: a worker ran the repo's formula publish script without its dry-run flag, inside a compound command, against the plan. Only the auto-mode permission classifier stopped it. The worker disclosed it under surprises, and the parent didn't log it.
-- Fixed in `43e7362` in three layers: the worker prompt and agent files forbid outward commands, naming the repo's own publish scripts except the spec's dry-run form; workers return a required `breaches` list that the workflow surfaces to the parent and the reviewer; and the guard became `agent_guard.py`, which also denies a worker's clearly outward commands (`git push`, `gh pr` and `gh release` writes, `gh workflow run`, non-snapshot goreleaser, publishes without `--dry-run`). Replaying the 367 captured Bash calls of runs A and B gave no worker deny and unchanged reviewer decisions.
+- Fixed in `43e7362` in three layers: the worker prompt and agent files forbid outward commands, naming the repo's own publish scripts except the spec's dry-run form; workers return a required `breaches` list that the workflow surfaces to the parent and the reviewer; and the guard became `agent_guard.py`, which also denies a worker's clearly outward commands (`git push`, `gh pr` and `gh release` writes, `gh workflow run`, non-snapshot goreleaser, publishes without `--dry-run`). Replaying the 367 captured Bash calls of runs A and B gave no worker deny and unchanged reviewer decisions. On 2026-10-12 (§6) the guard split back into `reviewer_guard.py` and `worker_guard.py`, and the worker guard took on the repo's own publish, release and deploy scripts and make targets; the same replay still gives no worker deny, and run C's near miss is denied.
 - Run C's reviewers hit the guard three times by redirecting `make ci` output to a file. The reviewer prompt and the deny text now say to read output inline.
 
 ### 5.7 Carrying decisions and environment notes
@@ -183,28 +183,28 @@ The dogfood plans' own spend, ~$35 by their Token logs (~$42 by `cost-state`, wh
 - Continue a long plan in a new chat from its Kickoff prompt (about 30k tokens to start) rather than resuming an old session days later. `/compact` saves little for the parent.
 - Budget spike runs as real-model sessions; model remaps don't make them cheap.
 
-## 6. Defaults chosen and open to revisit
+## 6. Defaults Gary changed
 
-The dogfood fix-up chose five defaults Gary may want to change:
+The dogfood fix-up chose five defaults and offered an alternative for each. On 2026-10-12 Gary chose the alternative on all five, and `e31278c` implements them:
 
-| Default | Choice | Alternative |
+| Default | The fix-up's choice | Gary's choice, as the kit now does it |
 |---|---|---|
-| Gate 5 on a single-group wave, gated | Stays a stop, folded into one question with the next unit's gates | Skip it |
-| A worker's disclosed breach | CONCERNS when it was blocked (gets `N-fix`); gate 1 in both modes when it ran | Always gate 1 |
-| The worker guard's scope | Narrow: only clearly outward commands; a repo's own publish scripts are left to the prompt and `breaches` | Deny by script name or path |
-| Cursor sessions, cloud agents included | Propose gated, since no hook checks the answer | Propose unattended on a Cursor cloud agent once phase 3 lands |
-| The guard's name | `reviewer_guard.py` renamed `agent_guard.py` | Matters for the Agerpoint port |
+| Gate 5 on a single-group wave | Stays a stop (gated), folded into one question with the next unit's gates | Skipped: a session's first unit with one group runs whole with no canary, and no gate-5 stop or checkpoint in either mode. `canaryDone` is true after it, so no later unit of the session canaries; a later session whose first unit has several groups canaries as before |
+| A worker's disclosed breach | CONCERNS when it was blocked (gets `N-fix`); gate 1 in both modes when it ran | Always gate 1, blocked or ran, in both modes: the workflow returns gate 1 and gives the group no retry, the parent logs it CONCERNS (`worker disclosed: …`), and `plan_state.py` makes its fix-up gate 1, never a checkpoint |
+| The worker guard's scope | Narrow: only clearly outward commands; a repo's own publish scripts left to the prompt and `breaches` | Also by name: a run of a script, make target or package script whose name holds `publish`, `release` or `deploy` is denied unless `DRY_RUN=1`, `--dry-run` or make's `-n` is present; reading, grepping or syntax-checking one passes. Replaying runs A and B's 192 worker Bash calls denies none; run C's `scripts/publish-formula.sh` without `DRY_RUN=1` is denied |
+| Cursor sessions, cloud agents included | Propose gated, since no hook checks the answer | A Cursor cloud agent proposes unattended (`harness=cursor runner=cloud`); Gary may still answer gated. The signal is documented: the Cursor Cloud MCP's `run-info` tool is "available during Cloud Agent runs" ([capabilities](https://cursor.com/docs/cloud-agent/capabilities)), so it answering marks a cloud agent; without it (an admin can turn it off) a session proposes gated. Not yet seen live |
+| One Bash guard or two | `reviewer_guard.py` renamed `agent_guard.py`, one script for both roles | Two scripts, each its own fail-open `PreToolUse` `Bash` entry: `reviewer_guard.py` (reviewers read-only, as before the rename) and `worker_guard.py` (workers' outward commands). The Agerpoint port picks up the two scripts, not `agent_guard.py` |
 
 Gary's decisions from the design, as the kit implements them ([plan-orchestration.md §5](plan-orchestration.md#5-decisions) has the full statements):
 - **2:** a planned `[xdeep]` wave is a logged checkpoint unattended; unplanned `[xdeep]` stops.
 - **3:** two automatic fix-ups per group; the third failure in a row stops.
-- **4:** the canary stays in both modes; unattended passes it on a clean check and review.
+- **4:** the canary stays in both modes; unattended passes it on a clean check and review. A first unit with one group has none (§6).
 - **5:** one unit per run.
 - **6:** task branches only, on every machine.
 - **7:** one Opus reviewer per working directory per unit.
 - **8:** the Agerpoint bok port follows phase 1's live runs.
 - **9:** a plain yes to a kickoff question proposing unattended confirms it.
-- **10:** scope breaches stop at gate 1 in both modes.
+- **10:** scope breaches stop at gate 1 in both modes, and so does a worker's disclosed breach (§6).
 - **11:** no git remote means gated only.
 - **12:** unreviewed worker commits are pushed at a stop, labeled `UNREVIEWED`.
 
@@ -225,7 +225,7 @@ Gary's decisions from the design, as the kit implements them ([plan-orchestratio
 - Done 2026-10-12: ghx's `Workflow(orch-spike:plan-segment)` allow rule and run C's leftover `specs/handoffs/` files removed from `main` (`2f34fde`); the frozen kit worktree removed.
 
 **Follow-ups:**
-- The Agerpoint bok port (decision 8), now unblocked. It picks up the `agent_guard.py` rename, and `agents/lib/` stays byte-for-byte shared.
+- The Agerpoint bok port (decision 8), now unblocked. It picks up the two Bash guards, `reviewer_guard.py` and `worker_guard.py` (§6), and `agents/lib/` stays byte-for-byte shared.
 - Phase 2 (Codex), phase 3 (Cursor's gates in code), phase 4 (Grok, optional), each its own PR.
 - The ghx follow-ups run B found are ghx's own, not the kit's.
 

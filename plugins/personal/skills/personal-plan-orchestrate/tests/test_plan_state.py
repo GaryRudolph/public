@@ -545,6 +545,14 @@ def an_unattended_record_needs_a_signal_in_the_token_grammar():
 
 
 @test
+def a_cursor_cloud_agent_records_its_unattended_proposal_by_the_cloud_mcp_signal():
+    signal = "harness=cursor runner=cloud; Cursor Cloud MCP run-info answered"
+    s = state(plan(marked(0), mode=UNATTENDED.replace("harness=claude-code runner=cloud", signal)))
+    assert s["errors"] == [] and s["mode"]["value"] == "unattended" and s["mode"]["proposed"] == "unattended"
+    assert (s["mode"]["harness"], s["mode"]["runner"]) == ("cursor", "cloud")
+
+
+@test
 def a_kickoff_prompt_must_name_the_plans_repo_and_path():
     s = state(plan(marked(0), mode=prompted(UNATTENDED, "unattended")))
     assert s["prompt_plan"] == {"repo": "example/repo", "path": "specs/handoffs/plan-x.md"}, s["prompt_plan"]

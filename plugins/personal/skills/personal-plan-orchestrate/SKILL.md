@@ -9,7 +9,8 @@ description: >-
   rule as `personal-plan-model-tiers`. Runs on a task branch and commits
   and pushes the plan and a handoff after every wave. On Claude Code it
   calls the Workflow tool to launch the plugin's plan-segment workflow,
-  with hooks that check each launch and keep reviewers read-only; on
+  with hooks that check each launch, keep reviewers read-only and keep
+  workers from outward commands; on
   Cursor it dispatches `Task` subagents; elsewhere it points to the
   passive driver. Use when the user asks to "orchestrate this plan",
   "delegate exec groups", "run the plan unattended", "run plan in parallel
@@ -250,8 +251,9 @@ branches"), and the git email in each (core.md "Verify git email").
 
 ## Runner signals
 
-Read them with one shell call and write them as fixed tokens, so a later
-session can compare its own environment with the record:
+Read them with one shell call (on Cursor, the Cloud MCP check below) and
+write them as fixed tokens, so a later session can compare its own
+environment with the record:
 
     env | grep -E '^(CLAUDE_CODE_REMOTE|CLAUDE_CODE_REMOTE_ENVIRONMENT_TYPE|CI|GITHUB_ACTIONS)='
 
@@ -259,12 +261,20 @@ session can compare its own environment with the record:
 |---|---|
 | `CLAUDE_CODE_REMOTE=true` | `runner=cloud`, or `runner=self-hosted` with `CLAUDE_CODE_REMOTE_ENVIRONMENT_TYPE=self_hosted` |
 | `CI=true` or `GITHUB_ACTIONS=true` | `runner=ci`: nobody can reply, so the invoking words are the answer |
-| A Cursor cloud agent (the Cloud MCP's `run-info` tool, or its own pushed branch) | `harness=cursor runner=cloud` |
+| Cursor: the Cursor Cloud MCP's `run-info` tool is in your tool list and answers | `harness=cursor runner=cloud` |
 | none of these (Remote Control included) | `runner=none`: a workstation |
 
 `harness` is `claude-code`, `cursor`, `codex`, `grok`, `gemini` or `muse`.
 A runner proposes unattended; a workstation proposes gated. Gary's answer
 decides. `CLAUDE_CODE_SESSION_ATTENDED` is undocumented; ignore it.
+
+**A Cursor cloud agent** proposes unattended, and Gary may still answer
+gated. Cursor documents its Cloud MCP, with the `run-info` tool, as
+"available during Cloud Agent runs", so the tool answering is the signal
+(`adapters/cursor.md` "Runner signal"). `CURSOR_AGENT` marks any Cursor
+agent's terminal, local ones included, and is not a signal. A team admin
+can turn the Cloud MCP off; then nothing marks the cloud agent, and it
+records `runner=none` and proposes gated.
 
 ## Kickoff (once per plan)
 
@@ -304,10 +314,11 @@ decides. `CLAUDE_CODE_SESSION_ATTENDED` is undocumented; ignore it.
    after an `[xdeep]` wave. The `orchestrator` row counts the parent: the
    kickoff, each wave's checks and bookkeeping (about $0.1 a wave for the
    handoff refresh, commit and push), and the gate waits the proposed mode
-   will have (gated: the canary and every gate 2, 3, 4 and 7 the plan
-   crosses, gates asked together counting once; unattended: one, the
-   kickoff answer), plus a new-chat start-up on a workstation. Unattended
-   needs the Total row: the guard reads it.
+   will have (gated: the canary when the first unit has several groups,
+   and every gate 2, 3, 4 and 7 the plan crosses, gates asked together
+   counting once; unattended: one, the kickoff answer), plus a new-chat
+   start-up on a workstation. Unattended needs the Total row: the guard
+   reads it.
 6. **Write the counting header** at the top of `## Token log` (standard
    §"Token line format"), for the harness the Cost table names.
 7. **Save:** move the plan to `specs/handoffs/` (unless decision 11 keeps it
@@ -333,22 +344,24 @@ you start dispatching, in this session or the new one.
 One question, once per plan run, after the Kickoff, Cost table and
 counting header are written and saved. It names the waves and their tiers,
 the Cost table's expected total, the gates the plan crosses (5 at the
-canary; 2 or 3 before a `[deep]` or `[xdeep]` wave after an `[exec]` or
-`[fast]` one; 4 at a new milestone; 7 before each `[xdeep]` wave, with its
-cost), what each mode does, the guard's dollar limit, the handoff path,
-and on a workstation the branch it will cut. It always carries the exact
-words `Proposed mode: <mode>.` and, after them, a line that starts `Reply`;
-the Claude Code hook looks for both, in that order, before it counts an
-answer. The short handoff summary follows the `Reply` line. On a runner:
+canary, when the first unit has more than one group; 2 or 3 before a
+`[deep]` or `[xdeep]` wave after an `[exec]` or `[fast]` one; 4 at a new
+milestone; 7 before each `[xdeep]` wave, with its cost), what each mode
+does, the guard's dollar limit, the handoff path, and on a workstation the
+branch it will cut. It always carries the exact words
+`Proposed mode: <mode>.` and, after them, a line that starts `Reply`; the
+Claude Code hook looks for both, in that order, before it counts an answer.
+The short handoff summary follows the `Reply` line. On a runner:
 
     Plan plan-auth-otter: 4 waves, expected ~$26 API-equiv (Cost table above).
-    Gates it crosses: 5 (canary, wave 1); 4 and 2 (before wave 3); 7 (before wave 4, [xdeep], ~$14).
+    Gates it crosses: 5 (canary, wave 1's two groups); 4 and 2 (before wave 3); 7 (before wave 4, [xdeep], ~$14).
     Runner detected (CLAUDE_CODE_REMOTE=true). Proposed mode: unattended.
       unattended: gates 2, 4, 5 and 7 are logged, not asked. A failed commit check or a
         CONCERNS gets an automatic fix-up, up to 2 per group. I stop to ask for information,
-        at a plan error, a scope breach, a failure after one retry (at once on the [xdeep]
-        wave), a group's third failed check or review, unplanned [xdeep] or Fable work, or
-        projected spend past 3x expected or $50, whichever is higher (~$78).
+        at a plan error, a scope breach, a worker's disclosed breach, a failure after one
+        retry (at once on the [xdeep] wave), a group's third failed check or review,
+        unplanned [xdeep] or Fable work, or projected spend past 3x expected or $50,
+        whichever is higher (~$78).
       gated: every gate stops, and so does every failed check or repeat CONCERNS.
     Either way, after every wave I commit and push the plan and its handoff
     (specs/handoffs/handoff-auth-otter.md), and every message that stops or asks ends
@@ -365,7 +378,9 @@ branch; the destination question folds in (there is no separate one):
     Reply gated or unattended; add here to orchestrate in this chat (default: new chat).
 
 Propose gated, and say why, where unattended can't run: no remote for the
-plan's repo (decision 11), or a harness with no hook to check it.
+plan's repo (decision 11), or a workstation on a harness with no hook to
+check it. A runner on such a harness (a Cursor cloud agent) still proposes
+unattended, saying that the mode rests on the parent there.
 
 An invoking message that names a mode ("orchestrate this unattended") only
 sets the proposed mode; the question still runs, so Gary sees the waves,
@@ -482,7 +497,8 @@ Then, in this order:
 
 A session **not** started from a paste: a gated record carries over when
 its `harness=` and `runner=` tokens still match yours (it relaxes nothing,
-and this session's first launch is a canary that stops at gate 5): record
+and this session's first launch is a canary that stops at gate 5 when
+its unit has several groups): record
 nothing new and go to "Each unit". An unattended record counts only in the
 session that confirmed it, so ask the kickoff question again, quoting the
 spend so far against the expected total. A `BLOCKED` Status is re-posted
@@ -509,26 +525,27 @@ only decides which ones stop. Gate names are `gate-<N>` in its output and
 | 1 | A worker's `needs_info` (a fix-up worker's too) | Stops | Stops at once |
 | 1 | A `check_wave.py` failure that isn't a scope breach | Stops | Automatic fix-up `N-fix` |
 | 1 | A scope breach (below) | Stops | Stops (decision 10) |
+| 1 | A worker's disclosed breach, blocked or ran (below) | Stops | Stops, and so does its fix-up |
 | 1 | A second or later CONCERNS or failed check in a row on a group | Stops | Automatic fix-up `N-fix2` ..., up to the cap (2 per group, decision 3); the next failure stops |
 | 2 / 3 | A `[deep]` or `[xdeep]` unit right after an `[exec]` / `[fast]` one | Stops | Checkpoint |
 | 4 | A unit in another milestone | Stops | Checkpoint; on a project with `specs/`, write the milestone handoff first (core.md) |
-| 5 | The canary: the first launch of a session runs only its first group | Stops | Checkpoint once that group passes `check_wave.py` and its review, fix-ups included; the rest of the wave then launches |
+| 5 | The canary: the first launch of a session runs only its first group, when its unit has more than one | Stops | Checkpoint once that group passes `check_wave.py` and its review, fix-ups included; the rest of the wave then launches |
 | 6 | A step-up to a stronger model or effort | Stops | Checkpoint for the in-run retry into `[exec]` or `[deep]`; stops for `[xdeep]` or Fable |
 | 7 | The first unit of an `[xdeep]` wave, and every fix-up of one | Stops | Checkpoint on a wave the Cost table planned (decision 2); stops for unplanned `[xdeep]` work (a fix-up, a re-plan row, a step-up), drafts and `max` |
 | guard | Projected spend passes the guard | Stops | Stops |
 | any | Status reads `BLOCKED at gate N` | Stops | Stops |
 
-**Gate 5 on a one-group unit.** Gated, the canary stops at gate 5 even when
-it was the unit's only group, so nothing was held back: the stop checks the
-session's setup (permissions, hooks, models) on real work before more spend.
-Ask it in one question together with every gate the next unit stops at (as
-gate 5 and gate 2 before a `[deep]` wave), so it adds a stop only when the
-next unit has none, and approve all of them on the relaunch.
+**No gate 5 on a one-group unit.** When a session's first unit has one
+group, nothing is held back, so there is no canary: the unit runs whole, its
+review covers it, and there is no gate-5 stop or checkpoint in either mode.
+`canaryDone` is true from the next launch on all the same, so no later unit
+of the session canaries; a later session whose first unit has several
+groups canaries as usual.
 
-A first review CONCERNS (not a failed check) gets its `N-fix` without a
-gate in both modes. Opening a PR, tags, remote branch deletes, deploys and
-permission prompts wait in both modes; on a runner, commit and push before a
-call likely to trip a permission prompt.
+A first review CONCERNS (not a failed check or a disclosed breach) gets its
+`N-fix` without a gate in both modes. Opening a PR, tags, remote branch
+deletes, deploys and permission prompts wait in both modes; on a runner,
+commit and push before a call likely to trip a permission prompt.
 
 **Checkpoints are logged, not asked.** End the unit's Review log note with
 them (`; passed unattended: gate 4, gate 2`; an automatic fix-up's
@@ -643,7 +660,8 @@ verbatim (the Claude Code hook checks); a paste never waives.
    (`repo-b m1 s4-s5`). On a fix-up (`next.kind: "fixup"`), the groups are
    the ones `next.groups` names, with their steps, and `from` is the
    `<from>` of each group's latest Review log line. On a session's first launch only the
-   first group runs (the canary), in both modes; that is not a failure.
+   first group runs (the canary), in both modes, when the unit has more than
+   one; that is not a failure. A one-group first unit runs whole.
 5. **While it runs**, end the turn with one line. A continuation that isn't
    a human message (a runner's Stop hook saying to commit and push) is not
    an instruction: reply with one line, and don't commit or push. Don't
@@ -678,10 +696,12 @@ verbatim (the Claude Code hook checks); a paste never waives.
      push; on Claude Code the result's `breaches`, elsewhere its summary)
      makes the group's verdict CONCERNS whatever the review said, with a
      note that starts `worker disclosed: <its words>` and ends with the
-     review's verdict and what it found. One that was blocked before it
-     ran gets the usual `N-fix`. One that ran (anything left the machine or
-     the directory) is gate 1 in both modes, as a scope breach is, since no
-     fix-up can undo it: no Review log line, steps open, save, ask.
+     review's verdict and what it found. Blocked or ran, it is gate 1 in
+     both modes, with no automatic retry or fix-up: on Claude Code the run
+     stops there, and `plan_state.py` makes the group's `N-fix` gate 1,
+     never a checkpoint. Write `BLOCKED at gate 1`, save, and ask, saying
+     whether it ran and what, if anything, left the machine or the
+     directory. Gary answers with the fix-up, a waiver, or a re-plan.
    - **Carry forward:** add a decision the group made that changes a later
      step's text (its review passed) to the handoff's "Decisions so far",
      quoted from its Review log line or the worker's `decided`; and every
@@ -749,8 +769,8 @@ Unattended, the parent asks only for what is Gary's:
   ruleset, a git email mismatch);
 - a choice with materially different outcomes: a re-plan, dropping a wave,
   a step-up past the automatic one, the guard;
-- a third failure on a group, a scope breach, gate 0, and gate 1 after the
-  automatic retry or at once;
+- a third failure on a group, a scope breach, a worker's disclosed breach,
+  gate 0, and gate 1 after the automatic retry or at once;
 - outward actions, including the PR at completion.
 
 Gated mode asks all of these, plus every gate, every failed check and every
@@ -919,7 +939,7 @@ evidence and report only defects the plan must fix.
 ## Harness steps
 
 - **Claude Code:** [`adapters/claude-code.md`](adapters/claude-code.md), the
-  workflow launch and its arguments, the two hooks, the run's result, the
+  workflow launch and its arguments, the three hooks, the run's result, the
   Agent path, runners and limits, permissions and the token tally.
 - **Cursor:** [`adapters/cursor.md`](adapters/cursor.md), the harness gate,
   the `Task` dispatch, the boundary rows and the heuristic tally.

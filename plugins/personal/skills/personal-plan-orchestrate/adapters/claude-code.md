@@ -38,9 +38,9 @@ Once per session:
 
 | Piece | Job |
 |---|---|
-| `<P>:plan-segment` workflow (`claude-workflows/plan-segment.js`) | Runs one dispatch unit. It checks its `args` against `plan_state.py`'s unit and refuses a stopping gate not approved for that wave. While `canaryDone` is false it runs only the first group. It then runs each group's worker and, as soon as that finishes, its reviewer. Unattended, it retries a broken group once and returns the checkpoints it passed. A fix-up unit quotes its failed check or concern, verbatim, into the worker's and reviewer's prompts. It returns a result object only. |
+| `<P>:plan-segment` workflow (`claude-workflows/plan-segment.js`) | Runs one dispatch unit. It checks its `args` against `plan_state.py`'s unit and refuses a stopping gate not approved for that wave. While `canaryDone` is false it runs only the first group (the canary, gate 5) when the unit has more than one; a one-group unit runs whole with no gate 5. It then runs each group's worker and, as soon as that finishes, its reviewer. Unattended, it retries a broken group once and returns the checkpoints it passed. A worker's disclosed breach stops the run at gate 1, with no retry. A fix-up unit quotes its failed check, concern or disclosure, verbatim, into the worker's and reviewer's prompts. It returns a result object only. |
 | Five plugin agents (`claude-agents/`) | `plan-worker` (`model: inherit`; the call sets model and effort), `plan-worker-exec` (Sonnet, high), `plan-worker-xdeep` (Opus, xhigh), `plan-reviewer` (Opus, high; tools Read, Grep, Glob, Bash) and `plan-reviewer-xdeep` (Opus, xhigh; same tools). |
-| `hooks/claude-hooks.json` | A `PreToolUse` hook on `Workflow` (`orchestrate_gate.py`) and one on `Bash` (`agent_guard.py`). The plugin manifest loads it beside `hooks/hooks.json`. |
+| `hooks/claude-hooks.json` | A `PreToolUse` hook on `Workflow` (`orchestrate_gate.py`) and two on `Bash`, each its own entry: `reviewer_guard.py` and `worker_guard.py`. The plugin manifest loads it beside `hooks/hooks.json`. |
 | `plan_state.py`, `check_wave.py`, `token_tally.py` | `SKILL.md` lists them after "Detection"; below are the Claude Code arguments. |
 
 The tiers table, with each agent's model and effort, is in `SKILL.md`
@@ -72,7 +72,8 @@ one dispatch unit, at the end of "Each unit" step 4.
   "environment": "golangci-lint 2.5.0 fails on this module: use 2.6.0" }
 ```
 
-- `canaryDone` is false on this session's first launch and true after.
+- `canaryDone` is false on this session's first launch and true after,
+  whether that launch split off a canary or, with one group, ran whole.
 - `steps` are the IDs `plan_state.py` reports, which commit subjects carry:
   a heading `#### s2` under `## m1` is `m1.s2`.
 - `approved` is `[]` except in the turn Gary's answer started (or joined):
@@ -150,29 +151,36 @@ loaded checks nothing. Quote the reason, then:
 | `the WAIVED line … is not a human message of this session` | The waiver must be Gary's message verbatim, typed in this session. |
 | `hook error (…)` | A bug or a missing file; report it, don't retry blind. |
 
-**The agent guard** (`agent_guard.py`) reads the hook input's
-`agent_type`, which a workflow `agent()` subagent reports as `<P>:plan-…`
-(seen in phase 1's dogfood, on the Mac and the web):
-- for `<P>:plan-reviewer` and `<P>:plan-reviewer-xdeep` it denies a Bash
-  call that writes: git write subcommands, file writers, `gh`, in-place
-  edits, and redirection to a file (so a reviewer reads output inline);
-- for `<P>:plan-worker`, `-exec` and `-xdeep` it denies the clearly outward
-  commands: `git push`, `gh pr` and `gh release` subcommands that write,
-  `gh workflow run`, a goreleaser release without `--snapshot` or
-  `--skip=publish` (and `goreleaser publish`, `announce`, `continue`), and
-  the package publishers without `--dry-run`.
+**The two Bash guards** read the hook input's `agent_type`, which a
+workflow `agent()` subagent reports as `<P>:plan-…` (seen in phase 1's
+dogfood, on the Mac and the web), and each acts only for its own agents:
+- `reviewer_guard.py`, for `<P>:plan-reviewer` and `<P>:plan-reviewer-xdeep`,
+  denies a Bash call that writes: git write subcommands, file writers, `gh`,
+  in-place edits, and redirection to a file (so a reviewer reads output
+  inline).
+- `worker_guard.py`, for `<P>:plan-worker`, `-exec` and `-xdeep`, denies the
+  outward commands: `git push`, `gh pr` and `gh release` subcommands that
+  write, `gh workflow run`, a goreleaser release without `--snapshot` or
+  `--skip=publish` (and `goreleaser publish`, `announce`, `continue`), the
+  package publishers without `--dry-run`, and a run of the repo's own
+  script or make target whose name holds `publish`, `release` or `deploy`
+  (`scripts/publish-formula.sh`, `./release.sh`, `make release`, `make
+  deploy-prod`, `npm run release`) unless a dry-run form is present:
+  `DRY_RUN=1`, `--dry-run`, or for make `-n`. Reading, grepping, linting or
+  syntax-checking such a script, and a make variable's value (`make doctor
+  MODE=release`), pass.
 
-It sets heredoc bodies and quoted strings aside first, and fails open for
-every other caller, since it sees every Bash call of every session. It is
-defence in depth: the prompts still forbid all of it. A deny reaches the
+Each sets heredoc bodies and quoted strings aside first, and fails open for
+every other caller, since each sees every Bash call of every session. They
+are defence in depth: the prompts still forbid all of it. A deny reaches the
 agent as `PreToolUse:Bash hook error: personal-plan-orchestrate reviewer: …`
 (or `worker: …`).
 
-**What nothing checks:** a worker's other outward commands, such as a
-repo's own publish script run without its dry-run flag (the prompt forbids
-them, and the worker reports any it ran or tried under `breaches`), the
-Kickoff prompt's `plan` line naming this plan's repo, and the runner tokens
-against an assigned branch.
+**What nothing checks:** a worker's outward command the worker guard
+doesn't name (a script whose name doesn't say publish, release or deploy;
+the prompt forbids it, and the worker reports any it ran or tried under
+`breaches`), the Kickoff prompt's `plan` line naming this plan's repo, and
+the runner tokens against an assigned branch.
 
 ## The result
 
@@ -185,11 +193,11 @@ completes" in `SKILL.md`:
 - **The record's `result`:** `stop` (`done`, `gate`, `end`), `gates`,
   `checkpoints` (log them), `retries` (log them), `questions` (a
   `needs_info` group's question, asked verbatim), `breaches` (`{id,
-  breach}` for every rule a worker disclosed breaking, retries included:
-  `SKILL.md` "When a unit completes" makes each group CONCERNS, or gate 1
-  when it ran), and per group `work` (with `breaches` and `surprises`,
-  whose `env:` lines go to the handoff's Environment notes), `review`
-  (verdict, note, findings), `from`, `branch`, `tier`.
+  breach}` for every rule a worker disclosed breaking: the run stopped at
+  gate 1 for them, and `SKILL.md` "When a unit completes" makes each group
+  CONCERNS), and per group `work` (with `breaches` and `surprises`, whose
+  `env:` lines go to the handoff's Environment notes), `review` (verdict,
+  note, findings), `from`, `branch`, `tier`.
 - A `stop` of `gate` or a failed check goes to the branch step in `SKILL.md`
   (a fix-up is the next unit, or the stop is asked); `done` goes back to
   "Each unit"; `end` is final completion.
@@ -275,7 +283,8 @@ avoids the runner Stop hook.
   a request from Gary (Claude Code's workflow docs); worker commits pass
   under auto mode with the allow rules above (phase 1's dogfood, on the
   Mac and the web). The auto-mode classifier also refused a worker's
-  publish script run without its dry-run flag there; don't rely on it.
+  publish script run without its dry-run flag there; `worker_guard.py` now
+  denies that run itself, so don't rely on the classifier.
 - Unattended answers no permission prompt: one mid-run still waits for
   Gary. A run works best with the allow rules above in place.
 - When the snapshot reports a repo whose `.claude/settings.json`

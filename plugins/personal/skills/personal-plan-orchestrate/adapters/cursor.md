@@ -11,15 +11,34 @@ The Cursor fixes (the list at the end) are phase 3 of the orchestrate-native
 plan; until they ship, the parent applies the core by hand: it runs
 `plan_state.py` before every dispatch and applies its stops itself (no hook
 checks them), and reviews `[deep]`, `[exec]` and `[fast]` units inline and
-`[xdeep]` units with a read-only xhigh subagent. A worker that discloses a
-rule it broke is handled as `SKILL.md` "When a unit completes" says, from
-its summary.
+`[xdeep]` units with a read-only xhigh subagent. It applies the canary
+itself: on a session's first dispatch, only the first group of a unit with
+more than one goes out, and that unit stops at gate 5 (gated) or passes it
+as a checkpoint (unattended); a one-group first unit goes out whole with no
+gate 5. A worker that discloses a rule it broke, blocked or ran, is gate 1
+in both modes, from its summary (`SKILL.md` "When a unit completes"): no
+retry, and its fix-up waits for Gary.
 
 ## Runner signal
 
-A Cursor cloud agent shows itself through the Cloud MCP's `run-info` tool
-and its own pushed branch, and is recorded as `harness=cursor runner=cloud`
-(`SKILL.md` "Runner signals"). `CURSOR_AGENT` is not a signal.
+A Cursor cloud agent is recorded as `harness=cursor runner=cloud` and
+proposes unattended (`SKILL.md` "Runner signals"); Gary may still answer
+gated. The signal is the Cursor Cloud MCP, which Cursor documents as "a
+built-in diagnostics server available during Cloud Agent runs"
+(<https://cursor.com/docs/cloud-agent/capabilities>, checked 2026-10-11):
+- **Look** for its `run-info` tool in your tool list (the name may carry a
+  server prefix, such as `cursor-cloud-run-info`), and call it once. It is
+  read-only and returns the run's identity, metadata and URL.
+- **It answers with a run:** a cloud agent. Record `runner=cloud`, with the
+  run URL in the mode line's note.
+- **The tool is absent or errors:** `runner=none`, a local session, which
+  proposes gated. A team admin can turn the Cloud MCP off, so a cloud agent
+  without it is treated as local; that errs toward stopping.
+
+No environment variable marks a cloud agent: the cloud agent and setup
+pages name none, and `CURSOR_AGENT`, the one the terminal page documents
+(<https://cursor.com/docs/agent/tools/terminal>), marks any Cursor agent's
+terminal, local ones included, so it is not a signal.
 
 ## Harness gate: verify before proceeding
 
@@ -203,10 +222,11 @@ line does.
 
 ## Mode on Cursor
 
-Every Cursor session proposes gated, a cloud agent included, and says why:
-no hook checks an unattended confirmation or the gates (`SKILL.md` "The
-kickoff question"). Gary may still answer unattended; the mode then rests
-on the parent.
+A Cursor session proposes the mode its runner token says (`SKILL.md`
+"Runner signals"): unattended on a cloud agent the Cloud MCP confirms,
+gated anywhere else. No hook checks an unattended confirmation or the gates
+on Cursor, so the kickoff question says the mode rests on the parent there,
+and Gary may answer either mode.
 
 ## Phase 3
 

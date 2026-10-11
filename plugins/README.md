@@ -17,8 +17,9 @@ the only per-vendor files, with these exceptions, all Claude Code's or one
 harness's:
 
 - `hooks/claude-hooks.json`, which the Claude manifest's `hooks` field loads
-  beside `hooks/hooks.json`: a `PreToolUse` gate on `Workflow` and a
-  read-only guard on `Bash` for the orchestrate reviewers.
+  beside `hooks/hooks.json`: a `PreToolUse` gate on `Workflow` and two
+  guards on `Bash`, one keeping the orchestrate reviewers read-only and one
+  keeping its workers from outward commands.
 - `claude-agents/` and `claude-workflows/` inside `personal-plan-orchestrate`:
   its five plan worker and reviewer agents and the `plan-segment` workflow,
   named in the Claude manifest's `agents` and `workflows` fields.
@@ -36,7 +37,7 @@ plugins/
     .claude-plugin/plugin.json  .codex-plugin/plugin.json
     .cursor-plugin/plugin.json  gemini-extension.json
     hooks/hooks.json                <- SessionStart for Claude, Codex, Gemini
-    hooks/claude-hooks.json         <- Claude only: Workflow gate, reviewer Bash guard
+    hooks/claude-hooks.json         <- Claude only: Workflow gate, reviewer and worker Bash guards
     hooks/cursor-hooks.json         <- empty; keeps Cursor off hooks.json
     cursor/rules/personal-core.mdc  <- GENERATED from core.md; Cursor's always-on core
     scripts/session-start.sh
