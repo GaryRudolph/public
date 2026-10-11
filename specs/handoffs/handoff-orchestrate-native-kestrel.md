@@ -168,6 +168,13 @@ Run as short Agent calls (gate 2, option (a)). First call: s8 done, s9 set up; t
 - Merging waits until criterion 6 holds (org sync and Cowork accept the new manifest fields).
 - Merge with a squash, passing the PR title and description explicitly.
 
+### Dogfood run A (Mac CLI, gated, lolay/ghx `plan-ghx-baseline-heron`): completed 2026-10-10
+
+- Sessions (all `~/.claude-lolay/projects/-Users-gary-Projects-lolay-ghx/`): `b7d5eecc` (launched without `--plugin-dir`: loaded main's Cursor-only skill, aborted; not a kit bug), `4e8ee344` (kickoff: plain `gated`, so new-chat handoff; cut and pushed `feature/ghx-baseline-heron`, kickoff commit `0f1f6be`), `bf82fd5c` (pasted Kickoff prompt: no question, wave 1 canary, gates 5+2 asked together; wave 2; stopped `BLOCKED at gate 4`, milestone handoff `handoff-m2-docs.md`), `6517b573` (pasted Kickoff prompt at the BLOCKED gate, wrapped in `<pasted_content>`: re-posted the gate 4 question, said the paste isn't an approval; `yes, continue wave 3`; wave 3; cleanup `5a7d367`; issue lolay/ghx#1; PR lolay/ghx#2).
+- Waves: 1 `3e99c74..92f4ee3`, 2 `cd6de0a..2797c2d`, 3 `8ef9623..ec72869`, all PASS, no fix-ups. Spend ~$8.13 against ~$13 expected (ratio ~0.6).
+- Findings for the fix-up: (1) the skill reads `plan-execution.md` from `~/Projects/personal/public/standards/` before the plugin's own copy, so a frozen kit doesn't pin the standards; (2) a session that ends at a gate doesn't append its own orchestrator token line before asking (the next session tallied it from the transcript): "save before you wait" should include it; (3) a resumed session labels its first stretch `orchestrator-kickoff`, duplicating the label (use e.g. `orchestrator-resume`); (4) gate 5 on a single-group wave adds a stop without adding a check (decide: skip, or fold into the next gate as it already did with gate 2); (5) plan bug, not kit: heron's acceptance passed three paths to one `git check-ignore -q`.
+- Pending on Gary: merge lolay/ghx#2; answer the session's question about a draft security advisory for the token-in-clone-URL issue; then run B.
+
 ## Pending question (verbatim)
 
 > m2.s9 dogfood on lolay/ghx: do the one-time setup in `specs/handoffs/dogfood-orchestrate-native.md` §2 (re-sync orch-spike and check the diff; the frozen kit worktree; ghx `main` prep: `/.scratch/` in `.gitignore`, `.claude/settings.json` from the baseline), then run A (Mac CLI, gated), merge its PR, run B (Mac CLI, unattended), merge, run C (runner, unattended) per §3, and report each run per §5. A fresh subagent then reads the runs and applies the fixes. Gary's ghx decisions: binary `ghx`; `version.txt` 0.1.0, first release 0.2.0.
