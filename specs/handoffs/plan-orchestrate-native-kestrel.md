@@ -1,7 +1,7 @@
 ```
 --- KICKOFF: begin orchestration at [deep] ---
 
-  Status: 7/8 groups done | last review: wave-7 PASS | current: m2 s10 [fast] (wave-7 follow-up: applying Gary's five default changes before wave 8) | updated 2026-10-12
+  Status: 7/8 groups done | last review: wave-7 PASS | current: m2 s10 [fast] (default changes applied; wave 8 waits for Gary's go) | updated 2026-10-12
 
   review: every-wave (log-only — parent writes Review log; no human review gate)
 
@@ -132,6 +132,7 @@ review wave-4 (m2-s1) 6548274..2870822: PASS - test-orchestrate wired into agent
 review wave-5 (m2-s2-s3) 5802f23..5704254: PASS - 12 m2.s2 kit changes plus decision 9 and the take-back (suite 152 -> 172); SKILL.md rewritten harness-neutral with the Claude Code path marked phase 1: dogfood; orch-spike rebuilt, not pushed; new reviewer_guard.py Bash hook runs on every Bash call (fails open); reviewer agent_type naming unverified live (m2.s9) - 2026-10-07
 review wave-6 (m2-s4-s7) dd6cf23..f63187c: PASS - adapters/claude-code.md and cursor.md split out of SKILL.md; plan-execution (a)-(g) and decision 12; core.md kickoff cut and decision 9 line, Cursor rule regenerated; other skills, plugins/README, agent-distribution, runbook updated; Cursor [exec] slug now grok-4-7[effort=high,fast=false] (unverified on Cursor); orch-spike not rebuilt - 2026-10-07
 review wave-7 (m2-s8-s9) bfd4bcc..bf1e854: PASS - spec promoted; dogfood on lolay/ghx: A Mac gated, B Mac unattended, C runner unattended, all completed and merged (ghx#2-#4), one continued from a pasted Kickoff prompt twice; fixes: step-id qualification, worker outward-command guard (agent_guard.py) and disclosed breaches, decisions and environment notes carried forward, parent token line at every save, orchestrator-resume label, standards from the plugin copy; gate flipped; suite 185; not exercised live: plain yes, typed gated switch, gated on a runner - 2026-10-11
+review wave-7-followup (m2-s9) fae6515..65b9388: PASS - phase 1 report written (specs/plan-orchestration-phase-1-report.md); ghx main cleaned (2f34fde); Gary's five alternatives applied: gate 5 skipped on a one-group first unit, any disclosed breach is gate 1, worker guard covers publish/release/deploy scripts without a dry run, Cursor cloud agents detected by the Cloud MCP run-info tool propose unattended, reviewer_guard.py and worker_guard.py split again; suite 189; replay of runs A and B: no new worker denies - 2026-10-12
 
 ## Token log",
       counted and priced per its counting header:
@@ -676,3 +677,5 @@ tokens wave-7 m2-s8-s9 (claude-haiku-5-5): input ~8 / cache read ~200k / cache w
 tokens wave-7 m2-s8-s9 (claude-opus-5-5): input ~32 / cache read ~1.2M / cache write ~99k / output ~18k | ~$1.09 API-equiv (output est.) session e2ebcdb1-b307-462c-b763-9d4f0fd17c83 subagent a744dfad9cff767ae (plan B advisory step)
 tokens wave-7 m2-s8-s9 (claude-opus-5-5): input ~180 / cache read ~20M / cache write ~1.8M / output ~95k | ~$14.75 API-equiv (output est.) session e2ebcdb1-b307-462c-b763-9d4f0fd17c83 subagent a398ffb28f217e4d6 (dogfood fix-up)
 tokens orchestrator-wave-7 m2-s8-s9 (claude-opus-5-5): input ~74 / cache read ~13M / cache write ~1.1M 1h / output ~28k | ~$12.08 API-equiv (session e2ebcdb1 after its resume: dogfood relay for runs A-C, ghx prep, fix-up review; ~$8.9 of it cache rewrites after resumes across three days)
+tokens wave-7 m2-s8-s9 (claude-opus-5-5): input ~66 / cache read ~4.5M / cache write ~190k / output ~40k | ~$2.67 API-equiv (output est.) session e2ebcdb1-b307-462c-b763-9d4f0fd17c83 subagent a949f4227e80638ce (phase 1 report)
+tokens wave-7 m2-s8-s9 (claude-opus-5-5): input ~190 / cache read ~22M / cache write ~330k / output ~100k | ~$8.14 API-equiv (output est.) session e2ebcdb1-b307-462c-b763-9d4f0fd17c83 subagent af4727a5b262f6469 (Gary's five default changes)
