@@ -222,8 +222,7 @@ Gary's decisions from the design, as the kit implements them ([plan-orchestratio
 **`orch-spike` cleanup**, Gary's call:
 - The org's `orch-spike-lab` source. Wave 8 deletes the folder its marketplace entry points at, and `orch-spike` 0.1.209 (`05d3a2a`) was never re-synced.
 - The private scratch repo `GaryRudolph/orchestrate-spike` and its branches.
-- ghx's `Workflow(orch-spike:plan-segment)` allow rule in `.claude/settings.json` on `main`.
-- The frozen kit worktree `~/Projects/personal/orchestrate-kit`, still present at `9b7d7f3`.
+- Done 2026-10-12: ghx's `Workflow(orch-spike:plan-segment)` allow rule and run C's leftover `specs/handoffs/` files removed from `main` (`2f34fde`); the frozen kit worktree removed.
 
 **Follow-ups:**
 - The Agerpoint bok port (decision 8), now unblocked. It picks up the `agent_guard.py` rename, and `agents/lib/` stays byte-for-byte shared.
@@ -252,6 +251,6 @@ Gary's decisions from the design, as the kit implements them ([plan-orchestratio
   | `fe91a70` | m2.s9: the gate flip |
   | `fae6515` | The last commit before wave 8: plan, handoffs and run sheet complete |
 
-- **`lolay/ghx`:** PRs #2, #3 and #4 and their branch commits. Run C's report is `specs/handoffs/dogfood-runner-report.md` at `2b678a5` on `claude/stoic-planck-qfqg75` (the squash merge `386a27a` dropped it from `main`).
+- **`lolay/ghx`:** PRs #2, #3 and #4 and their branch commits. Run C's report is `specs/handoffs/dogfood-runner-report.md` in `main`'s history at `386a27a` (PR #4 merged it with the run's plan and handoff, which `2f34fde` then removed).
 - **The scratch repo** `GaryRudolph/orchestrate-spike` (private): the C1, C2 and path (c) fixtures and the spike parent brief, until it is removed.
 - **Local only, not durable:** session transcripts under `~/.claude-lolay/projects/` (the spike and runs A and B) and `~/.claude/projects/` (the orchestrating parent and its subagents), and the gitignored `.scratch/` evidence (spike fixtures, proxy captures, per-wave worker artifacts, hook-input captures). They live on the Mac only.
