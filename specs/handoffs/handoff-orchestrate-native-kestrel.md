@@ -182,9 +182,17 @@ Run as short Agent calls (gate 2, option (a)). First call: s8 done, s9 set up; t
 - ghx follow-ups the run found: `resolveWikiURL` replaces the first `.git` anywhere (`acme.github.io`); the manifest lists repos `--include`/`--exclude` filtered out; decide `GIT_TERMINAL_PROMPT=0` on a 401; `golang.org/x/text` v0.22.0 bump.
 - Pending on Gary: answer `pr`, merge after CI is green; then run C.
 
+### Dogfood run C (cloud runner, unattended, lolay/ghx `plan-ghx-release-finch`): completed 2026-10-11
+
+- Session `49ac3a33-e356-58b6-9971-24a023142f66` (web, `entrypoint: remote_desktop`, CLI 2.1.296), assigned and worked on `claude/stoic-planck-qfqg75`; merged as lolay/ghx#4 (`386a27a`). Report: `specs/handoffs/dogfood-runner-report.md` at lolay/ghx `2b678a5` (on the branch; the squash removed it from `main`).
+- 4 launches of `orch-spike:plan-segment`, all `async_launched`, all PASS first try, no fix-ups; gates 5, 4, 2 logged as checkpoints; no gate-hook deny; `check_wave.py` ok every run; spend ~$14.3 exact (`cost-state`) against ~$11 expected (ratio ~1.3; both `[deep]` waves ~2x).
+- Held: kickoff on the runner proposed unattended (`runner=cloud`), `/compact` during wave 1 with every later launch passing (compaction summary records carry no `promptSource`/`turnOrigin`/`origin`, `isCompactSummary: true`); `reviewer_guard.py` denied three reviewer Bash calls (output redirects), so the reviewer's `agent_type` does reach the hook as `orch-spike:plan-reviewer`; the runner Stop hook fired 6 times, silent (tree always clean and pushed).
+- Not exercised: decision 9's plain `yes` (Gary typed `yes, unattended`), and the mid-run `gated` switch (no record of a `gated` message in the transcript; the run stayed unattended). Both are covered offline by the suite only.
+- Report's "not covered" list (verbatim items in the report): (1) no guard on outward commands inside a worker: a wave 2 worker ran `scripts/publish-formula.sh` without `DRY_RUN=1`, against the plan; only the auto-mode classifier stopped it, and the parent didn't log the worker's disclosed breach; (2) no slot to carry earlier waves' decisions into later groups' spec (the parent appended the Review log); (3) no per-run environment notes channel (runner toolchain workarounds rediscovered by every agent); (4) reviewer prompt should say read output inline, don't redirect; (5) compaction not mentioned in the procedure; (6) whether to replace `(output est.)` lines and Cost table actuals with `cost-state` totals when a session resumes after completion; (7) Status `passed unattended:` accumulate or latest; (8) no note between expected cost and the guard; (9) the `gated` switch untested; (10) no pre-dispatch check of a group's needed access (`gh` 403 on lolay in the runner).
+
 ## Pending question (verbatim)
 
-> m2.s9 dogfood on lolay/ghx: do the one-time setup in `specs/handoffs/dogfood-orchestrate-native.md` §2 (re-sync orch-spike and check the diff; the frozen kit worktree; ghx `main` prep: `/.scratch/` in `.gitignore`, `.claude/settings.json` from the baseline), then run A (Mac CLI, gated), merge its PR, run B (Mac CLI, unattended), merge, run C (runner, unattended) per §3, and report each run per §5. A fresh subagent then reads the runs and applies the fixes. Gary's ghx decisions: binary `ghx`; `version.txt` 0.1.0, first release 0.2.0.
+None. All three dogfood runs completed and merged (lolay/ghx#2, #3, #4). Next: a fresh fix-up subagent applies the findings (runs A and C above, the setup subagent's 10 kit inconsistencies), records each run's cost ratio, and flips the gate; then the wave-7 review and wave 8.
 
 ## How to resume
 

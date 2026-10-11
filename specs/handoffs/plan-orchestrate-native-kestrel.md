@@ -1,7 +1,7 @@
 ```
 --- KICKOFF: begin orchestration at [deep] ---
 
-  Status: 6/8 groups done | last review: wave-6 PASS | current: m2 s8-s9 [deep] (wave 7: s8 done; step-id bug fixed; ghx dogfood ready; waiting on Gary to run A, B, C) | updated 2026-10-08
+  Status: 6/8 groups done | last review: wave-6 PASS | current: m2 s8-s9 [deep] (wave 7: s8 done; dogfood runs A, B, C completed; fix-up subagent next) | updated 2026-10-11
 
   review: every-wave (log-only — parent writes Review log; no human review gate)
 
