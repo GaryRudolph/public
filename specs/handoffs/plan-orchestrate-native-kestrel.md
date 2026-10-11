@@ -1,7 +1,7 @@
 ```
 --- KICKOFF: begin orchestration at [deep] ---
 
-  Status: 6/8 groups done | last review: wave-6 PASS | current: m2 s8-s9 [deep] (wave 7: s8 done; dogfood runs A, B, C completed; fix-up subagent next) | updated 2026-10-11
+  Status: 7/8 groups done | last review: wave-7 PASS | current: m2 s10 [fast] (paused for Gary before wave 8 deletes the handoff files) | updated 2026-10-11
 
   review: every-wave (log-only — parent writes Review log; no human review gate)
 
@@ -131,6 +131,7 @@ review wave-3 (m1-s7-s10) c793202..14a76b7: PASS - criteria 2 and 7 held on the 
 review wave-4 (m2-s1) 6548274..2870822: PASS - test-orchestrate wired into agents/Makefile (.PHONY, test, help); manifest fields and the || exit 2 fallback already in place; validate test passes with 152 kit tests; claude plugin validate passes - 2026-10-07
 review wave-5 (m2-s2-s3) 5802f23..5704254: PASS - 12 m2.s2 kit changes plus decision 9 and the take-back (suite 152 -> 172); SKILL.md rewritten harness-neutral with the Claude Code path marked phase 1: dogfood; orch-spike rebuilt, not pushed; new reviewer_guard.py Bash hook runs on every Bash call (fails open); reviewer agent_type naming unverified live (m2.s9) - 2026-10-07
 review wave-6 (m2-s4-s7) dd6cf23..f63187c: PASS - adapters/claude-code.md and cursor.md split out of SKILL.md; plan-execution (a)-(g) and decision 12; core.md kickoff cut and decision 9 line, Cursor rule regenerated; other skills, plugins/README, agent-distribution, runbook updated; Cursor [exec] slug now grok-4-7[effort=high,fast=false] (unverified on Cursor); orch-spike not rebuilt - 2026-10-07
+review wave-7 (m2-s8-s9) bfd4bcc..bf1e854: PASS - spec promoted; dogfood on lolay/ghx: A Mac gated, B Mac unattended, C runner unattended, all completed and merged (ghx#2-#4), one continued from a pasted Kickoff prompt twice; fixes: step-id qualification, worker outward-command guard (agent_guard.py) and disclosed breaches, decisions and environment notes carried forward, parent token line at every save, orchestrator-resume label, standards from the plugin copy; gate flipped; suite 185; not exercised live: plain yes, typed gated switch, gated on a runner - 2026-10-11
 
 ## Token log",
       counted and priced per its counting header:
@@ -542,13 +543,13 @@ Ship the Claude Code adapter in the `personal` plugin, with the standards edits 
 
 --- WAVE 7 [deep] ---
 
-#### s8 - [deep] Promote the proposal to `specs/plan-orchestration.md`
+#### s8 - [deep] Promote the proposal to `specs/plan-orchestration.md` (done)
 
 - Trim `proposal.md` to the design as built: the harness-neutral core (§1), the Claude Code adapter (§2) as the kit now does it, a short Cursor section, and the other harnesses as one "later phases" note. Decisions become statements, not questions; drop the review-fix history, the version notes, the per-criterion UNVERIFIED items phase 0 settled (keep any that stay open), and Appendix B. Point to `SKILL.md` and `adapters/` for procedure rather than repeating them.
 - Add the row to `specs/README.md`'s index.
 - **Accept when:** every rule the kit and `SKILL.md` implement is in the spec once, and nothing in it describes something the kit doesn't do.
 
-#### s9 - [deep] Phase 1 dogfood, then flip the gate
+#### s9 - [deep] Phase 1 dogfood, then flip the gate (done)
 
 - With Gary, run three real plans of 3-5 waves through the shipped skill (installed from this branch, and on the runner through the spike plugin rebuilt from the branch head): one on the Mac gated, one on the Mac unattended, one on a runner unattended, each with plan and handoff in `specs/handoffs/`, and at least one continued in a new session from its pasted Kickoff prompt. Gary picks the plans; ask him with the shortlist of what's needed.
 - Compare each plan's actual Cost table columns with its expected ones and note the ratio in the handoff.
@@ -672,3 +673,6 @@ tokens wave-7 m2-s8-s9 (claude-opus-5-5): input ~100 / cache read ~5.6M / cache 
 tokens orchestrator-wave-7 m2-s8-s9 (claude-opus-5-5): input ~40 / cache read ~5.1M / cache write ~480k 1h / output ~21k | ~$5.28 API-equiv (ghx retarget, gate 1, step-id fix review; ~$3.8 of it the cache rewrite after the session resumed on 2026-10-08)
 tokens wave-7 m2-s8-s9 (claude-sonnet-5-5): input ~22 / cache read ~600k / cache write ~66k / output ~11k | ~$0.39 API-equiv (output est.) session 350579b9-70e1-4f99-a901-444b0c4a63eb subagent a3800a6ad9aa9f99a (orch-spike version for sync)
 tokens wave-7 m2-s8-s9 (claude-haiku-5-5): input ~8 / cache read ~200k / cache write ~120k / output ~4k | ~$0.19 API-equiv (output est.; priced at the claude-haiku-4-5 row, no haiku-5-5 row) session 350579b9-70e1-4f99-a901-444b0c4a63eb subagent af77d45bdb308079e (claude-code-guide, sync docs)
+tokens wave-7 m2-s8-s9 (claude-opus-5-5): input ~32 / cache read ~1.2M / cache write ~99k / output ~18k | ~$1.09 API-equiv (output est.) session e2ebcdb1-b307-462c-b763-9d4f0fd17c83 subagent a744dfad9cff767ae (plan B advisory step)
+tokens wave-7 m2-s8-s9 (claude-opus-5-5): input ~180 / cache read ~20M / cache write ~1.8M / output ~95k | ~$14.75 API-equiv (output est.) session e2ebcdb1-b307-462c-b763-9d4f0fd17c83 subagent a398ffb28f217e4d6 (dogfood fix-up)
+tokens orchestrator-wave-7 m2-s8-s9 (claude-opus-5-5): input ~74 / cache read ~13M / cache write ~1.1M 1h / output ~28k | ~$12.08 API-equiv (session e2ebcdb1 after its resume: dogfood relay for runs A-C, ghx prep, fix-up review; ~$8.9 of it cache rewrites after resumes across three days)
