@@ -8,6 +8,8 @@ How `personal-plan-orchestrate` runs a tagged plan: a `[deep]` parent dispatches
 
 **Status.** Claude Code is native (phase 1), shipped in the `personal` plugin and proven by three real plans in phase 1's dogfood (gated and unattended on the Mac, unattended on a runner, one continued from its pasted Kickoff prompt). Cursor is native, with the parent applying the gates by hand until phase 3. Codex, Grok Build, Gemini CLI and Muse Code run the passive driver, `personal-plan-model-tiers` (§4).
 
+How phases 0 and 1 were run and tested, what held, and what was learned: [plan-orchestration-phase-1-report.md](plan-orchestration-phase-1-report.md).
+
 ## Summary
 
 - **One dispatch unit per launch:** a wave, the part of a wave inside one milestone, or a fix-up of one group (`N-fix`, `N-fix2`, ...).
