@@ -5,15 +5,16 @@ description: >-
   each wave to subagents on the tier's model and keeps control, pausing
   only where the plan's recorded mode stops (gated: every STOP gate;
   unattended: only questions, failures, premium work and the cost guard).
-  Same `[xdeep]` / `[deep]` / `[exec]` / `[fast]` tagging and no-thrash rule
-  as `personal-plan-model-tiers`. Runs on a task branch and commits and
-  pushes the plan and a handoff after every wave. On Claude Code it calls
-  the Workflow tool to launch the plugin's plan-segment workflow (phase 1:
-  dogfood); on Cursor it dispatches `Task` subagents; elsewhere it points
-  to the passive driver. Use when the user asks to "orchestrate this
-  plan", "delegate exec groups", "run the plan unattended", "run plan in
-  parallel where possible across repos / worktrees", or wants the cascade
-  run automatically rather than stopping at each handoff.
+  Same `[xdeep]` / `[deep]` / `[exec]` / `[fast]` tagging and no-thrash
+  rule as `personal-plan-model-tiers`. Runs on a task branch and commits
+  and pushes the plan and a handoff after every wave. On Claude Code it
+  calls the Workflow tool to launch the plugin's plan-segment workflow,
+  with hooks that check each launch and keep reviewers read-only; on
+  Cursor it dispatches `Task` subagents; elsewhere it points to the
+  passive driver. Use when the user asks to "orchestrate this plan",
+  "delegate exec groups", "run the plan unattended", "run plan in parallel
+  where possible across repos / worktrees", or wants the cascade run
+  automatically rather than stopping at each handoff.
 ---
 
 # personal-plan-orchestrate
@@ -120,9 +121,6 @@ Work down this list and take the first that matches.
      schema, which on the web lists no plugin workflows. If it isn't
      listed, launch it by name anyway; an unknown-workflow error is gate 0,
      and then use the Agent path.
-   - **Phase 1: dogfood.** The Claude Code path is new and is being proven
-     on real plans. Say so in the kickoff question, and report anything the
-     procedure below doesn't cover as a deviation.
 3. **Cursor: `Task` with a `model` parameter, and no `Agent`** →
    `adapters/cursor.md`. Cursor imports Claude plugins and may list the
    `<P>:plan-*` agents with `model: inherit`; never dispatch them there.
@@ -367,8 +365,7 @@ branch; the destination question folds in (there is no separate one):
     Reply gated or unattended; add here to orchestrate in this chat (default: new chat).
 
 Propose gated, and say why, where unattended can't run: no remote for the
-plan's repo (decision 11), or a harness with no hook to check it. On the
-Claude Code path, add one line: `Claude Code path: phase 1 dogfood.`
+plan's repo (decision 11), or a harness with no hook to check it.
 
 An invoking message that names a mode ("orchestrate this unattended") only
 sets the proposed mode; the question still runs, so Gary sees the waves,

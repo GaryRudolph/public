@@ -6,7 +6,7 @@ How `personal-plan-orchestrate` runs a tagged plan: a `[deep]` parent dispatches
 - [`adapters/claude-code.md`](../plugins/personal/skills/personal-plan-orchestrate/adapters/claude-code.md) and [`adapters/cursor.md`](../plugins/personal/skills/personal-plan-orchestrate/adapters/cursor.md): what differs per harness.
 - [`plan-execution.md`](../plugins/personal/skills/personal-standards/standards/plan-execution.md): tagging, the no-thrash rule, wave markers, the model picker, the Kickoff template, the Cost table, the Review log and token accounting, which this design builds on.
 
-**Status.** Claude Code is native (phase 1), shipped in the `personal` plugin; `SKILL.md` marks its path "phase 1: dogfood" until real plans have run through it (gated and unattended on the Mac, unattended on a runner). Cursor is native, with the parent applying the gates by hand until phase 3. Codex, Grok Build, Gemini CLI and Muse Code run the passive driver, `personal-plan-model-tiers` (§4).
+**Status.** Claude Code is native (phase 1), shipped in the `personal` plugin and proven by three real plans in phase 1's dogfood (gated and unattended on the Mac, unattended on a runner, one continued from its pasted Kickoff prompt). Cursor is native, with the parent applying the gates by hand until phase 3. Codex, Grok Build, Gemini CLI and Muse Code run the passive driver, `personal-plan-model-tiers` (§4).
 
 ## Summary
 

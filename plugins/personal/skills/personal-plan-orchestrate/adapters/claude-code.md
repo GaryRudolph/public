@@ -1,4 +1,4 @@
-# Claude Code adapter (phase 1: dogfood)
+# Claude Code adapter
 
 How `personal-plan-orchestrate` runs on Claude Code. [`SKILL.md`](../SKILL.md)
 is the core: the kickoff, the mode, the gates, the loop, the handoff. This
