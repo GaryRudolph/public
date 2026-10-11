@@ -852,27 +852,47 @@ def the_hooks_file_reports_could_not_run_only_when_python_does_not():
     assert out.returncode == 0 and not out.stderr, (out.returncode, out.stderr)
 
 
+def guard_bash(agent, command):
+    """agent_guard.py's deny reason for one Bash call, or None."""
+    inp = {"hook_event_name": "PreToolUse", "tool_name": "Bash", "tool_input": {"command": command}}
+    if agent:
+        inp.update(agent_id="a1", agent_type=agent)
+    out = subprocess.run([sys.executable, "-I", str(scripts / "agent_guard.py")], input=json.dumps(inp), capture_output=True, text=True)
+    assert out.returncode == 0, out.stderr
+    return json.loads(out.stdout)["hookSpecificOutput"]["permissionDecisionReason"] if out.stdout.strip() else None
+
+
 @case
 def reviewers_bash_is_read_only_and_everyone_elses_is_untouched():
-    guard = [sys.executable, "-I", str(scripts / "reviewer_guard.py")]
-
-    def bash(agent, command):
-        inp = {"hook_event_name": "PreToolUse", "tool_name": "Bash", "tool_input": {"command": command}}
-        if agent:
-            inp.update(agent_id="a1", agent_type=agent)
-        out = subprocess.run(guard, input=json.dumps(inp), capture_output=True, text=True)
-        assert out.returncode == 0, out.stderr
-        return json.loads(out.stdout)["hookSpecificOutput"]["permissionDecisionReason"] if out.stdout.strip() else None
     for agent in ("personal:plan-reviewer", "orch-spike:plan-reviewer-xdeep"):
         for ok in ("git -C /r diff aaa0000", "git log --format='%h -> %s' a..b", "python3 -m pytest -q 2>&1 | tail", "cat x > /dev/null"):
-            assert bash(agent, ok) is None, (agent, ok)
+            assert guard_bash(agent, ok) is None, (agent, ok)
         for bad in ("git commit --allow-empty -m x", "git -C /r push", "touch x", "echo x > f", "sed -i s/a/b/ f",
-                    "cd /r && rm -rf y", "gh pr create", "git rebase -i HEAD~2"):
-            assert "read-only" in (bash(agent, bad) or ""), (agent, bad)
-    for agent in (None, "personal:plan-worker", "Explore", "personal:plan-reviewer-extra"):
-        assert bash(agent, "git commit -m x") is None, agent
-    out = subprocess.run(guard, input="not json", capture_output=True, text=True)
-    assert out.returncode == 0 and not out.stdout.strip()  # it sees every Bash call, so it fails open for non-reviewers
+                    "cd /r && rm -rf y", "gh pr create", "git rebase -i HEAD~2", "git status\nrm -rf y", "make ci > /tmp/log"):
+            assert "read-only" in (guard_bash(agent, bad) or ""), (agent, bad)
+        assert "read their output inline" in guard_bash(agent, "make ci > /tmp/log")
+    for agent in (None, "Explore", "personal:plan-reviewer-extra"):
+        assert guard_bash(agent, "git commit -m x") is None, agent
+    out = subprocess.run([sys.executable, "-I", str(scripts / "agent_guard.py")], input="not json", capture_output=True, text=True)
+    assert out.returncode == 0 and not out.stdout.strip()  # it sees every Bash call, so it fails open for other callers
+
+
+@case
+def a_workers_clearly_outward_commands_are_denied_and_its_other_bash_is_untouched():
+    for agent in ("personal:plan-worker", "personal:plan-worker-exec", "orch-spike:plan-worker-xdeep"):
+        for ok in ("git commit --allow-empty -m 'm1.s1 Check'", "git add a && git commit -F - <<'EOF'\nm1.s2 Doc git push\n\nAssisted-by: Claude Code\nEOF",
+                   "make ci > /tmp/log 2>&1", "echo 'never git push here'", "gh pr view 3", "gh release view v1 --json tagName",
+                   "goreleaser check", "goreleaser release --snapshot --clean", "goreleaser release --clean --skip=announce,publish",
+                   "npm publish --dry-run", "cat > docs/release.md <<'EOF'\ngit push origin v1.2.3\ngh release create v1.2.3\nEOF"):
+            assert guard_bash(agent, ok) is None, (agent, ok)
+        for bad in ("git push", "git -C /r push origin HEAD", "cd /r && DRY_RUN=0 git push --tags", "make ci\ngit push",
+                    "gh pr create --fill", "gh pr merge 3 --squash", "gh release create v1.0.0", "gh release upload v1 x.tgz",
+                    "gh workflow run release.yml", "goreleaser release --clean", "goreleaser --clean", "goreleaser publish",
+                    "npm publish", "FOO=1 cargo publish", "docker push ghcr.io/x/y", "$(git push)"):
+            reason = guard_bash(agent, bad) or ""
+            assert "worker" in reason and "needs_info" in reason, (agent, bad, reason)
+    for agent in (None, "personal:plan-worker-extra", "Explore"):  # the parent pushes; other agents are not ours
+        assert guard_bash(agent, "git push") is None, agent
 
 
 failed = 0

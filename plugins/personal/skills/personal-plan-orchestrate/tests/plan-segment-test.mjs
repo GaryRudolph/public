@@ -13,7 +13,7 @@ const body = src.slice(metaMatch[0].length)
 const AsyncFunction = Object.getPrototypeOf(async function () {}).constructor
 const run = new AsyncFunction('agent', 'parallel', 'pipeline', 'phase', 'log', 'args', 'budget', body)
 
-const DONE = { status: 'done', changed: 'x', decided: 'y', surprises: 'none', artifact: '/a.md', commits: ['abc1234'] }
+const DONE = { status: 'done', changed: 'x', decided: 'y', surprises: 'none', artifact: '/a.md', commits: ['abc1234'], breaches: [] }
 async function harness(args, behave = {}) {
   const calls = []
   const agent = async (prompt, opts) => {
@@ -457,8 +457,8 @@ test('an automatic fix-up still gets the in-run retry, and keeps its label', asy
 
 test('every prompt forbids outward actions, and a worker asks with needs_info instead', async () => {
   const { calls } = await harness({ ...base, xdeepDrafts: 2, approval: 'go', approved: [{ gate: 'gate-7', wave: 4 }], state: st(unit(4, 'xdeep', ['m2.s4']), ['gate-7']), groups: [G('/r/a', ['m2.s4'])] })
-  for (const c of calls) assert.match(c.prompt, /open or merge a PR/, c.label)
-  assert.match(calls.find(c => c.label.startsWith('Wave')).prompt, /If a step needs one, return `needs_info` naming it/)
+  for (const c of calls) assert.match(c.prompt, /open(ing)? or merg(e|ing) a PR/, c.label)
+  assert.match(calls.find(c => c.label.startsWith('Wave')).prompt, /If a step needs an outward action, return `needs_info` naming it/)
 })
 
 // ---- m2.s2: a step that changes no file ----
@@ -480,6 +480,49 @@ test('workers commit under the qualified ID; a plan with no milestones keeps bar
   assert.equal(bare.result.stop, 'done')
   assert.equal(bare.result.groups[0].id, 'a s1,s2')
   assert.match(bare.calls[0].prompt, /Execute only: s1, s2\./)
+})
+
+// ---- m2.s9: what the phase 1 dogfood found ----
+
+test('a worker prompt forbids the repo\'s own publish scripts except the dry-run form the spec names, and asks for breaches', async () => {
+  const { calls } = await harness({ ...base, state: st(unit(2, 'exec', ['m1.s2'])), groups: [G('/r/a', ['m1.s2'])] })
+  assert.match(calls[0].prompt, /the repo's own publish, release or deploy scripts\. When the spec names a dry-run form \(`DRY_RUN=1 scripts\/publish\.sh`\), run exactly that form/)
+  assert.match(calls[0].prompt, /`breaches` lists every rule of this prompt you broke or tried to break[\s\S]*Return `\[\]` when there is none/)
+  assert.match(calls[0].prompt, /a line that starts `env:`/)
+})
+
+test('a disclosed breach comes back in the result, from a retry too, and its reviewer looks for traces', async () => {
+  const breach = 'ran scripts/publish-formula.sh without DRY_RUN=1; blocked by the permission classifier'
+  const { result, calls } = await harness({ ...base, state: st(unit(2, 'exec', ['m1.s2'])), groups: [G('/r/a', ['m1.s2'])] }, { Wave: () => ({ ...DONE, breaches: [breach] }) })
+  assert.equal(result.stop, 'done')
+  assert.deepEqual(result.breaches, [{ id: 'a m1 s2', breach }])
+  assert.match(calls[1].prompt, /## The worker disclosed \(verbatim\)\n\n- ran scripts\/publish-formula\.sh[\s\S]*Look for any trace of each/)
+  let n = 0
+  const retried = await harness({ ...base, state: un(unit(2, 'exec', ['m1.s2'])), groups: [G('/r/a', ['m1.s2'])] }, { Wave: () => (n++ ? DONE : { ...DONE, status: 'failed', breaches: [breach] }) })
+  assert.equal(retried.result.stop, 'done')
+  assert.deepEqual(retried.result.breaches, [{ id: 'a m1 s2', breach }])
+  const clean = await harness({ ...base, state: st(unit(2, 'exec', ['m1.s2'])), groups: [G('/r/a', ['m1.s2'])] })
+  assert.deepEqual(clean.result.breaches, [])
+  assert.doesNotMatch(clean.calls[1].prompt, /The worker disclosed/)
+})
+
+test('decisions so far and environment notes ride into every worker and reviewer prompt, verbatim', async () => {
+  const decisions = 'review wave-1 (ghx m1 s1) a..b: PASS - goreleaser takes the Makefile\'s values, not {{ .ShortCommit }} - 2026-10-11'
+  const environment = 'golangci-lint 2.5.0 fails on go1.26 modules: run 2.6.0'
+  const { calls } = await harness({ ...base, decisions, environment, state: st(unit(2, 'exec', ['m1.s2'])), groups: [G('/r/a', ['m1.s2'])] })
+  assert.match(calls[0].prompt, /## Decisions so far \(verbatim, from the plan's Review log and handoff\)\n\nreview wave-1[\s\S]*follow the decision and say so under decided/)
+  assert.match(calls[0].prompt, /## Environment notes \(from earlier agents of this run\)\n\ngolangci-lint 2\.5\.0/)
+  assert.match(calls[1].prompt, /## Decisions so far[\s\S]*review against the decision/)
+  assert.match(calls[1].prompt, /## Environment notes/)
+  const none = await harness({ ...base, state: st(unit(2, 'exec', ['m1.s2'])), groups: [G('/r/a', ['m1.s2'])] })
+  assert.doesNotMatch(none.calls[0].prompt, /Decisions so far|Environment notes/)
+  const bad = await harness({ ...base, decisions: ['x'], state: st(unit(2, 'exec', ['m1.s2'])), groups: [G('/r/a', ['m1.s2'])] })
+  assert.deepEqual(bad.result.gates, ['gate-0'])
+})
+
+test('a reviewer reads command output inline, never through a file', async () => {
+  const { calls } = await harness({ ...base, state: st(unit(2, 'exec', ['m1.s2'])), groups: [G('/r/a', ['m1.s2'])] })
+  assert.match(calls[1].prompt, /Read command output inline \(pipe it to `tail` or `head`\); never redirect it to a file/)
 })
 
 let failed = 0
