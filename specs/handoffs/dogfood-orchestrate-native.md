@@ -15,7 +15,7 @@ The plans are in this repo at `specs/handoffs/dogfood-ghx/`, tagged, with accept
 | Plan | What it does | Waves after grouping | Gates it crosses | Expected |
 |---|---|---|---|---|
 | A `plan-ghx-baseline-heron` | Module `github.com/lolay/ghx` and binary `ghx` (from `ghx-go`); `.gitignore`, `.gitattributes`, `.go-version`; a standard Makefile + `Makefile.md`, `.golangci.yml`, `triage.yaml` for `make doctor`; test seams and the first unit tests (`config`, filter, `manifest`, `ui`) with `specs/testing.md`; README, CHANGELOG, CONTRIBUTING, SECURITY, CODEOWNERS, AGENTS.md | 1 `[exec]` m1 s1-s3 (s2 `[fast]` folded), 2 `[deep]` m1 s4, 3 `[exec]` m2 s1-s2 | 5 (canary, wave 1); 2 (wave 2); 4 (wave 3) | about $9-12 |
-| B `plan-ghx-platforms-lynx` | Hermetic tests for the cloner (local bare repos), a GitHub API seam with `httptest`, end-to-end run-flow tests; a Windows audit and fixes (reserved names, rename and delete of git dirs, `git.exe`, console colour, long paths); `ci.yml` on macOS, Linux and Windows; then reading that branch's CI run and fixing what fails | 1 `[exec]` m1 s1-s3, 2 `[deep]` m1 s4, 3 `[exec]` m2 s1-s2, 4 `[deep]` m2 s3 | 5; 2 (wave 2); 4 (wave 3); 2 (wave 4) | about $11-14 |
+| B `plan-ghx-platforms-lynx` | Hermetic tests for the cloner (local bare repos), a GitHub API seam with `httptest`, end-to-end run-flow tests; a Windows audit and fixes (reserved names, rename and delete of git dirs, `git.exe`, console colour, long paths); the token out of HTTPS clone URLs and `.git/config` (given to `git` through its environment, old origins cleaned); `ci.yml` on macOS, Linux and Windows; then reading that branch's CI run and fixing what fails | 1 `[exec]` m1 s1-s3, 2 `[deep]` m1 s4-s5, 3 `[exec]` m2 s1-s2, 4 `[deep]` m2 s3 | 5; 2 (wave 2); 4 (wave 3); 2 (wave 4) | about $13-17 |
 | C `plan-ghx-release-finch` | `version.txt`, `internal/buildinfo` and `ghx --version` per `versioning.md`; `.goreleaser.yaml` and a local snapshot; formula and Scoop publishers (dry run only); Danger targets; `release.yml` (personal-release template) and a tag-triggered `publish.yml` (goreleaser, then tap, then bucket); release docs. Ends before any tag, secret or publish | 1 `[deep]` m1 s1, 2 `[exec]` m1 s2-s4, 3 `[deep]` m2 s1, 4 `[exec]` m2 s2 | 5; 4 and 2 (wave 3) | about $11-13 |
 
 Expected figures are mine from the standard's anchors; each kickoff's Cost table is the one of record. None of the steps pushes a tag, publishes, opens a PR or writes to `lolay/homebrew-tap` or `lolay/scoop-bucket`.
@@ -24,7 +24,7 @@ Expected figures are mine from the standard's anchors; each kickoff's Cost table
 
 **Where to start:** run A first. It's the smallest (three waves), Mac only, gated so every gate stops in front of you, and the others need it merged. Its wave 1 (rename, hygiene, Makefile) ends at the canary stop, about $2-3 in: that's the cheap point to judge the kit before spending more. A single step can't stand in for a run, because the checks need a canary, a gate 2, a gate 4 and a re-entry in one plan.
 
-**Left for afterwards** (not in any plan, §6): the first real release (secrets, tag, tap and bucket rows), GitHub's merge settings for ghx, and the token in ghx's HTTPS clone URLs (git stores it in every clone's `.git/config`; B's wave 2 notes it as a follow-up).
+**Left for afterwards** (not in any plan, §6): the first real release (secrets, tag, tap and bucket rows) and GitHub's merge settings for ghx. (The token in ghx's HTTPS clone URLs is B's m1.s5.)
 
 ## 2. One-time setup
 
@@ -147,13 +147,13 @@ Expected figures are mine from the standard's anchors; each kickoff's Cost table
 
        Orchestrate the plan at specs/handoffs/plan-ghx-platforms-lynx.md with the personal-plan-orchestrate skill.
 
-4. **Kickoff question.** Expect: 4 waves (1 `[exec]` m1 s1-s3, 2 `[deep]` m1 s4, 3 `[exec]` m2 s1-s2, 4 `[deep]` m2 s3), `Gates it crosses: 5 (canary, wave 1); 2 (before wave 2); 4 (before wave 3); 2 (before wave 4).`, `Proposed mode: gated.` (no runner signal) and the branch `feature/ghx-platforms-lynx`. Answer:
+4. **Kickoff question.** Expect: 4 waves (1 `[exec]` m1 s1-s3, 2 `[deep]` m1 s4-s5, 3 `[exec]` m2 s1-s2, 4 `[deep]` m2 s3), `Gates it crosses: 5 (canary, wave 1); 2 (before wave 2); 4 (before wave 3); 2 (before wave 4).`, `Proposed mode: gated.` (no runner signal) and the branch `feature/ghx-platforms-lynx`. Answer:
 
        unattended
 
    Expect: it records `unattended` with your word, cuts and pushes the branch, commits the plan and handoff, pushes, prints the Kickoff prompt, the kickoff summary and the short handoff summary, and **halts for a new chat**.
 5. **New session:** copy the printed Kickoff prompt (all of it, from `In lolay/ghx, read …` to `… begin dispatching.`). Quit, relaunch the same command (with `--permission-mode auto`), `/model opus`, `/effort high`, and paste it. Expect: no question; the mode line now ends `confirmed <today> session <new id> by Kickoff prompt: Run in unattended mode.`; it commits, pushes, prints the kickoff summary with the spend so far, and launches wave 1. (The first live check of the CLI's `<pasted_content>` unwrap.)
-6. **While wave 2 runs** (after the parent's one-line "wave 2 running" reply; wave 2 is the `[deep]` Windows audit, several minutes), type:
+6. **While wave 2 runs** (after the parent's one-line "wave 2 running" reply; wave 2 is the `[deep]` Windows audit and the clone-URL token step, several minutes), type:
 
        /compact
 
@@ -249,7 +249,6 @@ Where the evidence is:
 - **C's PR:** once the subagent has the report, ask C's session (or do it by hand) for the cleanup commit that removes `specs/handoffs/`, then open the PR. Its CI adds the `goreleaser check` job.
 - **ghx's settings:** remove the `Workflow(orch-spike:plan-segment)` line from ghx's `.claude/settings.json` (keep the rest, or cut back to the baseline).
 - **The first release, by hand, when you want it** (C's `specs/releasing.md` is the guide): create the three repo secrets on `lolay/ghx` (`RELEASE_TOKEN`: contents write on `lolay/ghx`; `HOMEBREW_TAP_TOKEN`: contents write on `lolay/homebrew-tap`; `SCOOP_BUCKET_TOKEN`: contents write on `lolay/scoop-bucket`; fine-grained PATs, or reuse the scoped ones triage has), then Actions → Release → Run workflow with a level. Its tag starts `publish.yml`: GitHub Release, then `Formula/ghx.rb`, then `bucket/ghx.json`. Add the `ghx` rows to the tap's and the bucket's README tables, and try `brew install lolay/tap/ghx` and `scoop install lolay/ghx`.
-- **Follow-up plan:** keep the token out of clone URLs (a credential helper or `http.extraHeader`), and scrub it from failure messages.
 - **Remove the frozen kit:** `git -C ~/Projects/personal/public worktree remove ~/Projects/personal/orchestrate-kit`.
 - The fix-up subagent applies fixes, flips the gate (removes "phase 1: dogfood" from `SKILL.md`, the adapter and the spec's Status line), rebuilds `orch-spike` only if a later run needs it, and records each run's outcome and cost ratio in the session handoff.
 - After m2.s9, decide whether to remove the org's `orch-spike-lab` source and the scratch repo's branches (m2.s10 asks). Wave 8 deletes `specs/handoffs/orchestrate-native/`, which the org source points at, and this file with `specs/handoffs/dogfood-ghx/`.
