@@ -1,7 +1,7 @@
 ```
 --- KICKOFF: begin orchestration at [deep] ---
 
-  Status: 7/8 groups done | last review: wave-7 PASS | current: m2 s10 [fast] (paused for Gary before wave 8 deletes the handoff files) | updated 2026-10-11
+  Status: 7/8 groups done | last review: wave-7 PASS | current: m2 s10 [fast] (wave-7 follow-up: applying Gary's five default changes before wave 8) | updated 2026-10-12
 
   review: every-wave (log-only — parent writes Review log; no human review gate)
 

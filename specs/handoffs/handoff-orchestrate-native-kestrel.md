@@ -206,6 +206,10 @@ Commits `43e7362` (kit + tests), `60443ae` (procedure, adapters, standard, spec,
 
 The parent pushes this branch and reviews wave 7 (m2 s8-s9, including this fix-up); then wave 8 (final completion and the cleanup) runs. No question is pending for Gary from this fix-up; the decisions he may want to revisit are listed above (gate 5 kept as a stop, breach handling, the worker guard's scope, Cursor proposing gated).
 
+### Gary's default changes (2026-10-12, before wave 8)
+
+Gary chose the alternative on all five fix-up defaults: (1) skip gate 5 on a single-group wave; (2) any worker-disclosed breach, blocked or not, is gate 1 in both modes; (3) the worker guard also blocks scripts named publish/release/deploy unless a dry-run flag is present; (4) Cursor cloud agents propose unattended once they can be detected (gated until then); (5) keep two hook scripts, a reviewer guard and a worker guard, not one `agent_guard.py`. A short Opus fix-up applies them before wave 8.
+
 ## How to resume
 
 - **Where:** local, a new Claude Code chat (desktop Code tab or `claude`) in `/Users/gary/Projects/personal/public`, on branch `feature/orchestrate-native` (`git switch feature/orchestrate-native` if needed). Not a cloud worker: the spike's evidence and fixtures are in gitignored `.scratch/spike/` on this Mac, and its CLI runs need `CLAUDE_CONFIG_DIR=/Users/gary/.claude-lolay`.
