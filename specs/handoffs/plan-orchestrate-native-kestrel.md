@@ -1,7 +1,7 @@
 ```
---- KICKOFF: begin orchestration at [deep] ---
+--- KICKOFF: plan complete ---
 
-  Status: 7/8 groups done | last review: wave-7 PASS | current: m2 s10 [fast] (wave 8 dispatched) | updated 2026-10-12
+  Status: 8/8 groups done | completed 2026-10-12
 
   review: every-wave (log-only — parent writes Review log; no human review gate)
 
@@ -33,19 +33,19 @@
 
 **Cost (API-equiv, Claude Code models)**
 
-| wave | expected tokens | expected $ |
-|---|---|---|
-| 1 [deep] m1 s1-s3 | ~14M | ~$7.5 |
-| 2 [exec] m1 s4-s6 | ~2.3M | ~$0.81 |
-| 3 [deep] m1 s7-s10 | ~23M | ~$12 |
-| 4 [exec] m2 s1 | ~1.0M | ~$0.35 |
-| 5 [deep] m2 s2-s3 | ~10M | ~$5.4 |
-| 6 [exec] m2 s4-s7 | ~3.3M | ~$1.2 |
-| 7 [deep] m2 s8-s9 | ~10M | ~$5.4 |
-| 8 [fast] m2 s10 | ~0.6M | ~$0.09 |
-| kickoff (passive driver, superseded) | ~1.5M | ~$1.0 |
-| orchestrator | ~18M | ~$20 |
-| **Total** | ~84M | ~$54 |
+| wave | expected tokens | expected $ | actual tokens | actual $ |
+|---|---|---|---|---|
+| 1 [deep] m1 s1-s3 | ~14M | ~$7.5 | ~26M | ~$13.07 |
+| 2 [exec] m1 s4-s6 | ~2.3M | ~$0.81 | ~11M | ~$4.14 |
+| 3 [deep] m1 s7-s10 | ~23M | ~$12 | ~47M | ~$27.28 |
+| 4 [exec] m2 s1 | ~1.0M | ~$0.35 | ~540k | ~$0.35 |
+| 5 [deep] m2 s2-s3 | ~10M | ~$5.4 | ~21M | ~$8.69 |
+| 6 [exec] m2 s4-s7 | ~3.3M | ~$1.2 | ~15M | ~$4.57 |
+| 7 [deep] m2 s8-s9 | ~10M | ~$5.4 | ~80M | ~$41.73 |
+| 8 [fast] m2 s10 | ~0.6M | ~$0.09 | — | — |
+| kickoff (passive driver, superseded) | ~1.5M | ~$1.0 | ~2.7M | ~$2.70 |
+| orchestrator | ~18M | ~$20 | ~58M | ~$34.13 |
+| **Total** | ~84M | ~$54 | ~260M | ~$136.66 |
 
 Expected values are estimates, good to about 2-3× per wave. Waves 1 and 3 include an allowance for the spike's own kit runs (about $3 and $5). Wave 7 excludes the dogfood plans' own spend. The orchestrator row is this Opus parent: 8 waves of review and bookkeeping (~$10.7), 5 gate waits (canary, gates 2 before waves 3, 5 and 7, gate 4 before wave 4; ~$4.0), and about 6 more waits where a spike step needs Gary and its subagent returns to ask (~$4.8). Recomputed on 2026-10-06 when the driver changed from personal-plan-model-tiers to orchestrate, before any wave ran: the per-wave review beats moved into the orchestrator row.
 
@@ -619,7 +619,7 @@ Ship the Claude Code adapter in the `personal` plugin, with the standards edits 
 
 --- WAVE 8 [fast] ---
 
-#### s10 - [fast] Last commit: remove the handoff folder, the plan and the handoffs
+#### s10 - [fast] Last commit: remove the handoff folder, the plan and the handoffs (done)
 
 - Run final completion first, in this chat, and print it (the STOP prompt says how); the plan's numbers then live in the PR description.
 - `git rm -r specs/handoffs/orchestrate-native/ specs/handoffs/plan-orchestrate-native-kestrel.md specs/handoffs/handoff-orchestrate-native-kestrel.md specs/handoffs/handoff-m2-orchestrate-native.md` (and the spike plugin folder, if m1.s6 put it under `orchestrate-native/`). Commit as `m2.s10 remove the orchestrate-native handoff files`, push. No review beat follows: the PR review covers it.
@@ -680,3 +680,13 @@ tokens orchestrator-wave-7 m2-s8-s9 (claude-opus-5-5): input ~74 / cache read ~1
 tokens wave-7 m2-s8-s9 (claude-opus-5-5): input ~66 / cache read ~4.5M / cache write ~190k / output ~40k | ~$2.67 API-equiv (output est.) session e2ebcdb1-b307-462c-b763-9d4f0fd17c83 subagent a949f4227e80638ce (phase 1 report)
 tokens wave-7 m2-s8-s9 (claude-opus-5-5): input ~190 / cache read ~22M / cache write ~330k / output ~100k | ~$8.14 API-equiv (output est.) session e2ebcdb1-b307-462c-b763-9d4f0fd17c83 subagent af4727a5b262f6469 (Gary's five default changes)
 tokens orchestrator-wave-7 m2-s8-s9 (claude-opus-5-5): input ~38 / cache read ~8.1M / cache write ~21k 1h / output ~18k | ~$2.13 API-equiv (ghx cleanup, report and defaults review, wave 8 dispatch)
+
+## Completion summary
+
+**Completed**: 2026-10-12
+
+**What shipped**: phase 0 spike proved the Workflow path on the Mac CLI and the cloud runner (criteria 1, 2, 3, 6, 7, 10 held; 4, 5, 8, 9 partial; no fallback); phase 1 ships the Claude Code adapter in the personal plugin (plan-segment workflow, five agents, the Workflow gate hook plus reviewer and worker Bash guards, harness-neutral SKILL.md with adapters/claude-code.md and adapters/cursor.md, standards and core.md updates, specs/plan-orchestration.md); dogfooded on lolay/ghx with three plans (Mac gated, Mac unattended, runner unattended), all completed and merged; the "phase 1: dogfood" mark removed; findings and lessons in specs/plan-orchestration-phase-1-report.md.
+
+**Deviations from plan**: the dogfood target became lolay/ghx at Gary's request; extra fixes before the dogfood (step-id qualification, orch-spike versioning for org sync); wave 7 split into short Agent calls at Gary's choice (option a); a wave-7 follow-up wrote the phase 1 report, cleaned ghx main and applied Gary's five default changes; actual spend ~$136.66 against ~$54 expected (see the report's cost section).
+
+**Follow-ups**: Agerpoint bok port (decision 8) with both guard scripts; phases 2-4 (Codex, Cursor phase 3, Grok); open live gaps (plain yes, typed gated switch, gated on a runner, third failure, worker-guard deny, Cursor run-info signal); remove the org's orch-spike-lab source and the GaryRudolph/orchestrate-spike scratch repo if Gary wants; refresh the orchestrator-row cost estimate.
