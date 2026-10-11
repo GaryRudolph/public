@@ -26,6 +26,7 @@ those facts; decide the topic and the contents yourself.
 | A plan from plan mode, or "write the plan to a file" | `.scratch/plan-{topic}-{word}.md` | No |
 | Moving from `m{N}` to `m{N+1}` on a project with `specs/` | `{project-root}/specs/handoffs/handoff-m{N+1}-{topic}.md` | Yes |
 | Either of the first two on a cloud or self-hosted runner | `{project-root}/specs/handoffs/handoff-{topic}-{word}.md` or `plan-{topic}-{word}.md` | Yes, until the branch is readied for merge |
+| The plan and session handoff of any `personal-plan-orchestrate` run, on any machine, gated or unattended | `{project-root}/specs/handoffs/plan-{topic}-{word}.md` and `handoff-{topic}-{word}.md` | Yes, committed and pushed at kickoff and after every wave |
 
 ## Naming
 
@@ -47,7 +48,15 @@ If `.scratch/` doesn't exist, create it. If the script reports it isn't
 ignored, add `.scratch/` to `.gitignore` first. Never commit `.scratch/`
 files.
 
-## On a runner
+## On a runner, and in an orchestrate run
+
+A `personal-plan-orchestrate` run keeps its plan and session handoff in
+`specs/handoffs/` on any machine, in both modes, since it always runs on a
+task branch. The orchestrate skill owns the handoff's per-wave fields, the
+short chat summary that ends every message that stops or asks, and the
+resume step (paste the plan's Kickoff prompt); this skill only says where
+the files go. A gated run on a workstation whose plan sits in no git repo is
+the one exception (the orchestrate skill's "Files a run keeps").
 
 `.scratch/` dies with the container. When the script prints
 `claude_code_remote: true`, or the harness says the session is remote,

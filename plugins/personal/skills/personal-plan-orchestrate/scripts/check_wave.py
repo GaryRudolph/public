@@ -19,9 +19,17 @@ baseline too, when one is given); and every snapshotted directory without a
 group is unchanged. A commit that touches only the plan and its session
 handoff (handoff-{topic}-{word}.md beside plan-{topic}-{word}.md), under a
 subject that doesn't start with a step ID, is the parent's bookkeeping
-commit: it is listed and skipped. Any other commit that touches either file
-fails. It prints JSON with each group's `to` (the reviewed HEAD) and exits 1 on
-any problem.
+commit: it is listed and skipped, in a group's range and in a directory
+with no group (the plan's repo, when no group runs there). Any other commit
+that touches either file fails. It prints JSON with each group's `to` (the
+reviewed HEAD) and exits 1 on any problem.
+
+The output also sorts out the scope breaches that stop at gate 1 in both
+modes (decision 10), since no fix-up can repair them: `scope` lists a `from`
+that is no longer an ancestor of HEAD and every directory with no group that
+changed; `uncommitted` lists each group's new uncommitted paths, which are a
+scope breach on a workstation only (they may be Gary's own edits) and an
+ordinary failure, fixed by `N-fix`, on a runner.
 """
 
 import json
@@ -31,6 +39,7 @@ import sys
 from pathlib import Path
 
 BANNED = re.compile(r"\b(co-authored-by|signed-off-by):", re.I)
+STEP_ID = re.compile(r"^(?:m\d+\.)?s\d+ ")  # a step commit's subject, never a bookkeeping commit's
 
 
 def git(d, *a, check=True):
@@ -74,7 +83,8 @@ def plan_files(d, plan):
 def check_group(g, base, plan=None, baseline=None):
     d, problems = g["workdir"], []
     if git(d, "merge-base", "--is-ancestor", g["from"], "HEAD", check=False).returncode:
-        return {"id": g["id"], "workdir": d, "to": None, "problems": [f"from {g['from']} is not an ancestor of HEAD"]}
+        return {"id": g["id"], "workdir": d, "to": None, "problems": [f"from {g['from']} is not an ancestor of HEAD"],
+                "bookkeeping": [], "uncommitted": [], "scope": True}
     to = git(d, "rev-parse", "--short", "HEAD").stdout.strip()
     shas = git(d, "rev-list", "--reverse", f"{g['from']}..HEAD").stdout.split()
     covered, books, mine = set(), [], plan_files(d, plan)
@@ -111,7 +121,21 @@ def check_group(g, base, plan=None, baseline=None):
     new = sorted(set(dirty(d)) - before)
     if new:
         problems.append(f"uncommitted paths left behind: {', '.join(new[:10])}")
-    return {"id": g["id"], "workdir": d, "to": to, "problems": problems, "bookkeeping": books}
+    return {"id": g["id"], "workdir": d, "to": to, "problems": problems, "bookkeeping": books, "uncommitted": new, "scope": False}
+
+
+def only_bookkeeping(d, old, plan):
+    """The short SHAs of old..HEAD in d when every commit there is the parent's plan and handoff commit, else None."""
+    mine = plan_files(d, plan)
+    if not mine or git(d, "merge-base", "--is-ancestor", old, "HEAD", check=False).returncode:
+        return None
+    books = []
+    for sha in git(d, "rev-list", "--reverse", f"{old}..HEAD").stdout.split():
+        touched = set(git(d, "diff-tree", "--root", "-r", "--no-commit-id", "--name-only", sha).stdout.split("\n")) - {""}
+        if not touched or not touched <= mine or STEP_ID.match(git(d, "log", "-1", "--format=%s", sha).stdout):
+            return None
+        books.append(sha[:7])
+    return books
 
 
 def main():
@@ -145,15 +169,21 @@ def main():
         g["workdir"] = str(Path(g["workdir"]).resolve())
     results = [check_group(g, snap.get(g["workdir"], {}), plan, (baseline or {}).get(g["workdir"])) for g in groups]
     mine = {g["workdir"] for g in groups}
-    others = []
+    others, books = [], {}
     for d, s in snap.items():
         if d in mine:
             continue
         now = {"head": git(d, "rev-parse", "HEAD").stdout.strip(), "dirty": dirty(d)}
+        if now["head"] != s["head"] and now["dirty"] == s["dirty"]:
+            b = only_bookkeeping(d, s["head"], plan)  # the parent's own commit in the plan's repo, after the run
+            if b is not None:
+                books[d] = b
+                continue
         if now["head"] != s["head"] or now["dirty"] != s["dirty"]:
             others.append(f"{d} changed during the run, but no group was dispatched there")
     ok = not others and all(not r["problems"] for r in results)
-    print(json.dumps({"ok": ok, "groups": results, "others": others}, indent=1))
+    scope = others + [f"{r['workdir']}: {r['problems'][0]}" for r in results if r["scope"]]
+    print(json.dumps({"ok": ok, "groups": results, "others": others, "bookkeeping": books, "scope": scope}, indent=1))
     sys.exit(0 if ok else 1)
 
 

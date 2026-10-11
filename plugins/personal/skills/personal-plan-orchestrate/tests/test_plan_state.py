@@ -153,6 +153,68 @@ def milestone_comes_from_the_enclosing_heading_when_ids_lack_it():
     body = "--- WAVE 1 [exec] ---\n#### s1 - [exec] A (done)\n\n## m2 - Next\n\n--- WAVE 2 [exec] ---\n#### s2 - [exec] B\n"
     s = state(plan(body))
     assert s["next"]["milestone"] == "m2" and s["gates"] == ["gate-4"]
+    assert s["next"]["steps"] == ["m2.s2"]
+
+
+# ---- step IDs: s{K} restarts in each milestone (documentation.md), so the ID is m{N}.s{K} ----
+STANDARD = """--- WAVE 1 [exec] ---
+#### s1 - [exec] One{d1}
+#### s2 - [fast] Two{d2}
+
+## m2 - Phase 1: Claude Code
+
+--- WAVE 2 [deep] ---
+#### s1 - [deep] Decide{d3}
+#### s2 - [deep] Build{d4}
+"""
+
+
+def standard(n):
+    return STANDARD.format(**{f"d{i}": " (done)" if i <= n else "" for i in range(1, 5)})
+
+
+@test
+def steps_restarting_at_s1_in_each_milestone_get_qualified_ids():
+    s = state(plan(standard(0)))
+    assert s["errors"] == [], s["errors"]
+    assert s["next"]["steps"] == ["m1.s1", "m1.s2"] and s["next"]["milestone"] == "m1"
+    s = state(plan(standard(2)))
+    assert s["errors"] == [], s["errors"]
+    assert s["next"]["steps"] == ["m2.s1", "m2.s2"] and s["next"]["milestone"] == "m2"
+    assert s["gates"] == ["gate-4", "gate-2"], s["gates"]
+
+
+@test
+def a_level_3_milestone_heading_qualifies_its_steps_too():
+    body = standard(2).replace("## m2 - Phase 1", "### m2 - Phase 1")
+    s = state(plan(body))
+    assert s["errors"] == [] and s["next"]["steps"] == ["m2.s1", "m2.s2"], (s["errors"], s["next"])
+
+
+@test
+def a_real_duplicate_within_a_milestone_is_still_gate_0():
+    s = state(plan(standard(0).replace("#### s2 - [deep] Build", "#### s1 - [deep] Build")))
+    assert s["gates"][0] == "gate-0" and "step id m2.s1 appears twice" in s["errors"], s["errors"]
+    s = state(plan(standard(0).replace("#### s1 - [deep] Decide", "#### m1.s1 - [deep] Decide")))
+    assert "step id m1.s1 appears twice" in s["errors"], s["errors"]  # an explicit ID equal to a qualified one
+
+
+@test
+def explicit_and_bare_prefixes_in_one_milestone_give_the_same_ids():
+    mixed = state(plan(standard(2).replace("#### s1 - [deep] Decide", "#### m2.s1 - [deep] Decide")))
+    assert mixed["errors"] == [] and mixed["next"]["steps"] == ["m2.s1", "m2.s2"], (mixed["errors"], mixed["next"])
+    assert state(plan(marked(0)))["next"]["steps"] == ["m1.s1", "m1.s2", "m1.s3"]
+
+
+@test
+def a_plan_with_no_milestones_keeps_bare_ids():
+    text = KICK.format(status="0/1 groups done | updated 2026-10-06", mode=GATED) + "# Plan: x\n\n## Steps\n\n" \
+        + "--- WAVE 1 [exec] ---\n#### s1 - [exec] One\n#### s2 - [exec] Two\n#### [exec] Wire Redis client\n"
+    s = state(text)
+    assert s["errors"] == [] and not s["milestones"], s["errors"]
+    assert s["next"]["steps"] == ["s1", "s2", "wire-redis-client"] and s["next"]["milestone"] is None
+    s = state(text.replace("#### s2 - [exec] Two", "#### s1 - [exec] Two"))
+    assert "step id s1 appears twice" in s["errors"], s["errors"]
 
 
 @test
@@ -301,6 +363,21 @@ def check_failure_unattended_is_an_automatic_fix_up():
 def check_failure_gated_still_stops():
     s = state(plan(marked(5), log=CHECK1))
     assert s["next"]["label"] == "2-fix" and s["stops"] == ["gate-1"] and s["checkpoints"] == []
+
+
+@test
+def a_disclosed_breach_is_gate_1_in_both_modes_blocked_or_ran():
+    for how in ("blocked by the auto-mode classifier", "it ran"):
+        note = f"worker disclosed: ran scripts/publish-formula.sh without DRY_RUN=1, {how}; review PASS: no tag or release"
+        log = f"review wave-2 (repo-b m1 s4) 846932b..518e99f: CONCERNS - {note} - 2026-10-06\n"
+        for mode in (GATED, UNATTENDED):
+            s = state(plan(marked(5), log=log, mode=mode))
+            assert s["next"]["label"] == "2-fix" and s["concerns"][0]["source"] == "disclosed", s["next"]
+            assert s["gates"] == ["gate-1"] and s["stops"] == ["gate-1"] and s["checkpoints"] == [], (mode, s)
+    # Another group's automatic fix-up in the same wave stays a checkpoint once the disclosed one is waived.
+    waived = "review wave-2 (repo-b m1 s4) 846932b..518e99f: WAIVED - fine, nothing left the machine - 2026-10-06\n"
+    s = state(plan(marked(5), log=log + waived + CHECK1.replace("repo-b m1 s4", "repo-c m1 s5"), mode=UNATTENDED))
+    assert s["next"]["groups"] == ["repo-c m1 s5"] and s["checkpoints"] == ["gate-1"] and s["stops"] == [], s
 
 
 @test
@@ -468,6 +545,14 @@ def an_unattended_record_needs_a_signal_in_the_token_grammar():
 
 
 @test
+def a_cursor_cloud_agent_records_its_unattended_proposal_by_the_cloud_mcp_signal():
+    signal = "harness=cursor runner=cloud; Cursor Cloud MCP run-info answered"
+    s = state(plan(marked(0), mode=UNATTENDED.replace("harness=claude-code runner=cloud", signal)))
+    assert s["errors"] == [] and s["mode"]["value"] == "unattended" and s["mode"]["proposed"] == "unattended"
+    assert (s["mode"]["harness"], s["mode"]["runner"]) == ("cursor", "cloud")
+
+
+@test
 def a_kickoff_prompt_must_name_the_plans_repo_and_path():
     s = state(plan(marked(0), mode=prompted(UNATTENDED, "unattended")))
     assert s["prompt_plan"] == {"repo": "example/repo", "path": "specs/handoffs/plan-x.md"}, s["prompt_plan"]
@@ -477,6 +562,31 @@ def a_kickoff_prompt_must_name_the_plans_repo_and_path():
     loose = prompted(GATED, "gated").replace("In example/repo, read specs/handoffs/plan-x.md", "Read /Users/gary/work/.scratch/plan-x.md")
     s = state(plan(marked(0), mode=loose))  # decision 11: a plan in no git repo keeps its absolute path
     assert s["errors"] == [] and s["prompt_plan"] == {"repo": None, "path": "/Users/gary/work/.scratch/plan-x.md"}, s["errors"]
+
+
+# ---- m2.s2: the guard on split waves, the fix-up marker grammar ----
+
+@test
+def a_split_waves_later_unit_adds_nothing_to_the_projection():
+    body = "--- WAVE 1 [exec] ---\n#### m1.s1 - [exec] A (done)\n#### m2.s1 - [exec] B\n"
+    cost = COST.replace("| 1 [fast] m1 s1-s3 | ~3.4M | ~$0.90 |", "| 1 [exec] m1 s1, m2 s1 | ~3.4M | ~$9.0 |")
+    tokens = "tokens wave-1 repo-a-m1-s1 (claude-sonnet-5-5): input ~1k / cache read ~1M / cache write ~0.1M / output ~20k | ~$45.00 API-equiv\n"
+    s = state(plan(body, mode=UNATTENDED, cost=cost, tokens=tokens))
+    assert s["next"]["start"] and s["next"]["milestone"] == "m2", s["next"]  # a unit of its own, gate 4
+    assert s["cost"]["next_expected"] == 9.0 and s["cost"]["projected"] == 45.0 and not s["cost"]["tripped"], s["cost"]
+    fresh = state(plan(body.replace(" (done)", ""), mode=UNATTENDED, cost=cost, tokens=tokens))
+    assert fresh["cost"]["projected"] == 54.0 and fresh["cost"]["tripped"], fresh["cost"]  # its first unit counts the row
+
+
+@test
+def wave_markers_follow_the_standards_fix_up_grammar():
+    import re
+    standard = re.compile(r"^--- WAVE \d+(-fix([2-9]|[1-9]\d+)?)? \[(xdeep|deep|exec|fast)\] ---$")  # proposal §4 (b)
+    for label in ("2", "2-fix", "2-fix2", "2-fix9", "2-fix10", "2-fix23", "2-fix1", "2-fix0", "2-fix01", "2-fix-2", "2fix"):
+        line = f"--- WAVE {label} [exec] ---"
+        body = marked(5).replace("## m2 - Logic", f"{line}\n#### m1.s6 - [exec] Fix\n\n## m2 - Logic") if label != "2" else marked(0)
+        ok = not any("not a wave marker" in e for e in state(plan(body))["errors"])
+        assert ok == bool(standard.match(line)), (label, ok)
 
 
 failed = 0

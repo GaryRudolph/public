@@ -9,6 +9,13 @@ Reads only the plan file: wave markers, tagged headings and their (done)
 markers, the Kickoff Status and mode lines and its prompt, the Cost table,
 the Review log and the Token log.
 
+A step's ID is its heading prefix, qualified by its milestone: step numbers
+restart at s1 in each milestone (documentation.md "Steps within a
+milestone"), so "#### s2 - [exec] ..." under "## m3 - ..." is m3.s2, the
+prefix its commits carry. An explicit m3.s2 prefix is the same ID; a step in
+no milestone keeps its bare prefix, and one with no prefix gets its title's
+slug.
+
 Every gate derives from the plan in every mode. The mode only splits them:
 in gated mode every gate stops; in unattended mode gates 2, 3, 4, a planned
 wave's gate 7, and gate 1 on an automatic fix-up within the mode line's cap
@@ -19,7 +26,9 @@ Fix-ups come from the Review log. The k-th CONCERNS line in a row for a group
 of wave N makes the next unit its fix-up, labeled N-fix for k = 1 and N-fix<k>
 after (plan-execution.md "Fix-up waves"). A check_wave.py failure is logged as
 a CONCERNS line whose note starts "check_wave.py:", so it starts or extends
-the same streak, and it is gate 1. A streak of two or more is gate 1 too.
+the same streak, and it is gate 1. A worker's disclosed breach is logged as a
+CONCERNS line whose note starts "worker disclosed:", and its fix-up is gate 1
+in both modes, never an automatic one. A streak of two or more is gate 1 too.
 A PASS ends the streak, and so does a WAIVED line, which carries Gary's
 answer to that gate 1 verbatim (the hook checks the words).
 
@@ -51,6 +60,7 @@ HEADING_RE = re.compile(r"^(#+)\s+(.*?)\s*$")
 TAG_RE = re.compile(r"\[(xdeep|deep|exec|fast)\]")
 DONE_RE = re.compile(r"\(done\)\s*$")
 MILESTONE_RE = re.compile(r"^(?:m(\d+)\b|milestone\s+(\d+)\b)", re.I)
+BARE_STEP_RE = re.compile(r"^s\d+$")  # a step heading's s{K} prefix with no m{N} before it
 BLOCKED_RE = re.compile(r"BLOCKED at gate ([\w-]+)")
 # A fix-up's review is logged as wave-N-fix, wave-N-fix2, ...; it counts toward wave N's group.
 # WAIVED is never a review: it records Gary's answer to a gate 1, verbatim, and ends the streak.
@@ -79,6 +89,7 @@ DEFAULT_GUARD = 3.0  # stop when projected spend passes this multiple of the exp
 DEFAULT_GUARD_MIN = 50.0  # ...and this floor in API-equiv dollars, whichever is higher
 DEFAULT_FIXUPS = 2  # automatic fix-ups per group, unattended
 CHECK_NOTE = "check_wave.py:"  # a Review log note that records a failed check, not a review
+DISCLOSED_NOTE = "worker disclosed:"  # a Review log note that records a rule a worker disclosed breaking
 UNATTENDED_CHECKPOINTS = {"gate-2", "gate-3", "gate-4"}
 
 
@@ -89,6 +100,11 @@ def milestone_of(text):
 
 def fix_label(wave, k):
     return f"{wave}-fix" if k == 1 else f"{wave}-fix{k}"
+
+
+def source_of(note):
+    """What a CONCERNS line records: a failed check, a worker's disclosed breach, or a review's concern."""
+    return "check" if note.startswith(CHECK_NOTE) else "disclosed" if note.startswith(DISCLOSED_NOTE) else "review"
 
 
 def mode_of(line):
@@ -184,6 +200,8 @@ def parse(text):
         title = DONE_RE.sub("", body[tag.end():]).strip()
         sid = prefix or re.sub(r"[^a-z0-9]+", "-", title.lower()).strip("-")
         ms = milestone_of(prefix) or next((v for k, v in sorted(enclosing.items(), reverse=True) if k < level and v), None)
+        if ms and BARE_STEP_RE.match(prefix):
+            sid = f"{ms}.{prefix}"  # s{K} restarts in each milestone (documentation.md), so its ID is m{N}.s{K}, as in commits
         if wave is None:
             errors.append(f"line {no}: tagged step {sid} comes before any wave marker")
             continue
@@ -259,7 +277,7 @@ def state(text):
         streak[key] = streak.get(key, []) + [r["note"]] if r["verdict"] == "CONCERNS" else []
         last[key] = r
     out["concerns"] = [{"wave": k[0], "group": k[1], "count": len(notes), "note": last[k]["note"], "notes": notes,
-                        "source": "check" if last[k]["note"].startswith(CHECK_NOTE) else "review",
+                        "source": source_of(last[k]["note"]),
                         "from": last[k]["from"], "to": last[k]["to"]} for k, notes in streak.items() if notes]
     out["waivers"] = [{"wave": r["wave"], "group": r["group"], "words": r["note"]} for r in reviews if r["verdict"] == "WAIVED"]
     cap = mode["fixups"] if mode else DEFAULT_FIXUPS
@@ -278,8 +296,8 @@ def state(text):
         out["next"] = {"kind": "fixup", "wave": first, "label": fix_label(first, k), "fix": k,
                        "tier": u["tier"] if u else None, "milestone": u["milestone"] if u else None,
                        "groups": sorted(c["group"] for c in mine), "steps": [], "start": False}
-        if k >= 2 or any(c["source"] == "check" for c in mine):
-            gates.append("gate-1")  # a failed check, or a fix-up that drew CONCERNS again
+        if k >= 2 or any(c["source"] in ("check", "disclosed") for c in mine):
+            gates.append("gate-1")  # a failed check, a disclosed breach, or a fix-up that drew CONCERNS again
         if u and u["tier"] == "xdeep":
             gates.append("gate-7")  # every [xdeep] dispatch; a fix-up row is unplanned (expected "—")
         if u is None:
@@ -315,7 +333,10 @@ def state(text):
         if mode is None or mode["value"] == "pending":
             gates.insert(0, "gate-mode")  # no confirmed answer to the kickoff question: dispatch nothing
         row = cost["rows"].get(nxt["label"])
-        spend_next = (row or 0.0) if (nxt["kind"] == "fixup" or nxt["start"]) else 0.0
+        # A wave's expected $ counts once, before any of its steps is done: not again for a canary's continuation or
+        # for a later unit of a wave split across milestones, whose start is true but whose wave has begun.
+        begun = nxt["kind"] == "wave" and any(s["done"] for s in steps if s["label"] == nxt["label"])
+        spend_next = (row or 0.0) if (nxt["kind"] == "fixup" or not begun) else 0.0
         guard = mode["guard"] if mode else DEFAULT_GUARD
         guard_min = mode["guard_min"] if mode else DEFAULT_GUARD_MIN
         out["cost"] = {"expected_total": cost["total"], "actual": round(cost["actual"], 2), "next_expected": row,
@@ -332,7 +353,9 @@ def state(text):
         gates.insert(0, "gate-0")
     out["gates"] = list(dict.fromkeys(gates))
     planned = bool(nxt) and nxt["kind"] == "wave" and cost["rows"].get(nxt["label"]) is not None
-    auto_fix = bool(nxt) and nxt["kind"] == "fixup" and nxt["fix"] <= cap  # past the cap, gate 1 stops
+    # Past the cap gate 1 stops, and so does a disclosed breach's fix-up, in both modes.
+    auto_fix = bool(nxt) and nxt["kind"] == "fixup" and nxt["fix"] <= cap and not any(
+        c["source"] == "disclosed" for c in out["concerns"] if c["wave"] == nxt["wave"] and c["group"] in nxt["groups"])
     soft = UNATTENDED_CHECKPOINTS | ({"gate-7"} if planned else set()) | ({"gate-1"} if auto_fix else set())
     blocked = out["blocked"]
     out["checkpoints"] = [g for g in out["gates"] if unattended and g in soft and g != blocked]

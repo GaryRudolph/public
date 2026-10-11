@@ -240,7 +240,7 @@ TEST_ENV = \
     LEGACY_JETBRAINS_GLOB="$(LEGACY_JETBRAINS_GLOB)"
 
 .PHONY: help install uninstall dry-run status test test-blocks test-extensions test-hooks test-allowlists \
-        test-secrets test-release test-repo-baseline clean-test \
+        test-secrets test-release test-repo-baseline test-orchestrate clean-test \
         install-blocks uninstall-blocks dry-run-blocks status-blocks \
         install-extensions uninstall-extensions dry-run-extensions status-extensions \
         install-hooks uninstall-hooks dry-run-hooks status-hooks \
@@ -275,6 +275,7 @@ help:
 	@echo "Plugins:"
 	@echo "  validate                   Manifest checks + claude plugin validate"
 	@echo "  package                    Zip each plugin into build/plugins/"
+	@echo "  test-orchestrate           Run the plan-orchestrate kit's offline tests (part of test)"
 	@echo "  cursor-core-rule           Regenerate plugins/personal/cursor/rules/personal-core.mdc"
 	@echo "  install-local-marketplace  Load the plugins from this checkout in Claude Code (live edits)"
 	@echo ""
@@ -418,7 +419,7 @@ clean-allowlists:
 # test
 # ---------------------------------------------------------------------------
 
-test: test-blocks test-extensions test-hooks test-allowlists test-manifests test-secrets test-release test-repo-baseline test-roundtrip
+test: test-blocks test-extensions test-hooks test-allowlists test-manifests test-secrets test-release test-orchestrate test-repo-baseline test-roundtrip
 
 # Install + uninstall through this Makefile into a sandboxed $HOME.
 test-roundtrip:
@@ -442,6 +443,10 @@ test-secrets:
 
 test-release:
 	@bash "$(PLUGINS_DIR)/personal/skills/personal-release/tests/test-release.sh"
+
+# The orchestrate kit's offline tests (scripts, gate hook, workflow, manifests).
+test-orchestrate:
+	@bash "$(PLUGINS_DIR)/personal/skills/personal-plan-orchestrate/tests/test-orchestrate.sh" "$(PLUGINS_DIR)/personal"
 
 test-repo-baseline:
 	@bash "$(PLUGINS_DIR)/personal/skills/personal-repo-baseline/tests/test-repo-baseline.sh"

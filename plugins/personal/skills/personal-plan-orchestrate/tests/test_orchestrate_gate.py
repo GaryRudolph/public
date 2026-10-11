@@ -53,7 +53,7 @@ def write_plan(mode="gated | proposed gated (harness=claude-code runner=none) | 
     paste = "".join(f"      {line}\n" for line in prompt) if prompt else ""
     plan.write_text(f"```\n--- KICKOFF: begin orchestration at [deep] ---\n  Status: {status}\n"
                     f"  mode: {mode}\n" + (f"\n    Prompt to paste into the next chat:\n{paste}\n---\n" if prompt else "")
-                    + "```\n" + COST + "## m1 - A\n--- WAVE 1 [exec] ---\n#### m1.s1 - [exec] One\n"
+                    + "```\n" + COST + "## m1 - A\n--- WAVE 1 [exec] ---\n#### s1 - [exec] One\n"
                     + (f"\n## Review log\n\n{log}" if log else ""))
     resume = " / ".join(prompt) if prompt else "none yet"
     handoff.write_text(f"# Handoff plan-x\n\nmode: {mode}\nStatus: {status}\nResume: {resume}\nNext: wave 1\n{log}")
@@ -66,12 +66,15 @@ def write_plan(mode="gated | proposed gated (harness=claude-code runner=none) | 
 
 
 ST = write_plan()
+assert ST["errors"] == [] and ST["next"]["steps"] == ["m1.s1"], ST  # a standard s1 heading under m1 is step m1.s1
 # Unattended, confirmed by an answer on a workstation (the hook's default environment): Gary overrode a gated proposal.
 UN = "unattended | proposed gated (harness=claude-code runner=none) | guard 2x | fixups 2 | confirmed 2026-10-06 session s: "
 
 
-def human(text):
-    return {"type": "user", "promptSource": "sdk", "message": {"role": "user", "content": text}}
+def human(text, source="sdk"):
+    """A typed message: promptSource sdk on the desktop app and the web, typed or queued on the CLI."""
+    return {"type": "user", "promptSource": source, "turnOrigin": "human", "origin": {"kind": "human"},
+            "message": {"role": "user", "content": text}}
 
 
 def said(text):
@@ -283,14 +286,31 @@ def an_unattended_answer_from_a_notification_turn_is_denied():
     write_plan()
 
 
+RUNNER_Q = said("Plan plan-x: runner detected (CLAUDE_CODE_REMOTE=true). Proposed mode: unattended. Reply unattended or gated.")
+
+
 @case
-def a_bare_yes_re_asks_even_when_the_question_proposed_unattended():
-    st = write_plan(UN + "yes")  # v6: the kit matches decision 9 as proposed, until Gary decides it
-    runner_q = said("Plan plan-x: runner detected (CLAUDE_CODE_REMOTE=true). Proposed mode: unattended. Reply unattended or gated.")
-    for q in (QUESTION, runner_q):
-        assert "does not name unattended" in hook(seg(args(state=st)), [human("orchestrate"), q, human("yes")])
+def a_plain_yes_confirms_unattended_when_the_question_proposed_it():
+    # m2.s2, decision 9 (was: a bare yes re-asks even when the question proposed unattended).
+    for words in ("yes", "Yes, go ahead.", "ok", "sure, please"):
+        st = write_plan(UN + words)
+        assert hook(seg(args(state=st)), [human("orchestrate"), RUNNER_Q, human(words)]) is None, words
+    for words in ("yes?", "yes, but not yet", "yes, gated", "yes, after lunch"):
+        st = write_plan(UN + words)
+        assert "plainly" in hook(seg(args(state=st)), [human("orchestrate"), RUNNER_Q, human(words)]), words
     st = write_plan(UN + "unattended, not gated")
     assert "does not name unattended" in hook(seg(args(state=st)), [human("orchestrate"), QUESTION, human("unattended, not gated")])
+    write_plan()
+
+
+@case
+def a_yes_to_a_gated_proposal_records_gated_never_unattended():
+    st = write_plan(UN + "yes")  # QUESTION proposed gated
+    assert "a yes to a gated proposal" in hook(seg(args(state=st)), [human("orchestrate"), QUESTION, human("yes")])
+    st = write_plan(GATED.replace("session s: gated", "session s: yes"))
+    assert hook(seg(args(state=st)), [human("orchestrate"), QUESTION, human("yes")]) is None  # gated needs no proof
+    st = write_plan(UN + " ".join(kickoff_prompt("unattended")), prompt=kickoff_prompt("unattended"))
+    assert "holds its mode line" in hook(seg(args(state=st, groups=TASK)), [human("orchestrate"), RUNNER_Q, paste()])  # still no paste
     write_plan()
 
 
@@ -680,6 +700,246 @@ def a_git_error_in_the_plan_repo_denies_instead_of_skipping_checks():
         f.write("[core]\n\trepositoryformatversion = 99\n")  # git now refuses the repo; it isn't "no git repo"
     assert "hook error" in hook(seg(a), [human("go")])
     write_plan()
+
+
+# ---- m2.s2: the hook's turn reading (phase 0 shapes), the take-back, decision 9, a nested plain folder ----
+
+def compact_summary(web=False):
+    """A compaction summary: the CLI's has no turnOrigin, the desktop app's and the web's carry turnOrigin human."""
+    r = {"type": "user", "isCompactSummary": True, "isVisibleInTranscriptOnly": True,
+         "message": {"role": "user", "content": "This session is being continued ... Gary typed gated, then unattended ..."}}
+    return {**r, "turnOrigin": "human"} if web else r
+
+
+INTERRUPTED = {"type": "user", "message": {"role": "user", "content": [{"type": "text", "text": "[Request interrupted by user]"}]}}
+SLASH = [{"type": "user", "message": {"role": "user", "content": "/compact"}},
+         {"type": "user", "message": {"role": "user", "content": "<command-name>/compact</command-name>"}},
+         {"type": "user", "message": {"role": "user", "content": "<local-command-stdout>Compacted</local-command-stdout>"}}]
+SDK_TURN = {"type": "user", "promptSource": "sdk", "turnOrigin": "sdk", "message": {"role": "user", "content": "gated"}}
+STOP_FEEDBACK = {"type": "user", "isMeta": True, "message": {"role": "user", "content": "Stop hook feedback: gated? Please commit and push."}}
+QUEUE_OP = {"type": "queue-operation", "operation": "enqueue", "content": "gated"}
+
+
+def mid(text, mode="prompt"):
+    """A message typed while the parent works: a queued_command attachment absorbed into the running turn."""
+    a = {"type": "queued_command", "prompt": text, "commandMode": mode}
+    if mode == "prompt":
+        a.update(origin={"kind": "human"}, humanTurn=True)
+    return {"type": "attachment", "attachment": a}
+
+
+def wrapped(text):
+    """The Mac CLI's bracketed paste: promptSource typed, text inside <pasted_content> tags."""
+    return human(f'\n\n<pasted_content id="78e8">\n{text}\n</pasted_content id="78e8">\n', source="typed")
+
+
+@case
+def cli_typed_and_queued_prompts_are_human():
+    for source in ("typed", "queued", "sdk"):
+        st = write_plan(UN + "unattended")
+        assert hook(seg(args(state=st)), [human("orchestrate", source), QUESTION, human("unattended", source)]) is None, source
+    write_plan()
+    a = args(approved=[{"gate": "gate-5", "wave": 1}], approval="yes, continue", canaryDone=True)
+    t = [human("go")] + launch(args(), "t1") + [NOTIFY, human("yes, continue", "typed")]
+    assert hook(seg(a), t, [{"rid": "wf_1", "stop": "gate", "gates": ["gate-5"]}]) is None
+    write_plan()
+
+
+@case
+def compaction_summaries_hook_feedback_and_queue_records_never_void_unattended():
+    st = write_plan(UN + "unattended")
+    for r in (compact_summary(), compact_summary(web=True), STOP_FEEDBACK, SDK_TURN, mid("gated", "task-notification"), QUEUE_OP):
+        assert hook(seg(args(state=st)), KICK + [said("Running."), r]) is None, r
+    write_plan()
+
+
+@case
+def the_interrupt_marker_slash_commands_and_sdk_turns_carry_no_approval():
+    a = args(approved=[{"gate": "gate-5", "wave": 1}], approval="[Request interrupted by user]", canaryDone=True)
+    t = [human("go")] + launch(args(), "t1") + [NOTIFY]
+    canary = [{"rid": "wf_1", "stop": "gate", "gates": ["gate-5"]}]
+    assert "human answer started" in hook(seg(a), t + [INTERRUPTED], canary)
+    for r in SLASH + [SDK_TURN]:
+        text = r["message"]["content"]
+        assert "human answer started" in hook(seg(args(**{**a, "approval": text})), t + [r], canary), text
+    assert hook(seg(args(**{**a, "approval": "yes"})), t + [human("yes"), INTERRUPTED], canary) is None  # the marker isn't a turn
+
+
+@case
+def a_message_typed_mid_turn_is_human_text_of_that_turn():
+    st = write_plan(UN + "unattended")
+    t = KICK + launch(args(state=st), "t1") + [NOTIFY]
+    done = [{"rid": "wf_1"}]
+    assert "names gated" in hook(seg(args(state=st, canaryDone=True)), t + [said("Checking."), mid("gated")], done)
+    stopped = [{"rid": "wf_1", "stop": "gate", "gates": ["gate-5"]}]
+    a = args(state=st, canaryDone=True, approved=[{"gate": "gate-5", "wave": 1}], approval="yes, continue")
+    assert hook(seg(a), t + [said("Checking."), mid("yes, continue")], stopped) is None  # joined the notification turn
+    assert "verbatim" in hook(seg(a), t + [mid("yes, continue"), mid("wait")], stopped)  # the latest message is the answer
+    write_plan()
+
+
+@case
+def a_wrapped_paste_is_the_paste_and_still_answers_nothing():
+    st = write_plan(PROMPTED, prompt=kickoff_prompt("unattended"))
+    text = "\n".join("    " + x for x in kickoff_prompt("unattended"))
+    assert hook(seg(args(state=st, groups=TASK)), [wrapped(text)], runner=True) is None
+    st = write_plan(PROMPTED, prompt=kickoff_prompt("unattended"), status="BLOCKED at gate 1 | 0/1 groups done")
+    pasted = wrapped(text)
+    a = args(state=st, groups=TASK, approved=[{"gate": "gate-1", "wave": 1}], approval=pasted["message"]["content"])
+    assert "a paste answers no gate" in hook(seg(a), [pasted], runner=True)
+    write_plan()
+
+
+@case
+def a_record_replayed_after_a_compaction_counts_once():
+    st = write_plan(UN + "unattended")
+    early = {**human("gated"), "uuid": "u1"}  # Gary first said gated, then answered unattended to the question
+    t = [human("orchestrate"), early, QUESTION, human("unattended"), said("Running."), early]
+    assert hook(seg(args(state=st)), t) is None
+    assert "names gated" in hook(seg(args(state=st)), t[:-1] + [{**human("gated"), "uuid": "u2"}])
+    write_plan()
+
+
+@case
+def only_a_short_message_naming_gated_alone_takes_unattended_back():
+    st = write_plan(UN + "unattended")
+    for words in ("gated", "switch to gated please", "ok, go gated from here on, thanks"):
+        assert "names gated" in hook(seg(args(state=st)), KICK + [said("Running."), human(words)]), words
+    for words in ("for the record, I read about gated mode in the proposal and it looks fine",
+                  "gated or unattended, either is fine", "keep it unattended, not gated"):
+        assert hook(seg(args(state=st)), KICK + [said("Running."), human(words)]) is None, words
+    write_plan()
+
+
+@case
+def a_plain_folder_nested_in_another_repos_work_tree_is_in_no_repo():
+    st = write_plan(GATED)
+    go = [human("orchestrate plan-x")]
+    exclude = repo / ".git" / "info" / "exclude"
+    keep = exclude.read_text() if exclude.exists() else ""
+    exclude.write_text(keep + ".scratch/\n")  # the outer repo ignores the folder, as this repo ignores .scratch/
+    plain = repo / ".scratch" / "plain"
+    sib = plain / "sib"
+    init_repo(sib)
+    loose = plain / ".scratch" / "plan-x.md"
+    loose.parent.mkdir(parents=True)
+    loose.write_text(plan.read_text())
+    loose.with_name("handoff-x.md").write_text("# Handoff plan-x\n")
+    a = args(state=st, groups=[{"workdir": str(sib), "branch": "feature/x"}])
+    a["plan"]["path"] = str(loose)
+    assert hook(seg(a), go) is None
+    assert "specs/handoffs" in hook(seg(a), go, runner=True)  # a runner's plan must ride the branch
+    own = repo / ".scratch" / "plan-x.md"  # ignored, but in the repo a group runs in: still that repo's plan
+    own.write_text(plan.read_text())
+    a = args(state=st, groups=TASK)
+    a["plan"]["path"] = str(own)
+    assert "specs/handoffs" in hook(seg(a), go)
+    shutil.rmtree(repo / ".scratch")
+    exclude.write_text(keep)
+    write_plan()
+
+
+@case
+def the_hooks_file_reports_could_not_run_only_when_python_does_not():
+    hooks = scripts.parents[2] / "hooks" / "claude-hooks.json"
+    if not hooks.exists():
+        return
+    line = json.loads(hooks.read_text())["hooks"]["PreToolUse"][0]["hooks"][0]["command"]
+    env = {**env_for(), "CLAUDE_PLUGIN_ROOT": str(scripts.parents[2])}
+    out = subprocess.run(["/bin/sh", "-c", line], input="not json", capture_output=True, text=True, env=env)
+    assert out.returncode == 2 and "hook error" in out.stderr and "could not run" not in out.stderr, (out.returncode, out.stderr)
+    out = subprocess.run(["/bin/sh", "-c", line], input=hook_input(seg(args()), [human("go")]), capture_output=True, text=True, env=env)
+    assert out.returncode == 0 and not out.stderr, (out.returncode, out.stderr)
+
+
+def guard_bash(agent, command, script=None):
+    """The deny reason for one Bash call, or None: from reviewer_guard.py or worker_guard.py (script), or from both, as
+    the hooks file runs both on every Bash call."""
+    inp = {"hook_event_name": "PreToolUse", "tool_name": "Bash", "tool_input": {"command": command}}
+    if agent:
+        inp.update(agent_id="a1", agent_type=agent)
+    reasons = []
+    for name in [script] if script else ["reviewer_guard.py", "worker_guard.py"]:
+        out = subprocess.run([sys.executable, "-I", str(scripts / name)], input=json.dumps(inp), capture_output=True, text=True)
+        assert out.returncode == 0, out.stderr
+        if out.stdout.strip():
+            reasons.append(json.loads(out.stdout)["hookSpecificOutput"]["permissionDecisionReason"])
+    assert len(reasons) <= 1, reasons  # each guard acts only for its own agent types
+    return reasons[0] if reasons else None
+
+
+@case
+def reviewers_bash_is_read_only_and_everyone_elses_is_untouched():
+    for agent in ("personal:plan-reviewer", "orch-spike:plan-reviewer-xdeep"):
+        for ok in ("git -C /r diff aaa0000", "git log --format='%h -> %s' a..b", "python3 -m pytest -q 2>&1 | tail", "cat x > /dev/null"):
+            assert guard_bash(agent, ok) is None, (agent, ok)
+        for bad in ("git commit --allow-empty -m x", "git -C /r push", "touch x", "echo x > f", "sed -i s/a/b/ f",
+                    "cd /r && rm -rf y", "gh pr create", "git rebase -i HEAD~2", "git status\nrm -rf y", "make ci > /tmp/log"):
+            assert "read-only" in (guard_bash(agent, bad, "reviewer_guard.py") or ""), (agent, bad)
+        assert "read their output inline" in guard_bash(agent, "make ci > /tmp/log")
+        assert guard_bash(agent, "git commit -m x", "worker_guard.py") is None  # the worker guard leaves reviewers alone
+    for agent in (None, "Explore", "personal:plan-reviewer-extra", "personal:plan-worker"):
+        assert guard_bash(agent, "git commit -m x", "reviewer_guard.py") is None, agent
+    for name in ("reviewer_guard.py", "worker_guard.py"):  # each sees every Bash call, so each fails open for other callers
+        out = subprocess.run([sys.executable, "-I", str(scripts / name)], input="not json", capture_output=True, text=True)
+        assert out.returncode == 0 and not out.stdout.strip(), name
+
+
+WORKERS = ("personal:plan-worker", "personal:plan-worker-exec", "orch-spike:plan-worker-xdeep")
+
+
+def worker_denies(agent, command):
+    reason = guard_bash(agent, command, "worker_guard.py") or ""
+    return "worker" in reason and "needs_info" in reason
+
+
+@case
+def a_workers_clearly_outward_commands_are_denied_and_its_other_bash_is_untouched():
+    for agent in WORKERS:
+        for ok in ("git commit --allow-empty -m 'm1.s1 Check'", "git add a && git commit -F - <<'EOF'\nm1.s2 Doc git push\n\nAssisted-by: Claude Code\nEOF",
+                   "make ci > /tmp/log 2>&1", "echo 'never git push here'", "gh pr view 3", "gh release view v1 --json tagName",
+                   "goreleaser check", "goreleaser release --snapshot --clean", "goreleaser release --clean --skip=announce,publish",
+                   "npm publish --dry-run", "cat > docs/release.md <<'EOF'\ngit push origin v1.2.3\ngh release create v1.2.3\nEOF"):
+            assert guard_bash(agent, ok) is None, (agent, ok)
+        for bad in ("git push", "git -C /r push origin HEAD", "cd /r && DRY_RUN=0 git push --tags", "make ci\ngit push",
+                    "gh pr create --fill", "gh pr merge 3 --squash", "gh release create v1.0.0", "gh release upload v1 x.tgz",
+                    "gh workflow run release.yml", "goreleaser release --clean", "goreleaser --clean", "goreleaser publish",
+                    "npm publish", "FOO=1 cargo publish", "docker push ghcr.io/x/y", "$(git push)"):
+            assert worker_denies(agent, bad), (agent, bad)
+        assert guard_bash(agent, "git push", "reviewer_guard.py") is None  # the reviewer guard leaves workers alone
+    for agent in (None, "personal:plan-worker-extra", "Explore", "personal:plan-reviewer"):  # the parent pushes; others aren't ours
+        assert guard_bash(agent, "git push", "worker_guard.py") is None, agent
+
+
+@case
+def a_workers_run_of_the_repos_publish_release_or_deploy_script_needs_its_dry_run_form():
+    near_miss = "make snapshot && V=$(git describe --tags) && scripts/publish-formula.sh \"$V\" dist 2>&1 | tail -40"  # run C's
+    for agent in WORKERS:
+        for bad in (near_miss, "scripts/publish-formula.sh 0.1.0 dist", "./release.sh", "cd /r; ./scripts/publish-scoop.sh 1 dist",
+                    "bash scripts/deploy.sh prod", "sh -x ./release.sh", "python3 -I tools/release.py", "DRY_RUN=0 scripts/publish.sh",
+                    "env FOO=1 scripts/release.sh", "make release", "make deploy-prod", "make -C /r release",
+                    "make publish-formula CONFIRM_PUBLISH_FORMULA=1 VERSION=1.0.0", "make -j4 test release", "npm run release",
+                    "make ci\nscripts/publish-formula.sh 1 dist"):
+            assert worker_denies(agent, bad), (agent, bad)
+        for ok in ("DRY_RUN=1 scripts/publish-formula.sh 0.1.0 dist", "DRY_RUN='1' scripts/publish-formula.sh 0.1.0 dist",
+                   "make snapshot && DRY_RUN=1 scripts/publish-formula.sh \"$V\" dist && DRY_RUN=1 scripts/publish-scoop.sh \"$V\" dist",
+                   "export DRY_RUN=1; scripts/publish.sh 1 dist", "scripts/release.sh --dry-run", "env DRY_RUN=1 ./deploy.sh",
+                   "make -n release", "make --dry-run deploy-prod", "make -nB release", "make release DRY_RUN=1",
+                   "npm run release -- --dry-run", "goreleaser release --snapshot --clean"):
+            assert guard_bash(agent, ok) is None, (agent, ok)
+        # Reading, grepping, linting, syntax-checking, staging or naming such a script is not a run, and neither is a
+        # make variable's value, a redirect target, a heredoc body, or a script whose name only looks close.
+        for ok in ("cat scripts/release.sh", "grep -n DRY_RUN scripts/publish-formula.sh", "shellcheck scripts/publish-*.sh",
+                   "bash -n scripts/release.sh", "ruby -c dist/ghx.rb", "git add scripts/release.sh && git commit -m 'm1.s4 Add it'",
+                   "git log --oneline -- scripts/release.sh", "chmod +x scripts/publish-formula.sh", "ls scripts | grep release",
+                   "goreleaser check", "python3 scripts/bump_version.py patch", "make doctor MODE=release 2>&1 | tail -6",
+                   "make ci > /tmp/release.log 2>&1", "echo scripts/deploy.sh", "sed -n 1,20p .github/workflows/release.yml",
+                   "cat > scripts/release.sh <<'EOF'\n#!/bin/sh\nmake release\nEOF", "go test ./internal/release/...",
+                   "python3 -m pytest tests/test_release.py"):
+            assert guard_bash(agent, ok) is None, (agent, ok)
+    assert "scripts/publish-formula.sh without DRY_RUN=1" in guard_bash(WORKERS[0], near_miss)
+    for agent in (None, "Explore", "personal:plan-reviewer"):  # the parent and other agents run what their rules allow
+        assert guard_bash(agent, "make release", "worker_guard.py") is None, agent
 
 
 failed = 0

@@ -13,7 +13,7 @@ const body = src.slice(metaMatch[0].length)
 const AsyncFunction = Object.getPrototypeOf(async function () {}).constructor
 const run = new AsyncFunction('agent', 'parallel', 'pipeline', 'phase', 'log', 'args', 'budget', body)
 
-const DONE = { status: 'done', changed: 'x', decided: 'y', surprises: 'none', artifact: '/a.md', commits: ['abc1234'] }
+const DONE = { status: 'done', changed: 'x', decided: 'y', surprises: 'none', artifact: '/a.md', commits: ['abc1234'], breaches: [] }
 async function harness(args, behave = {}) {
   const calls = []
   const agent = async (prompt, opts) => {
@@ -89,9 +89,17 @@ test('canary runs one group of the unit, then gate 5', async () => {
   assert.equal(result.groups.length, 1)
 })
 
-test('canary stops even when the unit has one group', async () => {
-  const { result } = await harness({ ...base, canaryDone: undefined, state: st(unit(1, 'fast', ['m1.s1'])), groups: [G('/r/a', ['m1.s1'])] })
-  assert.deepEqual(result.gates, ['gate-5'])
+test('a first unit with one group has no canary: no gate 5 in either mode, and a failure is gate 1 alone', async () => {
+  for (const state of [st(unit(1, 'fast', ['m1.s1'])), un(unit(1, 'fast', ['m1.s1']))]) {
+    const { result, calls } = await harness({ ...base, canaryDone: undefined, state, groups: [G('/r/a', ['m1.s1'])] })
+    assert.equal(result.stop, 'done', state.mode.value)
+    assert.deepEqual([result.gates, result.checkpoints, result.canary], [[], [], false])
+    assert.deepEqual(kinds(calls), ['Wave', 'Review'])
+  }
+  const failed = await harness({ ...base, canaryDone: false, state: st(unit(1, 'exec', ['m1.s1'])), groups: [G('/r/a', ['m1.s1'])] }, { Wave: () => ({ ...DONE, status: 'failed' }) })
+  assert.deepEqual(failed.result.gates, ['gate-1'])
+  const two = await harness({ ...base, canaryDone: false, state: st(unit(1, 'exec', ['m1.s1', 'm1.s2'])), groups: [G('/r/a', ['m1.s1']), G('/r/b', ['m1.s2'])] }, { Wave: () => ({ ...DONE, status: 'failed' }) })
+  assert.deepEqual(two.result.gates, ['gate-1', 'gate-5'])  // a multi-group first unit still canaries
 })
 
 test('two working directories run in parallel and each gets one review', async () => {
@@ -391,7 +399,11 @@ test('unattended: a check failure gets an automatic fix-up that quotes the check
   assert.deepEqual(result.checkpoints, ['gate-1'])
   assert.deepEqual(kinds(calls), ['Wave', 'Review'])
   assert.match(calls[0].prompt, /check_wave\.py\) failed on this group\. Their output \(verbatim\):\n\n> check_wave\.py: repo-b: 518e99f has a Co-authored-by line; repo-b: m1\.s3 has no commit/)
-  assert.match(calls[0].prompt, /change only the messages of the commits the check names by SHA[\s\S]*every other commit in 846932b\.\.HEAD as it is, message included; some of them are the parent's plan and handoff commits/)
+  // m2.s2 item 12: a reword replays the parent's commits with new SHAs, so the prompt keeps their content, not the commits
+  assert.match(calls[0].prompt, /change only the messages of the commits the check names by SHA[\s\S]*keep the message and content of every other commit in 846932b\.\.HEAD; some of them are the parent's plan and handoff commits/)
+  assert.match(calls[0].prompt, /replays the commits after them with new SHAs, the parent's included: that is expected, and the parent force-pushes with a lease/)
+  assert.doesNotMatch(calls[0].prompt, /as it is, message included/)
+  assert.match(calls[0].prompt, /A step with no commit gets its commit, an empty one \(`git commit --allow-empty`\) when the step changes no file/)
   assert.match(calls[0].prompt, /`git commit --amend` only when HEAD is one of the named commits[\s\S]*Do not push/)
   assert.doesNotMatch(calls[0].prompt, /review CONCERNS:/)
   assert.match(calls[1].prompt, /The last check_wave\.py run raised/)
@@ -406,6 +418,18 @@ test('a check failure logged with the review\'s CONCERNS gets both fixes: rewrit
   assert.match(calls[0].prompt, /failed on this group, and its review raised CONCERNS/)
   assert.match(calls[0].prompt, /change only the messages of the commits the check names[\s\S]*The review's concern, after `review CONCERNS:` in that output, is fixed separately, as new commits whose subjects start with the step ID they fix; do not rewrite earlier commits for it/)
   assert.match(calls[1].prompt, /The last check_wave\.py run and review raised/)
+})
+
+test('a disclosed breach\'s fix-up, once Gary approved its gate 1, quotes it and never repeats the outward action', async () => {
+  const note = 'worker disclosed: ran scripts/publish-formula.sh without DRY_RUN=1, blocked; review PASS: no traces'
+  const s = st(fixup(1), ['gate-1'], { concerns: [concern([note], 'disclosed')] })
+  const { result, calls } = await harness({ ...base, approval: 'fix it, dry run only', approved: [{ gate: 'gate-1', wave: 2 }], state: s, groups: [G('/r/repo-b', ['m1.s3'])] })
+  assert.equal(result.stop, 'done')
+  assert.match(calls[0].prompt, /disclosed breaking a rule of its prompt, and Gary answered the gate 1 it raised[\s\S]*> worker disclosed: ran scripts\/publish-formula\.sh/)
+  assert.match(calls[0].prompt, /never repeat the outward action: if the step cannot be met without it, return `needs_info` naming it/)
+  assert.match(calls[1].prompt, /The last worker's disclosure and its review raised \(verbatim\)/)
+  const unapproved = await harness({ ...base, state: un(fixup(1), ['gate-1'], [], { concerns: [concern([note], 'disclosed')] }), groups: [G('/r/repo-b', ['m1.s3'])] })
+  assert.deepEqual([unapproved.result.gates, unapproved.calls.length], [['gate-1'], 0])  // unattended waits for Gary too
 })
 
 test('a review fix-up still leaves the commit checks to the script', async () => {
@@ -453,8 +477,80 @@ test('an automatic fix-up still gets the in-run retry, and keeps its label', asy
 
 test('every prompt forbids outward actions, and a worker asks with needs_info instead', async () => {
   const { calls } = await harness({ ...base, xdeepDrafts: 2, approval: 'go', approved: [{ gate: 'gate-7', wave: 4 }], state: st(unit(4, 'xdeep', ['m2.s4']), ['gate-7']), groups: [G('/r/a', ['m2.s4'])] })
-  for (const c of calls) assert.match(c.prompt, /open or merge a PR/, c.label)
-  assert.match(calls.find(c => c.label.startsWith('Wave')).prompt, /If a step needs one, return `needs_info` naming it/)
+  for (const c of calls) assert.match(c.prompt, /open(ing)? or merg(e|ing) a PR/, c.label)
+  assert.match(calls.find(c => c.label.startsWith('Wave')).prompt, /If a step needs an outward action, return `needs_info` naming it/)
+})
+
+// ---- m2.s2: a step that changes no file ----
+
+test('a step that changes no file still gets its commit, an empty one (m2.s2 item 11)', async () => {
+  const { calls } = await harness({ ...base, state: st(unit(2, 'exec', ['m1.s2'])), groups: [G('/r/a', ['m1.s2'])] })
+  assert.match(calls[0].prompt, /A step that changes no file \(a check, a verification\) still gets its commit, an empty one \(`git commit --allow-empty`\)\. Each commit message is:/)
+  assert.match(calls[0].prompt, /as the last paragraph:\n\n    Assisted-by: Claude Code\nNever add/)  // nothing between the trailers and the rules
+})
+
+// ---- m2.s9: step IDs as plan_state.py reports them ----
+
+test('workers commit under the qualified ID; a plan with no milestones keeps bare IDs', async () => {
+  const q = await harness({ ...base, state: st(unit(3, 'deep', ['m2.s1', 'm2.s2'], { milestone: 'm2' })), groups: [G('/r/a', ['m2.s1', 'm2.s2'])] })
+  assert.equal(q.result.groups[0].id, 'a m2 s1-s2')
+  assert.match(q.calls[0].prompt, /Execute only: m2\.s1, m2\.s2\./)
+  assert.match(q.calls[0].prompt, /the step ID as Scope lists it \(a heading `s3` under `m2` is `m2\.s3`\)/)
+  const bare = await harness({ ...base, state: st(unit(1, 'exec', ['s1', 's2'], { milestone: null }), [], { milestones: false }), groups: [G('/r/a', ['s1', 's2'])] })
+  assert.equal(bare.result.stop, 'done')
+  assert.equal(bare.result.groups[0].id, 'a s1,s2')
+  assert.match(bare.calls[0].prompt, /Execute only: s1, s2\./)
+})
+
+// ---- m2.s9: what the phase 1 dogfood found ----
+
+test('a worker prompt forbids the repo\'s own publish scripts except the dry-run form the spec names, and asks for breaches', async () => {
+  const { calls } = await harness({ ...base, state: st(unit(2, 'exec', ['m1.s2'])), groups: [G('/r/a', ['m1.s2'])] })
+  assert.match(calls[0].prompt, /the repo's own publish, release or deploy scripts\. When the spec names a dry-run form \(`DRY_RUN=1 scripts\/publish\.sh`\), run exactly that form/)
+  assert.match(calls[0].prompt, /`breaches` lists every rule of this prompt you broke or tried to break[\s\S]*Return `\[\]` when there is none/)
+  assert.match(calls[0].prompt, /a line that starts `env:`/)
+})
+
+test('a disclosed breach, blocked or ran, stops at gate 1 in both modes, gets no retry, and its reviewer looks for traces', async () => {
+  const breach = 'ran scripts/publish-formula.sh without DRY_RUN=1; blocked by the permission classifier'
+  for (const state of [st(unit(2, 'exec', ['m1.s2', 'm1.s3'])), un(unit(2, 'exec', ['m1.s2', 'm1.s3']))]) {
+    const { result, calls } = await harness({ ...base, state, groups: [G('/r/a', ['m1.s2']), G('/r/b', ['m1.s3'])] },
+      { Wave: o => (o.label.includes(' a ') ? { ...DONE, breaches: [breach] } : DONE) })
+    assert.equal(result.stop, 'gate', state.mode.value)
+    assert.deepEqual(result.gates, ['gate-1'])
+    assert.match(result.reason, /^a m1 s2: a worker disclosed breaking a rule of its prompt$/)
+    assert.deepEqual(result.breaches, [{ id: 'a m1 s2', breach }])
+    assert.deepEqual(result.retries, [])
+    const reviewA = calls.find(c => c.label.startsWith('Review') && c.label.includes(' a '))
+    assert.match(reviewA.prompt, /## The worker disclosed \(verbatim\)\n\n- ran scripts\/publish-formula\.sh[\s\S]*Look for any trace of each[\s\S]*stops the run at gate 1/)
+  }
+  let n = 0
+  const failed = await harness({ ...base, state: un(unit(2, 'exec', ['m1.s2'])), groups: [G('/r/a', ['m1.s2'])] }, { Wave: () => (n++ ? DONE : { ...DONE, status: 'failed', breaches: [breach] }) })
+  assert.deepEqual([failed.result.stop, failed.result.gates, failed.result.retries, n], ['gate', ['gate-1'], [], 1])  // no automatic retry
+  assert.match(failed.result.reason, /failed, low quality, or unreviewed; a m1 s2: a worker disclosed/)
+  assert.deepEqual(failed.result.breaches, [{ id: 'a m1 s2', breach }])
+  const clean = await harness({ ...base, state: st(unit(2, 'exec', ['m1.s2'])), groups: [G('/r/a', ['m1.s2'])] })
+  assert.deepEqual(clean.result.breaches, [])
+  assert.doesNotMatch(clean.calls[1].prompt, /The worker disclosed/)
+})
+
+test('decisions so far and environment notes ride into every worker and reviewer prompt, verbatim', async () => {
+  const decisions = 'review wave-1 (ghx m1 s1) a..b: PASS - goreleaser takes the Makefile\'s values, not {{ .ShortCommit }} - 2026-10-11'
+  const environment = 'golangci-lint 2.5.0 fails on go1.26 modules: run 2.6.0'
+  const { calls } = await harness({ ...base, decisions, environment, state: st(unit(2, 'exec', ['m1.s2'])), groups: [G('/r/a', ['m1.s2'])] })
+  assert.match(calls[0].prompt, /## Decisions so far \(verbatim, from the plan's Review log and handoff\)\n\nreview wave-1[\s\S]*follow the decision and say so under decided/)
+  assert.match(calls[0].prompt, /## Environment notes \(from earlier agents of this run\)\n\ngolangci-lint 2\.5\.0/)
+  assert.match(calls[1].prompt, /## Decisions so far[\s\S]*review against the decision/)
+  assert.match(calls[1].prompt, /## Environment notes/)
+  const none = await harness({ ...base, state: st(unit(2, 'exec', ['m1.s2'])), groups: [G('/r/a', ['m1.s2'])] })
+  assert.doesNotMatch(none.calls[0].prompt, /Decisions so far|Environment notes/)
+  const bad = await harness({ ...base, decisions: ['x'], state: st(unit(2, 'exec', ['m1.s2'])), groups: [G('/r/a', ['m1.s2'])] })
+  assert.deepEqual(bad.result.gates, ['gate-0'])
+})
+
+test('a reviewer reads command output inline, never through a file', async () => {
+  const { calls } = await harness({ ...base, state: st(unit(2, 'exec', ['m1.s2'])), groups: [G('/r/a', ['m1.s2'])] })
+  assert.match(calls[1].prompt, /Read command output inline \(pipe it to `tail` or `head`\); never redirect it to a file/)
 })
 
 let failed = 0
