@@ -1,7 +1,7 @@
 ```
 --- KICKOFF: begin orchestration at [deep] ---
 
-  Status: 7/8 groups done | last review: wave-7 PASS | current: m2 s10 [fast] (default changes applied; wave 8 waits for Gary's go) | updated 2026-10-12
+  Status: 7/8 groups done | last review: wave-7 PASS | current: m2 s10 [fast] (wave 8 dispatched) | updated 2026-10-12
 
   review: every-wave (log-only — parent writes Review log; no human review gate)
 
@@ -679,3 +679,4 @@ tokens wave-7 m2-s8-s9 (claude-opus-5-5): input ~180 / cache read ~20M / cache w
 tokens orchestrator-wave-7 m2-s8-s9 (claude-opus-5-5): input ~74 / cache read ~13M / cache write ~1.1M 1h / output ~28k | ~$12.08 API-equiv (session e2ebcdb1 after its resume: dogfood relay for runs A-C, ghx prep, fix-up review; ~$8.9 of it cache rewrites after resumes across three days)
 tokens wave-7 m2-s8-s9 (claude-opus-5-5): input ~66 / cache read ~4.5M / cache write ~190k / output ~40k | ~$2.67 API-equiv (output est.) session e2ebcdb1-b307-462c-b763-9d4f0fd17c83 subagent a949f4227e80638ce (phase 1 report)
 tokens wave-7 m2-s8-s9 (claude-opus-5-5): input ~190 / cache read ~22M / cache write ~330k / output ~100k | ~$8.14 API-equiv (output est.) session e2ebcdb1-b307-462c-b763-9d4f0fd17c83 subagent af4727a5b262f6469 (Gary's five default changes)
+tokens orchestrator-wave-7 m2-s8-s9 (claude-opus-5-5): input ~38 / cache read ~8.1M / cache write ~21k 1h / output ~18k | ~$2.13 API-equiv (ghx cleanup, report and defaults review, wave 8 dispatch)
