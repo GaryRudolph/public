@@ -852,14 +852,20 @@ def the_hooks_file_reports_could_not_run_only_when_python_does_not():
     assert out.returncode == 0 and not out.stderr, (out.returncode, out.stderr)
 
 
-def guard_bash(agent, command):
-    """agent_guard.py's deny reason for one Bash call, or None."""
+def guard_bash(agent, command, script=None):
+    """The deny reason for one Bash call, or None: from reviewer_guard.py or worker_guard.py (script), or from both, as
+    the hooks file runs both on every Bash call."""
     inp = {"hook_event_name": "PreToolUse", "tool_name": "Bash", "tool_input": {"command": command}}
     if agent:
         inp.update(agent_id="a1", agent_type=agent)
-    out = subprocess.run([sys.executable, "-I", str(scripts / "agent_guard.py")], input=json.dumps(inp), capture_output=True, text=True)
-    assert out.returncode == 0, out.stderr
-    return json.loads(out.stdout)["hookSpecificOutput"]["permissionDecisionReason"] if out.stdout.strip() else None
+    reasons = []
+    for name in [script] if script else ["reviewer_guard.py", "worker_guard.py"]:
+        out = subprocess.run([sys.executable, "-I", str(scripts / name)], input=json.dumps(inp), capture_output=True, text=True)
+        assert out.returncode == 0, out.stderr
+        if out.stdout.strip():
+            reasons.append(json.loads(out.stdout)["hookSpecificOutput"]["permissionDecisionReason"])
+    assert len(reasons) <= 1, reasons  # each guard acts only for its own agent types
+    return reasons[0] if reasons else None
 
 
 @case
@@ -869,17 +875,27 @@ def reviewers_bash_is_read_only_and_everyone_elses_is_untouched():
             assert guard_bash(agent, ok) is None, (agent, ok)
         for bad in ("git commit --allow-empty -m x", "git -C /r push", "touch x", "echo x > f", "sed -i s/a/b/ f",
                     "cd /r && rm -rf y", "gh pr create", "git rebase -i HEAD~2", "git status\nrm -rf y", "make ci > /tmp/log"):
-            assert "read-only" in (guard_bash(agent, bad) or ""), (agent, bad)
+            assert "read-only" in (guard_bash(agent, bad, "reviewer_guard.py") or ""), (agent, bad)
         assert "read their output inline" in guard_bash(agent, "make ci > /tmp/log")
-    for agent in (None, "Explore", "personal:plan-reviewer-extra"):
-        assert guard_bash(agent, "git commit -m x") is None, agent
-    out = subprocess.run([sys.executable, "-I", str(scripts / "agent_guard.py")], input="not json", capture_output=True, text=True)
-    assert out.returncode == 0 and not out.stdout.strip()  # it sees every Bash call, so it fails open for other callers
+        assert guard_bash(agent, "git commit -m x", "worker_guard.py") is None  # the worker guard leaves reviewers alone
+    for agent in (None, "Explore", "personal:plan-reviewer-extra", "personal:plan-worker"):
+        assert guard_bash(agent, "git commit -m x", "reviewer_guard.py") is None, agent
+    for name in ("reviewer_guard.py", "worker_guard.py"):  # each sees every Bash call, so each fails open for other callers
+        out = subprocess.run([sys.executable, "-I", str(scripts / name)], input="not json", capture_output=True, text=True)
+        assert out.returncode == 0 and not out.stdout.strip(), name
+
+
+WORKERS = ("personal:plan-worker", "personal:plan-worker-exec", "orch-spike:plan-worker-xdeep")
+
+
+def worker_denies(agent, command):
+    reason = guard_bash(agent, command, "worker_guard.py") or ""
+    return "worker" in reason and "needs_info" in reason
 
 
 @case
 def a_workers_clearly_outward_commands_are_denied_and_its_other_bash_is_untouched():
-    for agent in ("personal:plan-worker", "personal:plan-worker-exec", "orch-spike:plan-worker-xdeep"):
+    for agent in WORKERS:
         for ok in ("git commit --allow-empty -m 'm1.s1 Check'", "git add a && git commit -F - <<'EOF'\nm1.s2 Doc git push\n\nAssisted-by: Claude Code\nEOF",
                    "make ci > /tmp/log 2>&1", "echo 'never git push here'", "gh pr view 3", "gh release view v1 --json tagName",
                    "goreleaser check", "goreleaser release --snapshot --clean", "goreleaser release --clean --skip=announce,publish",
@@ -889,10 +905,41 @@ def a_workers_clearly_outward_commands_are_denied_and_its_other_bash_is_untouche
                     "gh pr create --fill", "gh pr merge 3 --squash", "gh release create v1.0.0", "gh release upload v1 x.tgz",
                     "gh workflow run release.yml", "goreleaser release --clean", "goreleaser --clean", "goreleaser publish",
                     "npm publish", "FOO=1 cargo publish", "docker push ghcr.io/x/y", "$(git push)"):
-            reason = guard_bash(agent, bad) or ""
-            assert "worker" in reason and "needs_info" in reason, (agent, bad, reason)
-    for agent in (None, "personal:plan-worker-extra", "Explore"):  # the parent pushes; other agents are not ours
-        assert guard_bash(agent, "git push") is None, agent
+            assert worker_denies(agent, bad), (agent, bad)
+        assert guard_bash(agent, "git push", "reviewer_guard.py") is None  # the reviewer guard leaves workers alone
+    for agent in (None, "personal:plan-worker-extra", "Explore", "personal:plan-reviewer"):  # the parent pushes; others aren't ours
+        assert guard_bash(agent, "git push", "worker_guard.py") is None, agent
+
+
+@case
+def a_workers_run_of_the_repos_publish_release_or_deploy_script_needs_its_dry_run_form():
+    near_miss = "make snapshot && V=$(git describe --tags) && scripts/publish-formula.sh \"$V\" dist 2>&1 | tail -40"  # run C's
+    for agent in WORKERS:
+        for bad in (near_miss, "scripts/publish-formula.sh 0.1.0 dist", "./release.sh", "cd /r; ./scripts/publish-scoop.sh 1 dist",
+                    "bash scripts/deploy.sh prod", "sh -x ./release.sh", "python3 -I tools/release.py", "DRY_RUN=0 scripts/publish.sh",
+                    "env FOO=1 scripts/release.sh", "make release", "make deploy-prod", "make -C /r release",
+                    "make publish-formula CONFIRM_PUBLISH_FORMULA=1 VERSION=1.0.0", "make -j4 test release", "npm run release",
+                    "make ci\nscripts/publish-formula.sh 1 dist"):
+            assert worker_denies(agent, bad), (agent, bad)
+        for ok in ("DRY_RUN=1 scripts/publish-formula.sh 0.1.0 dist", "DRY_RUN='1' scripts/publish-formula.sh 0.1.0 dist",
+                   "make snapshot && DRY_RUN=1 scripts/publish-formula.sh \"$V\" dist && DRY_RUN=1 scripts/publish-scoop.sh \"$V\" dist",
+                   "export DRY_RUN=1; scripts/publish.sh 1 dist", "scripts/release.sh --dry-run", "env DRY_RUN=1 ./deploy.sh",
+                   "make -n release", "make --dry-run deploy-prod", "make -nB release", "make release DRY_RUN=1",
+                   "npm run release -- --dry-run", "goreleaser release --snapshot --clean"):
+            assert guard_bash(agent, ok) is None, (agent, ok)
+        # Reading, grepping, linting, syntax-checking, staging or naming such a script is not a run, and neither is a
+        # make variable's value, a redirect target, a heredoc body, or a script whose name only looks close.
+        for ok in ("cat scripts/release.sh", "grep -n DRY_RUN scripts/publish-formula.sh", "shellcheck scripts/publish-*.sh",
+                   "bash -n scripts/release.sh", "ruby -c dist/ghx.rb", "git add scripts/release.sh && git commit -m 'm1.s4 Add it'",
+                   "git log --oneline -- scripts/release.sh", "chmod +x scripts/publish-formula.sh", "ls scripts | grep release",
+                   "goreleaser check", "python3 scripts/bump_version.py patch", "make doctor MODE=release 2>&1 | tail -6",
+                   "make ci > /tmp/release.log 2>&1", "echo scripts/deploy.sh", "sed -n 1,20p .github/workflows/release.yml",
+                   "cat > scripts/release.sh <<'EOF'\n#!/bin/sh\nmake release\nEOF", "go test ./internal/release/...",
+                   "python3 -m pytest tests/test_release.py"):
+            assert guard_bash(agent, ok) is None, (agent, ok)
+    assert "scripts/publish-formula.sh without DRY_RUN=1" in guard_bash(WORKERS[0], near_miss)
+    for agent in (None, "Explore", "personal:plan-reviewer"):  # the parent and other agents run what their rules allow
+        assert guard_bash(agent, "make release", "worker_guard.py") is None, agent
 
 
 failed = 0

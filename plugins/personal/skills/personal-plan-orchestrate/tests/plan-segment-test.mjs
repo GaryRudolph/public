@@ -89,9 +89,17 @@ test('canary runs one group of the unit, then gate 5', async () => {
   assert.equal(result.groups.length, 1)
 })
 
-test('canary stops even when the unit has one group', async () => {
-  const { result } = await harness({ ...base, canaryDone: undefined, state: st(unit(1, 'fast', ['m1.s1'])), groups: [G('/r/a', ['m1.s1'])] })
-  assert.deepEqual(result.gates, ['gate-5'])
+test('a first unit with one group has no canary: no gate 5 in either mode, and a failure is gate 1 alone', async () => {
+  for (const state of [st(unit(1, 'fast', ['m1.s1'])), un(unit(1, 'fast', ['m1.s1']))]) {
+    const { result, calls } = await harness({ ...base, canaryDone: undefined, state, groups: [G('/r/a', ['m1.s1'])] })
+    assert.equal(result.stop, 'done', state.mode.value)
+    assert.deepEqual([result.gates, result.checkpoints, result.canary], [[], [], false])
+    assert.deepEqual(kinds(calls), ['Wave', 'Review'])
+  }
+  const failed = await harness({ ...base, canaryDone: false, state: st(unit(1, 'exec', ['m1.s1'])), groups: [G('/r/a', ['m1.s1'])] }, { Wave: () => ({ ...DONE, status: 'failed' }) })
+  assert.deepEqual(failed.result.gates, ['gate-1'])
+  const two = await harness({ ...base, canaryDone: false, state: st(unit(1, 'exec', ['m1.s1', 'm1.s2'])), groups: [G('/r/a', ['m1.s1']), G('/r/b', ['m1.s2'])] }, { Wave: () => ({ ...DONE, status: 'failed' }) })
+  assert.deepEqual(two.result.gates, ['gate-1', 'gate-5'])  // a multi-group first unit still canaries
 })
 
 test('two working directories run in parallel and each gets one review', async () => {
@@ -412,6 +420,18 @@ test('a check failure logged with the review\'s CONCERNS gets both fixes: rewrit
   assert.match(calls[1].prompt, /The last check_wave\.py run and review raised/)
 })
 
+test('a disclosed breach\'s fix-up, once Gary approved its gate 1, quotes it and never repeats the outward action', async () => {
+  const note = 'worker disclosed: ran scripts/publish-formula.sh without DRY_RUN=1, blocked; review PASS: no traces'
+  const s = st(fixup(1), ['gate-1'], { concerns: [concern([note], 'disclosed')] })
+  const { result, calls } = await harness({ ...base, approval: 'fix it, dry run only', approved: [{ gate: 'gate-1', wave: 2 }], state: s, groups: [G('/r/repo-b', ['m1.s3'])] })
+  assert.equal(result.stop, 'done')
+  assert.match(calls[0].prompt, /disclosed breaking a rule of its prompt, and Gary answered the gate 1 it raised[\s\S]*> worker disclosed: ran scripts\/publish-formula\.sh/)
+  assert.match(calls[0].prompt, /never repeat the outward action: if the step cannot be met without it, return `needs_info` naming it/)
+  assert.match(calls[1].prompt, /The last worker's disclosure and its review raised \(verbatim\)/)
+  const unapproved = await harness({ ...base, state: un(fixup(1), ['gate-1'], [], { concerns: [concern([note], 'disclosed')] }), groups: [G('/r/repo-b', ['m1.s3'])] })
+  assert.deepEqual([unapproved.result.gates, unapproved.calls.length], [['gate-1'], 0])  // unattended waits for Gary too
+})
+
 test('a review fix-up still leaves the commit checks to the script', async () => {
   const s = st(fixup(1), [], { concerns: [concern(['gamma lacks a newline'])] })
   const { calls } = await harness({ ...base, state: s, groups: [G('/r/repo-b', ['m1.s3'])] })
@@ -491,16 +511,24 @@ test('a worker prompt forbids the repo\'s own publish scripts except the dry-run
   assert.match(calls[0].prompt, /a line that starts `env:`/)
 })
 
-test('a disclosed breach comes back in the result, from a retry too, and its reviewer looks for traces', async () => {
+test('a disclosed breach, blocked or ran, stops at gate 1 in both modes, gets no retry, and its reviewer looks for traces', async () => {
   const breach = 'ran scripts/publish-formula.sh without DRY_RUN=1; blocked by the permission classifier'
-  const { result, calls } = await harness({ ...base, state: st(unit(2, 'exec', ['m1.s2'])), groups: [G('/r/a', ['m1.s2'])] }, { Wave: () => ({ ...DONE, breaches: [breach] }) })
-  assert.equal(result.stop, 'done')
-  assert.deepEqual(result.breaches, [{ id: 'a m1 s2', breach }])
-  assert.match(calls[1].prompt, /## The worker disclosed \(verbatim\)\n\n- ran scripts\/publish-formula\.sh[\s\S]*Look for any trace of each/)
+  for (const state of [st(unit(2, 'exec', ['m1.s2', 'm1.s3'])), un(unit(2, 'exec', ['m1.s2', 'm1.s3']))]) {
+    const { result, calls } = await harness({ ...base, state, groups: [G('/r/a', ['m1.s2']), G('/r/b', ['m1.s3'])] },
+      { Wave: o => (o.label.includes(' a ') ? { ...DONE, breaches: [breach] } : DONE) })
+    assert.equal(result.stop, 'gate', state.mode.value)
+    assert.deepEqual(result.gates, ['gate-1'])
+    assert.match(result.reason, /^a m1 s2: a worker disclosed breaking a rule of its prompt$/)
+    assert.deepEqual(result.breaches, [{ id: 'a m1 s2', breach }])
+    assert.deepEqual(result.retries, [])
+    const reviewA = calls.find(c => c.label.startsWith('Review') && c.label.includes(' a '))
+    assert.match(reviewA.prompt, /## The worker disclosed \(verbatim\)\n\n- ran scripts\/publish-formula\.sh[\s\S]*Look for any trace of each[\s\S]*stops the run at gate 1/)
+  }
   let n = 0
-  const retried = await harness({ ...base, state: un(unit(2, 'exec', ['m1.s2'])), groups: [G('/r/a', ['m1.s2'])] }, { Wave: () => (n++ ? DONE : { ...DONE, status: 'failed', breaches: [breach] }) })
-  assert.equal(retried.result.stop, 'done')
-  assert.deepEqual(retried.result.breaches, [{ id: 'a m1 s2', breach }])
+  const failed = await harness({ ...base, state: un(unit(2, 'exec', ['m1.s2'])), groups: [G('/r/a', ['m1.s2'])] }, { Wave: () => (n++ ? DONE : { ...DONE, status: 'failed', breaches: [breach] }) })
+  assert.deepEqual([failed.result.stop, failed.result.gates, failed.result.retries, n], ['gate', ['gate-1'], [], 1])  // no automatic retry
+  assert.match(failed.result.reason, /failed, low quality, or unreviewed; a m1 s2: a worker disclosed/)
+  assert.deepEqual(failed.result.breaches, [{ id: 'a m1 s2', breach }])
   const clean = await harness({ ...base, state: st(unit(2, 'exec', ['m1.s2'])), groups: [G('/r/a', ['m1.s2'])] })
   assert.deepEqual(clean.result.breaches, [])
   assert.doesNotMatch(clean.calls[1].prompt, /The worker disclosed/)

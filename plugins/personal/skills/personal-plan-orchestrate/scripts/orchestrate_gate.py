@@ -11,7 +11,9 @@ true, from disk and from the transcript, and fails closed:
    such message, verbatim. A pasted Kickoff prompt, or
    any words that hold its mode line, never answer anything: not a gate, a
    needs_info question, a waiver, or the kickoff question.
-3. canaryDone needs an earlier canary launch of plan-segment in this session.
+3. canaryDone needs an earlier canary launch of plan-segment in this session:
+   one with canaryDone false (the session's first, whether its unit split
+   off a canary group or, with one group, ran whole with no gate 5).
 4. No launch while an earlier plan-segment run of this session is unfinished.
 5. After a run that stopped at a gate, the next launch must approve that gate.
 6. plan-segment launches by name only, so the reviewed script is the one that runs.
@@ -476,7 +478,7 @@ def check(inp):
                  "re-post the BLOCKED question and wait for Gary's answer")
     if args.get("canaryDone") and not any(is_segment(u.get("name") or "") and not (u.get("args") or {}).get("canaryDone")
                                           for u in launched):
-        deny("canaryDone is true, but this session has no earlier canary launch of plan-segment")
+        deny("canaryDone is true, but this session has no earlier canary launch of plan-segment (one with canaryDone false)")
 
 
 def on_alarm(signum, frame):

@@ -123,11 +123,15 @@ function withReview(c) { return c.source === 'check' && /; review CONCERNS:/.tes
 function fixupSection(c) {
   const what = c.source === 'check'
     ? `The commit and scope checks (check_wave.py) failed on this group${withReview(c) ? ', and its review raised CONCERNS' : ''}. Their output (verbatim):`
-    : 'The review of this group raised (verbatim):'
+    : c.source === 'disclosed'
+      ? 'An earlier worker of this group disclosed breaking a rule of its prompt, and Gary answered the gate 1 it raised. The Review log records (verbatim):'
+      : 'The review of this group raised (verbatim):'
   const before = (c.notes || []).slice(0, -1)
   const how = c.source === 'check'
     ? `Fix only that. A step with no commit gets its commit, an empty one (\`git commit --allow-empty\`) when the step changes no file. A new uncommitted path your group's work made is committed under its step, or deleted if it is a by-product (a build output, a temp file), the one case where you touch a path that already has uncommitted changes; leave any path you did not make alone and name it under surprises. A commit message the check rejects (its first line, a Co-authored-by or Signed-off-by line, a missing trailer) is rewritten: change only the messages of the commits the check names by SHA, keep each commit's content, and keep the message and content of every other commit in ${c.from}..HEAD; some of them are the parent's plan and handoff commits. Use \`git commit --amend\` only when HEAD is one of the named commits; otherwise reword just those commits with a \`git rebase\` onto ${c.from}, run non-interactively (set GIT_SEQUENCE_EDITOR and GIT_EDITOR to commands). The rebase replays the commits after them with new SHAs, the parent's included: that is expected, and the parent force-pushes with a lease. List the rewritten commits under surprises. Do not push.${withReview(c) ? `\n\nThe review's concern, after \`review CONCERNS:\` in that output, is fixed separately, as new commits whose subjects start with the step ID they fix; do not rewrite earlier commits for it.` : ''}`
-    : 'Fix only that. Make the fix as new commits whose subjects start with the step ID they fix. Do not rewrite earlier commits.'
+    : c.source === 'disclosed'
+      ? 'Fix only what that left in this working directory and what the step still owes, as new commits whose subjects start with the step ID they fix. Do not rewrite earlier commits, and never repeat the outward action: if the step cannot be met without it, return `needs_info` naming it.'
+      : 'Fix only that. Make the fix as new commits whose subjects start with the step ID they fix. Do not rewrite earlier commits.'
   return [`## Fix-up ${U.label}`, `${what}\n\n${quote(c.note)}`,
     before.length ? `Earlier failures on this group, oldest first (verbatim):\n\n${before.map(quote).join('\n\n')}` : '',
     how].filter(Boolean).join('\n\n')
@@ -135,13 +139,13 @@ function fixupSection(c) {
 function changes(g) { return `read \`git diff ${g.from}\`, \`git log ${g.from}..HEAD\` and \`git status\`` }
 function reviewPrompt(g, r, t = tier) {
   const disclosed = (r.breaches || []).length
-    ? `## The worker disclosed (verbatim)\n\n${list(r.breaches)}\n\nLook for any trace of each (a pushed ref, a tag, a release, a published package, a file outside \`${g.workdir}\`) and say what you found in the note. The parent logs the group as CONCERNS for the disclosure itself.`
+    ? `## The worker disclosed (verbatim)\n\n${list(r.breaches)}\n\nLook for any trace of each (a pushed ref, a tag, a release, a published package, a file outside \`${g.workdir}\`) and say what you found in the note. The disclosure itself stops the run at gate 1, and the parent logs the group as CONCERNS.`
     : ''
   return [`Review ${title(g, t)}. READ-ONLY: do not edit files, commit, push, open or merge a PR, tag, deploy, or start other work. Read command output inline (pipe it to \`tail\` or \`head\`); never redirect it to a file, which the read-only guard denies.`,
     `In \`${g.workdir}\`, ${changes(g)}, then the worker's artifact \`${r.artifact}\`. Check the change against the spec excerpt, the acceptance criteria and the standards below: does it do what they ask, no more and no less, correctly, with tests where the repo expects them?`,
     `${g.concern && g.concern.source === 'check' ? 'A script checks commit subjects, trailers, step coverage and paths after you. This fix-up exists because that check failed, so check the failure quoted below yourself as well.' : 'A script checks commit subjects, trailers, step coverage and paths after you; leave those to it.'} List only defects the change must fix before the plan builds on it, each with evidence (a file and line, a command and its output, or a quoted spec line). Checks that passed go in the note. Return PASS with no findings when you find nothing real.`,
     `## Spec excerpt (verbatim)\n\n${g.spec}`, ...carried(true), `## Acceptance criteria\n\n${g.acceptance}`, `## Standards\n\n${list(g.standards, 'the always-on core')}`,
-    disclosed, g.concern ? `## This is fix-up ${U.label}\n\nThe last ${g.concern.source === 'check' ? (withReview(g.concern) ? 'check_wave.py run and review' : 'check_wave.py run') : 'review'} raised (verbatim):\n\n${quote(g.concern.note)}\n\nCheck that it is fixed, and review the whole range.` : '',
+    disclosed, g.concern ? `## This is fix-up ${U.label}\n\nThe last ${g.concern.source === 'check' ? (withReview(g.concern) ? 'check_wave.py run and review' : 'check_wave.py run') : g.concern.source === 'disclosed' ? "worker's disclosure and its review" : 'review'} raised (verbatim):\n\n${quote(g.concern.note)}\n\nCheck that it is fixed, and review the whole range.` : '',
     `## Worker summary\n\nChanged: ${r.changed}\nDecided: ${r.decided}\nSurprises: ${r.surprises}\nCommits: ${r.commits.join(', ') || 'none'}`].filter(Boolean).join('\n\n')
 }
 function draftPrompt(g, angle) {
@@ -236,11 +240,13 @@ let groups = args.groups.map(g => {
   const c = U.kind === 'fixup' ? concernOf(id) : {}
   return { ...g, id, concern: c.note ? c : null, from: c.from || g.from }
 })
-const canary = !args.canaryDone
-if (canary && groups.length > 1) {
-  log(`Canary: running ${groups[0].id} only; ${groups.length - 1} group(s) wait for the gate-5 answer`)
+// The canary (gate 5): a session's first launch runs only its first group. A first unit with one group holds nothing
+// back, so it runs whole with no gate 5, and its review covers the unit; canaryDone is true from the next launch on.
+const canary = !args.canaryDone && groups.length > 1
+if (canary) {
+  log(`Canary: running ${groups[0].id} only; ${groups.length - 1} group(s) wait for the gate-5 ${unattended ? 'checkpoint' : 'answer'}`)
   groups = groups.slice(0, 1)
-}
+} else if (!args.canaryDone) log('No canary: this first unit has one group, and its review covers the unit')
 
 const ph = unitTitle()
 phase(ph)
@@ -260,9 +266,11 @@ async function execute(g) {
 function review(g, work, t = tier) {
   return agent(reviewPrompt(g, work, t), { label: `Review ${title(g, t)}`, phase: ph, schema: REVIEW, ...reader(t) })
 }
-// Every rule a worker disclosed breaking, from every attempt, retries included: the parent logs each group as CONCERNS.
+// Every rule a worker disclosed breaking, from every attempt: each is gate 1 in both modes, and its group gets no retry.
+// The parent logs the group as CONCERNS (`worker disclosed: ...`), so the fix-up waits for Gary's answer.
 const breaches = []
 function noted(g, w) { for (const b of (w && w.breaches) || []) breaches.push({ id: g.id, breach: b }); return w }
+const disclosed = id => breaches.some(b => b.id === id)
 const runs = await pipeline(groups,
   g => execute(g),
   (work, g) => (work && work.status === 'done' ? review(g, work).then(r => ({ work, review: r })) : { work, review: null }))
@@ -276,7 +284,7 @@ const isBroken = x => !x.work || x.work.status !== 'done' || !x.review
 // failed or low_quality steps up one tier, into [exec] or [deep] only (gate 6 becomes a checkpoint), so a stalled
 // [exec] group re-tags to [deep].
 function retryTier(x) {
-  if (!unattended || args.stepUp || PREMIUM[tier]) return null
+  if (!unattended || args.stepUp || PREMIUM[tier] || disclosed(x.id)) return null
   if (x.work && x.work.status === 'needs_info') return null
   if (!x.work || x.work.status === 'done') return tier
   const up = CHAIN[CHAIN.indexOf(tier) + 1]
@@ -301,8 +309,9 @@ if (again.length) {
 const broken = out.filter(isBroken)
 const questions = out.filter(x => x.work && x.work.status === 'needs_info').map(x => ({ id: x.id, question: x.work.question || x.work.surprises }))
 const extra = { groups: out, canary, checkpoints, retries, questions, breaches }
-if (broken.length) {
-  const why = `${broken.map(x => x.id).join(', ')}: ${questions.length ? 'needs an answer, or ' : ''}failed, low quality, or unreviewed${retries.length ? ' after one automatic retry' : ''}`
+if (broken.length || breaches.length) {
+  const why = [broken.length ? `${broken.map(x => x.id).join(', ')}: ${questions.length ? 'needs an answer, or ' : ''}failed, low quality, or unreviewed${retries.length ? ' after one automatic retry' : ''}` : '',
+    breaches.length ? `${[...new Set(breaches.map(b => b.id))].join(', ')}: a worker disclosed breaking a rule of its prompt` : ''].filter(Boolean).join('; ')
   return gate(canary && !unattended ? ['gate-1', 'gate-5'] : ['gate-1'], why, extra)
 }
 if (canary && !unattended) return gate(['gate-5'], 'first-subagent canary', extra)

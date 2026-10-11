@@ -366,6 +366,21 @@ def check_failure_gated_still_stops():
 
 
 @test
+def a_disclosed_breach_is_gate_1_in_both_modes_blocked_or_ran():
+    for how in ("blocked by the auto-mode classifier", "it ran"):
+        note = f"worker disclosed: ran scripts/publish-formula.sh without DRY_RUN=1, {how}; review PASS: no tag or release"
+        log = f"review wave-2 (repo-b m1 s4) 846932b..518e99f: CONCERNS - {note} - 2026-10-06\n"
+        for mode in (GATED, UNATTENDED):
+            s = state(plan(marked(5), log=log, mode=mode))
+            assert s["next"]["label"] == "2-fix" and s["concerns"][0]["source"] == "disclosed", s["next"]
+            assert s["gates"] == ["gate-1"] and s["stops"] == ["gate-1"] and s["checkpoints"] == [], (mode, s)
+    # Another group's automatic fix-up in the same wave stays a checkpoint once the disclosed one is waived.
+    waived = "review wave-2 (repo-b m1 s4) 846932b..518e99f: WAIVED - fine, nothing left the machine - 2026-10-06\n"
+    s = state(plan(marked(5), log=log + waived + CHECK1.replace("repo-b m1 s4", "repo-c m1 s5"), mode=UNATTENDED))
+    assert s["next"]["groups"] == ["repo-c m1 s5"] and s["checkpoints"] == ["gate-1"] and s["stops"] == [], s
+
+
+@test
 def a_first_review_concerns_needs_no_gate_in_either_mode():
     for mode in (GATED, UNATTENDED):
         s = state(plan(marked(5), log=C1, mode=mode))
