@@ -34,7 +34,7 @@ Every child repo must remain fully usable on its own.
 |--------|---------|
 | `help` | List targets (default goal) |
 | `init` | Idempotent bootstrap (deps, hooks, codegen) |
-| `doctor` | Read-only tool/environment check; `MODE=default\|release`; errors below a tool's floor, warns below its pin ([architecture.md](architecture.md#toolchain-floor-and-pin)) |
+| `doctor` | Read-only tool/environment check; `MODE=default\|release`; errors below a tool's floor, warns below its pin ([architecture.md](architecture.md#toolchain-floor-and-pin)); `STRICT=1` adds `triage --strict` so warnings fail |
 | `build` | Compile / bundle / render artifacts |
 | `lint` | Static check, no writes; fails on drift in anything `format` rewrites |
 | `format` | Auto-fix formatting; documented no-op when no formatter exists |
@@ -75,7 +75,7 @@ Same target **names** as leaves where they fan out; workspace recipes delegate v
 |--------|-------------------|
 | `help` | Self-documenting (same awk pattern) |
 | `init` | Clone missing repos (from manifest), run per-repo `make init`, then `doctor` |
-| `doctor` | Repo roster + root `triage --profile $(MODE)` when `triage.yaml` exists; else delegate `make doctor` to each child |
+| `doctor` | Repo roster + root `triage --profile $(MODE)` when `triage.yaml` exists; else delegate `make doctor` to each child; passes `STRICT` through |
 | `build` | Fan-out in `REPOS_BUILD_ORDER` (dependency order; stops on first failure) |
 | `ci`, `pre-commit` | Dumb pass-through to `REPOS_MAKE_CI`; collect all failures |
 | `clean` | Fan-out to `REPOS_MAKE_CLEAN` |
@@ -143,6 +143,17 @@ errors.
 | `triage` | `doctor` tool checks via `triage.yaml` | `brew install lolay/tap/triage` |
 | `gh` | GitHub Actions lane (`gh-runs-*`) | `brew install gh`; `gh auth login` |
 | `checkmake` | Optional Makefile linter | `brew install checkmake` |
+
+A leaf's `triage.yaml` lists every tool `make ci` needs, so a passing
+`make doctor` means `make ci` can run; its version checks follow
+[architecture.md](architecture.md#toolchain-floor-and-pin). The
+`personal` plugin runs `make doctor` at the start of every agent session
+(`task doctor` or `triage` where there's no Makefile target) in repos whose
+GitHub owner it trusts, and reports the result.
+
+A repo with a triage config ignores `.triage/`, its log directory (git.md
+".gitignore Essentials"). The project does that in its own `.gitignore`;
+triage doesn't.
 
 ## Workspace `.gitignore` (allowlist)
 

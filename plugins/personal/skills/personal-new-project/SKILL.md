@@ -101,8 +101,10 @@ Load only what the stack needs from `../personal-standards/standards/`:
   workflows (the `personal-release` skill's "Set up versioning in a repo"
   and "Changelog fragments" sections)
 - `makefile.md`: a self-documenting `Makefile` with the standard target
-  vocabulary (the `personal-makefile` skill can audit it afterwards)
-- `git.md`: `.gitignore` essentials, including `.scratch/`
+  vocabulary (the `personal-makefile` skill can audit it afterwards), and
+  the `triage.yaml` its `doctor` runs, listing every tool `make ci` needs
+  (step 6 wires in the versions)
+- `git.md`: `.gitignore` essentials, including `.scratch/` and `.triage/`
 - `secrets/README.md`, only if the project needs secrets
 
 ## 6. Record the baseline

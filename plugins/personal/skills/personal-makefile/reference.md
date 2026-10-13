@@ -33,9 +33,10 @@ Parse in bash: `dir="${spec%%:*}"`, `rest="${spec#*:}"`, `url="${rest%:*}"`,
 ## Workspace doctor modes
 
 **Preferred:** workspace root has `triage.yaml` with `delegate:`
-entries. `make doctor` runs `triage --profile $(MODE)` once from the workspace root.
+entries. `make doctor` runs `triage --profile $(MODE)` once from the workspace root,
+with `--strict` when `STRICT=1`.
 
-**Fallback:** no root `triage.yaml`. Loop `$(MAKE) -C <r> doctor MODE=$(MODE)` for
+**Fallback:** no root `triage.yaml`. Loop `$(MAKE) -C <r> doctor MODE=$(MODE) STRICT=$(STRICT)` for
 each repo in `REPOS_MAKE_CI`.
 
 ## Workspace gh-runs fan-out
@@ -87,7 +88,7 @@ Every stack's `lint` fails on drift in anything its `format` rewrites (see
 | `format` | `go tool golangci-lint fmt` + `go mod tidy` |
 | `test` | `go test ./...` |
 | `ci` | `build lint test` |
-| `doctor` | `triage --profile $(MODE)` |
+| `doctor` | `triage --profile $(MODE)`, plus `--strict` when `STRICT=1` |
 
 - `golangci-lint run` runs `go vet` and the formatters in `.golangci.yml`
   (`gofmt`, `goimports`), reporting drift without rewriting; `fmt` rewrites
@@ -107,7 +108,7 @@ Every stack's `lint` fails on drift in anything its `format` rewrites (see
 | `format` | biome format or documented no-op |
 | `typecheck` | tsc / astro check (domain target, not core) |
 | `ci` | repo-specific gate chain |
-| `doctor` | `triage --profile $(MODE)` |
+| `doctor` | `triage --profile $(MODE)`, plus `--strict` when `STRICT=1` |
 
 Doesn't meet the drift rule: `biome lint` and eslint skip formatting.
 `biome check` (no `--write`) or `prettier --check` in `lint` does.
@@ -120,7 +121,7 @@ Doesn't meet the drift rule: `biome lint` and eslint skip formatting.
 | `lint` | custom lint + optional tflint |
 | `format` | `terraform fmt -recursive` |
 | `ci` | `fmt-check lint validate-all` |
-| `doctor` | `triage --profile $(MODE)` |
+| `doctor` | `triage --profile $(MODE)`, plus `--strict` when `STRICT=1` |
 
 Legacy `fmt` / `fmt-check` targets should converge on `format` (writes) and drift
 checking inside `lint` — propose per repo, do not auto-rename without confirmation.

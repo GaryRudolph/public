@@ -29,7 +29,7 @@ Solid arrows = hard prerequisite. Dotted arrows = pass-through / independent gat
 |--------|-------------|
 | `help` | List targets (default goal) |
 | `init` | {{INIT_TABLE_DESC}} |
-| `doctor` | Tool/environment check via `triage`; `MODE=default\|release` |
+| `doctor` | Tool/environment check via `triage`; `MODE=default\|release`; `STRICT=1` fails on warnings |
 | `build` | {{BUILD_TABLE_DESC}} |
 | `lint` | {{LINT_TABLE_DESC}} |
 | `format` | {{FORMAT_TABLE_DESC}} |
@@ -58,7 +58,8 @@ workspace level.
 ## `make doctor`
 
 Requires `triage` (`brew install lolay/tap/triage`). Document profiles and pin
-files checked.
+files checked. `STRICT=1` adds `triage --strict`, so a warning such as a tool
+below its pin fails; CI's doctor job runs that way on the pin.
 
 ## CI alignment
 
