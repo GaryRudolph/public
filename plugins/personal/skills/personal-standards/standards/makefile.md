@@ -34,7 +34,7 @@ Every child repo must remain fully usable on its own.
 |--------|---------|
 | `help` | List targets (default goal) |
 | `init` | Idempotent bootstrap (deps, hooks, codegen) |
-| `doctor` | Read-only tool/environment check; `MODE=default\|release` |
+| `doctor` | Read-only tool/environment check; `MODE=default\|release`; errors below a tool's floor, warns below its pin ([architecture.md](architecture.md#toolchain-floor-and-pin)) |
 | `build` | Compile / bundle / render artifacts |
 | `lint` | Static check, no writes; fails on drift in anything `format` rewrites |
 | `format` | Auto-fix formatting; documented no-op when no formatter exists |
