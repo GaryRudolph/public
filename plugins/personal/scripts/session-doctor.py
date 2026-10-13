@@ -42,7 +42,7 @@ from pathlib import Path
 MAKEFILES = ("GNUmakefile", "makefile", "Makefile")  # make's own search order
 TASKFILES = tuple(f"{case}askfile{dist}.{ext}" for dist in ("", ".dist") for ext in ("yml", "yaml") for case in "Tt")
 TRIAGE_CONFIGS = ("triage.yaml", "triage.yml", ".triage.yaml", ".triage.yml")
-DEFAULT_OWNERS = "GaryRudolph lolay Agerpoint"
+DEFAULT_OWNERS = "GaryRudolph lolay Agerpoint Coastal-Carbon optimal-ticketing"
 # Quiet output and no network call to GitHub, also for a triage that `make doctor` runs.
 DOCTOR_ENV = {"NO_COLOR": "1", "TRIAGE_NO_UPDATE_CHECK": "1"}
 

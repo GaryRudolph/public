@@ -120,6 +120,9 @@ expect_called "  ...on top of the defaults" "STUB make --no-print-directory doct
 r="$work/agerpoint"; new_repo "$r" git@github.com:agerpoint/tool.git; makefile_with_doctor "$r"
 run_doctor "$r"
 expect_called "Agerpoint is a default owner" "STUB make --no-print-directory doctor in $r"
+r="$work/optimal"; new_repo "$r" https://github.com/Optimal-Ticketing/app.git; makefile_with_doctor "$r"
+run_doctor "$r"
+expect_called "  ...as is optimal-ticketing, matched case-insensitively" "STUB make --no-print-directory doctor in $r"
 
 r="$work/no-origin"; new_repo "$r"; makefile_with_doctor "$r"
 run_doctor "$r"
