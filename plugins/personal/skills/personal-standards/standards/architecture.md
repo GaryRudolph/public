@@ -21,6 +21,28 @@ When scaffolding a new project, repo, package, or service, start on current vers
 
 Does not apply to existing repos — established projects follow their own upgrade cadence and version policy (see [versioning.md](versioning.md)).
 
+## Toolchain Floor and Pin
+
+A runtime or build tool has two versions that mean different things, so they live in different files:
+
+- **Floor** — the oldest version the code supports; a contract with whoever consumes it. Declare it where the ecosystem enforces it: `engines` in `package.json`, the `go` directive in `go.mod`, `requires-python` in `pyproject.toml`, `rust-version` in `Cargo.toml`, `minSdk`.
+- **Pin** — the version you build, test, and release with. Declare it in the version manager's file: `.nvmrc`, `.go-version`, `.python-version`, `rust-toolchain.toml`, `.tool-versions`.
+
+Go, Rust, Python and Android all split it this way; follow the ecosystem rather than collapsing the two.
+
+- **`doctor` errors below the floor and warns below the pin** — in `triage.yaml`, `version:` is the floor and `recommended_from:` reads the pin file. A contributor on a supported but older version gets `[!]`, not `[✗]`; `--strict` makes it an error where a job must run on the pin. Triage releases before `recommended_from` ignore it and check the floor alone.
+
+  ```yaml
+  - tool: node
+    version: ">=22"            # floor: engines.node
+    recommended_from: .nvmrc   # pin: 26.2.0, warn below it
+  ```
+
+- **CI builds on the pin and tests the floor** — at least one CI cell runs the tests on the floor version, or the floor is a claim, not a contract.
+- **Raising the floor is a breaking change; bumping the pin isn't** — raise the floor on purpose, usually at the floor version's end of life, in a minor or major release ([versioning.md](versioning.md)), never as a side effect of a dependency bump. Don't let a dependency bot move it.
+- **Each version has one source** — CI and docs read the pin file or point to it rather than restating it. Triage can't read `engines` or `go.mod`, so the floor is a literal in `triage.yaml`; list `triage.yaml` among the files to change when the floor moves.
+- **No consumers, no separate floor** — a deployed service or internal tool that nothing else builds against can treat the pin as the floor (`version_from:` alone, error below it).
+
 ## Layered Architecture
 
 ```

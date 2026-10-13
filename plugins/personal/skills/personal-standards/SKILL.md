@@ -41,7 +41,7 @@ this skill's directory instead; the files are identical.
 | Task touches | Load |
 | --- | --- |
 | Naming, formatting, imports | `standards/code-style.md` |
-| Layering, DI, APIs, errors, resource history, activity logs, tenant admin vs ops | `standards/architecture.md` |
+| Layering, DI, toolchain floor and pin, APIs, errors, resource history, activity logs, tenant admin vs ops | `standards/architecture.md` |
 | Starting a new project | the `personal-new-project` skill |
 | Swift/Kotlin parity | `standards/platform-parity.md` |
 | Tests | `standards/testing.md` |

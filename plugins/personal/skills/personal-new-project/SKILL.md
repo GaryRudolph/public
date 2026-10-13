@@ -103,8 +103,7 @@ Load only what the stack needs from `../personal-standards/standards/`:
 - `makefile.md`: a self-documenting `Makefile` with the standard target
   vocabulary (the `personal-makefile` skill can audit it afterwards), and
   the `triage.yaml` its `doctor` runs, listing every tool `make ci` needs
-  and tying each version file the project pins to its check
-  (`version_from`, or `version` plus `recommended_from` for a floor)
+  (step 6 wires in the versions)
 - `git.md`: `.gitignore` essentials, including `.scratch/` and `.triage/`
 - `secrets/README.md`, only if the project needs secrets
 
@@ -115,6 +114,18 @@ Pin versions where the ecosystem expects them (`package.json`,
 the `Dockerfile` base image, CI workflow versions) and repeat the list in
 the README's "Requirements" section, so future upgrades have a clear
 starting point.
+
+For each runtime, decide the floor and the pin separately
+(`../personal-standards/standards/architecture.md` "Toolchain Floor and
+Pin"). A library or anything else with consumers gets both: the floor
+where the ecosystem enforces it (`engines`, `go.mod`, `requires-python`,
+`rust-version`), the pin in the version manager's file (`.nvmrc`,
+`.go-version`, `.python-version`, `rust-toolchain.toml`). A new project
+starts the pin on the latest stable; the floor is the oldest version
+still supported (not within ~6 months of EOL) that the code actually
+runs on, and CI tests it in one cell. Wire both into `triage.yaml` as
+`version:` (floor) and `recommended_from:` (pin file). A service with no
+consumers can use the pin as the floor.
 
 Don't copy a stack snapshot from an older sibling project. Re-run step 3
 for every new repo.

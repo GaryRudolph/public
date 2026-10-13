@@ -34,7 +34,7 @@ Every child repo must remain fully usable on its own.
 |--------|---------|
 | `help` | List targets (default goal) |
 | `init` | Idempotent bootstrap (deps, hooks, codegen) |
-| `doctor` | Read-only tool/environment check; `MODE=default\|release` |
+| `doctor` | Read-only tool/environment check; `MODE=default\|release`; errors below a tool's floor, warns below its pin ([architecture.md](architecture.md#toolchain-floor-and-pin)) |
 | `build` | Compile / bundle / render artifacts |
 | `lint` | Static check, no writes; fails on drift in anything `format` rewrites |
 | `format` | Auto-fix formatting; documented no-op when no formatter exists |
@@ -145,12 +145,8 @@ errors.
 | `checkmake` | Optional Makefile linter | `brew install checkmake` |
 
 A leaf's `triage.yaml` lists every tool `make ci` needs, so a passing
-`make doctor` means `make ci` can run. Tie each version the repo pins in a
-file (`.nvmrc`, `.go-version`, `.python-version`) to its check: `version_from`
-when the pin is the requirement, or, when the project supports older versions
-than it pins (a published floor such as `engines.node: ">=22"` under an
-`.nvmrc` of 26.2), `version` for the floor and `recommended_from` for the pin,
-so a supported older version warns instead of failing (triage 0.5 or later). The
+`make doctor` means `make ci` can run; its version checks follow
+[architecture.md](architecture.md#toolchain-floor-and-pin). The
 `personal` plugin runs `make doctor` at the start of every agent session
 (`task doctor` or `triage` where there's no Makefile target) in repos whose
 GitHub owner it trusts, and reports the result.
