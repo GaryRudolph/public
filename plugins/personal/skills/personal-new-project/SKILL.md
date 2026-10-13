@@ -113,6 +113,18 @@ the `Dockerfile` base image, CI workflow versions) and repeat the list in
 the README's "Requirements" section, so future upgrades have a clear
 starting point.
 
+For each runtime, decide the floor and the pin separately
+(`../personal-standards/standards/architecture.md` "Toolchain Floor and
+Pin"). A library or anything else with consumers gets both: the floor
+where the ecosystem enforces it (`engines`, `go.mod`, `requires-python`,
+`rust-version`), the pin in the version manager's file (`.nvmrc`,
+`.go-version`, `.python-version`, `rust-toolchain.toml`). A new project
+starts the pin on the latest stable; the floor is the oldest version
+still supported (not within ~6 months of EOL) that the code actually
+runs on, and CI tests it in one cell. Wire both into `triage.yaml` as
+`version:` (floor) and `recommended_from:` (pin file). A service with no
+consumers can use the pin as the floor.
+
 Don't copy a stack snapshot from an older sibling project. Re-run step 3
 for every new repo.
 
