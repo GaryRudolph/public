@@ -6,9 +6,9 @@ true, from disk and from the transcript, and fails closed:
 
 1. args.state must equal plan_state.py run now on args.plan.path.
 2. Approvals may ride only on a launch made in a turn that a human prompt
-   started or that a human message typed mid-turn joined (not a completion
-   notification, a hook, or a timer), and args.approval must be the latest
-   such message, verbatim. A pasted Kickoff prompt, or
+   started or that a human message typed mid-turn or a human answer to an
+   AskUserQuestion dialog joined (not a completion notification, a hook, or
+   a timer), and args.approval must be the latest such message, verbatim. A pasted Kickoff prompt, or
    any words that hold its mode line, never answer anything: not a gate, a
    needs_info question, a waiver, or the kickoff question.
 3. canaryDone needs an earlier canary launch of plan-segment in this session:
@@ -23,7 +23,8 @@ true, from disk and from the transcript, and fails closed:
    environment type, and CI), and no later human message of 10 words or
    fewer names gated and not unattended (the take-back).
    Confirmed by an answer, a human message here is its words verbatim, it
-   comes right after the kickoff question ("Proposed mode: ... Reply"),
+   comes right after the kickoff question ("Proposed mode: ... Reply", or
+   an AskUserQuestion question that starts "Proposed mode: <mode>."),
    unless CI=true, where the invoking words are the answer, and it asks or
    negates nothing; it names unattended and not gated, or it is a plain yes
    to a question that carried "Proposed mode: unattended." (decision 9). A
@@ -72,7 +73,14 @@ the CLI, sdk on the desktop app and the web). Compaction summaries
 Stop hook feedback), the "[Request interrupted by user" marker, slash-command
 records and turnOrigin "sdk" records never are. A message typed while the
 parent works is a queued_command attachment (commandMode "prompt", origin
-human): it is human text of the turn that absorbed it. A record whose uuid
+human): it is human text of the turn that absorbed it. An answer picked in
+an AskUserQuestion dialog joins the turn too, one entry per question, after
+that question's text: the harness writes the tool_result, and the hook
+takes it only when the dialog's input carried no answers of the model's own,
+the result isn't an error or a decline, and it didn't auto-resolve while
+Gary was away (afkTimeoutMs) or end in a request for more questions
+(followUp). A host app that answers dialogs for him is trusted as he is,
+like the web's typed messages. A record whose uuid
 was seen before (a replay after a compaction) counts once. The Mac CLI wraps
 a bracketed paste in <pasted_content id="..."> tags; they are removed before
 every comparison.
@@ -90,12 +98,16 @@ SHARED_NAME = re.compile(r"^(main|master|release/.+)$")
 PROMPT_WORDS = "Run in unattended mode."  # the Kickoff prompt's mode line, recorded as the words of a pasted prompt
 MODE_LINES = ("Run in unattended mode.", "Run in gated mode.")
 KICKOFF_ASK = re.compile(r"Proposed mode: (?:gated|unattended)\b[\s\S]*\bReply\b")
+ASK_KICKOFF = re.compile(r"\s*Proposed mode: (?:gated|unattended)\.")  # the kickoff question as an AskUserQuestion question
+ASK_TOOL = "AskUserQuestion"
+ASK_FILLED = ("answers", "annotations", "response", "followUp", "afkTimeoutMs")  # fields only the harness may fill
+NOTES_ONLY = "(notes only)"  # Claude Code's answer value for a question answered with a note and no option
 # An answer that asks back or negates is not an opt-in; a false trip re-asks, which errs toward stopping.
 NOT_OPT_IN = re.compile(r"\?|\b(?:no|not|never|without|don't|dont|do not)\b|n't\b", re.I)
 PROPOSED_UNATTENDED = re.compile(r"Proposed mode: unattended\.")
 # A plain yes (decision 9): only these words, at least one from YES, nothing that asks back or adds a condition.
 YES = {"yes", "yep", "yeah", "yup", "y", "ok", "okay", "sure", "confirm", "confirmed", "proceed", "go", "lgtm", "approved", "good"}
-YES_FILLER = {"please", "thanks", "thank", "you", "ahead", "sounds", "that", "works"}
+YES_FILLER = {"please", "thanks", "thank", "you", "ahead", "sounds", "that", "works", "here"}
 TAKE_BACK_WORDS = 10  # a later human message this short that names gated, and not unattended, ends unattended
 PASTE_TAG = re.compile(r"</?pasted_content\b[^>]*>")  # the Mac CLI's wrapper around a bracketed paste
 INTERRUPT = "[Request interrupted by user"
@@ -142,6 +154,25 @@ def queued_text(r):
     return None
 
 
+def ask_answers(question_input, res, block):
+    """The human entries of an AskUserQuestion answer, as (question, answer) pairs; none when it isn't trustworthy."""
+    if not isinstance(question_input, dict) or any(k in question_input for k in ASK_FILLED):
+        return []  # the model filled in an answer of its own
+    if block.get("is_error") or not isinstance(res, dict) or res.get("afkTimeoutMs") or res.get("followUp"):
+        return []  # declined, auto-resolved while Gary was away, or he asked for more questions
+    answers = res.get("answers") if isinstance(res.get("answers"), dict) else {}
+    out = []
+    for q in question_input.get("questions") or []:
+        text = q.get("question") if isinstance(q, dict) else None
+        a = answers.get(text) if isinstance(text, str) else None
+        a = ", ".join(a) if isinstance(a, list) else a
+        if isinstance(a, str) and a.strip() and a != NOTES_ONLY:
+            out.append((text, a))
+    if isinstance(res.get("response"), str) and res["response"].strip():
+        out.append(("\n".join(q for q, _ in out) or "", res["response"]))  # typed instead of picking an option
+    return out
+
+
 def records(path):
     with open(path) as f:
         for line in f:
@@ -164,7 +195,7 @@ def text_of(content):
 def turn_and_launches(path):
     """The current turn's messages (the record that started it, then human messages absorbed into it), every
     message, and earlier plan-segment launches."""
-    turn, uses, launched = [], {}, []
+    turn, uses, launched, asks = [], {}, [], {}
     run_ids, turns, said, seen = [], [], "", set()
     for r in records(path):
         if r.get("isSidechain"):
@@ -187,6 +218,8 @@ def turn_and_launches(path):
             for b in msg.get("content") or []:
                 if isinstance(b, dict) and b.get("type") == "tool_use" and b.get("name") == "Workflow":
                     uses[b.get("id")] = b.get("input") or {}
+                elif isinstance(b, dict) and b.get("type") == "tool_use" and b.get("name") == ASK_TOOL:
+                    asks[b.get("id")] = b.get("input")
         elif r.get("type") == "user":
             res = r.get("toolUseResult")
             if isinstance(res, dict) and res.get("runId") and not res.get("error"):
@@ -195,6 +228,15 @@ def turn_and_launches(path):
                         launched.append(uses[b["tool_use_id"]])
                         if is_segment(uses[b["tool_use_id"]].get("name") or ""):
                             run_ids.append(res["runId"])
+                continue
+            blocks = [b for b in msg.get("content") or [] if isinstance(b, dict) and b.get("type") == "tool_result"
+                      and b.get("tool_use_id") in asks] if isinstance(msg.get("content"), list) else []
+            for b in blocks:  # Gary's answers in a dialog join the running turn, as a queued message does
+                for question, answer in ask_answers(asks.pop(b["tool_use_id"]), res, b):
+                    t = {"human": True, "text": unwrap(answer), "after": question, "ask": True}
+                    turns.append(t)
+                    turn.append(t)
+            if blocks:
                 continue
             text = text_of(msg.get("content"))
             if text is None or r.get("isMeta") or r.get("isCompactSummary") or r.get("isVisibleInTranscriptOnly") \
@@ -261,7 +303,8 @@ def unattended_proof(mode, session_id, turns, prompt, prompt_mode):
         if not words or not hits:
             return "no human turn in this session is the recorded mode answer verbatim"
         ci = env_runner() == "ci"  # nobody can reply in CI, so the invoking words are the answer
-        hits = [i for i in hits if ci or KICKOFF_ASK.search(turns[i]["after"])]
+        hits = [i for i in hits if ci or KICKOFF_ASK.search(turns[i]["after"])
+                or (turns[i].get("ask") and ASK_KICKOFF.match(turns[i]["after"]))]
         if not hits:
             return "the recorded answer doesn't follow the kickoff question; an invoking message only proposes the mode, so ask it"
 
