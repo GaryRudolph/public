@@ -144,6 +144,13 @@ errors.
 | `gh` | GitHub Actions lane (`gh-runs-*`) | `brew install gh`; `gh auth login` |
 | `checkmake` | Optional Makefile linter | `brew install checkmake` |
 
+A leaf's `triage.yaml` lists every tool `make ci` needs, using `version_from`
+for each version the repo pins in a file (`.nvmrc`, `.go-version`,
+`.python-version`), so a passing `make doctor` means `make ci` can run. The
+`personal` plugin runs `make doctor` at the start of every agent session
+(`task doctor` or `triage` where there's no Makefile target) in repos whose
+GitHub owner it trusts, and reports the result.
+
 A repo with a triage config ignores `.triage/`, its log directory (git.md
 ".gitignore Essentials"). The project does that in its own `.gitignore`;
 triage doesn't.
