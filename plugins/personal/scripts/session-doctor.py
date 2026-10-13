@@ -8,7 +8,8 @@ repos beneath. Each repo gets the first doctor it has:
 
 - `make doctor` when its Makefile defines a doctor target;
 - `task doctor` when its Taskfile defines a doctor task;
-- `triage --profile default` when it has a triage.yaml.
+- `triage --profile default` when it has a triage config (triage.yaml,
+  triage.yml, .triage.yaml or .triage.yml, triage's own discovery list).
 
 A doctor is the repo's own code, and a personal plugin's hooks run before
 the harness asks whether to trust the folder. So a repo's doctor runs only
@@ -40,9 +41,10 @@ from pathlib import Path
 
 MAKEFILES = ("GNUmakefile", "makefile", "Makefile")  # make's own search order
 TASKFILES = tuple(f"{case}askfile{dist}.{ext}" for dist in ("", ".dist") for ext in ("yml", "yaml") for case in "Tt")
-TRIAGE_CONFIG = "triage.yaml"
+TRIAGE_CONFIGS = ("triage.yaml", "triage.yml", ".triage.yaml", ".triage.yml")
 DEFAULT_OWNERS = "GaryRudolph lolay Agerpoint"
-QUIET_FLAGS = {"--no-print-directory", "--no-color", "--no-update-check"}
+# Quiet output and no network call to GitHub, also for a triage that `make doctor` runs.
+DOCTOR_ENV = {"NO_COLOR": "1", "TRIAGE_NO_UPDATE_CHECK": "1"}
 
 # A rule line: targets, then ':' or '::' that doesn't start ':=' or '::='.
 MAKE_RULE = re.compile(r"^(?P<targets>[^:#=\s][^:#=]*?)\s*::?(?!=)", re.MULTILINE)
@@ -92,8 +94,8 @@ def doctor_command(repo):
     taskfile = next((repo / name for name in TASKFILES if (repo / name).is_file()), None)
     if taskfile and taskfile_has_doctor(read_text(taskfile)):
         return ["task", "doctor"]
-    if (repo / TRIAGE_CONFIG).is_file():
-        return ["triage", "--profile", "default", "--no-color", "--no-update-check"]
+    if any((repo / name).is_file() for name in TRIAGE_CONFIGS):
+        return ["triage", "--profile", "default"]
     return None
 
 
@@ -144,7 +146,7 @@ def run_doctor(repo, argv, timeout):
         return repo, argv, "untrusted", owner or ""
     if not shutil.which(argv[0]):
         return repo, argv, "missing", ""
-    env = {**os.environ, "NO_COLOR": "1"}
+    env = {**os.environ, **DOCTOR_ENV}
     proc = subprocess.Popen(argv, cwd=repo, env=env, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
                             stderr=subprocess.STDOUT, start_new_session=True)
     try:
@@ -164,8 +166,8 @@ def kill_group(proc):
 
 
 def label(argv):
-    """The command as the report names it, without the flags that only quiet its output."""
-    return " ".join(arg for arg in argv if arg not in QUIET_FLAGS)
+    """The command as the report names it, without make's directory chatter flag."""
+    return " ".join(arg for arg in argv if arg != "--no-print-directory")
 
 
 def tail(output, limit):

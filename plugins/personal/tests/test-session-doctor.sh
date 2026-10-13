@@ -28,7 +28,7 @@ for tool in make task triage; do
     cat > "$bin/$tool" <<EOF
 #!/bin/sh
 [ -n "\${STUB_SLEEP:-}" ] && /bin/sleep "\$STUB_SLEEP"
-echo "STUB $tool \$* in \$(pwd)" >> "$work/calls"
+echo "STUB $tool \$* in \$(pwd) update-check=\${TRIAGE_NO_UPDATE_CHECK:-on}" >> "$work/calls"
 echo "STUB $tool \$* in \$(pwd)"
 exit "\${STUB_RC:-0}"
 EOF
@@ -59,6 +59,7 @@ r="$work/make-repo"; new_repo "$r" https://github.com/GaryRudolph/make-repo
 makefile_with_doctor "$r"; touch "$r/triage.yaml"
 run_doctor "$r"
 expect_called "Makefile doctor target: runs make doctor"    "STUB make --no-print-directory doctor in $r"
+expect_called "  ...with triage's update check off"         "update-check=1"
 expect_grep   "  ...and reports it passed"                  "passed: \`make doctor\` in $r"
 expect_nocall "  ...not triage, though triage.yaml exists" "STUB triage"
 
@@ -72,8 +73,13 @@ r="$work/triage-repo"; new_repo "$r" https://github.com/lolay/triage-repo.git
 printf 'version: "3"\ntasks:\n  build:\n    cmds: [go build]\n    doctor: not-a-task\n' > "$r/Taskfile.yml"
 touch "$r/triage.yaml"
 run_doctor "$r"
-expect_called "no doctor target or task: runs triage"       "STUB triage --profile default --no-color --no-update-check in $r"
-expect_grep "  ...labelled without its quieting flags"    "passed: \`triage --profile default\`"
+expect_called "no doctor target or task: runs triage"       "STUB triage --profile default in $r"
+expect_grep   "  ...and reports it passed"                 "passed: \`triage --profile default\` in $r"
+
+r="$work/dot-triage"; new_repo "$r" https://github.com/lolay/dot-triage.git
+touch "$r/.triage.yml"
+run_doctor "$r"
+expect_called "a .triage.yml config counts too" "STUB triage --profile default in $r"
 
 r="$work/decoys"; new_repo "$r" https://github.com/GaryRudolph/decoys
 printf '.PHONY: doctor\ndoctor := x\ndoctor ?= y\n# doctor: commented\nnot-doctor: ; @true\n' > "$r/Makefile"
@@ -98,7 +104,7 @@ new_repo "$ws/gamma" https://github.com/lolay/gamma
 mkdir -p "$ws/not-a-repo"; makefile_with_doctor "$ws/not-a-repo"
 run_doctor "$ws"
 expect_called "cwd outside a repo: each child repo runs" "STUB make --no-print-directory doctor in $ws/alpha"
-expect_called "  ...with its own doctor" "STUB triage --profile default --no-color --no-update-check in $ws/beta"
+expect_called "  ...with its own doctor" "STUB triage --profile default in $ws/beta"
 expect_nogrep "  ...but not a child that isn't a repo"   "not-a-repo"
 
 printf 'trust\n'
