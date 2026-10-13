@@ -35,7 +35,10 @@ upgrade cadence (`standards/versioning.md`); say so and ask how to proceed.
 Prefer boring, proven *stacks* (React, Django, FastAPI, Spring, Rails, Go's
 standard library, Postgres). "Boring" is about the choice, not the version.
 If the request doesn't name the stack, propose one with a sentence of
-reasoning each, and wait for Gary to confirm.
+reasoning each, and wait for Gary to confirm: a choice dialog where the
+harness has one (Claude Code's `AskUserQuestion`), `Use this stack
+(Recommended)` plus an alternative where one is close, with Other for his
+own pick.
 
 Then list every component that will get pinned: language and runtime,
 framework, test framework, linter and formatter, build tool, key libraries,
@@ -83,7 +86,8 @@ Using those facts:
   target.
 
 Present the table of component, version, source, and any reason for
-deviating, and wait for approval before scaffolding.
+deviating, and wait for approval before scaffolding (a dialog: `Approve`,
+or `Change` followed by a text question for what to change).
 
 ## 5. Scaffold to the standards
 

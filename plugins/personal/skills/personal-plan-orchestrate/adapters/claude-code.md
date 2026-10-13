@@ -34,6 +34,56 @@ Once per session:
   commits carry `Assisted-by: Claude Code` and no `Co-authored-by`,
   whatever the CLI's default attribution says.
 
+## Asking Gary
+
+Every fixed-choice question is an `AskUserQuestion` call; open questions
+(a worker's `needs_info`, a re-plan) stay text. The dialog waits inside the
+turn, so save first ("Questions, and saving before them" in `SKILL.md`).
+- **The kickoff question:** the text block first (it keeps its `Reply`
+  line, the fallback if Gary declines the dialog and types), then one call
+  with two questions:
+
+  ```json
+  { "questions": [
+      { "header": "Mode", "question": "Proposed mode: unattended. Which mode for plan-auth-otter?",
+        "options": [ { "label": "Unattended (Recommended)", "description": "Gates 2, 4, 5 and 7 are logged; stops only for questions, failures, premium work and the guard (~$78)." },
+                     { "label": "Gated", "description": "Every gate, failed check and repeat CONCERNS stops." } ],
+        "multiSelect": false },
+      { "header": "Session", "question": "Run plan-auth-otter in this session or a new one?",
+        "options": [ { "label": "New session (Recommended)", "description": "Queue the Kickoff prompt as a new session with clean context." },
+                     { "label": "This session", "description": "Dispatch wave 1 now." } ],
+        "multiSelect": false } ] }
+  ```
+
+  Never fill in `answers`, `annotations` or `response` yourself: the hook
+  then counts none of the dialog.
+- **A gate or a stop:** one question, its text naming each repo's commit
+  range, with options such as `Continue wave 3 [deep] m3 s1`, `Stop here`,
+  and the step-up or waiver the gate allows (`Waive: <the concern>`). The
+  approval you launch with is the picked label, verbatim, or the words he
+  typed under Other.
+- **The PR at completion:** `Open the PR` or `Not yet`.
+
+**How the hook reads them.** An answer picked in a dialog is a human
+message of the turn it joins, after its question's text: a gate answered
+in the turn a completion notification started launches in that same turn.
+It counts for nothing when the call's input carried answers, when the
+dialog was declined, when it resolved itself while Gary was away
+(`afkTimeoutMs`), or when he asked for more questions (`followUp`); re-ask
+then. A `Gated` pick in a later dialog is a take-back, like a short typed
+message naming gated.
+
+**A new session.** When the session answer is `New session`, after the
+save, queue the Kickoff prompt with `mcp__ccd_session__spawn_task` where
+it is available (load it with ToolSearch if it is deferred): `title`
+`Orchestrate <plan name>`, `tldr` one line naming the waves and the mode,
+and `prompt` the Kickoff prompt verbatim, so the new session's first
+message is a paste the hook accepts. The tool's own description says not
+to use it for parts of your own task; Gary asked for this one. Then print
+the prompt on its own (standard §"Printing a prompt in chat") for when the
+card is dismissed or the harness has no card, and say once that the new
+session picks its own model: `/model opus`, `/effort high`.
+
 ## The pieces
 
 | Piece | Job |
@@ -103,7 +153,8 @@ deny reads `PreToolUse:Workflow hook error: personal-plan-orchestrate gate:
 
 **The gate hook** denies a launch unless:
 1. `args.state` equals `plan_state.py` run from disk.
-2. Approvals ride only in a turn a human message started or joined, and
+2. Approvals ride only in a turn a human message started or joined (a
+   typed message, or an answer picked in an `AskUserQuestion` dialog), and
    `approval` is that message verbatim. An approval, a group's `answer`, a
    waiver or a mode answer that is the Kickoff prompt or holds its mode line
    is denied: a paste answers nothing.
@@ -139,6 +190,7 @@ loaded checks nothing. Quote the reason, then:
 | `task branch: … no branch checked out`, `is on X, not the group's branch`, `shared branch` | Cut or switch to the task branch (`SKILL.md` "Task branches"); the group's `branch` is the directory's. |
 | `origin's default branch is unknown` | `git -C <dir> remote set-head origin --auto`. |
 | `unattended mode is not confirmed` | Another session, harness or runner confirmed it, or no human turn here is the answer: ask the kickoff question again. |
+| `no human turn in this session is the recorded mode answer verbatim`, after a dialog | The dialog was declined, resolved itself while Gary was away, ended in a follow-up, or its input carried answers: ask it again. |
 | `a yes to a gated proposal records gated` | Record gated, or ask again with an unattended proposal. |
 | `a later short human message names gated` | Record gated (the take-back), or ask again. |
 | `per-wave handoff: … not pushed`, `uncommitted changes`, `no session handoff`, `changed after the handoff` | Refresh the handoff, commit both in one bookkeeping commit, push every working directory. |

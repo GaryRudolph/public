@@ -120,14 +120,19 @@ stop here.** Present the report; write nothing.
 
 ### Step 3 — Confirm, repo by repo and item by item
 
-- **settings.json** — show the diff. Ask separately about each existing value
-  the template would replace; the merge keeps them unless told.
+Ask each of these as a choice dialog where the harness has one (Claude
+Code's `AskUserQuestion`, up to four questions per call, never mixing two
+repos in one call):
+
+- **settings.json** — show the diff, then ask `Apply` or `Skip` for the file,
+  and separately about each existing value the template would replace
+  (`Keep current` or `Take template`); the merge keeps them unless told.
 - **GitHub** — a remote, outward-facing change. Ask in this session, naming
-  the repo and each value. A yes to the file isn't a yes to GitHub, and a yes
+  the repo and each value in the question (`Apply` or `Skip`). A yes to the file isn't a yes to GitHub, and a yes
   for one repo isn't a yes for the next. A runner sends nothing, so it
   doesn't ask; Step 4 hands Gary the command.
-- **Fail closed** — no response, a dismissed prompt, or an ambiguous reply
-  means skip.
+- **Fail closed** — no response, a dismissed or declined dialog, or an
+  ambiguous reply means skip.
 
 ### Step 4 — Apply
 

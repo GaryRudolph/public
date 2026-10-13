@@ -96,15 +96,17 @@ Process one repo at a time that has findings. Group proposals as:
 - **Re-sync** — replace drifted shared recipe with current template body
 - **Ignore** — add `.triage/` to `.gitignore` beside a triage config
 
-Ask for confirmation per repo:
+Ask for confirmation per repo, as a choice dialog where the harness has one
+(Claude Code's `AskUserQuestion`; up to four repos per call, one question
+each, with these three options):
 
 - **Approve** — apply all proposals for this repo
-- **Approve with edits** — user tweaks the list; apply the amended set
+- **Approve with edits** — user tweaks the list (a follow-up text question); apply the amended set
 - **Skip** — write nothing for this repo
 - **Fail closed** — no response, timeout, dismiss, or ambiguous reply = skip
 
 When a rename mapping is ambiguous (e.g. is legacy `verify` this repo's `ci` or
-`lint`?), ask before proposing.
+`lint`?), ask before proposing: a dialog with one option per candidate verb.
 
 ### Step 4 — Apply
 

@@ -623,9 +623,9 @@ Ask-user rule (after writing the Kickoff):
 
 > Continue execution in this chat, or hand off to a new chat for clean context? (default: new chat)
 
-Treat any non-affirmative answer (silence, dismissal, ambiguous reply) as **new chat**. On new chat, halt and let the user copy the Kickoff into a fresh session. On current chat, continue per the skill's procedure.
+Where the harness has a choice dialog (Claude Code's `AskUserQuestion`), ask it there, with two options: `New session (Recommended)` and `This session`. Treat any non-affirmative answer (silence, dismissal, a declined dialog, ambiguous reply) as **new chat**. On new chat, halt: where the harness can queue a session (Claude's suggested-task card, `spawn_task`), queue one whose prompt is the Kickoff prompt, and either way print the prompt on its own ([Printing a prompt in chat](#printing-a-prompt-in-chat)). On current chat, continue per the skill's procedure; nothing needs copying.
 
-`personal-plan-orchestrate` folds this question into its **kickoff question**, asked once per plan run after the Kickoff, the Cost table and the counting header are written and saved. That one question proposes a mode (`Proposed mode: gated.` or `unattended.`), names the waves, the expected total, the gates the plan crosses and, on a workstation, the task branch it will cut. A workstation's answer is also the yes to cut the branch, and new chat stays its default (`here` in the answer keeps this chat). On a runner the question skips the chat choice and the run goes on in the same session. The question's answer is read as [STOP gate semantics](#stop-gate-semantics-fail-closed) describes.
+`personal-plan-orchestrate` folds this question into its **kickoff question**, asked once per plan run after the Kickoff, the Cost table and the counting header are written and saved. That one question proposes a mode (`Proposed mode: gated.` or `unattended.`), names the waves, the expected total, the gates the plan crosses and, on a workstation, the task branch it will cut. A workstation's answer is also the yes to cut the branch. Where the harness has a choice dialog, the question becomes one dialog with a mode question and a session question (this session or a new one); typed, new chat stays a workstation's default (`here` in the answer keeps this chat), and a runner goes on in the same session. The question's answer is read as [STOP gate semantics](#stop-gate-semantics-fail-closed) describes.
 
 Two variants. The **passive** variant (used by `personal-plan-model-tiers`) picks the model from the first tagged group's tier; the **active** variant (used by `personal-plan-orchestrate`) is always the `[deep]` Opus row because the orchestrator-parent always runs at `[deep]`.
 
@@ -730,6 +730,18 @@ Rules for filling in the template:
 - For the passive variants, include the `Suggested chat title:` line in the [Wave title format](#wave-title-format) for the first wave (`Wave 1 of N [<tier>] <first group>`). It is advisory — a foreground chat cannot set its own title, so emit it for the user to paste even though the harness may ignore it. The active orchestrate variant has no such line: its per-wave titles are its dispatches' descriptions.
 - For the passive variants, always keep the **progress-update reminder** spelled out inline in the prompt body (append ` (done)` to finished headings, update the Status line, flip the matching todos). A fresh chat that pastes this prompt usually does **not** re-load the driver skill, so this line is the only way the [Progress tracking](#progress-tracking) convention reaches the worker — it is the single most common reason a wave finishes without being marked done, so never drop it. Keep the token-line reminder too, filled in per the [STOP fill-in rules](#stop-marker-template). (The active orchestrate variant re-loads the skill, so its parent applies the updates per the skill procedure instead; see [Who updates progress, and how](#who-updates-progress-and-how).)
 - For both variants, write the Token log's [counting header](#token-line-format) for the harness the Cost table names. The passive prompts send every pasted chat to it, and the orchestrate parent on Cursor quotes it into each dispatch prompt (Claude Code's workflow path needs no quote: the parent writes the token lines).
+
+### Printing a prompt in chat
+
+The Kickoff block and each STOP marker live in the plan, where the prompt is one part of a larger fenced block. When a driver hands Gary a prompt to start a new session, it prints the prompt **on its own**, so a copy button copies exactly the prompt:
+
+- A ```` ```text ```` fence at the left margin, never inside a list item or a quote, holding only the prompt's lines with their indentation removed: no marker, `Status:`, `mode:` line, `Next model` rows or `Prompt to paste into the next chat:` header.
+- The chat title and the model to pick (`/model opus`, `/effort high`; Cursor's slug) go as prose above the fence.
+- The prompt never holds a ```` ``` ```` line, which would end the fence early and break the rendering.
+- Orchestrate prints its Kickoff prompt only once the prompt has its mode line (after the kickoff answer); an earlier copy confirms nothing and makes the next session ask again.
+- Where the harness can queue the session itself (Claude's suggested-task card), queue it with the same prompt, verbatim, and still print the prompt for when the card is dismissed.
+
+The plan's copy stays where it is: `plan_state.py` reads the orchestrate prompt from inside the Kickoff fence.
 
 ### Cost table
 

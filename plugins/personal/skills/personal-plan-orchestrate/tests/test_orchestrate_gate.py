@@ -259,6 +259,86 @@ def a_hook_that_cannot_decide_denies_with_exit_2():
         assert out.returncode == 2 and "fail closed" in out.stderr, (out.returncode, out.stderr)
 
 
+# ---- AskUserQuestion: a choice dialog's answers are Gary's ----
+
+MODE_Q = "Proposed mode: unattended. Which mode for plan-x?"
+RUNNER_Q_TEXT = said("Plan plan-x: 1 wave. Proposed mode: unattended. Reply unattended or gated; add here to stay in this chat.")
+SESSION_Q = "Run plan-x in this session or a new one?"
+ask_ids = iter(range(1000))
+
+
+def ask(answers, questions=None, given=None, error=False, **res):
+    """An AskUserQuestion call and Claude Code's record of its result. answers maps question text to the picked label;
+    given is input the model filled in itself; res adds result fields (afkTimeoutMs, followUp, response)."""
+    tid = f"q{next(ask_ids)}"
+    qs = [{"question": q, "header": "Q", "options": [{"label": "a"}, {"label": "b"}]} for q in (questions or list(answers))]
+    body = ("User has answered your questions: " + ", ".join(f'"{q}"="{a}"' for q, a in answers.items())) if not error \
+        else "The user doesn't want to proceed with this tool use."
+    return [{"type": "assistant", "message": {"content": [{"type": "tool_use", "id": tid, "name": "AskUserQuestion",
+                                                           "input": {"questions": qs, **(given or {})}}]}},
+            {"type": "user", "toolUseResult": body if error else {"questions": qs, "answers": answers, **res},
+             "message": {"role": "user", "content": [{"type": "tool_result", "tool_use_id": tid, "content": body,
+                                                      **({"is_error": True} if error else {})}]}}]
+
+
+@case
+def a_dialog_answer_confirms_unattended():
+    for words in ("Unattended", "Unattended (Recommended)"):
+        st = write_plan(UN + words)
+        t = [human("orchestrate plan-x")] + ask({MODE_Q: words, SESSION_Q: "This session"})
+        assert hook(seg(args(state=st)), t) is None, words
+    st = write_plan(UN + "yes")  # a plain yes typed under Other, to a question that proposed unattended (decision 9)
+    assert hook(seg(args(state=st)), [human("orchestrate")] + ask({MODE_Q: "yes"})) is None
+    st = write_plan(UN + "This session")  # the session question's answer is never the mode
+    assert "doesn't follow the kickoff question" in hook(seg(args(state=st)), [human("orchestrate")] + ask({MODE_Q: "Unattended", SESSION_Q: "This session"}))
+    write_plan()
+
+
+@case
+def a_dialog_answer_counts_only_under_the_kickoff_question():
+    st = write_plan(UN + "Unattended")
+    assert "doesn't follow the kickoff question" in hook(seg(args(state=st)), [human("orchestrate")] + ask({"Which mode?": "Unattended"}))
+    write_plan()
+
+
+@case
+def a_dialog_answer_that_is_not_gary_s_counts_for_nothing():
+    st = write_plan(UN + "Unattended")
+    for t in (ask({MODE_Q: "Unattended"}, error=True),  # declined
+              ask({MODE_Q: "Unattended"}, afkTimeoutMs=60000),  # auto-resolved while he was away
+              ask({MODE_Q: "Unattended"}, followUp=True),  # he asked for more questions
+              ask({MODE_Q: "Unattended"}, given={"answers": {MODE_Q: "Unattended"}}),  # the model answered itself
+              ask({MODE_Q: "(notes only)"})):
+        assert "verbatim" in hook(seg(args(state=st)), [human("orchestrate")] + t), t
+    write_plan()
+
+
+@case
+def a_gated_pick_in_a_later_dialog_takes_back_unattended():
+    st = write_plan(UN + "Unattended")
+    t = [human("orchestrate")] + ask({MODE_Q: "Unattended"}) + [said("Running.")] + ask({"Switch mode?": "Gated"})
+    assert "names gated" in hook(seg(args(state=st)), t)
+    write_plan()
+
+
+@case
+def a_dialog_answer_approves_a_gate_in_the_turn_it_joins():
+    t = [human("go")] + launch(args(), "t1") + [NOTIFY]
+    stopped = [{"rid": "wf_1", "stop": "gate", "gates": ["gate-1"]}]
+    q = "Gate 1 on wave 1 (repo m1 s1). Retry it?"
+    a = args(canaryDone=True, approved=[{"gate": "gate-1", "wave": 1}], approval="Retry wave 1")
+    assert hook(seg(a), t + ask({q: "Retry wave 1"}), stopped) is None
+    assert "verbatim" in hook(seg(a), t + ask({q: "Stop here"}), stopped)
+    assert "human answer started" in hook(seg(a), t + ask({q: "Retry wave 1"}, error=True), stopped)
+
+
+@case
+def a_typed_yes_here_confirms_unattended():
+    st = write_plan(UN + "yes, here")
+    assert hook(seg(args(state=st)), [human("orchestrate"), RUNNER_Q_TEXT, human("yes, here")]) is None
+    write_plan()
+
+
 # ---- v3: unattended mode and the cost guard ----
 
 @case
@@ -530,6 +610,7 @@ def a_new_waiver_must_be_a_human_message_verbatim():
     st3 = write_plan(UN + "unattended", log="review wave-1 (repo m1 s1) 1111111..2222222: WAIVED - skip that fix, it's fine - 2026-10-06\n")
     assert st3["waivers"] and "WAIVED line for wave 1" in hook(seg(args(state=st3, canaryDone=True)), t, done)
     assert hook(seg(args(state=st3, canaryDone=True)), t + [human("skip that fix, it's fine")], done) is None
+    assert hook(seg(args(state=st3, canaryDone=True)), t + ask({"Gate 1: waive?": "skip that fix, it's fine"}), done) is None
     later = t + [human("skip that fix, it's fine")] + launch(args(state=st3, canaryDone=True), "t2") + [NOTIFY]
     assert hook(seg(args(state=st3, canaryDone=True)), later, [{"rid": "wf_1"}]) is None  # an older waiver isn't re-checked
     write_plan()

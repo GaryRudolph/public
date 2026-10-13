@@ -263,7 +263,10 @@ After writing the Kickoff block and seeding todos, ask the user:
 > Continue execution in this chat, or hand off to a new chat for clean
 > context? (default: new chat)
 
-Wait for the user's answer. Treat any non-affirmative reply (silence,
+Where the harness has a choice dialog (Claude Code's `AskUserQuestion`),
+ask it there: one question, options `New session (Recommended)` (its
+description names the first wave and its model) and `This session`.
+Elsewhere ask in text. Wait for the user's answer. Treat any non-affirmative reply (silence,
 dismissal, ambiguous answer, or failure to respond) as **new chat**.
 
 This question is fail-closed: a missed or ambiguous answer defaults to
@@ -277,13 +280,20 @@ and the only way to authorize multiple unattended steps is an explicit
 ### 7. Branch on the answer
 
 - **New chat (default).** Append this chat's `kickoff` token line to
-  `## Token log` (see "Token tally on report-back" below). Print the full
-  modified plan (with STOP markers, and the Kickoff block and Cost table
-  at the top) so the user can see the result. Halt. Do **not** begin
-  executing any step — the user will start a fresh chat by copying the
-  Kickoff prompt from the top of the plan file.
+  `## Token log` (see "Token tally on report-back" below). Print a short
+  summary (the waves with their tiers, the Cost table, the plan path),
+  then hand over the Kickoff prompt: on Claude, where the
+  `mcp__ccd_session__spawn_task` tool is available, queue it as a
+  suggested-task card (`title` the Kickoff's `Suggested chat title`,
+  `prompt` the Kickoff prompt verbatim; Gary asked for this, though the
+  tool's description says not to split off your own task), and always
+  print the prompt on its own, with the model to pick above it (standards
+  §"Printing a prompt in chat"). Halt. Do **not** begin executing any
+  step.
 - **Current chat.** Append this chat's `kickoff` token line, print the
-  full modified plan, then begin executing the first group. Stop at the
+  short summary, then begin executing the first group. When the first
+  wave's model isn't the one this chat runs on, say which `/model` and
+  `/effort` to switch to first, and wait for his go. Stop at the
   first STOP marker and report back, with a `wave-1` token line for the
   work since the kickoff line.
 
@@ -307,6 +317,13 @@ In whichever chat executes a group, **before halting at the STOP marker**:
    a shared branch"). A chat that cuts one adds its `On branch` line to the
    remaining STOP prompts (and REVIEW prompts, when the plan is tracked)
    with its first commit.
+
+6. Hand over the next chat's prompt the way the kickoff does (step 7,
+   "New chat"): the REVIEW prompt when `review:` is on, else the next
+   STOP prompt, queued as a card on Claude and printed on its own with
+   the model to pick above it. A question at the STOP whose answers are a
+   fixed set (commit, start the next wave) is a choice dialog where the
+   harness has one; a dismissed dialog is no answer.
 
 **Review beat (separate chat).** After a wave finishes, the human runs
 the REVIEW marker for that wave before starting the next wave. When

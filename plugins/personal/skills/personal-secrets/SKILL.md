@@ -30,7 +30,10 @@ implements the standard's Makefile contract.
   suggest putting a source key in CI.
 - **Ask before anything remote or irreversible.** `make set-keys`,
   `gh secret set` or `gh secret delete`, pushing the secrets repo, and
-  deleting keys all need Gary's explicit go-ahead for that step.
+  deleting keys all need Gary's explicit go-ahead for that step: a choice
+  dialog where the harness has one (Claude Code's `AskUserQuestion`), its
+  question naming the exact command, options `Run it` and `Not now`. A
+  dismissed or declined dialog is a no.
 - **Revocation isn't erasure.** Removing access or rotating a key stops
   future reads at HEAD; git history still holds old ciphertext. A value
   that may have leaked must also be rotated at its upstream provider.
