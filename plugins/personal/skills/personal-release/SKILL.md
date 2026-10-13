@@ -57,11 +57,15 @@ recommendation. Decide from these facts.
    - `patch`: bug fixes only
 
    On `0.x`, a breaking change may be a minor, but call it out in the
-   changelog. Give Gary the level and a sentence of evidence. **He picks.**
+   changelog. Give Gary the level and a sentence of evidence. **He picks**,
+   in a choice dialog where the harness has one (Claude Code's
+   `AskUserQuestion`): `patch`, `minor`, `major`, the proposed one first
+   and marked `(Recommended)`.
 3. **Check the changelog.** Unreleased (or, with fragments,
    `python3 scripts/changelog.py preview`) should describe what ships.
    Offer to fill gaps from the commits, but don't invent entries.
-4. **Release.** With Gary's go-ahead:
+4. **Release.** With Gary's go-ahead (a dialog naming the exact command and
+   version: `Release vX.Y.Z` or `Not yet`):
    - If the repo has a Release workflow:
      `gh workflow run release.yml -f level=<level>` (add
      `--ref release/vX` or `--ref release/vX.Y` for a hotfix), then watch it.
@@ -69,7 +73,8 @@ recommendation. Decide from these facts.
      `bump_version.py` so the bump can't leave the line.
    - Otherwise, locally: `python3 scripts/bump_version.py <level>`, review
      the diff, commit `release vX.Y.Z`, `git tag -a vX.Y.Z -m vX.Y.Z`, and
-     push the branch and the tag. Pushing is outward-facing, so confirm first.
+     push the branch and the tag. Pushing is outward-facing, so confirm first
+     (`Push` or `Not yet`).
 5. **After.** The tag push starts the per-platform publish jobs. Check they
    ran. From then on, dev builds read `X.Y.Z+<sha>`.
 
@@ -160,7 +165,8 @@ can't have one (Team plan private repos) or don't need one.
 3. Copy [`templates/changelog.yml`](templates/changelog.yml) to
    `.github/workflows/changelog.yml`, create a `no-changelog` label, and
    once it has run, make the `changelog` job a required check. Ask before
-   changing labels or branch protection: they're outward-facing.
+   changing labels or branch protection (`Apply` or `Skip`): they're
+   outward-facing.
 4. Make the release commit stage the deletions. `git commit -am` does;
    a workflow that `git add`s named paths needs the `.changelog/`
    directories added to its list.

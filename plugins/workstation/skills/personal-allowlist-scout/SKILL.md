@@ -78,14 +78,16 @@ Process one repo at a time. For each repo that has any proposable entries:
    - For each command suppressed by a broad existing prefix, note the
      suppression (e.g. `"suppressed in cursor_ide by broad prefix 'make'"`).
 
-2. **Ask for confirmation** for this repo:
+2. **Ask for confirmation** for this repo, as a choice dialog where the
+   harness has one (Claude Code's `AskUserQuestion`, these three options;
+   "with input" is followed by a text question for the edits):
    - **Approve** — proceed with all proposals as listed.
    - **Approve with input** — user tweaks the list (remove commands, restrict
      to specific harnesses); apply the amended list.
    - **Skip** — write nothing for this repo.
-   - **Fail closed**: no response, a timeout, a dismiss, or anything that is
-     not an explicit "approve" or "approve with input" = skip and write
-     nothing for this repo.
+   - **Fail closed**: no response, a timeout, a dismiss or declined dialog,
+     or anything that is not an explicit "approve" or "approve with input" =
+     skip and write nothing for this repo.
 
 3. **On explicit approval**, call `render.py` in batch mode (stdin JSON) for
    the approved commands, writing only to the harness files that lack each
@@ -111,7 +113,8 @@ Process one repo at a time. For each repo that has any proposable entries:
 After all repos, for each entry in `global_promotion_candidates` (commands
 recurring across ≥ 2 repos and not fully covered globally):
 
-Present the candidate and ask the user to choose one of:
+Present the candidate and ask the user to choose one of these (a choice
+dialog where the harness has one; up to four candidates per call):
 
 - **Promote to global** — determine the correct meta-source using the routing
   rules in § Global promotion routing above, then emit a copy-paste bullet for
