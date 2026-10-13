@@ -102,7 +102,7 @@ Load only what the stack needs from `../personal-standards/standards/`:
   and "Changelog fragments" sections)
 - `makefile.md`: a self-documenting `Makefile` with the standard target
   vocabulary (the `personal-makefile` skill can audit it afterwards)
-- `git.md`: `.gitignore` essentials, including `.scratch/`
+- `git.md`: `.gitignore` essentials, including `.scratch/` and `.triage/`
 - `secrets/README.md`, only if the project needs secrets
 
 ## 6. Record the baseline

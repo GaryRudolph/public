@@ -69,6 +69,10 @@ Checks to perform (against `standards/makefile.md` and `reference.md`):
   about their semantics (see reference.md § Known defects); do not rely on
   pattern matching alone
 - Template drift for shared recipes (`gh-runs-*`, workspace fan-out, `doctor`)
+- A triage config (`triage.yaml`, `triage.yml`, `.triage.yaml` or
+  `.triage.yml`) with no `.triage/` entry in `.gitignore` (git.md
+  ".gitignore Essentials"); a workspace allowlist `.gitignore` already
+  covers it
 - Doc cross-references — README / CONTRIBUTING / AGENTS.md mentions of make
   targets that no longer exist or were renamed
 
@@ -90,6 +94,7 @@ Process one repo at a time that has findings. Group proposals as:
 - **Docs** — create or update `Makefile.md`
 - **Manifest** — `repos.mk` list consistency
 - **Re-sync** — replace drifted shared recipe with current template body
+- **Ignore** — add `.triage/` to `.gitignore` beside a triage config
 
 Ask for confirmation per repo:
 

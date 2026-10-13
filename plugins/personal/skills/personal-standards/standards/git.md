@@ -169,6 +169,11 @@ build/
 .idea/
 .vscode/
 .scratch/
+.triage/
 *.key
 *.pem
 ```
+
+`.triage/` holds triage's `--command-log` output. Ignore the directory by
+that exact name, never `.triage*`: `.triage.yaml` and `.triage.yml` are
+config files triage reads, and they stay tracked.

@@ -144,6 +144,10 @@ errors.
 | `gh` | GitHub Actions lane (`gh-runs-*`) | `brew install gh`; `gh auth login` |
 | `checkmake` | Optional Makefile linter | `brew install checkmake` |
 
+A repo with a triage config ignores `.triage/`, its log directory (git.md
+".gitignore Essentials"). The project does that in its own `.gitignore`;
+triage doesn't.
+
 ## Workspace `.gitignore` (allowlist)
 
 Polyrepo workspaces that track only orchestration files use an allowlist root
