@@ -19,6 +19,7 @@ SHELL := bash
         gh-runs-list gh-runs-watch gh-runs-status bump deploy
 
 MODE ?= default
+STRICT ?=
 GH_LIMIT ?= 50
 LEVEL ?= patch
 
@@ -51,9 +52,9 @@ ci: {{CI_PREREQS}} ## Run the full pre-push gate (what CI runs)
 
 pre-commit: ci ## Run the local gate before committing or pushing (alias of ci)
 
-doctor: ## Check required tools for this repo (read-only). MODE=default|release
+doctor: ## Check required tools for this repo (read-only). MODE=default|release STRICT=1
 	@command -v triage >/dev/null 2>&1 || { printf 'triage not found - install: brew install lolay/tap/triage\n' >&2; exit 1; }
-	@triage --profile $(MODE)
+	@triage --profile $(MODE)$(if $(filter 1,$(STRICT)), --strict)
 
 clean: ## {{CLEAN_DESCRIPTION}}
 	{{CLEAN_RECIPE}}

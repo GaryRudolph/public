@@ -38,7 +38,7 @@ Go, Rust, Python and Android all split it this way; follow the ecosystem rather 
     recommended_from: .nvmrc   # pin: 26.2.0, warn below it
   ```
 
-- **CI builds on the pin and tests the floor** — at least one CI cell runs the tests on the floor version, or the floor is a claim, not a contract.
+- **CI builds on the pin and tests the floor** — at least one CI cell runs the tests on the floor version, or the floor is a claim, not a contract. CI's doctor job runs on the pin with `make doctor STRICT=1` (`triage --strict`, or the action's `strict` input), so a CI that drifts off the pin fails instead of warning. `--strict` fails every warning, so that job's profile lists only what CI needs; floor cells run the tests, not a strict doctor, and local runs stay lenient.
 - **Raising the floor is a breaking change; bumping the pin isn't** — raise the floor on purpose, usually at the floor version's end of life, in a minor or major release ([versioning.md](versioning.md)), never as a side effect of a dependency bump. Don't let a dependency bot move it.
 - **Each version has one source** — CI and docs read the pin file or point to it rather than restating it. Triage can't read `engines` or `go.mod`, so the floor is a literal in `triage.yaml`; list `triage.yaml` among the files to change when the floor moves.
 - **No consumers, no separate floor** — a deployed service or internal tool that nothing else builds against can treat the pin as the floor (`version_from:` alone, error below it).

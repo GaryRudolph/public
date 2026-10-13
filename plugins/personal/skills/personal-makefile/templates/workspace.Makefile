@@ -27,6 +27,7 @@ _REPO_SPECS := $(foreach r,$(REPOS),$r:$(REPO_URL.$r):$(REPO_BRANCH.$r))
         gh-runs-list gh-runs-watch gh-runs-status
 
 MODE ?= default
+STRICT ?=
 GH_LIMIT ?= 50
 
 ##@ Develop
@@ -73,7 +74,7 @@ init: ## Clone missing repos, run per-repo `make init`, then check environment
 	done; \
 	$(MAKE) doctor
 
-doctor: ## Repo roster check + triage delegate tree. MODE=default|release
+doctor: ## Repo roster check + triage delegate tree. MODE=default|release STRICT=1
 	@exit_code=0; \
 	echo ""; \
 	printf '\033[1m==> Repo roster\033[0m\n'; \
@@ -107,13 +108,13 @@ doctor: ## Repo roster check + triage delegate tree. MODE=default|release
 	    exit 1; \
 	  fi; \
 	  printf '\033[1m==> Tool checks (triage --profile $(MODE))\033[0m\n'; \
-	  if ! triage --profile $(MODE); then exit_code=1; fi; \
+	  if ! triage --profile $(MODE)$(if $(filter 1,$(STRICT)), --strict); then exit_code=1; fi; \
 	else \
 	  printf '\033[1m==> Delegating make doctor to each child repo (MODE=$(MODE))\033[0m\n'; \
 	  for r in $(REPOS_MAKE_CI); do \
 	    if [ -d "$$r" ]; then \
 	      echo ""; printf '  → %s\n' "$$r"; \
-	      if ! $(MAKE) -C "$$r" doctor MODE=$(MODE); then exit_code=1; fi; \
+	      if ! $(MAKE) -C "$$r" doctor MODE=$(MODE) STRICT=$(STRICT); then exit_code=1; fi; \
 	    else \
 	      printf '  \033[33m⚠\033[0m %s not checked out; skipping\n' "$$r" >&2; \
 	    fi; \

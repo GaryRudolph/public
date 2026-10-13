@@ -34,7 +34,7 @@ Every child repo must remain fully usable on its own.
 |--------|---------|
 | `help` | List targets (default goal) |
 | `init` | Idempotent bootstrap (deps, hooks, codegen) |
-| `doctor` | Read-only tool/environment check; `MODE=default\|release`; errors below a tool's floor, warns below its pin ([architecture.md](architecture.md#toolchain-floor-and-pin)) |
+| `doctor` | Read-only tool/environment check; `MODE=default\|release`; errors below a tool's floor, warns below its pin ([architecture.md](architecture.md#toolchain-floor-and-pin)); `STRICT=1` adds `triage --strict` so warnings fail |
 | `build` | Compile / bundle / render artifacts |
 | `lint` | Static check, no writes; fails on drift in anything `format` rewrites |
 | `format` | Auto-fix formatting; documented no-op when no formatter exists |
@@ -75,7 +75,7 @@ Same target **names** as leaves where they fan out; workspace recipes delegate v
 |--------|-------------------|
 | `help` | Self-documenting (same awk pattern) |
 | `init` | Clone missing repos (from manifest), run per-repo `make init`, then `doctor` |
-| `doctor` | Repo roster + root `triage --profile $(MODE)` when `triage.yaml` exists; else delegate `make doctor` to each child |
+| `doctor` | Repo roster + root `triage --profile $(MODE)` when `triage.yaml` exists; else delegate `make doctor` to each child; passes `STRICT` through |
 | `build` | Fan-out in `REPOS_BUILD_ORDER` (dependency order; stops on first failure) |
 | `ci`, `pre-commit` | Dumb pass-through to `REPOS_MAKE_CI`; collect all failures |
 | `clean` | Fan-out to `REPOS_MAKE_CLEAN` |
