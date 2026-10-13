@@ -144,9 +144,13 @@ errors.
 | `gh` | GitHub Actions lane (`gh-runs-*`) | `brew install gh`; `gh auth login` |
 | `checkmake` | Optional Makefile linter | `brew install checkmake` |
 
-A leaf's `triage.yaml` lists every tool `make ci` needs, using `version_from`
-for each version the repo pins in a file (`.nvmrc`, `.go-version`,
-`.python-version`), so a passing `make doctor` means `make ci` can run. The
+A leaf's `triage.yaml` lists every tool `make ci` needs, so a passing
+`make doctor` means `make ci` can run. Tie each version the repo pins in a
+file (`.nvmrc`, `.go-version`, `.python-version`) to its check: `version_from`
+when the pin is the requirement, or, when the project supports older versions
+than it pins (a published floor such as `engines.node: ">=22"` under an
+`.nvmrc` of 26.2), `version` for the floor and `recommended_from` for the pin,
+so a supported older version warns instead of failing (triage 0.5 or later). The
 `personal` plugin runs `make doctor` at the start of every agent session
 (`task doctor` or `triage` where there's no Makefile target) in repos whose
 GitHub owner it trusts, and reports the result.
