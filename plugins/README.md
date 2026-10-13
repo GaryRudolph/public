@@ -40,7 +40,9 @@ plugins/
     hooks/claude-hooks.json         <- Claude only: Workflow gate, reviewer and worker Bash guards
     hooks/cursor-hooks.json         <- empty; keeps Cursor off hooks.json
     cursor/rules/personal-core.mdc  <- GENERATED from core.md; Cursor's always-on core
-    scripts/session-start.sh
+    scripts/session-start.sh        <- prints core.md in parts
+    scripts/session-doctor.py       <- runs each repo's doctor at session start
+    tests/                          <- session-doctor tests
     skills/
       personal-standards/
         SKILL.md                    <- index; loads standards on demand
@@ -89,10 +91,13 @@ quietly on some surfaces, so `make validate` runs before every push.
 - **One hook file, three dialects.** Claude Code, Codex, and Gemini read
   `hooks/hooks.json` in the same shape. The command uses
   `${CLAUDE_PLUGIN_ROOT:-${extensionPath}}`: Claude and Codex export the
-  first, and Gemini substitutes the second. `session-start.sh` prints plain
-  text for Claude and Codex and a single JSON object for Gemini, which
-  rejects anything else. Cursor's hook format differs, so its manifest points
-  at the empty `hooks/cursor-hooks.json` instead, and Cursor gets the core
+  first, and Gemini substitutes the second. `session-start.sh` and
+  `session-doctor.py` print plain text for Claude and Codex and a single
+  JSON object for Gemini, which rejects anything else. No entry sets
+  `timeout`: Claude Code and Codex count it in seconds and Gemini in
+  milliseconds, so each script bounds its own run time. Cursor's hook
+  format differs, so its manifest points at the empty
+  `hooks/cursor-hooks.json` instead, and Cursor gets the core
   from `cursor/rules/personal-core.mdc` (`alwaysApply: true`). That rule is
   generated from `core.md`; `make -C agents test` fails when it's stale.
 - **No `version` field** in the Claude, Codex, or Cursor manifests. Without one, the version is the commit SHA, so
