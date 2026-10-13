@@ -326,15 +326,20 @@ records `runner=none` and proposes gated.
    handoff and its summary"), and on a task branch commit both in one
    commit whose subject has no step ID, then push. A workstation still
    waiting to cut commits nothing.
-8. **Ask the kickoff question and end the turn** (below).
-9. **Record the answer** in the next human turn (below), then save again:
+8. **Ask the kickoff question and wait** (below): as a choice dialog where
+   the harness has one, which waits inside the turn; else in text, ending
+   the turn.
+9. **Record the answer** when it comes (below), then save again:
    a workstation cuts its branch first; refresh the handoff with the mode,
    commit the plan and handoff, push.
-10. **Halt or dispatch.** On a runner, or when the answer adds `here`: print
-    the kickoff summary (waves, expected total, gates) and go to "Each
-    unit". Otherwise print the Kickoff prompt, the kickoff summary and the
-    short handoff summary, and halt for a new chat (the default on a
-    workstation).
+10. **Halt or dispatch.** When the answer picks this session (the dialog's
+    `This session`, `here` in a typed answer, or any typed answer on a
+    runner): print the kickoff summary (waves, expected total, gates) and go
+    to "Each unit"; nothing needs copying. Otherwise (`New session`, or a
+    typed answer on a workstation without `here`): queue the Kickoff prompt
+    as a new session where the harness can (the adapter says how), print
+    the prompt on its own (standard §"Printing a prompt in chat"), the
+    kickoff summary and the short handoff summary, and halt.
 
 Seed the harness todo list (one todo per wave, first `in_progress`) when
 you start dispatching, in this session or the new one.
@@ -350,7 +355,9 @@ milestone; 7 before each `[xdeep]` wave, with its cost), what each mode
 does, the guard's dollar limit, the handoff path, and on a workstation the
 branch it will cut. It always carries the exact words
 `Proposed mode: <mode>.` and, after them, a line that starts `Reply`; the
-Claude Code hook looks for both, in that order, before it counts an answer.
+Claude Code hook looks for both, in that order, before it counts a typed
+answer (a dialog's answer counts under a mode question that starts with
+those words, below).
 The short handoff summary follows the `Reply` line. On a runner:
 
     Plan plan-auth-otter: 4 waves, expected ~$26 API-equiv (Cost table above).
@@ -376,6 +383,20 @@ branch; the destination question folds in (there is no separate one):
     main is a shared branch, so the run goes on a new task branch, feature/auth-otter:
     your answer is the yes to cut it, and I push it at once.
     Reply gated or unattended; add here to orchestrate in this chat (default: new chat).
+
+**As a choice dialog.** Where the harness has one (Claude Code's
+`AskUserQuestion`; the adapter has the shape), print the question above as
+text, its `Reply` line included as the typed fallback, then ask one dialog
+with two questions:
+- **Mode:** the question text starts with the exact words
+  `Proposed mode: <mode>.`; the options are `Unattended` and `Gated`, the
+  proposed one first and marked `(Recommended)`. Labels stay that plain:
+  a label that negates or names the other mode reads as a re-ask. On a
+  workstation the question names the branch it will cut.
+- **Session:** `This session` or `New session`, marking `(Recommended)`
+  on `New session` when the kickoff spent a lot of context (tagging, a
+  long plan, exploration) and on `This session` otherwise. A new session
+  starts with clean context; there is no "compact first" choice.
 
 Propose gated, and say why, where unattended can't run: no remote for the
 plan's repo (decision 11), or a workstation on a harness with no hook to
@@ -403,14 +424,24 @@ that. Read it like this:
   a message that is the plan's Kickoff prompt or holds its mode line, or a
   declined branch cut (above).
 
-`here` anywhere in the answer means orchestrate in this chat.
+`here` anywhere in a typed answer means orchestrate in this chat.
+
+**A dialog's answers** are read the same way, question by question: the
+mode question's answer by the rules above (a pick, or words typed under
+Other), the session question's pick for step 10. A declined dialog, one
+dismissed, one that resolved itself while Gary was away, or one that
+ended in a request for more questions answers nothing: re-ask. Record
+only the mode question's answer on the mode line; the session choice goes
+in the handoff.
 
 **Record it:** replace `pending` on the mode line with the mode, and append
 ` | confirmed <today> session <S>: <the whole answer, whitespace
 collapsed>`. Gary's words come last on the line, so they may hold any
 character; `guard` and `fixups` are read only from before `confirmed`, so
 his words never set them. In the same edit add `Run in <mode> mode.` as the
-Kickoff prompt's mode line and clear `BLOCKED` from Status. If the answer
+Kickoff prompt's mode line and clear `BLOCKED` from Status. Print the
+Kickoff prompt only after this edit: a prompt without its mode line makes
+the next session ask again. If the answer
 picked the other mode, recompute the Cost table's orchestrator row before
 any wave runs, and say so. `<S>` is this session's id (Claude Code:
 `$CLAUDE_CODE_SESSION_ID`; without it, the basename of the newest
@@ -482,7 +513,7 @@ Three ways in:
 
 Then, in this order:
 1. **The plan's Status shows `BLOCKED at gate N`:** re-post that question
-   verbatim and wait. The paste answers nothing.
+   verbatim (as a dialog, where it was one) and wait. The paste answers nothing.
 2. **The prompt has a mode line, the plan's mode line is confirmed, and its
    `harness=` and `runner=` tokens equal yours:** replace the mode line's
    ` | confirmed ...` part with ` | confirmed <today> session <S> by Kickoff
@@ -725,16 +756,18 @@ verbatim (the Claude Code hook checks); a paste never waives.
    - The unit stopped at a gate, or a check or scope breach stops here:
      save with `BLOCKED at gate <N>` and any worker questions (step 5 above
      already did), then ask one question that names each repo's commit
-     range and the next unit, with the short handoff summary, and end the
-     turn.
+     range and the next unit, with the short handoff summary, and wait: a
+     choice dialog where the harness has one (its options name the next
+     unit, `Stop here`, and any step-up or waiver the gate allows), else
+     text, ending the turn.
    - `plan_state.py` has no `next`: final completion.
 
 ### After an answer
 
-In the turn Gary's answer starts: clear `BLOCKED`, then go through "Each
-unit" from step 1 (refresh the handoff, commit, push, `plan_state.py`, a
-fresh snapshot) and launch the unit with his message as the approval,
-verbatim, and each gate approved for the launched unit's wave: every gate
+In the turn Gary's answer starts (a typed reply) or joins (a dialog's
+answer): clear `BLOCKED`, then go through "Each unit" from step 1 (refresh
+the handoff, commit, push, `plan_state.py`, a fresh snapshot) and launch the
+unit with his message, or the label he picked, as the approval, verbatim, and each gate approved for the launched unit's wave: every gate
 the last run stopped at (gate 5 after a gated canary, though Status no
 longer shows it) and every gate in `plan_state.py`'s `stops`. Never approve
 `gate-0` or `gate-mode`: they clear only from the plan (fix the plan, or
@@ -789,8 +822,9 @@ repeat CONCERNS.
 4. Push every working directory that has a remote, in both modes. Worker
    commits not yet reviewed are pushed too, labeled `UNREVIEWED` in Status,
    the handoff and the question (decision 12).
-5. Ask one plain-text question and end the turn, with the short handoff
-   summary.
+5. Ask one question, with the short handoff summary: a choice dialog
+   where the harness has one and the answers are a fixed set, else plain
+   text, ending the turn.
 
 A usage limit is the one stop where this can't run: the run fails, its
 commits stay unreviewed and unpushed, and the pushed handoff is one wave
@@ -865,6 +899,7 @@ When `plan_state.py` has no `next` and the last review passed:
    checkpoint, retry and fix-up under **Deviations from plan**.
 4. Write the final handoff; commit; push.
 5. Print the completed Cost table and the Completion summary, then ask
+   (a choice dialog where the harness has one: `Open the PR`, `Not yet`)
    whether to open a PR, naming the cleanup commit (remove the plan and the
    handoff, or promote what's durable to `specs/`), with the short handoff
    summary. Wait.

@@ -228,6 +228,11 @@ gated anywhere else. No hook checks an unattended confirmation or the gates
 on Cursor, so the kickoff question says the mode rests on the parent there,
 and Gary may answer either mode.
 
+Questions are typed answers, read by `SKILL.md` "Reading the answer", unless
+the session offers a multiple-choice tool; then ask the same choices with
+it. A new session is a pasted prompt: print it on its own (the standard's
+§"Printing a prompt in chat").
+
 ## Phase 3
 
 Not built yet; the parent applies the core by hand until it is:
