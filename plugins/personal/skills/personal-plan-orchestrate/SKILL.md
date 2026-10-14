@@ -497,7 +497,10 @@ Three ways in:
 - **(a) A new local session on the same machine**, usually right after the
   kickoff halted for a new chat. The clone is on the task branch already.
 - **(b) A cloud session.** Claude Code on the web gives each session its own
-  `claude/…` branch, cut from the default branch. If that branch has no
+  `claude/…` branch, cut from the default branch, unless the kickoff
+  started this session on the task branch (the Claude Code adapter's
+  "A new session"): then the branch is the prompt's, and there is nothing
+  to move. If that branch has no
   commits of its own, fast-forward it to the prompt's branch
   (`git fetch origin && git merge --ff-only origin/<prompt branch>`), push
   it, and work there; in the confirmation commit rewrite the prompt's `On
@@ -531,9 +534,16 @@ its `harness=` and `runner=` tokens still match yours (it relaxes nothing,
 and this session's first launch is a canary that stops at gate 5 when
 its unit has several groups): record
 nothing new and go to "Each unit". An unattended record counts only in the
-session that confirmed it, so ask the kickoff question again, quoting the
-spend so far against the expected total. A `BLOCKED` Status is re-posted
-first, either way.
+session that confirmed it. When its tokens match yours, confirm it instead
+of re-asking: a short text (the plan, the session and date that confirmed
+unattended, the spend so far against the expected total, the guard's
+limit, then `Proposed mode: unattended.` and a `Reply unattended or
+gated.` line), then a dialog with one question, starting `Proposed mode:
+unattended.`, whose options are `Unattended (Recommended)` and `Gated`.
+There is no session question: this is the new session. Record the answer
+as this session's confirmation (step 9's save). When the tokens differ,
+ask the full kickoff question with a fresh proposal. A `BLOCKED` Status is
+re-posted first, either way.
 
 **Re-entry with a run in flight.** If the handoff or Status shows a launch
 whose result was never recorded, reconcile from git first (uncommitted and

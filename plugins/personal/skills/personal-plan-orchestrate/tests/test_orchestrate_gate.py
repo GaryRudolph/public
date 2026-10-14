@@ -716,6 +716,29 @@ def a_runner_on_its_own_assigned_branch_still_counts_the_paste():
     write_plan()
 
 
+CONFIRM_Q = "Proposed mode: unattended. Keep the unattended run confirmed in session k for plan-x?"
+
+
+def seed(mode="unattended"):
+    """The Kickoff prompt as the first message of a session the kickoff started with create_session: not a human turn."""
+    return {"type": "user", "origin": {"kind": "task-notification"}, "message": {"role": "user", "content": "\n".join(kickoff_prompt(mode))}}
+
+
+@case
+def a_seeded_session_confirms_with_one_short_dialog():
+    st = write_plan(PROMPTED, prompt=kickoff_prompt("unattended"))
+    assert "Kickoff prompt verbatim" in hook(seg(args(state=st, groups=TASK)), [seed()], runner=True)  # the seed is no paste
+    confirm = [seed(), said("plan-x: unattended was confirmed in session k; ~$0 of ~$2.0 spent. Proposed mode: unattended. "
+                            "Reply unattended or gated.")]
+    for words in ("Unattended (Recommended)", "yes"):
+        st = write_plan(PROMPTED.replace(" by Kickoff prompt: Run in unattended mode.", ": " + words), prompt=kickoff_prompt("unattended"))
+        assert hook(seg(args(state=st, groups=TASK)), confirm + ask({CONFIRM_Q: words}), runner=True) is None, words
+    st = write_plan(PROMPTED.replace(" by Kickoff prompt: Run in unattended mode.", ": Unattended"), prompt=kickoff_prompt("unattended"))
+    assert "doesn't follow the kickoff question" in hook(seg(args(state=st, groups=TASK)),
+                                                         [seed()] + ask({"Keep the unattended run?": "Unattended"}), runner=True)
+    write_plan()
+
+
 @case
 def a_pasted_prompt_never_answers_a_gate():
     for gate in ("1", "guard", "7"):
