@@ -497,7 +497,10 @@ Three ways in:
 - **(a) A new local session on the same machine**, usually right after the
   kickoff halted for a new chat. The clone is on the task branch already.
 - **(b) A cloud session.** Claude Code on the web gives each session its own
-  `claude/…` branch, cut from the default branch. If that branch has no
+  `claude/…` branch, cut from the default branch, unless the kickoff
+  started this session on the task branch (the Claude Code adapter's
+  "A new session"): then the branch is the prompt's, and there is nothing
+  to move. If that branch has no
   commits of its own, fast-forward it to the prompt's branch
   (`git fetch origin && git merge --ff-only origin/<prompt branch>`), push
   it, and work there; in the confirmation commit rewrite the prompt's `On
