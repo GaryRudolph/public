@@ -57,6 +57,17 @@ turn, so save first ("Questions, and saving before them" in `SKILL.md`).
 
   Never fill in `answers`, `annotations` or `response` yourself: the hook
   then counts none of the dialog.
+- **The confirmation** in a session that wasn't started from a paste,
+  under a matching unattended record: the short text, then one question
+  and no session question:
+
+  ```json
+  { "questions": [
+      { "header": "Mode", "question": "Proposed mode: unattended. Keep the unattended run confirmed in session aeb2cfec for plan-auth-otter?",
+        "options": [ { "label": "Unattended (Recommended)", "description": "Dispatch wave 1 now; ~$2.46 of ~$26 spent, guard ~$78." },
+                     { "label": "Gated", "description": "Every gate, failed check and repeat CONCERNS stops." } ],
+        "multiSelect": false } ] }
+  ```
 - **A gate or a stop:** one question, its text naming each repo's commit
   range, with options such as `Continue wave 3 [deep] m3 s1`, `Stop here`,
   and the step-up or waiver the gate allows (`Waive: <the concern>`). The
@@ -89,10 +100,10 @@ save, start or queue it (load a deferred tool with ToolSearch):
   approval. A plan spanning repos passes only the plan's repo; the new
   session attaches the rest with `add_repo` and switches each to its task
   branch. The prompt arrives as `inbound_origin: mcp_create_session`, not
-  a human message, so it is no paste: the new session asks the kickoff
-  question once more ("A session **not** started from a paste" in
-  `SKILL.md`), and Gary answers it there. Say so, with the new session's
-  id. If the call fails, fall back to the card.
+  a human message, so it is no paste: the new session asks Gary to confirm
+  unattended with one click ("A session **not** started from a paste" in
+  `SKILL.md`, and "The confirmation" above). Say so, with the new
+  session's id. If the call fails, fall back to the card.
 - **Elsewhere**, queue it with `mcp__ccd_session__spawn_task`: `title`
   `Orchestrate <plan name>`, `tldr` one line naming the waves and the
   mode, and `prompt` the Kickoff prompt verbatim, so the new session's
