@@ -130,6 +130,28 @@ function _context_unapply
     end
 end
 
+# --- Clean launch env ---------------------------------------------------------
+# `env (_context_clean_env) <cmd>` runs <cmd> with every context marker and
+# loadenv key removed, whichever context this shell is in. GUI apps launched
+# through `open` or an editor CLI inherit the calling shell's env, so without
+# this the app's profile would depend on the shell's pwd rather than on the
+# launcher. Prints `-u KEY` pairs, one word per line.
+function _context_clean_env --description 'Print env(1) -u args that drop all context state'
+    set -l keys __active_context
+    for ctx in $__context_registered
+        set -l marker_var __context_markers_$ctx
+        for kv in $$marker_var
+            set -a keys (string split -m1 '=' -- $kv)[1]
+        end
+    end
+    for track in (set -n | string match '__loadenv_keys_*')
+        set -a keys $$track
+    end
+    for key in (printf '%s\n' $keys | sort -u)
+        printf '%s\n' -u $key
+    end
+end
+
 # --- PWD handler --------------------------------------------------------------
 function __context_on_pwd_changed --on-variable PWD
     set -l new (_context_from_path (pwd))
