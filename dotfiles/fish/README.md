@@ -180,6 +180,8 @@ Mechanism (public side, [`conf.d/80-context.fish`](conf.d/80-context.fish)):
 - `context_register <name> --markers K=v ... --loadenv name1 ...` — registry helper
 - `_context_apply` / `_context_unapply` — flip env state for a context
 - `__context_on_pwd_changed` — `--on-variable PWD` handler that drives it all
+- `_context_clean_env` — prints `env -u` args that drop every registered
+  marker and loaded env key, for launching GUI apps without this shell's context
 - `__context_init_active` — one-shot init called by the registry after declarations
 - [`functions/context.fish`](functions/context.fish) — `context` CLI:
   `context [current|show <name>|reload|list]`
@@ -235,6 +237,13 @@ Cursor, and `cursor ~/Projects/agerpoint/bok` from anywhere does the same.
 Personal, lolay, nowline, and deskhound all share the personal Cursor/VS Code/OpenCode
 and the lolay Claude account. The personal Claude login in `~/.claude` is no
 longer routed; force it with `claude-personal`.
+
+Editors always launch through `env (_context_clean_env)`: `open` and the editor
+CLIs hand this shell's environment to the app, so without it a personal Cursor
+started from an agerpoint pwd would pick up agerpoint's gcloud, AWS and Claude
+markers (and an AP app started from a nowline pwd, nowline's). The AP wrappers
+set the profile's own `CLAUDE_CONFIG_DIR` and extensions dir themselves, so an
+app gets the same environment from the shell as from Spotlight.
 
 OpenCode config is symlinked from [`dotfiles/opencode/`](../opencode/README.md)
 (`personal.json` / `agerpoint.json` → `~/.config/opencode*/opencode.json`).

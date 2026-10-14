@@ -12,11 +12,16 @@
 # path-aware wrappers: they route to the agerpoint app/config when the first
 # path argument or pwd is inside ~/Projects/agerpoint/, otherwise they fall
 # through to the default (personal; lolay for claude). See dotfiles/fish/README.md.
+#
+# Editor launches go through `env (_context_clean_env)` (conf.d/80-context.fish):
+# `open` and the editor CLIs hand the shell's env to the app, so this shell's
+# context markers would otherwise leak into it. The AP wrappers set the
+# profile's own env (CLAUDE_CONFIG_DIR, extensions dir) themselves.
 
 # --- agerpoint (slug=agerpoint, LABEL=AP) ---
 
 function cursor-agerpoint --description 'Launch Cursor (Agerpoint, via Cursor AP.app)'
-    open -a "Cursor AP" $argv
+    env (_context_clean_env) open -a "Cursor AP" $argv
 end
 
 function claude-agerpoint --description 'Claude Code CLI (Agerpoint account)'
@@ -25,7 +30,7 @@ function claude-agerpoint --description 'Claude Code CLI (Agerpoint account)'
 end
 
 function code-agerpoint --description 'Launch VS Code (Agerpoint, via Visual Studio Code AP.app)'
-    open -a "Visual Studio Code AP" $argv
+    env (_context_clean_env) open -a "Visual Studio Code AP" $argv
 end
 
 # --- lolay (slug=lolay, LABEL=LO) — Claude only ---
@@ -65,18 +70,18 @@ end
 function cursor --description 'Cursor, routed to agerpoint app or personal default'
     switch (_context_from_argv $argv)
         case agerpoint
-            open -a "Cursor AP" $argv
+            env (_context_clean_env) open -a "Cursor AP" $argv
         case '*'
-            command cursor $argv
+            env (_context_clean_env) cursor $argv
     end
 end
 
 function code --description 'VS Code, routed to agerpoint app or personal default'
     switch (_context_from_argv $argv)
         case agerpoint
-            open -a "Visual Studio Code AP" $argv
+            env (_context_clean_env) open -a "Visual Studio Code AP" $argv
         case '*'
-            command code $argv
+            env (_context_clean_env) code $argv
     end
 end
 

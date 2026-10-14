@@ -28,9 +28,11 @@ that has to change.
 
 Up to three extra apps per profile (declared in the profile's `APPS=` list):
 
-- `Cursor <LABEL>.app` — launches Cursor into a fully isolated profile (separate accounts, settings, extensions, indexes).
-- `Claude <LABEL>.app` — launches Claude Desktop into a fully isolated profile.
-- `Visual Studio Code <LABEL>.app` — launches VS Code into a fully isolated profile.
+- `Cursor <LABEL>.app` — launches Cursor into its own profile (separate accounts, settings, extensions, indexes).
+- `Claude <LABEL>.app` — launches Claude Desktop into its own profile, with Code-tab sessions on the profile's Claude Code config.
+- `Visual Studio Code <LABEL>.app` — launches VS Code into its own profile.
+
+See [What each wrapper sets](#what-each-wrapper-sets) for exactly which directories move and which stay shared.
 
 All are branded with your overlay so they're distinct in the Dock and Spotlight. Personal Cursor, Claude Desktop, and VS Code are unchanged — bare `cursor`, the normal Claude Desktop launch, and bare `code` keep their existing profile.
 
@@ -83,7 +85,14 @@ Critical and easy to miss:
 
 ### First Cursor / VS Code launch
 
-Extensions are per `--user-data-dir`, so a new Cursor or VS Code instance starts empty. Reinstall what you need; consider each editor's built-in settings sync if both instances should share.
+Extensions live in the wrapper's `--extensions-dir` (`~/.cursor-<slug>/extensions`, `~/.vscode-<slug>/extensions`), so a new profile starts with none. To start from the personal set, copy the list over with the editor CLI:
+
+```sh
+cursor --list-extensions | xargs -n1 cursor --extensions-dir ~/.cursor-company1/extensions --install-extension
+code --list-extensions | xargs -n1 code --extensions-dir ~/.vscode-company1/extensions --install-extension
+```
+
+Each extension's sign-in and secrets live under `--user-data-dir`, so they're per profile either way.
 
 ### Command-line tools (Claude Code)
 
@@ -110,6 +119,10 @@ alias claude-company2='CLAUDE_CONFIG_DIR="$HOME/.claude-company2" claude'
 #### fish
 
 If you use fish, the equivalent function lives at `dotfiles/fish/conf.d/65-aliases.apps.fish` (same pattern: a `set -lx CLAUDE_CONFIG_DIR ...` followed by `command claude`).
+
+#### Claude Desktop's Code tab
+
+`Claude <LABEL>.app` sets the same `CLAUDE_CONFIG_DIR=~/.claude-<slug>` for its Code-tab sessions, so the profile's CLI and desktop app share settings (including the `env` block), transcripts and memory. The stock `Claude.app` keeps `~/.claude`.
 
 #### Other CLIs
 
@@ -182,7 +195,7 @@ For anyone who wants to understand the pieces, fork it for a different setup, or
 
 Each `.app` is an AppleScript application built with `osacompile`. The script has two handlers:
 
-- `on run` — launches the target app with the per-profile `--user-data-dir` flag.
+- `on run` — launches the target app with the per-profile flags and environment ([What each wrapper sets](#what-each-wrapper-sets)).
 - `on open` — same, but appends any file paths macOS hands the wrapper. So `open -a "Cursor C1" .` opens the current directory.
 
 The wrapper *is* the launcher; it isn't trying to be a long-running app. Once it runs `do shell script` to launch the real app, the wrapper exits.
@@ -197,9 +210,41 @@ A duplicated bundle would let Cmd-Tab show "Cursor C1" — but at the cost of:
 
 We trade Cmd-Tab labeling for zero-maintenance.
 
+### What each wrapper sets
+
+| Wrapper | Flags | Environment |
+|---|---|---|
+| `Claude <LABEL>.app` | `open -n … --args --user-data-dir=~/Library/Application Support/Claude-<slug>` | `CLAUDE_CONFIG_DIR=~/.claude-<slug>` (via `open --env`) |
+| `Cursor <LABEL>.app` | `--user-data-dir=~/.cursor-<slug> --extensions-dir=~/.cursor-<slug>/extensions` | `CLAUDE_CONFIG_DIR=~/.claude-<slug>` |
+| `Visual Studio Code <LABEL>.app` | `--user-data-dir=~/.vscode-<slug> --extensions-dir=~/.vscode-<slug>/extensions` | `CLAUDE_CONFIG_DIR=~/.claude-<slug>` |
+
+`CLAUDE_CONFIG_DIR` moves everything Claude Code keeps per account: `settings.json` (with its `env` block), `projects/` (transcripts and auto-memory), `file-history/`, `history.jsonl`, `plans/`, `ide/` lockfiles, and `.claude.json` (which then lives inside the config dir instead of at `~/.claude.json`). In the editors, the Claude Code extension and the `/ide` connection pick it up from the app's environment.
+
+Still shared with the personal apps:
+
+- Cursor's `~/.cursor/` home (global `mcp.json`, Cursor skills and rules, agent CLI state, `argv.json`). The wrappers don't move it.
+- Anything outside these directories: git config, `~/.ssh`, gcloud and AWS config.
+
+Per-profile environment beyond the config dir (gcloud, AWS) belongs in `~/.claude-<slug>/settings.json`'s `env` block, which applies to the CLI, the desktop Code tab and the editor extension alike. Keep secrets out of it.
+
+### Launch environment
+
+An app started through `open` (including a wrapper) inherits the environment of whatever started it: nothing much from Spotlight or the Dock, but the whole shell environment when you run `open -a` from a terminal. The wrappers therefore set their profile's variables explicitly rather than relying on the caller. The fish `cursor` / `code` routes also launch through `env (_context_clean_env)`, so the calling shell's context markers don't leak into the app either way (see [`dotfiles/fish/README.md`](../dotfiles/fish/README.md)).
+
+Two Claude Desktop details:
+
+- The desktop app reads `CLAUDE_CONFIG_DIR` only from its own launch environment; it deliberately ignores the value a login shell would set. That's why the wrapper uses `open --env` instead of a shell alias.
+- A `CLAUDE_CONFIG_DIR` entered in the desktop app's Settings → Environment variables (stored per `--user-data-dir`) overrides the wrapper's. Leave it unset there.
+
+The environment is read once, when the app process starts. If a profile's app is already running, quit it (Cmd-Q on its window) and relaunch through the wrapper before expecting a change.
+
+### Migrating an existing profile
+
+Before this wrapper set `CLAUDE_CONFIG_DIR`, a profile's Code-tab sessions wrote to `~/.claude`. Those transcripts and memories stay there until moved: copy each session's `projects/<dir>/<session-id>.jsonl` (plus its `<session-id>/` folder) and the project's `memory/` into `~/.claude-<slug>/projects/<dir>/`, with every Claude instance that uses those files quit. Settings keys you relied on in `~/.claude/settings.json` (effort, workflows, notifications) need copying into the profile's `settings.json` too.
+
 ### Why `--user-data-dir`
 
-Both Cursor and Claude Desktop are Electron apps. Electron honors `--user-data-dir` to relocate everything user-scoped (auth tokens, settings, extensions/indexes) to that directory. `open -n` (Claude) is needed to spawn a new instance instead of focusing the existing single-instance lock holder. Cursor doesn't need `-n` because it's launched via its bundled `cursor` CLI, not `open -a`.
+Both Cursor and Claude Desktop are Electron apps. Electron honors `--user-data-dir` to relocate the app's user-scoped data (auth tokens, settings, indexes) to that directory. VS Code forks keep extensions outside it, hence the separate `--extensions-dir`. `open -n` (Claude) is needed to spawn a new instance instead of focusing the existing single-instance lock holder. Cursor doesn't need `-n` because it's launched via its bundled `cursor` CLI, not `open -a`.
 
 ### Profile config schema
 
