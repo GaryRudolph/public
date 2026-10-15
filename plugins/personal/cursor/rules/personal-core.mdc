@@ -83,7 +83,7 @@ If a `~/Projects/personal/public/...` path below doesn't exist (cloud, runner, o
 Load these only when the current task is relevant to the standard's topic:
 
 - `~/Projects/personal/public/standards/code-style.md` — naming, formatting, imports, anti-patterns
-- `~/Projects/personal/public/standards/architecture.md` — layering, DI, toolchain floor and pin, API design, error handling, hidden resources, custom headers, timestamps, resource state, protobuf, resource history, ops plane
+- `~/Projects/personal/public/standards/architecture.md` — layering, DI, toolchain floor and pin, API design, error handling, hidden resources, custom headers, timestamps, resource state, protobuf, resource history, environment domains, ops plane
 - `~/Projects/personal/public/standards/platform-parity.md` — cross-platform Swift/Kotlin naming and layer conventions
 - `~/Projects/personal/public/standards/testing.md` — coverage targets, test structure, mocking rules
 - `~/Projects/personal/public/standards/documentation.md` — what to document, ADR format, TODO conventions

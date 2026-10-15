@@ -28,7 +28,7 @@ Tenant roles and the ops plane are in [architecture.md](architecture.md#tenant-a
 
 ## Shared-Domain Cookies
 
-Hosts under one registrable domain (`app.example.com`, `api.example.com`, `ops.example.com`) are same-site to each other, so `SameSite` doesn't separate them, and any of them can set a cookie for the whole domain. These rules apply to every service that shares a registrable domain with another.
+Hosts under one registrable domain (`app.example.com`, `api.example.com`, `ops.example.com`) are same-site to each other, so `SameSite` doesn't separate them, and any of them can set a cookie for the whole domain. These rules apply to every service that shares a registrable domain with another, and to environments that share one ([Environment Domains](architecture.md#environment-domains) keeps prod off any domain a non-prod environment uses).
 
 - **`__Host-` prefix on session and CSRF cookies**: the browser accepts the cookie only with `Secure`, `Path=/` and no `Domain`, so it stays host-only and a sibling can't set or overwrite it ([RFC 6265bis] §4.1.3.2; in the RFC Editor queue, shipped in browsers)
 - **Never `Domain=`** on a credential cookie: it's sent to every sibling, including one that's compromised or serves user content

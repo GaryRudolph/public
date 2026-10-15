@@ -314,12 +314,33 @@ Optional. Add one only when an application needs that kind of logging; most won'
 - **Append-only sink** — the app's identity can only emit entries. A log router delivers them to append-only storage that identity can't modify, such as a retention-locked log store or a warehouse dataset it has no role on. The app never writes that storage directly: many stores can't grant insert without also granting delete, and a router keeps the app's identity out of the store entirely. GCP setup: [gcp.md](gcp.md#activity-log)
 - **Retention is a policy** — actor ids are pseudonymous personal data ([GDPR] Recital 26), so the log has a written retention period, restricted read access and a stated reason to keep it
 
+## Environment Domains
+
+Every environment (dev, qa, staging, prod) is served from the same host names, and only the domain suffix says which environment you're on. `example` stands for the product's name, as `example.com` does elsewhere in these standards. There are two approaches, and a product picks one:
+
+| Env | TLD per environment (preferred) | Subdomain per environment (one `.dev`) |
+| --- | --- | --- |
+| dev | `cloud.example.dev` | `cloud.dev.example.dev` |
+| qa | `cloud.example.works` | `cloud.qa.example.dev` |
+| staging | `cloud.example.show` | `cloud.staging.example.dev` |
+| prod | `cloud.example.com` | `cloud.example.com` |
+
+- **TLD per environment (preferred)** — each environment is its own registrable domain, so a cookie, a `Domain=` attribute or an HSTS header from one environment can't reach another ([Shared-Domain Cookies](security.md#shared-domain-cookies)). Each environment also gets its own DNS zone, certificates and registrar access, so a change is promoted by moving the artifact, never by sharing names, and there is no second level of environment labels to manage
+- **The TLDs are candidates, chosen to say what the environment is for** — `.dev` is where developers work, `.works` is QA checking that it works, `.show` is show and tell (staging, shown to customers or the rest of the company) and `.com` is prod. Swap one only when the name isn't available, and keep the meaning
+- **Subdomain per environment** — the fallback when a TLD isn't obtainable: one non-prod domain (`.dev`) with an environment label between the host and the domain. Dev, qa and staging then share a registrable domain, so they're same-site and every [shared-domain cookie rule](security.md#shared-domain-cookies) applies between environments, not only between services
+- **Prod is alone in both** — it's the product's own domain with no environment label, and no other environment is ever hosted under it (no `staging.example.com`), so a cookie set for `example.com` can't be sent by or to a non-prod host
+- **A region is a second prod** — a regional need, such as `.sa`, is another prod on its country-code TLD (`cloud.example.sa`), beside the `.com` prod. It has no dev, qa or staging of its own
+- **Same host labels everywhere** — `cloud`, `api` and `ops` are identical in every environment, and config derives the full host from the environment's domain: `ops.example.com` in prod, `ops.example.dev` in dev
+- **Buy every domain when the product is named, stand up two** — register all four (both, for the subdomain approach) at the start, so a name can't be taken or squatted before it's needed. Only dev and prod are stood up initially; qa and staging (`.works`, `.show`) follow when the product needs them. If a TLD can't be bought at that point, fall back to the subdomain approach for the product. The cost is one renewal per environment (four rather than two)
+- **Non-prod is gated, coarsely** — dev, qa and staging sit behind one gate for the whole host, such as IAP on GCP ([gcp.md](gcp.md#ops-plane-on-iap)), a shared login or an allowlist, so casual visitors and bots never reach the product. The gate admits whoever the environment is for: the team for dev, QA for `.works`, the customers or company a demo is for on `.show`. It's in addition to the app's own authorization, never instead of it, and prod isn't behind it
+- **Keep non-prod out of search indexes** — the gate is the real control. Send `X-Robots-Tag: noindex` on every non-prod response as a backstop for a host whose gate is open (a `.show` demo), and don't rely on a `robots.txt` `Disallow` alone: it's advisory, and a crawler barred from fetching a page never sees its `noindex`
+
 ## Tenant Admin and Ops
 
 "Admin" means the customer's admin, as it does at Google Workspace, Slack, Atlassian and Shopify. The vendor's own staff work in a separate **ops** plane. Words that name customer roles elsewhere ("super admin", "staff", "system") are never used to name an ops role, API or UI. The term "ops" is a house convention: vendors call this plane different things, and no standard names it.
 
 - **Tenant admin is a role** — tenant roles (`OWNER`, `ADMIN`, `EDITOR`, `VIEWER`, wire enums like any other: [Resource State](#resource-state)) apply to org-scoped resources in the product API (`/organizations/{org}/…`), and tenant settings live in the product app. There's no separate admin API
-- **Ops is its own service** — its own console and API at `ops.<product domain>` (`ops.example.com`, with `ops.example.net` for dev), behind IAP
+- **Ops is its own service** — its own console and API at `ops.<product domain>` (`ops.example.com`, with `ops.example.dev` for dev; the rest follow [Environment Domains](#environment-domains)), behind IAP
 - **One origin** — the console at `/`, the API at `/api/v1/…`. IAP authenticates with a session cookie, so a second host would add a second IAP session, CORS preflights that IAP blocks by default, and `fetch` calls that fail on IAP's sign-in redirect. The product splits `api.` from its app hosts only because its bearer tokens cross origins cleanly
 - **The host names the plane** — ops paths follow the product's convention without repeating the plane (`/api/v1/organizations/{org}`, not `/api/v1/ops/…`). The ops `v1` versions independently of the product API
 - **Roles** — one `OPS` role; split it only when a need appears. An ops role never shares a name with a tenant role
