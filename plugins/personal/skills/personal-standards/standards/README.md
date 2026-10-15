@@ -5,7 +5,7 @@ This directory contains coding standards for consistent, maintainable, quality c
 ## Core Standards
 
 - **[Code Style](code-style.md)** — Naming conventions, formatting, imports, anti-patterns
-- **[Architecture](architecture.md)** — Layering, DI, RFC-based API design, RFC 9457 error responses, hidden resources, custom headers, timestamps, resource state, protobuf, resource history, activity log, tenant admin vs ops
+- **[Architecture](architecture.md)** — Layering, DI, RFC-based API design, RFC 9457 error responses, hidden resources, custom headers, timestamps, resource state, protobuf, resource history, activity log, environment domains, tenant admin vs ops
 - **[Platform Parity](platform-parity.md)** — Cross-platform Swift/Kotlin naming and layer conventions
 - **[Testing](testing.md)** — Coverage targets, test structure, mocking rules
 - **[Documentation](documentation.md)** — What to document, ADR format, TODO conventions

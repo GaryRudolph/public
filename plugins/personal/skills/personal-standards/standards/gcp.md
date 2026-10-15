@@ -4,7 +4,7 @@ How to meet the generic rules in [security.md](security.md) and [architecture.md
 
 ## Ops Plane on IAP
 
-The ops console and API are one Cloud Run service behind Identity-Aware Proxy, on one origin at `ops.<product domain>` (`ops.example.com`, with `ops.example.net` for dev): the console at `/`, the API at `/api/v1`. The host, path and role naming, and why it's one origin, are in [architecture.md](architecture.md#tenant-admin-and-ops).
+The ops console and API are one Cloud Run service behind Identity-Aware Proxy, on one origin at `ops.<product domain>` (`ops.example.com`, with `ops.example.dev` for dev; other environments follow [Environment Domains](architecture.md#environment-domains)): the console at `/`, the API at `/api/v1`. The host, path and role naming, and why it's one origin, are in [architecture.md](architecture.md#tenant-admin-and-ops).
 
 - **IAP on the Cloud Run service**: `iap_enabled = true` on [`google_cloud_run_v2_service`][tf-run]. The IAP service agent (`service-<project-number>@gcp-sa-iap.iam.gserviceaccount.com`) gets `roles/run.invoker`. Access is [`google_iap_web_cloud_run_service_iam_member`][tf-iap-run] with `roles/iap.httpsResourceAccessor`, bound to a group, never to a user ([IAP for Cloud Run][iap-run])
 - **Custom domain**: a global external Application Load Balancer with a serverless NEG, with IAP enabled on the Cloud Run service and not on the load balancer; it can't be on both ([IAP for Cloud Run][iap-run], [serverless NEG setup][lb-serverless]). Cloud Run domain mapping is Preview; check its [launch stage][run-domains] before relying on it
