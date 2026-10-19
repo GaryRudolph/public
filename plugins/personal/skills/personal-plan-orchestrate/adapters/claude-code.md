@@ -354,6 +354,13 @@ avoids the runner Stop hook.
   relaunch may run checkpoints and never answers a gate. The workflow's
   automatic retry fails at once too (a crash and a limit both return null),
   which costs little.
+- **Idle compaction.** Claude Code compacts a conversation over 200K tokens
+  left idle about 54 minutes (v2.1.299+), so a parent waiting at a gate can
+  come back compacted. Let it: every wait follows a save (`SKILL.md`
+  "Questions, and saving before them"), so the plan and the pushed handoff
+  hold what the run needs. A parent that finds its context compacted
+  re-reads the plan and the handoff and re-runs `plan_state.py` before it
+  acts on an answer.
 
 ## Permissions
 
