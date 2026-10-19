@@ -114,7 +114,9 @@ Work down this list and take the first that matches.
      copy of the plugin works unchanged. If `<P>:plan-worker` isn't among
      `Agent`'s subagent types, the plugin's agents aren't loaded: go passive.
    - If `Workflow` is missing (disabled, or Pro without the `/config`
-     opt-in), use the **Agent path** (`adapters/claude-code.md`).
+     opt-in), use the **Agent path** (`adapters/claude-code.md`). It sets
+     each tier's effort per call, so if `Agent` has no `effort` parameter
+     (Claude Code before v2.1.292), go passive.
    - Otherwise use the **workflow path**: you will **call the Workflow
      tool** to launch the `<P>:plan-segment` workflow, one launch per
      dispatch unit. Confirm the workflow exists from the skills list (it is
@@ -149,11 +151,11 @@ The scripts are harness-neutral Python 3:
 
 | Tier | Claude Code worker | Claude Code reviewer |
 |---|---|---|
-| `[xdeep]` | `<P>:plan-worker-xdeep`, Opus xhigh | `<P>:plan-reviewer-xdeep`, Opus xhigh |
+| `[xdeep]` | `<P>:plan-worker`, Opus xhigh | `<P>:plan-reviewer`, Opus xhigh |
 | `[deep]` | `<P>:plan-worker`, Opus high | `<P>:plan-reviewer`, Opus high |
 | `[exec]` | `<P>:plan-worker`, Sonnet high | `<P>:plan-reviewer`, Opus high |
 | `[fast]` | `<P>:plan-worker`, Haiku low | `<P>:plan-reviewer`, Opus high |
-| Fable step-up (gates 6 and 7) | `<P>:plan-worker-xdeep`, Fable xhigh | `<P>:plan-reviewer-xdeep`, Opus xhigh |
+| Fable step-up (gates 6 and 7) | `<P>:plan-worker`, Fable xhigh | `<P>:plan-reviewer`, Opus xhigh |
 
 The workflow sets these itself. `[exec]` never runs past high: a stalled
 `[exec]` group re-tags to `[deep]`. `max` runs an `[xdeep]` or Fable worker

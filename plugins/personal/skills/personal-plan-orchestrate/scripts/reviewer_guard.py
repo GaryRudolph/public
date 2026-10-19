@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Claude Code PreToolUse hook on Bash: keep personal-plan-orchestrate's reviewers read-only.
 
-Reviewers (<plugin>:plan-reviewer, <plugin>:plan-reviewer-xdeep) need Bash for
+The reviewer (<plugin>:plan-reviewer) needs Bash for
 git diff, git log and the repo's tests, and their instructions forbid writes.
 Phase 0 showed the instruction is the only thing that stops a write (their
 tools allowlist can't narrow Bash), so this hook denies the commands that
@@ -25,7 +25,7 @@ import json
 import re
 import sys
 
-REVIEWER = re.compile(r"^[a-z][a-z0-9-]*:plan-reviewer(?:-xdeep)?$")
+REVIEWER = re.compile(r"^[a-z][a-z0-9-]*:plan-reviewer$")
 
 GIT_OPTS = r"(?:\s+-[Cc]\s+\S+|\s+--?[\w-]+(?:=\S+)?)*"
 GIT_WRITE = re.compile(

@@ -1,6 +1,6 @@
 ---
 name: plan-worker
-description: Claude Code only. Runs one [exec], [deep] or [fast] unit that personal-plan-orchestrate dispatches; the caller sets the model. Never use it proactively or for any other task.
+description: Claude Code only. Runs one unit, at any tier, that personal-plan-orchestrate dispatches; the caller sets the model and effort. Never use it proactively or for any other task.
 model: inherit
 color: blue
 ---

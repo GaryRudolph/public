@@ -18,8 +18,8 @@ export const meta = {
 // gate 1 stops. It never decides to continue: the parent records the result,
 // runs check_wave.py, commits the plan and handoff, and launches the next run.
 
-// Tier routing. Must match plan-execution.md's Claude Code picker row and the
-// -xdeep agents' frontmatter (orchestrate_check.py checks both).
+// Tier routing. Must match plan-execution.md's Claude Code picker row
+// (orchestrate_check.py checks it). Every agent() call passes model and effort.
 const ROUTE = {
   fast: { model: 'haiku', effort: 'low' },
   exec: { model: 'sonnet', effort: 'high' },
@@ -28,7 +28,7 @@ const ROUTE = {
   fable: { model: 'fable', effort: 'xhigh' },
 }
 const CHAIN = ['fast', 'exec', 'deep', 'xdeep', 'fable']
-const PREMIUM = { xdeep: true, fable: true }  // the tiers on the -xdeep agents
+const PREMIUM = { xdeep: true, fable: true }  // the tiers max and drafts apply to
 const ANGLES = [
   'the simplest design that fully satisfies the spec',
   'risk first: list the failure modes, then design to rule each one out',
@@ -56,8 +56,8 @@ const NEVER_APPROVED = ['gate-0', 'gate-mode']  // cleared only by fixing the pl
 // measured gain). Reviews, drafts and judges keep the tier's effort. [exec] has none: it runs at high and never past
 // it, so a stalled [exec] step re-tags to [deep] (stepUp, or the unattended retry below).
 function route(t) { return PREMIUM[t] && args.max ? { ...ROUTE[t], effort: 'max' } : ROUTE[t] }
-function worker(t = tier) { return { agentType: `${P}:plan-worker${PREMIUM[t] ? '-xdeep' : ''}`, ...route(t) } }
-function reader(t = tier) { return PREMIUM[t] ? { agentType: `${P}:plan-reviewer-xdeep`, ...ROUTE.xdeep } : { agentType: `${P}:plan-reviewer`, ...ROUTE.deep } }
+function worker(t = tier) { return { agentType: `${P}:plan-worker`, ...route(t) } }
+function reader(t = tier) { return { agentType: `${P}:plan-reviewer`, ...(PREMIUM[t] ? ROUTE.xdeep : ROUTE.deep) } }
 function norm(x) { return String(x || '').replace(/\s+/g, ' ').trim() }
 
 function base(dir) { return dir.replace(/\/+$/, '').split('/').pop() }

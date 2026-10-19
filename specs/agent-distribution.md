@@ -204,9 +204,9 @@ about it. [anthropics/claude-code#43869](https://github.com/anthropics/claude-co
 (a subagent's `model` is ignored) is still open, but on Claude Code 2.1.291
 wire captures showed the per-call `model` and `effort`, and plugin-agent
 frontmatter, reaching the API. The `plan-segment` workflow sets them per
-`agent()` call, the plugin's agents carry them for the Agent path, and
+`agent()` call, the Agent path passes them per `Agent` call, and
 `token_tally.py --check-routing` flags any substitution.
-The plugin ships those five agents, the workflow, and a `hooks/claude-hooks.json`
+The plugin ships two agents, the workflow, and a `hooks/claude-hooks.json`
 with a `Workflow` gate and a read-only `Bash` guard for the reviewers; the
 runbook (m2.s4) says what the account sync carries.
 

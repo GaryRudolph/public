@@ -1,6 +1,6 @@
 ---
 name: plan-reviewer
-description: Claude Code only. Read-only review of a personal-plan-orchestrate unit at [deep], [exec] or [fast]. Never use it proactively or for any other task.
+description: Claude Code only. Read-only review, drafting and judging for a personal-plan-orchestrate unit at any tier; the caller sets the model and effort. Never use it proactively or for any other task.
 model: opus
 effort: high
 tools: Read, Grep, Glob, Bash

@@ -59,8 +59,7 @@ default for marketplaces added this way.
 
 - Install **`personal`**. This is the one that has to be on the account.
   Besides skills it now carries pieces only Claude Code uses, named in the
-  Claude manifest: five agents (`plan-worker`, `plan-worker-exec`,
-  `plan-worker-xdeep`, `plan-reviewer`, `plan-reviewer-xdeep`), the
+  Claude manifest: two agents (`plan-worker`, `plan-reviewer`), the
   `plan-segment` workflow (so `personal:plan-segment`), and
   `hooks/claude-hooks.json` with three `PreToolUse` hooks: a gate on
   `Workflow` (`orchestrate_gate.py`, which denies an orchestrate launch

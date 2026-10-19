@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Claude Code PreToolUse hook on Bash: keep personal-plan-orchestrate's workers inside their working directory.
 
-Workers (<plugin>:plan-worker, -exec, -xdeep) write and commit, but never act
+Workers (<plugin>:plan-worker) write and commit, but never act
 outside their working directory: the parent pushes, and Gary opens PRs,
 releases and deploys. Phase 1's dogfood showed a worker can run an outward
 command its prompt forbids, so this hook denies, when the hook input's
@@ -41,7 +41,7 @@ import json
 import re
 import sys
 
-WORKER = re.compile(r"^[a-z][a-z0-9-]*:plan-worker(?:-exec|-xdeep)?$")
+WORKER = re.compile(r"^[a-z][a-z0-9-]*:plan-worker$")
 
 # A command word's position: the start, or after a separator, a subshell or a substitution, past sudo/env and
 # VAR=value prefixes.
