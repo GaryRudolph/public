@@ -202,8 +202,9 @@ Standard list rates in USD per million tokens for every model in the picker. Cur
 |---|---|---|---|---|
 | `claude-fable-5-1` | `[xdeep]` alt: Claude Code `fable`, Cursor | $10.00 | $0.25 | $50.00 |
 | `claude-opus-5-5` | Claude Code `opus`, Cursor | $4.00 | $0.20 | $20.00 |
-| `claude-sonnet-5-5` | Claude Code `sonnet`, Cursor alt | $2.00 | $0.20 | $10.00 |
-| `claude-haiku-4-5` | Claude Code `haiku` | $1.00 | $0.10 | $5.00 |
+| `claude-sonnet-5-5` | Claude Code `sonnet`, Cursor alt | $2.00 | $0.10 | $10.00 |
+| `claude-haiku-5-5` | Claude Code `haiku` | $0.10 | $0.01 | $0.50 |
+| `claude-haiku-4-5` | older token lines | $1.00 | $0.10 | $5.00 |
 | `composer-2.5` (standard) | Cursor | $0.50 | $0.20 | $2.50 |
 | `composer-2.5` (Fast) | Cursor default | $3.00 | $0.50 | $15.00 |
 | `grok-4-7` / `grok-4.7` | Cursor, Grok Build | $2.00 | $0.50 | $6.00 |
@@ -216,9 +217,9 @@ Standard list rates in USD per million tokens for every model in the picker. Cur
 | `gemini-3.5-flash-lite` | Gemini CLI | $0.30 | $0.03 | $2.50 |
 | `muse-spark-1.3` | Muse Code | $1.25 | $0.15 | $4.25 |
 
-Long-context surcharges: Grok 4.7 doubles every rate above 256k input in Cursor (200k on xAI's API). GPT-6 doubles input and cached input and charges 1.5× output above 272k. Gemini 3.1 Pro is $4.00 / $0.40 / $18.00 above 200k. Anthropic models have none. Gemini 3.8 Flash's rates double on 2027-01-01.
+Long-context surcharges: Grok 4.7 doubles every rate above 256k input in Cursor (200k on xAI's API). GPT-6 doubles input and cached input and charges 1.5× output above 272k. Gemini 3.1 Pro is $4.00 / $0.40 / $18.00 above 200k. Claude Haiku 5.5 is $0.50 / $0.05 / $2.50 for a call whose prompt (input plus cache reads and writes) is over 100k; the other Anthropic models have none. Gemini 3.8 Flash's rates double on 2027-01-01.
 
-*As of 2026-10-01. Sources: [Claude pricing](https://platform.claude.com/docs/en/about-claude/pricing), [Cursor models and pricing](https://cursor.com/docs/models-and-pricing), [OpenAI pricing](https://developers.openai.com/api/docs/pricing), [Gemini pricing](https://ai.google.dev/gemini-api/docs/pricing), [Meta pricing](https://dev.meta.ai/docs/pricing-rate-limits), [xAI pricing](https://docs.x.ai/developers/pricing).*
+*As of 2026-10-01 (Claude rates: 2026-10-19). Sources: [Claude pricing](https://platform.claude.com/docs/en/about-claude/pricing), [Cursor models and pricing](https://cursor.com/docs/models-and-pricing), [OpenAI pricing](https://developers.openai.com/api/docs/pricing), [Gemini pricing](https://ai.google.dev/gemini-api/docs/pricing), [Meta pricing](https://dev.meta.ai/docs/pricing-rate-limits), [xAI pricing](https://docs.x.ai/developers/pricing).*
 
 On Claude Code, price by the model the alias resolved to (read it from `message.model`).
 
@@ -312,7 +313,7 @@ A plan carries one counting header. On Claude Code's orchestrate workflow path i
 
     - Line, one per model a chat ran, appended below: `tokens <row> <group-id> (<model>): input ~X / cache read ~R / cache write ~W / output ~Y | ~$C API-equiv`. `<row>` is `wave-N`, `review-wave-N`, or `wave-N-fix` and `review-wave-N-fix` for a fix-up wave; `<group-id>` is the wave's group id with hyphens (`m2-s1-s3`); `<model>` is `message.model` without a date suffix (`claude-haiku-4-5-20251001` is `claude-haiku-4-5`). Round counts to two significant figures with `k` or `M`.
     - Usage: `~/.claude/projects/<slug>/$CLAUDE_CODE_SESSION_ID.jsonl` (`<slug>` is the working directory with every character but a letter or digit turned into `-`, matched by prefix when long; without the id, the newest `.jsonl` there), plus its subagents' `<session-id>/subagents/**/agent-*.jsonl` in the same directory. Sum `message.usage` over assistant lines once per `message.id`, from the line with `stop_reason`: input `input_tokens`, cache read `cache_read_input_tokens`, cache write `cache_creation.ephemeral_5m_input_tokens` (with `ephemeral_1h_input_tokens` too, `cache write ~40k 5m + ~8k 1h`), output `output_tokens`. A call with no `stop_reason` line keeps its input-side counts, takes output as about 1,000, and its line ends `(output est.) session <id>`.
-    - Rates by `<model>`, $ per Mtok input / cached / output: `claude-opus-5-5` 4.00 / 0.20 / 20.00; `claude-sonnet-5-5` 2.00 / 0.20 / 10.00; `claude-haiku-4-5` 1.00 / 0.10 / 5.00.
+    - Rates by `<model>`, $ per Mtok input / cached / output: `claude-opus-5-5` 4.00 / 0.20 / 20.00; `claude-sonnet-5-5` 2.00 / 0.10 / 10.00; `claude-haiku-5-5` 0.10 / 0.01 / 0.50 (0.50 / 0.05 / 2.50 for a call whose prompt is over 100k tokens).
     - `$C` = (input × in + cache read × cached + 5m write × in × 1.25 + 1h write × in × 2.00 + output × out) / 1M.
     - In another harness, or on a model not listed here, count and price per plan-execution.md "Token accounting" and "Model price table" instead.
 
