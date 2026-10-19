@@ -7,6 +7,8 @@ Pick the regime by **what you're versioning**, not by personal preference. The t
 | 1. Integer-major | URL API paths, wire/RPC formats, message schemas, file/serialization formats | `v1`, `v2`, `v3` (`vN.x` only for hotfixes) |
 | 2. SemVer 2.0 | Service binaries, published packages, libraries, distributed apps | `MAJOR.MINOR.PATCH` |
 
+Contents: [Design principles](#design-principles) · [Regime 1](#regime-1-integer-major-contracts) · [Regime 2](#regime-2-semver-20) (lazy bump, build string, build code) · [Version string grammars](#version-string-grammars) · [Per-platform surfaces](#per-platform-surfaces) · [Promote-to-release flow](#promote-to-release-flow) · [Hotfix flow](#hotfix-flow)
+
 ## Design principles
 
 We lean into existing public standards rather than inventing our own — [SemVer 2.0](https://semver.org/) for artifacts, integer-major URL-style versioning for contracts. Both are widely understood, broadly tooled, and well-documented; reinventing them would force every consumer to learn a private convention.

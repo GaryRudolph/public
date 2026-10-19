@@ -1,5 +1,14 @@
 # Git Workflow Standards
 
+Contents:
+
+- [Branch Strategy](#branch-strategy) and [Worktrees](#worktrees): branch and worktree naming
+- [Versioning](#versioning): headlines; the full standard is versioning.md
+- [AI Agent Behavior](#ai-agent-behavior): task vs shared branches, when to commit and push, runners, AI attribution trailers
+- [Commit Messages](#commit-messages): subject format; trailers as the last paragraph
+- [Pull Requests](#pull-requests): hot files, PR body (session link above the `Assisted-by:` trailer paragraph), squash and API merges, `specs/handoffs/` cleanup
+- [.gitignore Essentials](#gitignore-essentials)
+
 ## Branch Strategy
 
 We follow **GitHub Flow** — short-lived feature branches merged frequently to `main` via pull requests. For apps with scheduled release trains a stabilization branch is acceptable.

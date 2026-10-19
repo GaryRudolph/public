@@ -1,5 +1,14 @@
 # Documentation Standards
 
+Contents:
+
+- [What to Document](#what-to-document), [Code Comments](#code-comments) (TODO format), [Filename Case Conventions](#filename-case-conventions)
+- [Product and Technical Specs](#product-and-technical-specs): the `specs/` layout; [Runbooks](#runbooks)
+- [Implementation Milestones](#implementation-milestones): `m{N}` / `s{N}` naming, strikethrough when done, milestone handoffs
+- [Architecture Decision Records](#architecture-decision-records)
+- [Changelog](#changelog): entries ship as `.changelog/` fragments, not edits to `CHANGELOG.md`
+- [Documentation Review Checklist](#documentation-review-checklist)
+
 ## What to Document
 
 **Always**: public APIs, complex business logic, architecture decisions, setup/configuration, non-obvious behavior, workarounds

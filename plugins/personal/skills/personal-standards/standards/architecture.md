@@ -1,5 +1,14 @@
 # Architecture Standards
 
+Contents:
+
+- [Core Principles](#core-principles), [Starting New Projects](#starting-new-projects), [Toolchain Floor and Pin](#toolchain-floor-and-pin)
+- [Layered Architecture](#layered-architecture), [Dependency Management](#dependency-management), [Error Handling Layers](#error-handling-layers)
+- [API Design](#api-design): the standards table, then house conventions (lowerCamel JSON, strict decoding, custom methods, `/health`, success envelope)
+- [Error Responses (RFC 9457)](#error-responses-rfc-9457), [Hidden Resources](#hidden-resources), [Custom Headers](#custom-headers), [Timestamps](#timestamps)
+- [Resource State](#resource-state) (wire enums, soft delete), [Protobuf](#protobuf), [Resource History](#resource-history), [Activity Log](#activity-log)
+- [Environment Domains](#environment-domains), [Tenant Admin and Ops](#tenant-admin-and-ops), [State Management](#state-management)
+
 ## Core Principles
 
 - **Solve the current problem** — don't build for hypothetical futures; only abstract when it's low effort or you have 3+ concrete examples
