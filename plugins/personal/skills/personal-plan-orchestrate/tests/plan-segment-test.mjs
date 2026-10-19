@@ -114,10 +114,10 @@ test('two working directories run in parallel and each gets one review', async (
   assert.match(w.prompt, /log --format=%s aaa0000\.\.HEAD/)
 })
 
-test('fast routes to Haiku at low effort', async () => {
+test('fast routes to Haiku at medium effort', async () => {
   const { calls } = await harness({ ...base, state: st(unit(1, 'fast', ['m1.s1'])), groups: [G('/r/a', ['m1.s1'])] })
   assert.equal(calls[0].model, 'haiku')
-  assert.equal(calls[0].effort, 'low')
+  assert.equal(calls[0].effort, 'medium')
   assert.match(calls[0].prompt, /Mechanical edits/)
 })
 
@@ -322,7 +322,7 @@ test('unattended: low_quality at [exec] steps up to Opus high once, never Sonnet
 test('unattended: a second failure stops at gate 1', async () => {
   const { result, calls } = await harness({ ...base, state: un(unit(1, 'fast', ['m1.s1'])), groups: [G('/r/a', ['m1.s1'])] }, { Wave: () => ({ ...DONE, status: 'failed' }) })
   assert.deepEqual(result.gates, ['gate-1'])
-  assert.deepEqual(calls.map(c => [c.model, c.effort]), [['haiku', 'low'], ['sonnet', 'high']])
+  assert.deepEqual(calls.map(c => [c.model, c.effort]), [['haiku', 'medium'], ['sonnet', 'high']])
   assert.match(result.reason, /after one automatic retry/)
 })
 

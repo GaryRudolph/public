@@ -154,7 +154,7 @@ The scripts are harness-neutral Python 3:
 | `[xdeep]` | `<P>:plan-worker`, Opus xhigh | `<P>:plan-reviewer`, Opus xhigh |
 | `[deep]` | `<P>:plan-worker`, Opus high | `<P>:plan-reviewer`, Opus high |
 | `[exec]` | `<P>:plan-worker`, Sonnet high | `<P>:plan-reviewer`, Opus high |
-| `[fast]` | `<P>:plan-worker`, Haiku low | `<P>:plan-reviewer`, Opus high |
+| `[fast]` | `<P>:plan-worker`, Haiku medium | `<P>:plan-reviewer`, Opus high |
 | Fable step-up (gates 6 and 7) | `<P>:plan-worker`, Fable xhigh | `<P>:plan-reviewer`, Opus xhigh |
 
 The workflow sets these itself. `[exec]` never runs past high: a stalled

@@ -21,7 +21,7 @@ export const meta = {
 // Tier routing. Must match plan-execution.md's Claude Code picker row
 // (orchestrate_check.py checks it). Every agent() call passes model and effort.
 const ROUTE = {
-  fast: { model: 'haiku', effort: 'low' },
+  fast: { model: 'haiku', effort: 'medium' },
   exec: { model: 'sonnet', effort: 'high' },
   deep: { model: 'opus', effort: 'high' },
   xdeep: { model: 'opus', effort: 'xhigh' },

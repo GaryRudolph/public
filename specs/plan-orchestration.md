@@ -244,7 +244,7 @@ A gated record needs no proof: it relaxes nothing, and its session's first launc
 
 ### 2.2 Tiers, models and effort
 
-`SKILL.md` "Tiers and models" has the table: workers on `plan-worker` and reviews on `plan-reviewer` at every tier: `[xdeep]` Opus xhigh with an Opus xhigh review; `[deep]` Opus high; `[exec]` Sonnet high; `[fast]` Haiku low; a Fable step-up at Fable xhigh with an Opus xhigh review. Reviews below `[xdeep]` and the parent run at Opus high: none is interactive planning, the one case the standard drops `[deep]` to medium. The standard's model picker wins over this table, and the kit's consistency check fails when they disagree.
+`SKILL.md` "Tiers and models" has the table: workers on `plan-worker` and reviews on `plan-reviewer` at every tier: `[xdeep]` Opus xhigh with an Opus xhigh review; `[deep]` Opus high; `[exec]` Sonnet high; `[fast]` Haiku medium; a Fable step-up at Fable xhigh with an Opus xhigh review. Reviews below `[xdeep]` and the parent run at Opus high: none is interactive planning, the one case the standard drops `[deep]` to medium. The standard's model picker wins over this table, and the kit's consistency check fails when they disagree.
 
 - **`[exec]` never runs past high.** A stalled `[exec]` group re-tags to `[deep]`, by a step-up Gary approves at gate 6, or unattended by the in-run retry.
 - **`max`** runs an `[xdeep]` or Fable worker at max, per launch, only on a task type with a measured gain; its review, drafts and judge stay at xhigh. It needs Gary's gate-7 approval in every mode (the script refuses it unattended without one) and is gate 0 on any other tier.

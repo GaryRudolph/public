@@ -175,7 +175,7 @@ One row per harness, one column per tier, effort in parentheses. "Switch harness
 
 | Harness | `[xdeep]` | `[deep]` | `[exec]` | `[fast]` |
 |---|---|---|---|---|
-| Claude Code | `/model opus` (xhigh), plus ultracode on audit-shaped steps (alt: `/model fable` (xhigh)) | `/model opus` (high; medium for interactive planning) | `/model sonnet` (high) | `/model haiku` (low) (alt: `/model sonnet` (low)) |
+| Claude Code | `/model opus` (xhigh), plus ultracode on audit-shaped steps (alt: `/model fable` (xhigh)) | `/model opus` (high; medium for interactive planning) | `/model sonnet` (high) | `/model haiku` (medium) (alt: `/model sonnet` (low)) |
 | Cursor | `claude-opus-5-5[effort=xhigh]` (alt: `claude-fable-5-1[effort=xhigh]`) | `claude-opus-5-5[effort=high]` (`[effort=medium]` for interactive planning) | `grok-4-7[effort=high,fast=false]` (alt: `claude-sonnet-5-5[effort=high]`) | `composer-2.5[fast=false]` (alt: `claude-sonnet-5-5[effort=low]`) |
 | Codex | `gpt-6-astra` (xhigh) | `gpt-6.1-sol` (xhigh) | `gpt-6.1-sol` (medium) | `gpt-6-luna` (low) |
 | Gemini CLI | switch harness | `gemini-3.1-pro-preview` (high) | `gemini-3.8-flash` (high) | `gemini-3.5-flash-lite` (low) |
@@ -196,7 +196,7 @@ Notes:
 - **Cursor `[fast]` is Composer 2.5 standard** ($0.50/$2.50). Fast is the product default and costs 6× on input and output (2.5× on cache reads); `[fast=false]` or empty brackets (`composer-2.5[]`) select standard. `[fast]` is the one exception to the pool rule: Composer scores 27.7% on CursorBench 4.0, 8.1 points below the Sonnet alt at low (35.8%), at a higher list price ($0.68 vs $0.50 a task), but it bills from the Cursor pool and is enough for steps that pass the [`[fast]` checklist](#fast-downgrade-checklist). Once included Cursor usage runs out, move `[fast]` to the Sonnet alt.
 - **Cursor slugs** use the bracket parameters from Cursor's subagent docs (`[effort=...]`, `[fast=false]`). Cursor publishes no full ID list, so confirm with `agent --list-models`. Cursor runs Sonnet 5.5 at high by default (Claude Code: medium), and Opus 5.5 at medium and Fable 5.1 at high in both, so every slug names its effort: a bare `claude-sonnet-5-5` runs at high. `[fast=false]` keeps a call off a model's Fast variant, so the `[exec]` Grok slug carries it as `[fast]`'s Composer slug does. Cursor's docs show only `high` and `max` as Claude effort values; `xhigh`, `medium` and `low` rest on CursorBench 4.0's runs, so confirm them too. The Fable alt in Cursor needs the data-retention opt-in under Privacy Mode, and Cursor reroutes guardrail-tripped Fable requests to Opus. Cursor doesn't offer GPT-6, and GPT-5.6 Sol scores 41.7%, so the Cursor row has no OpenAI alt.
 - **Review beats are a high-ROI place to pin the top model.** A [review beat](#review-beat) reads the prior wave's diff and emits a short verdict, but its cost is mostly input, not output: every call re-sends the whole context, so cache reads and writes make up about 70% of a reviewer's API-equivalent cost (output about 30%). It still costs only about 0.6× a [medium step](#expected-cost) at the reviewer's model because it makes fewer calls, so a review is a cheap way to spend `[deep]` credit. Point it at the diff and the plan rather than the whole repo, since its cost scales with calls × context. Pin it rather than letting Auto downgrade it.
-- **`[fast]` runs at `low`.** Haiku 5.5 sets `low`, its level for short, simple tasks; at `low` it more often stops early or skips a check in a long agent prompt, which the [`[fast]` checklist](#fast-downgrade-checklist)'s tests and the review beat catch. Fast work run on Sonnet 5.5 sets `low` too, Claude Code's level for small changes like a rename: FrontierCode 43.4 at $0.17 a step, CursorBench 4.0 35.8% at $0.50 a task. A folded `[fast]` step runs at its `[exec]` wave's level, since folding exists to keep the wave in one chat or dispatch; the Sonnet-low alt is for a whole `[fast]` wave run on Sonnet.
+- **`[fast]` runs Haiku 5.5 at `medium`**, Anthropic's starting level for agentic coding on it: at `low` it more often stops early or reports a change done without running a check in a long agent prompt, and the step costs cents either way. Fast work run on Sonnet 5.5 sets `low`, Claude Code's level for small changes like a rename: FrontierCode 43.4 at $0.17 a step, CursorBench 4.0 35.8% at $0.50 a task. A folded `[fast]` step runs at its `[exec]` wave's level, since folding exists to keep the wave in one chat or dispatch; the Sonnet-low alt is for a whole `[fast]` wave run on Sonnet.
 - **Haiku vs Composer.** Haiku is Claude Code's `[fast]` model and Composer is Cursor's. They are platform-specific choices, not alternatives to each other; each harness uses its own native fast model.
 - **Codex** runs the GPT-6 family. Set effort with `/model` → "More reasoning…", `model_reasoning_effort` in `config.toml`, or `-c model_reasoning_effort='"xhigh"'`. Skip `ultra`: it hands delegation to the model, and these plans do their own delegation (Claude Code's ultracode on audit-shaped `[xdeep]` steps is the one exception, and it fans out only inside one wave). Astra costs the same as Fable.
 - **Gemini CLI** defaults to `auto`, which routes between Pro and Flash; pin a model with `-m` or `/model` → Manual. Thinking is set only through `modelConfigs.overrides` in `settings.json`, and the CLI sends `HIGH` to every 3.x model by default. Since 2026-06-18 Gemini CLI needs a paid API key, Vertex, or a Code Assist licence; Google AI Pro and Ultra sign-ins moved to Antigravity CLI.
@@ -363,7 +363,7 @@ The [Cost table](#cost-table) budgets each wave at kickoff from per-step anchors
 | Opus 5.5 (medium) | `[deep]` interactive planning | 1.3M | $0.67 | FrontierCode ($0.67, 15k output) |
 | Sonnet 5.5 (high) | Claude Code `[exec]`; Cursor `[exec]` alt | 1.0M | $0.35 | FrontierCode ($0.35, 11k output) |
 | Sonnet 5.5 (low) | `[fast]` work run on Sonnet | 0.48M | $0.17 | FrontierCode ($0.17, 5.4k output) |
-| Haiku 5.5 (low) | Claude Code `[fast]` | ~2.6M | ~$0.05 | est., unmeasured: no FrontierCode or CursorBench result for Haiku 5.5 yet. Sonnet 5.5 high's token volume ×1.8 (the Haiku 4.5 / Sonnet 4.5 input ratio on SWE-bench Verified), ×1.3 for Haiku 5.5's tokenizer, at its rates for prompts of 100k or less (about 1/20 of Sonnet 5.5's); about 5× the dollars where calls pass 100k. Re-derive from a benchmark or completed plans' actuals |
+| Haiku 5.5 (medium) | Claude Code `[fast]` | ~2.6M | ~$0.05 | est., unmeasured: no FrontierCode or CursorBench result for Haiku 5.5 yet. Sonnet 5.5 high's token volume ×1.8 (the Haiku 4.5 / Sonnet 4.5 input ratio on SWE-bench Verified), ×1.3 for Haiku 5.5's tokenizer, at its rates for prompts of 100k or less (about 1/20 of Sonnet 5.5's); about 5× the dollars where calls pass 100k. Re-derive from a benchmark or completed plans' actuals |
 | Grok 4.7 (high), Cursor | Cursor `[exec]` | ~1.6M | ~$1.0 | est.: CursorBench 4.0 cost ratio of Grok to Sonnet/Opus high, applied to their FrontierCode steps |
 | Composer 2.5 (standard) | Cursor `[fast]` | ~3.8M | ~$0.85 | est.: FrontierCode's $2.57, read as Fast rates and re-priced at standard |
 | GPT-6 Astra (xhigh) | Codex `[xdeep]` | 1.4M | $2.9 | FrontierCode |
@@ -413,7 +413,7 @@ The per-wave share grows with the parent's context, by about 16k tokens a wave. 
 
 - Wave 1 `[exec]`, 3 medium steps on Sonnet 5.5 (high): 3 × (1.0M, $0.35) = 3.0M and $1.05, plus its review, 0.6 × (1.7M, $0.90) = 1.0M and $0.54. About 4.0M and $1.6.
 - Wave 2 `[deep]`, 1 large step on Opus 5.5 (high): 3 × (1.7M, $0.90) = 5.1M and $2.70, plus its review. About 6.1M and $3.2.
-- Wave 3 `[fast]`, 4 small steps on Haiku 5.5 (low): 4 × 0.3 × (2.6M, $0.05) = 3.1M and $0.06, plus its review. About 4.1M and $0.60.
+- Wave 3 `[fast]`, 4 small steps on Haiku 5.5 (medium): 4 × 0.3 × (2.6M, $0.05) = 3.1M and $0.06, plus its review. About 4.1M and $0.60.
 - Kickoff on Opus 5.5 (high): about 1.5M and $1.0.
 - Total: about 16M and $6.4. The reviews are 25% of it, and wave 3's review costs about nine times the wave.
 
@@ -477,7 +477,7 @@ For an `[exec] -> [fast]` transition, the prompt should also remind the model no
 
       Next model
         Cursor:      composer-2.5[fast=false]
-        Claude Code: /model haiku               (/effort low)
+        Claude Code: /model haiku               (/effort medium)
 
       Prompt to paste into the next chat:
         Wave <n> of <t> [fast] <next group>
@@ -700,7 +700,7 @@ Passive variant — `[fast]` first wave (prompt body adds the "no refactor" remi
 
       Next model
         Cursor:      composer-2.5[fast=false]
-        Claude Code: /model haiku               (/effort low)
+        Claude Code: /model haiku               (/effort medium)
 
       Prompt to paste into the next chat:
         Read <absolute path to the plan file>. Begin execution at the top
