@@ -5,6 +5,15 @@ skill and its supporting scripts (`scan.py`, `render.py`). This file is the
 single source of truth for classification rules. Both the agerpoint and personal
 copies are byte-identical.
 
+Contents:
+
+1. Access / Intent Classification (propose, never-propose, unclassified)
+2. Stack Detection Rules
+3. Harness Token Formats
+4. Prefix-Matching Safety Caveats
+5. Project Tool-Use Preference Is Informational
+6. Coverage Model
+
 ---
 
 ## 1. Access / Intent Classification
