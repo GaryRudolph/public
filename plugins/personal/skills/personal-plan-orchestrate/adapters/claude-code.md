@@ -367,10 +367,9 @@ avoids the runner Stop hook.
   outside the current one.
 - In auto mode, the prompt the script passes to `agent()` doesn't count as
   a request from Gary (Claude Code's workflow docs); worker commits pass
-  under auto mode with the allow rules above (phase 1's dogfood, on the
-  Mac and the web). The auto-mode classifier also refused a worker's
-  publish script run without its dry-run flag there; `worker_guard.py` now
-  denies that run itself, so don't rely on the classifier.
+  under auto mode with the allow rules above (verified on the Mac and the
+  web). `worker_guard.py`, not the auto-mode classifier, is what stops a
+  publish script run without its dry-run flag.
 - Unattended answers no permission prompt: one mid-run still waits for
   Gary. A run works best with the allow rules above in place.
 - When the snapshot reports a repo whose `.claude/settings.json`
@@ -421,5 +420,5 @@ tier's (an `availableModels` substitution, or a wrong alias): that is gate 1
 - The Mac CLI wraps a bracketed paste in `<pasted_content>` tags (the web
   doesn't); the hook unwraps them before it compares anything, so a
   wrapped paste is still a paste.
-- `ANTHROPIC_DEFAULT_*_MODEL` no longer remaps the workflow's models; the
-  routing check catches a substitution anyway.
+- `ANTHROPIC_DEFAULT_*_MODEL` doesn't remap the workflow's models; the
+  routing check catches any substitution.
