@@ -2,7 +2,7 @@
 
 Follows [code-style.md](../code-style.md), [Effective Go](https://go.dev/doc/effective_go), [Go Code Review Comments](https://go.dev/wiki/CodeReviewComments), and the [Google Go Style Guide](https://google.github.io/styleguide/go/).
 
-Target **Go 1.27** for new projects, the current stable release; re-check it per [Starting New Projects](../architecture.md#starting-new-projects). Run `go fix ./...` after upgrading to mechanically adopt modern idioms.
+Target the latest stable Go for new projects (**Go 1.27** as of 2026-10-06); look it up per [Starting New Projects](../architecture.md#starting-new-projects) rather than trusting this line. Run `go fix ./...` after upgrading to mechanically adopt modern idioms.
 
 ## Formatting
 

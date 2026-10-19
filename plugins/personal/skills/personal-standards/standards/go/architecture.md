@@ -2,7 +2,7 @@
 
 Follows [architecture.md](../architecture.md).
 
-Target **Go 1.27** for new projects, the current stable release; re-check it per [Starting New Projects](../architecture.md#starting-new-projects).
+Target the latest stable Go for new projects (**Go 1.27** as of 2026-10-06); look it up per [Starting New Projects](../architecture.md#starting-new-projects) rather than trusting this line.
 
 ## Technology Stack
 

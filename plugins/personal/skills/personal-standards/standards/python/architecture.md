@@ -146,7 +146,7 @@ How a PostgreSQL table that opts in implements [Resource History](../architectur
 - **Optimistic concurrency** — compare `If-Match` with the loaded `revision` (412 on mismatch), then let `version_id_col` guard the race between load and flush: SQLAlchemy writes `UPDATE … WHERE revision = :old` and raises `StaleDataError` when no row matches, also a 412. It emits no `UPDATE` when nothing changed, so a no-op write creates no revision
 - **Trigger-set columns** — `FetchedValue()` plus `eager_defaults` so the ORM reads back what the trigger wrote
 - **Snapshot keys** are snake_case column names, so the lowerCamel response model reads them with `validate_by_name=True`
-- **No native option** — PostgreSQL has no system-versioned tables; [the PostgreSQL 19 docs](https://www.postgresql.org/docs/19/ddl-temporal-tables.html) (in beta) say to emulate them with triggers
+- **No native option** — PostgreSQL has no system-versioned tables; [the PostgreSQL 19 docs](https://www.postgresql.org/docs/19/ddl-temporal-tables.html) (a release candidate as of 2026-10-15) say to emulate them with triggers
 
 ```sql
 -- One generic pair serves every table with history; history_owner (NOLOGIN) owns everything
