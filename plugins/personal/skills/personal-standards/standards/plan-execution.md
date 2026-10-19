@@ -333,7 +333,7 @@ The [Cost table](#cost-table) budgets each wave at kickoff from per-step anchors
 | Opus 5.5 (medium) | `[deep]` interactive planning | 1.3M | $0.67 | FrontierCode ($0.67, 15k output) |
 | Sonnet 5.5 (high) | Claude Code `[exec]`; Cursor `[exec]` alt | 1.0M | $0.35 | FrontierCode ($0.35, 11k output) |
 | Sonnet 5.5 (low) | `[fast]` work run on Sonnet | 0.48M | $0.17 | FrontierCode ($0.17, 5.4k output) |
-| Haiku 4.5 | Claude Code `[fast]` | ~2M | ~$0.3 | est.: Sonnet 5.5 high's token volume ×1.8, the Haiku 4.5 / Sonnet 4.5 input ratio on SWE-bench Verified |
+| Haiku 5.5 (low) | Claude Code `[fast]` | ~2.6M | ~$0.05 | est., unmeasured: no FrontierCode or CursorBench result for Haiku 5.5 yet. Sonnet 5.5 high's token volume ×1.8 (the Haiku 4.5 / Sonnet 4.5 input ratio on SWE-bench Verified), ×1.3 for Haiku 5.5's tokenizer, at its rates for prompts of 100k or less (about 1/20 of Sonnet 5.5's); about 5× the dollars where calls pass 100k. Re-derive from a benchmark or completed plans' actuals |
 | Grok 4.7 (high), Cursor | Cursor `[exec]` | ~1.6M | ~$1.0 | est.: CursorBench 4.0 cost ratio of Grok to Sonnet/Opus high, applied to their FrontierCode steps |
 | Composer 2.5 (standard) | Cursor `[fast]` | ~3.8M | ~$0.85 | est.: FrontierCode's $2.57, read as Fast rates and re-priced at standard |
 | GPT-6 Astra (xhigh) | Codex `[xdeep]` | 1.4M | $2.9 | FrontierCode |
@@ -383,9 +383,9 @@ The per-wave share grows with the parent's context, by about 16k tokens a wave. 
 
 - Wave 1 `[exec]`, 3 medium steps on Sonnet 5.5 (high): 3 × (1.0M, $0.35) = 3.0M and $1.05, plus its review, 0.6 × (1.7M, $0.90) = 1.0M and $0.54. About 4.0M and $1.6.
 - Wave 2 `[deep]`, 1 large step on Opus 5.5 (high): 3 × (1.7M, $0.90) = 5.1M and $2.70, plus its review. About 6.1M and $3.2.
-- Wave 3 `[fast]`, 4 small steps on Haiku 4.5: 4 × 0.3 × (2M, $0.30) = 2.4M and $0.36, plus its review. About 3.4M and $0.90.
+- Wave 3 `[fast]`, 4 small steps on Haiku 5.5 (low): 4 × 0.3 × (2.6M, $0.05) = 3.1M and $0.06, plus its review. About 4.1M and $0.60.
 - Kickoff on Opus 5.5 (high): about 1.5M and $1.0.
-- Total: about 15M and $6.7. The reviews are 24% of it, and wave 3's review costs more than the wave.
+- Total: about 16M and $6.4. The reviews are 25% of it, and wave 3's review costs about nine times the wave.
 
 **Accuracy.** A single step's figure is good to about 2-3× either way, and so are a wave's and a plan total's: the largest errors (the harness's base context, how a plan step compares to a FrontierCode task) are shared by every wave, so they don't cancel. Token counts also depend on the assumed cache split, while the dollars don't, since the anchors are dollars. Harness matters: Grok 4.7 (high) costs $5.6 a step in Grok Build against the Cursor row's estimated $1.0, and Composer's FrontierCode cost is 3.8× its CursorBench cost on a longer task, for reasons unknown. The Opus and Sonnet rows below max come from Claude Code runs that carried about 23-36k tokens of context per model call on average (input backed out of FrontierCode's dollars, over its call counts), so a setup with a 50k base context (skills, MCP and tool listings) runs above them: the cache reads of the extra base alone take the Opus 5.5 rows at medium, high and xhigh to at least about 1.45×, 1.35× and 1.15×, and the Sonnet 5.5 rows at low and high to about 1.45× and 1.3×.
 
@@ -756,9 +756,9 @@ At kickoff, for the [Expected cost](#expected-cost) example:
     |---|---|---|
     | 1 [exec] m1 s1-s3 | ~4.0M | ~$1.6 |
     | 2 [deep] m2 s1 | ~6.1M | ~$3.2 |
-    | 3 [fast] m3 s1-s4 | ~3.4M | ~$0.90 |
+    | 3 [fast] m3 s1-s4 | ~4.1M | ~$0.60 |
     | kickoff | ~1.5M | ~$1.0 |
-    | **Total** | ~15M | ~$6.7 |
+    | **Total** | ~16M | ~$6.4 |
 
     Expected values are estimates, good to about 2-3× per wave.
 
@@ -776,9 +776,9 @@ Completed, with a fix-up wave after wave 1's review:
     | 1 [exec] m1 s1-s3 | ~4.0M | ~$1.6 | … | … |
     | 1-fix [exec] m1 s2 | — | — | … | … |
     | 2 [deep] m2 s1 | ~6.1M | ~$3.2 | … | … |
-    | 3 [fast] m3 s1-s4 | ~3.4M | ~$0.90 | … | … |
+    | 3 [fast] m3 s1-s4 | ~4.1M | ~$0.60 | … | … |
     | kickoff | ~1.5M | ~$1.0 | … | … |
-    | **Total** | ~15M | ~$6.7 | … | … |
+    | **Total** | ~16M | ~$6.4 | … | … |
 
 ## Who updates progress, and how
 
