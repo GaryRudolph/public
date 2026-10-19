@@ -1,6 +1,6 @@
 # Anthropic guidance audit, 2026-10
 
-Checks the personal standards and skills against Anthropic guidance published 2026-09-15 to 2026-10-19, plus a `/doctor prompt-audit` pass (Claude Code 2.1.303's bundled `claude-api` skill, `shared/prompt-audit.md`) run against the plugin source with Opus 5.5 as the target. Status: items 1-4, 6 and 7 under "Contradicted by current guidance" are fixed on this branch (`991f15e`..`c84f368`, plus the expected-cost re-estimate). Item 5, the cleanup, the structure work and the decisions are open.
+Checks the personal standards and skills against Anthropic guidance published 2026-09-15 to 2026-10-19, plus a `/doctor prompt-audit` pass (Claude Code 2.1.303's bundled `claude-api` skill, `shared/prompt-audit.md`) run against the plugin source with Opus 5.5 as the target. Status: items 1-4, 6 and 7 under "Contradicted by current guidance" are fixed on this branch (`991f15e`..`c84f368`, plus the expected-cost re-estimate). Item 5 is done in `9e06f8b`: the roster is `plan-worker` and `plan-reviewer`, with model and effort passed per call. The cleanup, the structure work and the decisions are open.
 
 ## Contents
 
