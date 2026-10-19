@@ -2,6 +2,8 @@
 
 Follows [architecture.md](../architecture.md).
 
+Contents: [Technology Stack](#technology-stack) · [Settings](#settings) · [Module Structure](#module-structure) · [Data Access — Models](#data-access--models) · [Resource History — PostgreSQL](#resource-history--postgresql) · [Request Id](#request-id) · [Error Catalog Pattern](#error-catalog-pattern) · [Request / Response Schemas — Pydantic](#request--response-schemas--pydantic) · [Base API / Handler Pattern](#base-api--handler-pattern) · [Centralized Route Registration](#centralized-route-registration) · [Constructor Injection + Factory Builder](#constructor-injection--factory-builder)
+
 ## Technology Stack
 
 | Concern | Library |

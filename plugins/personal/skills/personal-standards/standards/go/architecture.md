@@ -4,6 +4,8 @@ Follows [architecture.md](../architecture.md).
 
 Target the latest stable Go for new projects (**Go 1.27** as of 2026-10-06); look it up per [Starting New Projects](../architecture.md#starting-new-projects) rather than trusting this line.
 
+Contents: [Technology Stack](#technology-stack) · [Project Layout](#project-layout) · [Configuration](#configuration) · [HTTP Routing](#http-routing) · [Manual Constructor Injection](#manual-constructor-injection) · [Repository Pattern](#repository-pattern) · [Firestore Modeling](#firestore-modeling) · [Resource History — Firestore](#resource-history--firestore) · [Error Catalog](#error-catalog) · [Graceful Shutdown](#graceful-shutdown) · [Constructor Injection + Factory Builder](#constructor-injection--factory-builder)
+
 ## Technology Stack
 
 | Concern | Library |

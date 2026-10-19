@@ -4,6 +4,8 @@ Follows [code-style.md](../code-style.md), [Effective Go](https://go.dev/doc/eff
 
 Target the latest stable Go for new projects (**Go 1.27** as of 2026-10-06); look it up per [Starting New Projects](../architecture.md#starting-new-projects) rather than trusting this line. Run `go fix ./...` after upgrading to mechanically adopt modern idioms.
 
+Contents: [Formatting](#formatting) · [Imports](#imports) · [Naming](#naming) · [File Structure](#file-structure) · [Error Handling](#error-handling) · [JSON](#json) · [Logging](#logging) · [Modern Go (Invalidates Past Idioms)](#modern-go-invalidates-past-idioms) · [Generics](#generics) · [Tools](#tools)
+
 ## Formatting
 
 - **Tabs** for indentation (enforced by `gofmt`); no line-length cap — let `gofmt`/`gofumpt` decide

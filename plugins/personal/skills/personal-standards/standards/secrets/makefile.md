@@ -7,6 +7,8 @@ the `personal-secrets` skill's
 
 Placeholders: `<org>`, `<estate>`, `<repo>`.
 
+Contents: [Maintainer-local targets](#maintainer-local-targets) · [Keyless targets](#keyless-targets) · [Consumer-safe targets](#consumer-safe-targets) · [Least-privilege hierarchy](#least-privilege-hierarchy) · [Sample Makefile excerpt](#sample-makefile-excerpt) · [GitHub secret stores by context](#github-secret-stores-by-context)
+
 ## Maintainer-local targets
 
 Require a **source key** (maintainer personal age key or break-glass). Never run

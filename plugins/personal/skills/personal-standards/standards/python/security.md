@@ -2,6 +2,8 @@
 
 Follows [security.md](../security.md).
 
+Contents: [Password Hashing](#password-hashing) · [JWT Tokens](#jwt-tokens) · [Cookie / Session Configuration (FastAPI)](#cookie--session-configuration-fastapi) · [Input Validation (Pydantic)](#input-validation-pydantic) · [File Upload Validation](#file-upload-validation) · [Rate Limiting](#rate-limiting) · [API Key Security](#api-key-security) · [Secrets Management](#secrets-management) · [Encryption (AES-256-GCM)](#encryption-aes-256-gcm) · [Randomness](#randomness) · [Static Analysis](#static-analysis) · [Dependency Security](#dependency-security)
+
 ## Password Hashing
 
 Use **argon2-cffi**. Its defaults are RFC 9106 §4's second recommended option, the same parameters as the Go example, so either service verifies the other's hashes. The password rules themselves are in [security.md](../security.md#authentication).

@@ -2,6 +2,8 @@
 
 Follows [code-style.md](../code-style.md) and [Kotlin Official Coding Conventions](https://kotlinlang.org/docs/coding-conventions.html).
 
+Contents: [Naming](#naming) · [Formatting](#formatting) · [File Headers](#file-headers) · [Module Structure](#module-structure) · [Key Idioms](#key-idioms) · [Type System](#type-system) · [JSON](#json) · [Collections](#collections) · [Coroutines](#coroutines) · [Error Handling](#error-handling) · [Complexity Thresholds (detekt)](#complexity-thresholds-detekt) · [Tools](#tools)
+
 ## Naming
 
 - **camelCase** for functions, properties, locals: `userName`, `calculateTotal()`

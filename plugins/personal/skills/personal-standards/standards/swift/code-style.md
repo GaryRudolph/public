@@ -2,6 +2,8 @@
 
 Follows [code-style.md](../code-style.md) and [Apple Swift API Design Guidelines](https://swift.org/documentation/api-design-guidelines).
 
+Contents: [Formatting](#formatting) · [Naming](#naming) · [Protocol + Implementation](#protocol--implementation) · [Extension File Naming](#extension-file-naming) · [File Organization with MARK](#file-organization-with-mark) · [Constants Namespace](#constants-namespace) · [Static Logging](#static-logging) · [Concurrency](#concurrency) · [Error Handling](#error-handling) · [JSON (Codable)](#json-codable) · [Dependency injection](#dependency-injection) · [Access Control](#access-control) · [Force Unwraps](#force-unwraps) · [Complexity Thresholds (SwiftLint)](#complexity-thresholds-swiftlint)
+
 ## Formatting
 
 - **4 spaces** (Xcode default); **120-char** line length; no semicolons

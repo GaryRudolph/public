@@ -1,5 +1,7 @@
 # Security Standards
 
+Contents: [Authentication](#authentication) · [Authorization](#authorization) · [Shared-Domain Cookies](#shared-domain-cookies) · [Input Validation](#input-validation) · [Security Headers](#security-headers) · [API Security](#api-security) · [Encryption and Erasure](#encryption-and-erasure) · [Secrets Management](#secrets-management) · [Logging](#logging) · [Dependency Security](#dependency-security) · [Cross-Language Security Parallels](#cross-language-security-parallels) · [Security Checklist — Before Deployment](#security-checklist--before-deployment) · [Regular Security Tasks](#regular-security-tasks) · [Language-Specific Security](#language-specific-security) · [Platform-Specific Security](#platform-specific-security)
+
 ## Authentication
 
 - **Passwords** ([NIST SP 800-63B-4] §3.1.1.2): at least 15 characters when the password is the only factor, 8 when it's part of MFA; accept at least 64, counting each Unicode code point as one character. No composition rules and no periodic changes; force one on evidence of compromise. Check each new password against a blocklist of breached, common and context-specific values (the service name, the username) and say why it was rejected. Never truncate, store hints or ask security questions; allow paste and password managers
