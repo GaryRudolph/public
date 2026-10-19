@@ -9,6 +9,8 @@ Candidate architecture for managing secrets across an estate through a single
 private GitHub repo, using SOPS + age. Portable across projects: it needs nothing
 but GitHub (no cloud KMS, no 1Password, no external secret store).
 
+Contents: [Goals](#goals) · [How it works in one picture](#how-it-works-in-one-picture) · [Consumer side (start here)](#consumer-side-start-here) · [The secrets repo](#the-secrets-repo) · [Makefile](#makefile) · [Reference implementation](#reference-implementation) · [Build & freshness](#build--freshness) · [Setup runbook (one-time)](#setup-runbook-one-time) · [Rotation & offboarding](#rotation--offboarding) · [Threat model](#threat-model)
+
 ## Goals
 
 - One source of truth for all secrets in an estate, version-controlled (as ciphertext).
@@ -452,8 +454,9 @@ the keyless checks can't see.
 ## Rotation & offboarding
 
 - **Add consumer key:** `make mint REPO=.. CONTEXT=..` (refuses if exists).
-- **Rotate consumer key:** `make rotate` → `set-keys` → `build` → commit. Stops
-  *future* decryption with the old key; does not erase git history.
+- **Rotate consumer key:** `make rotate` → `build` → `verify` → commit, then
+  `CONFIRM_SET_KEYS=1 make set-keys` with Gary's go-ahead. Stops *future*
+  decryption with the old key; does not erase git history.
 - **Remove consumer:** delete from `access.map`, `make build`,
   `make retire REPO=.. CONTEXT=..`, delete the repo's `SOPS_AGE_KEY`.
 - **Rotate maintainer:** update `.sops.yaml`, `sops updatekeys`.

@@ -97,8 +97,11 @@ absolute `~/Projects/personal/public/standards/...` paths.
   moved to the notes repo as repo-local skills.
 - **Always-on core.** In Claude Code and Cowork, the plugin's SessionStart
   hook prints `core.md`. Hook output is capped at 10,000 characters and
-  `core.md` is about 11,000 (14,300 before m5), so the hook runs in up to
-  three parts of 9,000 characters each, split on line boundaries. The hook
+  `core.md` is about 23,000, so the hook runs in parts of up to 9,000
+  characters each, split on line boundaries. Claude Code runs the hooks in
+  parallel, so the parts can arrive in any order: one that starts inside a
+  section repeats that section's heading, and the hook list asks for two
+  more parts than core needs. The hook
   stays silent in any tool whose home file still has the `personal` block,
   so nothing is injected twice while a machine is mid-migration. Chat
   runs no hooks, so there the `personal-standards` skill (whose description
@@ -204,9 +207,9 @@ about it. [anthropics/claude-code#43869](https://github.com/anthropics/claude-co
 (a subagent's `model` is ignored) is still open, but on Claude Code 2.1.291
 wire captures showed the per-call `model` and `effort`, and plugin-agent
 frontmatter, reaching the API. The `plan-segment` workflow sets them per
-`agent()` call, the plugin's agents carry them for the Agent path, and
+`agent()` call, the Agent path passes them per `Agent` call, and
 `token_tally.py --check-routing` flags any substitution.
-The plugin ships those five agents, the workflow, and a `hooks/claude-hooks.json`
+The plugin ships two agents, the workflow, and a `hooks/claude-hooks.json`
 with a `Workflow` gate and a read-only `Bash` guard for the reviewers; the
 runbook (m2.s4) says what the account sync carries.
 

@@ -2,6 +2,8 @@
 
 Follows [code-style.md](../code-style.md) and [PEP 8](https://peps.python.org/pep-0008/).
 
+Contents: [Formatting](#formatting) · [Naming](#naming) · [Module Structure](#module-structure) · [Type Hints](#type-hints) · [Enumerations](#enumerations) · [File Headers](#file-headers) · [Debug Logging](#debug-logging) · [Model Serialization](#model-serialization) · [Error Handling](#error-handling) · [Tools](#tools)
+
 ## Formatting
 
 - **4 spaces**, no tabs; **88-char** line length (Black/Ruff); **double quotes**

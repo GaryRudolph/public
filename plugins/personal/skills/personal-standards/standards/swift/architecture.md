@@ -2,6 +2,8 @@
 
 Follows [architecture.md](../architecture.md).
 
+Contents: [Module Structure — SPM Library](#module-structure--spm-library) · [Module Structure — iOS App](#module-structure--ios-app) · [Manager Pattern](#manager-pattern) · [Delegate Pattern](#delegate-pattern) · [Base Class with No-Op Defaults + Composite](#base-class-with-no-op-defaults--composite) · [View Model Pattern (SwiftUI)](#view-model-pattern-swiftui) · [Router Pattern](#router-pattern) · [ManagerFactory / DI Container](#managerfactory--di-container) · [Environment Values (SwiftUI)](#environment-values-swiftui) · [Concurrency Architecture](#concurrency-architecture)
+
 ## Module Structure — SPM Library
 
 ```

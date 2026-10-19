@@ -2,6 +2,8 @@
 
 Follows [security.md](../security.md).
 
+Contents: [Password Hashing](#password-hashing) · [JWT Tokens](#jwt-tokens) · [Randomness](#randomness) · [Encryption (AES-256-GCM)](#encryption-aes-256-gcm) · [Input Validation](#input-validation) · [Database Security](#database-security) · [Secrets Management](#secrets-management) · [Security Headers](#security-headers) · [Rate Limiting](#rate-limiting) · [Request Id](#request-id) · [Error Boundaries](#error-boundaries) · [Dependency Security](#dependency-security) · [Static Analysis](#static-analysis)
+
 ## Password Hashing
 
 Hash with **argon2id** ([RFC 9106]) from `golang.org/x/crypto/argon2`, stored as a PHC string so the parameters travel with the hash. The constants are RFC 9106 §4's second recommended option, which are also argon2-cffi's defaults, so Go and Python services verify each other's hashes. The password rules themselves are in [security.md](../security.md#authentication).

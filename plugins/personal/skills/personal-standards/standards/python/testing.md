@@ -2,6 +2,8 @@
 
 Follows [testing.md](../testing.md).
 
+Contents: [pytest Configuration](#pytest-configuration) · [Coverage Configuration](#coverage-configuration) · [Test Organization](#test-organization) · [Test Naming and Conventions](#test-naming-and-conventions) · [Fixtures](#fixtures) · [Mocking Preferences](#mocking-preferences) · [Conformance Suites](#conformance-suites) · [Parametrized Tests](#parametrized-tests) · [AWS Integration Tests (moto)](#aws-integration-tests-moto) · [HTTP Integration Tests](#http-integration-tests) · [Property-Based Testing (Hypothesis)](#property-based-testing-hypothesis) · [Async Testing](#async-testing)
+
 ## pytest Configuration
 
 ```toml
@@ -186,7 +188,7 @@ class BaseApiTest(unittest.TestCase):
         return response.json()
 ```
 
-Use numbered test names when execution order matters. Use `pytest.mark.skip(reason="...")` when tests cannot run in a mock environment.
+In an end-to-end suite that walks one scenario against a live system, number the test names so they run in order; everywhere else, tests don't rely on order ([testing.md](../testing.md)). Use `pytest.mark.skip(reason="...")` when tests cannot run in a mock environment.
 
 ## Property-Based Testing (Hypothesis)
 

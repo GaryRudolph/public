@@ -2,6 +2,8 @@
 
 Follows [security.md](../security.md) and [OWASP MASVS v2](https://mas.owasp.org/MASVS/).
 
+Contents: [EncryptedSharedPreferences](#encryptedsharedpreferences) · [Android Keystore](#android-keystore) · [Storage Rules](#storage-rules) · [Network Security](#network-security) · [Biometric Authentication](#biometric-authentication) · [ProGuard / R8](#proguard--r8) · [Platform Rules](#platform-rules) · [Security Checklist — Android](#security-checklist--android)
+
 ## EncryptedSharedPreferences
 
 ```kotlin

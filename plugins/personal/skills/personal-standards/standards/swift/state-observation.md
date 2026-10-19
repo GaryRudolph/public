@@ -4,6 +4,8 @@ Follows [architecture.md](./architecture.md).
 
 How one component learns that another component's state changed (settings toggles, app state, store-to-store reactions). This is the single source of truth so the decision is not re-debated per feature.
 
+Contents: [TL;DR](#tldr) · [Why](#why) · [Availability](#availability) · [The pattern](#the-pattern) · [The one sanctioned boundary exception](#the-one-sanctioned-boundary-exception) · [Anti-patterns](#anti-patterns) · [Checklist for a new cross-component reaction](#checklist-for-a-new-cross-component-reaction) · [References](#references)
+
 ## TL;DR
 
 - In-process app state lives in `@MainActor @Observable` stores.

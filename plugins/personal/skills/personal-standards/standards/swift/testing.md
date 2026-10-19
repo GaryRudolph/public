@@ -2,6 +2,8 @@
 
 Follows [testing.md](../testing.md).
 
+Contents: [Swift Testing (Xcode 16+, preferred for new code)](#swift-testing-xcode-16-preferred-for-new-code) · [XCTest (existing codebases)](#xctest-existing-codebases) · [Test Organization](#test-organization) · [Protocol-Based Mocking](#protocol-based-mocking) · [Snapshot Testing](#snapshot-testing) · [UI Testing](#ui-testing)
+
 ## Swift Testing (Xcode 16+, preferred for new code)
 
 ```swift

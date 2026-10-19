@@ -2,6 +2,8 @@
 
 Follows [testing.md](../testing.md).
 
+Contents: [testify](#testify) · [Table-Driven Tests](#table-driven-tests) · [Test Organization](#test-organization) · [Test Conventions](#test-conventions) · [Mocking Preferences](#mocking-preferences) · [Conformance Suites](#conformance-suites) · [HTTP Handler Tests](#http-handler-tests) · [Integration Tests](#integration-tests) · [Coverage](#coverage) · [Race Detection](#race-detection) · [Fuzzing](#fuzzing) · [Concurrent Code Testing](#concurrent-code-testing) · [Benchmarks](#benchmarks)
+
 ## testify
 
 Use `github.com/stretchr/testify` for assertions:

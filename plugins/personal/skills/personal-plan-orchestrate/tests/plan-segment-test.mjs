@@ -114,10 +114,10 @@ test('two working directories run in parallel and each gets one review', async (
   assert.match(w.prompt, /log --format=%s aaa0000\.\.HEAD/)
 })
 
-test('fast routes to Haiku with no effort', async () => {
+test('fast routes to Haiku at medium effort', async () => {
   const { calls } = await harness({ ...base, state: st(unit(1, 'fast', ['m1.s1'])), groups: [G('/r/a', ['m1.s1'])] })
   assert.equal(calls[0].model, 'haiku')
-  assert.equal(calls[0].effort, undefined)
+  assert.equal(calls[0].effort, 'medium')
   assert.match(calls[0].prompt, /Mechanical edits/)
 })
 
@@ -125,14 +125,14 @@ test('an approved [xdeep] wave runs Opus xhigh with no fan-out by default', asyn
   const { result, calls } = await harness({ ...base, approval: 'go', approved: [{ gate: 'gate-7', wave: 4 }], state: st(unit(4, 'xdeep', ['m2.s4']), ['gate-7']), groups: [G('/r/a', ['m2.s4'])] })
   assert.equal(result.stop, 'done')
   assert.deepEqual(kinds(calls), ['Wave', 'Review'])
-  assert.deepEqual(calls.map(c => [c.agentType, c.model, c.effort]), [['personal:plan-worker-xdeep', 'opus', 'xhigh'], ['personal:plan-reviewer-xdeep', 'opus', 'xhigh']])
+  assert.deepEqual(calls.map(c => [c.agentType, c.model, c.effort]), [['personal:plan-worker', 'opus', 'xhigh'], ['personal:plan-reviewer', 'opus', 'xhigh']])
 })
 
 test('xdeepDrafts 3 adds three drafts and a judge, on the [xdeep] reviewer at xhigh', async () => {
   const { calls } = await harness({ ...base, xdeepDrafts: 3, approval: 'go', approved: [{ gate: 'gate-7', wave: 4 }], state: st(unit(4, 'xdeep', ['m2.s4']), ['gate-7']), groups: [G('/r/a', ['m2.s4'])] })
   assert.deepEqual(kinds(calls), ['Draft', 'Draft', 'Draft', 'Judge', 'Wave', 'Review'])
   assert.match(calls[4].prompt, /Chosen design[\s\S]*syn/)
-  for (const c of calls.slice(0, 4)) assert.deepEqual([c.agentType, c.model, c.effort], ['personal:plan-reviewer-xdeep', 'opus', 'xhigh'], c.label)
+  for (const c of calls.slice(0, 4)) assert.deepEqual([c.agentType, c.model, c.effort], ['personal:plan-reviewer', 'opus', 'xhigh'], c.label)
 })
 
 test('xdeepDrafts on an [exec] wave is gate 0', async () => {
@@ -156,14 +156,14 @@ test('a Fable step-up needs gates 6 and 7 and runs on the [xdeep] worker at xhig
   const one = await harness({ ...base, stepUp: 'fable', approval: 'try fable', approved: [{ gate: 'gate-1', wave: 4 }, { gate: 'gate-6', wave: 4 }], state: s, groups: [G('/r/a', ['m2.s4'])] })
   assert.deepEqual(one.result.gates, ['gate-7'])
   const two = await harness({ ...base, stepUp: 'fable', approval: 'try fable', approved: ['gate-1', 'gate-6', 'gate-7'].map(gate => ({ gate, wave: 4 })), state: s, groups: [G('/r/a', ['m2.s4'])] })
-  assert.deepEqual([two.calls[0].agentType, two.calls[0].model, two.calls[0].effort], ['personal:plan-worker-xdeep', 'fable', 'xhigh'])
-  assert.deepEqual([two.calls[1].agentType, two.calls[1].model, two.calls[1].effort], ['personal:plan-reviewer-xdeep', 'opus', 'xhigh'])
+  assert.deepEqual([two.calls[0].agentType, two.calls[0].model, two.calls[0].effort], ['personal:plan-worker', 'fable', 'xhigh'])
+  assert.deepEqual([two.calls[1].agentType, two.calls[1].model, two.calls[1].effort], ['personal:plan-reviewer', 'opus', 'xhigh'])
 })
 
 test('max runs only an [xdeep] or Fable worker at max, its review stays Opus xhigh, and below [xdeep] it is gate 0', async () => {
   const s = st(unit(4, 'xdeep', ['m2.s4'], { start: false }), ['gate-1'], { blocked: 'gate-1' })
   const fable = await harness({ ...base, max: true, stepUp: 'fable', approval: 'try fable at max', approved: ['gate-1', 'gate-6', 'gate-7'].map(gate => ({ gate, wave: 4 })), state: s, groups: [G('/r/a', ['m2.s4'])] })
-  assert.deepEqual(fable.calls.map(c => [c.agentType, c.model, c.effort]), [['personal:plan-worker-xdeep', 'fable', 'max'], ['personal:plan-reviewer-xdeep', 'opus', 'xhigh']])
+  assert.deepEqual(fable.calls.map(c => [c.agentType, c.model, c.effort]), [['personal:plan-worker', 'fable', 'max'], ['personal:plan-reviewer', 'opus', 'xhigh']])
   const opus = await harness({ ...base, max: true, approval: 'go, at max', approved: [{ gate: 'gate-7', wave: 4 }], state: st(unit(4, 'xdeep', ['m2.s4']), ['gate-7']), groups: [G('/r/a', ['m2.s4'])] })
   assert.deepEqual(opus.calls.map(c => [c.model, c.effort]), [['opus', 'max'], ['opus', 'xhigh']])
   const no = await harness({ ...base, max: true, state: st(unit(3, 'deep', ['m2.s1'])), groups: [G('/r/a', ['m2.s1'])] })
@@ -322,7 +322,7 @@ test('unattended: low_quality at [exec] steps up to Opus high once, never Sonnet
 test('unattended: a second failure stops at gate 1', async () => {
   const { result, calls } = await harness({ ...base, state: un(unit(1, 'fast', ['m1.s1'])), groups: [G('/r/a', ['m1.s1'])] }, { Wave: () => ({ ...DONE, status: 'failed' }) })
   assert.deepEqual(result.gates, ['gate-1'])
-  assert.deepEqual(calls.map(c => [c.model, c.effort]), [['haiku', undefined], ['sonnet', 'high']])
+  assert.deepEqual(calls.map(c => [c.model, c.effort]), [['haiku', 'medium'], ['sonnet', 'high']])
   assert.match(result.reason, /after one automatic retry/)
 })
 

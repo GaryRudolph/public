@@ -11,10 +11,12 @@ happens.
 `<P>` is the plugin's name, read as in `SKILL.md` "Detection" (a renamed
 copy of the plugin has its own). `K` is this skill's `scripts/` folder.
 
+Contents: [Runner signal and setup](#runner-signal-and-setup) · [Asking Gary](#asking-gary) · [The pieces](#the-pieces) · [The launch](#the-launch) · [The hooks](#the-hooks) · [The result](#the-result) · [The Agent path](#the-agent-path) · [Runners, recovery and limits](#runners-recovery-and-limits) · [Permissions](#permissions) · [Tokens](#tokens) · [Gotchas](#gotchas)
+
 ## Runner signal and setup
 
 The runner signal is `CLAUDE_CODE_REMOTE=true`, plus the branch the cloud
-session was assigned (`SKILL.md` "Runner signals" has the tokens to write
+session was assigned (`kickoff.md` "Runner signals" has the tokens to write
 down: `harness=claude-code`, and `runner=cloud`, `self-hosted`, `ci` or
 `none`). The gate hook reads the same environment, so the tokens you record
 are the ones it compares.
@@ -28,7 +30,7 @@ Once per session:
   ends.
 - If `K` isn't known from the skill's base directory:
   `find "$C" /root/.claude -path "*<P>-plan-orchestrate/scripts/plan_state.py" 2>/dev/null | head -1`.
-- Trailers (contract item 8): `Assisted-by: Claude Code`, plus any trailer
+- Trailers (`contract.md` item 8): `Assisted-by: Claude Code`, plus any trailer
   the harness adds to its own commits (on the web, the `Claude-Session:`
   line; check the attribution note in your system prompt). The parent's own
   commits carry `Assisted-by: Claude Code` and no `Co-authored-by`,
@@ -122,17 +124,16 @@ paste, say once that the new session picks its own model: `/model opus`,
 | Piece | Job |
 |---|---|
 | `<P>:plan-segment` workflow (`claude-workflows/plan-segment.js`) | Runs one dispatch unit. It checks its `args` against `plan_state.py`'s unit and refuses a stopping gate not approved for that wave. While `canaryDone` is false it runs only the first group (the canary, gate 5) when the unit has more than one; a one-group unit runs whole with no gate 5. It then runs each group's worker and, as soon as that finishes, its reviewer. Unattended, it retries a broken group once and returns the checkpoints it passed. A worker's disclosed breach stops the run at gate 1, with no retry. A fix-up unit quotes its failed check, concern or disclosure, verbatim, into the worker's and reviewer's prompts. It returns a result object only. |
-| Five plugin agents (`claude-agents/`) | `plan-worker` (`model: inherit`; the call sets model and effort), `plan-worker-exec` (Sonnet, high), `plan-worker-xdeep` (Opus, xhigh), `plan-reviewer` (Opus, high; tools Read, Grep, Glob, Bash) and `plan-reviewer-xdeep` (Opus, xhigh; same tools). |
+| Two plugin agents (`claude-agents/`) | `plan-worker` (`model: inherit`) and `plan-reviewer` (Opus, high; tools Read, Grep, Glob, Bash). Every call sets the tier's model and effort. |
 | `hooks/claude-hooks.json` | A `PreToolUse` hook on `Workflow` (`orchestrate_gate.py`) and two on `Bash`, each its own entry: `reviewer_guard.py` and `worker_guard.py`. The plugin manifest loads it beside `hooks/hooks.json`. |
 | `plan_state.py`, `check_wave.py`, `token_tally.py` | `SKILL.md` lists them after "Detection"; below are the Claude Code arguments. |
 
-The tiers table, with each agent's model and effort, is in `SKILL.md`
-"Tiers and models". Why five agents: the Agent path can't pass effort, so
-the `[xdeep]` worker and reviewer need definitions that say `effort:
-xhigh`, the Agent path's `[exec]` worker one that says `effort: high`
-(Sonnet defaults to medium), and the reviewers need a definition that
-carries the tool allowlist. Haiku still thinks: it inherits the session's
-thinking setting.
+The tiers table, with each tier's model and effort, is in `SKILL.md`
+"Tiers and models". Both paths pass model and effort on every call, and
+those override an agent's own frontmatter (the Agent tool's `effort` needs
+Claude Code v2.1.292+). `plan-reviewer`
+exists for its tool allowlist, and its Opus-high frontmatter is only a
+default.
 
 ## The launch
 
@@ -167,7 +168,7 @@ one dispatch unit, at the end of "Each unit" step 4.
 - A `needs_info` group adds `"answer": {"question": "…", "answer": "<the same words as approval>"}`.
 - A fix-up unit's groups are the ones `plan_state.py`'s `next.groups` names.
 - `decisions` and `environment` are optional strings, the handoff's
-  "Decisions so far" and "Environment notes" verbatim (contract item 9);
+  "Decisions so far" and "Environment notes" verbatim (`contract.md` item 9);
   every worker and reviewer of the unit gets them.
 - Optional, each needing Gary's approval: `stepUp` (`"deep"`, `"xdeep"`,
   `"fable"`: gate 6, plus gate 7 into `[xdeep]` or Fable), `max: true` and
@@ -197,7 +198,7 @@ deny reads `PreToolUse:Workflow hook error: personal-plan-orchestrate gate:
    clear only from the plan.
 6. The launch is by name.
 7. An unattended mode was confirmed in this session, for this harness and
-   runner, and not taken back (`SKILL.md` "Reading the answer", decision 9
+   runner, and not taken back (`kickoff.md` "Reading the answer", decision 9
    and the mode switch).
 8. A raised guard carries an approval of `gate-guard`, and a raised fix-up
    cap one of `gate-1`.
@@ -239,11 +240,11 @@ loaded checks nothing. Quote the reason, then:
 **The two Bash guards** read the hook input's `agent_type`, which a
 workflow `agent()` subagent reports as `<P>:plan-…` (seen in phase 1's
 dogfood, on the Mac and the web), and each acts only for its own agents:
-- `reviewer_guard.py`, for `<P>:plan-reviewer` and `<P>:plan-reviewer-xdeep`,
+- `reviewer_guard.py`, for `<P>:plan-reviewer`,
   denies a Bash call that writes: git write subcommands, file writers, `gh`,
   in-place edits, and redirection to a file (so a reviewer reads output
   inline).
-- `worker_guard.py`, for `<P>:plan-worker`, `-exec` and `-xdeep`, denies the
+- `worker_guard.py`, for `<P>:plan-worker`, denies the
   outward commands: `git push`, `gh pr` and `gh release` subcommands that
   write, `gh workflow run`, a goreleaser release without `--snapshot` or
   `--skip=publish` (and `goreleaser publish`, `announce`, `continue`), the
@@ -294,13 +295,13 @@ When `Workflow` is missing. No hook and no script: the parent applies
 by hand, as on Cursor. Foreground calls keep the turn open, which also
 avoids the runner Stop hook.
 - Per working directory, all in one message: `Agent(subagent_type:
-  "<P>:plan-worker", model: <opus|sonnet|haiku>, description: <wave title>,
-  prompt: <the contract>, run_in_background: false)`. `[exec]` uses
-  `<P>:plan-worker-exec` (Sonnet high, since this path can't pass effort),
-  `[xdeep]` uses `<P>:plan-worker-xdeep`, and `max` doesn't exist here.
-- Then each directory's reviewer the same way (`<P>:plan-reviewer`, or
-  `-xdeep`). `run_in_background: false` is required: without it Claude Code
-  backgrounds the call.
+  "<P>:plan-worker", model: <opus|sonnet|haiku|fable>, effort: <level>,
+  description: <wave title>, prompt: <the contract>, run_in_background:
+  false)`, with the model and effort from `SKILL.md` "Tiers and models".
+  `max` doesn't exist here.
+- Then each directory's reviewer the same way (`<P>:plan-reviewer`, with
+  its tier's model and effort). `run_in_background: false` is required:
+  without it Claude Code backgrounds the call.
 - The wave title is `Wave {n} of {t} [{tier}] {group-id}`, with `Review`
   ahead of it for a reviewer (the tally labels rows from it).
 - Check with `check_wave.py check --snapshot <s> --plan <plan> --group
@@ -325,7 +326,7 @@ avoids the runner Stop hook.
   also blocks `sleep N; cmd` chains: don't wait in the shell. The container
   stays up while a run works.
 - **A cloud session** gets its own `claude/…` branch from the default
-  branch: `SKILL.md` "A new session on a plan already kicked off", path
+  branch: `kickoff.md` "A new session on a plan already kicked off", path
   (b), fast-forwards it to the prompt's branch. One the kickoff starts
   with `create_session` ("A new session" above) is assigned the task
   branch itself.
@@ -353,6 +354,13 @@ avoids the runner Stop hook.
   relaunch may run checkpoints and never answers a gate. The workflow's
   automatic retry fails at once too (a crash and a limit both return null),
   which costs little.
+- **Idle compaction.** Claude Code compacts a conversation over 200K tokens
+  left idle about 54 minutes (v2.1.299+), so a parent waiting at a gate can
+  come back compacted. Let it: every wait follows a save (`SKILL.md`
+  "Questions, and saving before them"), so the plan and the pushed handoff
+  hold what the run needs. A parent that finds its context compacted
+  re-reads the plan and the handoff and re-runs `plan_state.py` before it
+  acts on an answer.
 
 ## Permissions
 
@@ -368,10 +376,9 @@ avoids the runner Stop hook.
   outside the current one.
 - In auto mode, the prompt the script passes to `agent()` doesn't count as
   a request from Gary (Claude Code's workflow docs); worker commits pass
-  under auto mode with the allow rules above (phase 1's dogfood, on the
-  Mac and the web). The auto-mode classifier also refused a worker's
-  publish script run without its dry-run flag there; `worker_guard.py` now
-  denies that run itself, so don't rely on the classifier.
+  under auto mode with the allow rules above (verified on the Mac and the
+  web). `worker_guard.py`, not the auto-mode classifier, is what stops a
+  publish script run without its dry-run flag.
 - Unattended answers no permission prompt: one mid-run still waits for
   Gary. A run works best with the allow rules above in place.
 - When the snapshot reports a repo whose `.claude/settings.json`
@@ -422,5 +429,5 @@ tier's (an `availableModels` substitution, or a wrong alias): that is gate 1
 - The Mac CLI wraps a bracketed paste in `<pasted_content>` tags (the web
   doesn't); the hook unwraps them before it compares anything, so a
   wrapped paste is still a paste.
-- `ANTHROPIC_DEFAULT_*_MODEL` no longer remaps the workflow's models; the
-  routing check catches a substitution anyway.
+- `ANTHROPIC_DEFAULT_*_MODEL` doesn't remap the workflow's models; the
+  routing check catches any substitution.

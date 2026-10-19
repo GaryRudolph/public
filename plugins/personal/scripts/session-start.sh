@@ -40,21 +40,32 @@ fi
 # Claude Code caps each hook's stdout at 10,000 characters and swaps anything
 # longer for a 2,000-character preview. core.md is longer than that, so
 # hooks.json runs this script once per part and each run prints one slice,
-# cut on line boundaries.
+# cut on line boundaries. Claude Code runs a hook list in parallel, so the
+# parts can arrive in any order: a part that starts inside a section opens
+# with that section's heading marked "(continued)", and hooks.json asks for
+# more parts than core needs, so growth can't drop a part unseen.
 part="${1:-1}"
 max_chars=9000
 
 text=$(awk -v part="$part" -v max="$max_chars" -v dir="$skill_dir" '
-    BEGIN { n = 1; size = 0 }
+    BEGIN { n = 1; size = 0; heading = "" }
     {
         len = length($0) + 1
-        if (size > 0 && size + len > max) { n++; size = 0 }
+        if (size > 0 && size + len > max) {
+            n++; size = 0
+            if (heading != "" && $0 !~ /^## /) {
+                cont = heading " (continued)\n\n"
+                text[n] = cont
+                size = length(cont)
+            }
+        }
+        if ($0 ~ /^## /) heading = $0
         size += len
         text[n] = text[n] $0 "\n"
     }
     END {
         if (part > n) exit
-        printf "Gary Rudolph'"'"'s personal standards, part %d of %d, loaded by the personal plugin.\n", part, n
+        printf "Gary Rudolph'"'"'s personal standards, part %d of %d, loaded by the personal plugin. The parts may arrive in any order; read them as one document.\n", part, n
         if (part == 1) {
             printf "Wherever they cite ~/Projects/personal/public/standards/<file> and that path\n"
             printf "does not exist on this machine, read %s/standards/<file> instead.\n", dir

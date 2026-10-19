@@ -2,6 +2,22 @@
 
 Canonical vocabulary: `../personal-standards/standards/makefile.md`.
 
+Contents:
+
+- repos.mk contract
+- Workspace doctor modes
+- Workspace gh-runs fan-out
+- Help awk pattern
+- Confirm macro
+- Per-stack recipe expectations (Go, pnpm / Node, Terraform, Xcode / Swift)
+- Rename guidance
+- Known defects
+- Makefile.md outline
+- Allowlist .gitignore (workspace)
+- Submodule init fragment
+- External practices
+- Template customization
+
 ## repos.mk contract
 
 Include from the workspace root Makefile with `include repos.mk`.

@@ -6,6 +6,8 @@ expectations: the `personal-makefile` skill (`plugins/personal/skills/personal-m
 
 Placeholders: `<estate>`, `<repo>`.
 
+Contents: [When to use a workspace Makefile](#when-to-use-a-workspace-makefile) · [Universal conventions](#universal-conventions) · [Standard target vocabulary](#standard-target-vocabulary) · [Delegation model](#delegation-model) · [Danger guards](#danger-guards) · [`gh-runs-status` conclusions](#gh-runs-status-conclusions) · [Documentation](#documentation) · [Common tooling](#common-tooling) · [Workspace `.gitignore` (allowlist)](#workspace-gitignore-allowlist) · [Audit and align](#audit-and-align)
+
 ## When to use a workspace Makefile
 
 A **workspace** repo (thin orchestrator + `repos.mk` manifest) is justified only when

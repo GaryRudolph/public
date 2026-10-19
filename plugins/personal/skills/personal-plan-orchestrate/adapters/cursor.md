@@ -19,10 +19,12 @@ gate 5. A worker that discloses a rule it broke, blocked or ran, is gate 1
 in both modes, from its summary (`SKILL.md` "When a unit completes"): no
 retry, and its fix-up waits for Gary.
 
+Contents: [Runner signal](#runner-signal) · [Harness gate: verify before proceeding](#harness-gate-verify-before-proceeding) · [Dispatch](#dispatch) · [Boundaries](#boundaries) · [Cost table and counting header](#cost-table-and-counting-header) · [Tokens](#tokens) · [Mode on Cursor](#mode-on-cursor) · [Phase 3](#phase-3)
+
 ## Runner signal
 
 A Cursor cloud agent is recorded as `harness=cursor runner=cloud` and
-proposes unattended (`SKILL.md` "Runner signals"); Gary may still answer
+proposes unattended (`kickoff.md` "Runner signals"); Gary may still answer
 gated. The signal is the Cursor Cloud MCP, which Cursor documents as "a
 built-in diagnostics server available during Cloud Agent runs"
 (<https://cursor.com/docs/cloud-agent/capabilities>, checked 2026-10-11):
@@ -105,7 +107,7 @@ each with:
   supported way to rename it.
 - `subagent_type: "generalPurpose"`.
 - `model`: the slug above.
-- `prompt`: the full contract (`SKILL.md` "Subagent context contract"),
+- `prompt`: the full contract (`contract.md`),
   scoped to that directory, with item 7 below.
 
 Every `[deep]` wave goes out too, even on one working directory: the
@@ -222,13 +224,13 @@ line does.
 
 ## Mode on Cursor
 
-A Cursor session proposes the mode its runner token says (`SKILL.md`
+A Cursor session proposes the mode its runner token says (`kickoff.md`
 "Runner signals"): unattended on a cloud agent the Cloud MCP confirms,
 gated anywhere else. No hook checks an unattended confirmation or the gates
 on Cursor, so the kickoff question says the mode rests on the parent there,
 and Gary may answer either mode.
 
-Questions are typed answers, read by `SKILL.md` "Reading the answer", unless
+Questions are typed answers, read by `kickoff.md` "Reading the answer", unless
 the session offers a multiple-choice tool; then ask the same choices with
 it. A new session is a pasted prompt: print it on its own (the standard's
 §"Printing a prompt in chat").

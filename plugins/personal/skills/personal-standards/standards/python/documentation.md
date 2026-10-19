@@ -24,7 +24,7 @@ and sample UUID generators for use across test modules.
 Use Google-style docstrings:
 
 ```python
-def calculate_total(items: list[Item], tax_rate: float, discount_code: str = None) -> float:
+def calculate_total(items: list[Item], tax_rate: float, discount_code: str | None = None) -> float:
     """Calculate the total price including tax and discount.
 
     Args:

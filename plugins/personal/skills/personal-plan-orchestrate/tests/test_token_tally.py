@@ -35,6 +35,7 @@ agent("x", "Wave 2 of 4 [deep] repo-a m1 s2 (retry)", [call("d", O, 9, False)])
 agent("f2", "Wave 2-fix2 of 4 [exec] repo-b m1 s3", [call("e", S, 700, True)])
 agent("r2", "Review Wave 2-fix2 of 4 [exec] repo-b m1 s3 (retry)", [call("f", O, 600, True)])
 agent("h", "Wave 1 of 4 [fast] repo-c m1 s1", [call("g", "claude-haiku-4-5-20251001", 50, True)])
+agent("h5", "Wave 1 of 4 [fast] repo-d m1 s2", [call("h5", "claude-haiku-5-5", 50, True)])
 launch = lambda rid: {"type": "user", "toolUseResult": {"status": "async_launched", "runId": rid}, "message": {"content": []}}
 (tmp / "sess-1.jsonl").write_text("".join(json.dumps(x) + "\n" for x in [
     call("p1", O, 300, True), launch("wf_1"), call("p2", O, 400, True, inp=20), launch("wf_2"), call("p3", O, 900, True)]))
@@ -115,6 +116,12 @@ def a_lines_model_drops_the_date_suffix_and_pricing_uses_the_raw_id():
     rows = {r["row"]: r for r in json.loads(tally("--json")[1])["rows"]}
     assert (rows["wave-1 repo-c-m1-s1"]["model"], rows["wave-1 repo-c-m1-s1"]["model_id"]) == ("claude-haiku-4-5", "claude-haiku-4-5-20251001")
     assert rc == 0, err
+
+
+@test
+def haiku_5_5_is_priced():
+    line = next(l for l in tally()[1].splitlines() if l.startswith("tokens wave-1 repo-d-m1-s2 "))
+    assert "(claude-haiku-5-5):" in line and "n/a" not in line, line
 
 
 failed = 0

@@ -974,7 +974,7 @@ def guard_bash(agent, command, script=None):
 
 @case
 def reviewers_bash_is_read_only_and_everyone_elses_is_untouched():
-    for agent in ("personal:plan-reviewer", "orch-spike:plan-reviewer-xdeep"):
+    for agent in ("personal:plan-reviewer", "orch-spike:plan-reviewer"):
         for ok in ("git -C /r diff aaa0000", "git log --format='%h -> %s' a..b", "python3 -m pytest -q 2>&1 | tail", "cat x > /dev/null"):
             assert guard_bash(agent, ok) is None, (agent, ok)
         for bad in ("git commit --allow-empty -m x", "git -C /r push", "touch x", "echo x > f", "sed -i s/a/b/ f",
@@ -989,7 +989,7 @@ def reviewers_bash_is_read_only_and_everyone_elses_is_untouched():
         assert out.returncode == 0 and not out.stdout.strip(), name
 
 
-WORKERS = ("personal:plan-worker", "personal:plan-worker-exec", "orch-spike:plan-worker-xdeep")
+WORKERS = ("personal:plan-worker", "orch-spike:plan-worker")
 
 
 def worker_denies(agent, command):

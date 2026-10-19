@@ -1,5 +1,14 @@
 # Git Workflow Standards
 
+Contents:
+
+- [Branch Strategy](#branch-strategy) and [Worktrees](#worktrees): branch and worktree naming
+- [Versioning](#versioning): headlines; the full standard is versioning.md
+- [AI Agent Behavior](#ai-agent-behavior): task vs shared branches, when to commit and push, runners, AI attribution trailers
+- [Commit Messages](#commit-messages): subject format; trailers as the last paragraph
+- [Pull Requests](#pull-requests): hot files, PR body (session link above the `Assisted-by:` trailer paragraph), squash and API merges, `specs/handoffs/` cleanup
+- [.gitignore Essentials](#gitignore-essentials)
+
 ## Branch Strategy
 
 We follow **GitHub Flow** — short-lived feature branches merged frequently to `main` via pull requests. For apps with scheduled release trains a stabilization branch is acceptable.
@@ -150,7 +159,7 @@ The title and description become the squash commit on `main`, so end the descrip
 
 ### Merging
 
-- Before merging, remove the runner's files from `specs/handoffs/` (`plan-*.md`, the session `handoff-{topic}-{word}.md`, drafts) in the last commit on the branch, promoting anything durable to `specs/` or a milestone handoff first. Milestone handoffs (`handoff-m{N}-…`) stay. A forgotten removal lands plain markdown on `main`; one `git rm` fixes it
+- Before merging, remove the files a runner or a `personal-plan-orchestrate` run kept in `specs/handoffs/` (`plan-*.md`, the session `handoff-{topic}-{word}.md`, drafts) in the last commit on the branch, promoting anything durable to `specs/` or a milestone handoff first. Milestone handoffs (`handoff-m{N}-…`) stay. A forgotten removal lands plain markdown on `main`; one `git rm` fixes it
 - **Squash and merge only**, with the PR title and description as the commit message: one commit on `main`, authored by the PR opener. Merge commits and rebase merges stay off; a rebase merge would put the agent on `main` as author. The `personal-repo-baseline` skill sets this per repo
 - When merging with the button, check the description ends with the trailer paragraph; the agent `Co-authored-by` line GitHub adds below it (one per branch commit author who isn't the PR opener) may stay (see AI attribution under [AI Agent Behavior](#ai-agent-behavior))
 - When asked to merge through the API (`merge_pull_request`, `gh pr merge`), pass the squash title and message explicitly instead of trusting GitHub's default: `commit_title` and `commit_message` (`--subject` and `--body` for `gh pr merge`), set to the PR title plus ` (#<number>)`, as the button writes it, and the PR description, with no agent co-author line. `gh pr merge` goes through GraphQL, so on Claude Code's cloud proxy use REST: `gh api -X PUT "repos/{owner}/{repo}/pulls/{number}/merge" -f merge_method=squash -f commit_title=… -f commit_message=…`

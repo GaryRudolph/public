@@ -2,6 +2,8 @@
 
 How to meet the generic rules in [security.md](security.md) and [architecture.md](architecture.md) on Google Cloud and Firebase. Quotas, propagation times and launch stages change, so this file links Google's docs for the numbers instead of restating them.
 
+Contents: [Ops Plane on IAP](#ops-plane-on-iap) · [Access Groups in Terraform](#access-groups-in-terraform) · [Revocation](#revocation) · [Break-Glass](#break-glass) · [Identity Platform](#identity-platform) · [Firebase Emulator Guard](#firebase-emulator-guard) · [Encryption and Erasure](#encryption-and-erasure) · [Resource History Stores](#resource-history-stores) · [Activity Log](#activity-log)
+
 ## Ops Plane on IAP
 
 The ops console and API are one Cloud Run service behind Identity-Aware Proxy, on one origin at `ops.<product domain>` (`ops.example.com`, with `ops.example.dev` for dev; other environments follow [Environment Domains](architecture.md#environment-domains)): the console at `/`, the API at `/api/v1`. The host, path and role naming, and why it's one origin, are in [architecture.md](architecture.md#tenant-admin-and-ops).

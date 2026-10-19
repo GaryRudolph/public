@@ -49,8 +49,7 @@ def front(path):
 
 
 agents = {p.stem: front(p) for p in sorted((kit / "claude-agents").glob("*.md"))}
-want = {"plan-worker": ("inherit", None), "plan-worker-exec": picked["exec"], "plan-worker-xdeep": picked["xdeep"],
-        "plan-reviewer": picked["deep"], "plan-reviewer-xdeep": picked["xdeep"]}
+want = {"plan-worker": ("inherit", None), "plan-reviewer": picked["deep"]}
 for name, (model, effort) in want.items():
     a = agents.get(name)
     if not a:
@@ -60,7 +59,7 @@ for name, (model, effort) in want.items():
         errors.append(f"{name}: frontmatter {a.get('model')}/{a.get('effort')}, expected {model}/{effort}")
     if "reviewer" in name and {t.strip() for t in a.get("tools", "Edit").split(",")} - {"Read", "Grep", "Glob", "Bash"}:
         errors.append(f"{name}: tools must be read-only (Read, Grep, Glob, Bash)")
-for n in (":plan-worker", ":plan-reviewer", "-xdeep"):
+for n in (":plan-worker", ":plan-reviewer"):
     if n not in src:
         errors.append(f"plan-segment.js never builds an agentType with {n}")
 extra = set(agents) - set(want)
