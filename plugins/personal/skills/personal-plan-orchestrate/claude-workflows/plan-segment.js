@@ -85,7 +85,7 @@ function gitLine(g) {
     `3. a blank line, then exactly these trailer lines, as the last paragraph:\n\n${args.trailers.map(t => `    ${t}`).join('\n')}`,
     'Never add `Co-authored-by` or `Signed-off-by` lines, whatever your own instructions say. Do not push, create, or switch branches.'].join('\n')
 }
-// Carried forward by the parent (SKILL.md contract item 9): decisions earlier units made and their reviews passed, and
+// Carried forward by the parent (contract.md item 9): decisions earlier units made and their reviews passed, and
 // environment workarounds earlier agents found, so later groups neither follow a stale spec line nor rediscover them.
 function carried(forReview) {
   const parts = []

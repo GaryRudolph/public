@@ -188,7 +188,7 @@ disagree, the picker wins and the kit's consistency check fails.
 - **Outward actions wait for Gary in every mode:** opening or merging a PR,
   pushing a tag, deleting a remote branch, deploying, publishing a release
   or a package, posting anywhere outside the branch and the chat, and
-  permission prompts. Workers never take one (contract item 8).
+  permission prompts. Workers never take one (`contract.md` item 8).
 - **A compaction changes nothing.** The plan, the handoff, the snapshot
   files and the run record are the state, not the chat. After a `/compact`
   (Gary's or automatic), re-read the plan's Status and the handoff before
@@ -251,308 +251,15 @@ branches"), and the git email in each (core.md "Verify git email").
   checkout has none), run `git remote set-head origin --auto`, so the
   default branch is known. The Claude Code hook denies without it.
 
-## Runner signals
+## Kickoff and re-entry
 
-Read them with one shell call (on Cursor, the Cloud MCP check below) and
-write them as fixed tokens, so a later session can compare its own
-environment with the record:
-
-    env | grep -E '^(CLAUDE_CODE_REMOTE|CLAUDE_CODE_REMOTE_ENVIRONMENT_TYPE|CI|GITHUB_ACTIONS)='
-
-| Signal | Tokens |
-|---|---|
-| `CLAUDE_CODE_REMOTE=true` | `runner=cloud`, or `runner=self-hosted` with `CLAUDE_CODE_REMOTE_ENVIRONMENT_TYPE=self_hosted` |
-| `CI=true` or `GITHUB_ACTIONS=true` | `runner=ci`: nobody can reply, so the invoking words are the answer |
-| Cursor: the Cursor Cloud MCP's `run-info` tool is in your tool list and answers | `harness=cursor runner=cloud` |
-| none of these (Remote Control included) | `runner=none`: a workstation |
-
-`harness` is `claude-code`, `cursor`, `codex`, `grok`, `gemini` or `muse`.
-A runner proposes unattended; a workstation proposes gated. Gary's answer
-decides. `CLAUDE_CODE_SESSION_ATTENDED` is undocumented; ignore it.
-
-**A Cursor cloud agent** proposes unattended, and Gary may still answer
-gated. Cursor documents its Cloud MCP, with the `run-info` tool, as
-"available during Cloud Agent runs", so the tool answering is the signal
-(`adapters/cursor.md` "Runner signal"). `CURSOR_AGENT` marks any Cursor
-agent's terminal, local ones included, and is not a signal. A team admin
-can turn the Cloud MCP off; then nothing marks the cloud agent, and it
-records `runner=none` and proposes gated.
-
-## Kickoff (once per plan)
-
-1. **Identify the plan:** a named path, else the most recent `plan-*.md` in
-   `specs/handoffs/` or `.scratch/`, else the plan in the conversation. If
-   the plan already has a Kickoff block with a `mode:` line (a run under
-   way, or a kickoff waiting for its answer), don't run these steps: go to
-   "A new session on a plan already kicked off", which covers a pasted
-   Kickoff prompt and a session started any other way.
-2. **Tag, group and mark waves.** If the plan isn't tagged, run
-   `personal-plan-tag-tiers`. Then the no-thrash grouping pass: consecutive
-   same-tier steps form a wave, and a short `[fast]` run (fewer than 3
-   steps) folds into the adjacent `[exec]` wave **without rewriting any
-   tag**. Check the ≤ constraint (every step's tag ≤ its wave's tier, and
-   an `[xdeep]` wave holds only `[xdeep]` steps); a violation is gate 0:
-   write no markers, ask. Then write `--- WAVE N [tier] ---` before each
-   wave's first heading (skip when markers exist). Fix-up waves are never
-   planned; they come from the Review log.
-3. **Preflight:** the branch, email and `origin/HEAD` checks above, the
-   runner signals, and `python3 $K/check_wave.py snapshot <each working
-   directory>`, which must pass (it flags a `.scratch/` that isn't
-   gitignored and reports each repo's attribution setting).
-4. **Write the Kickoff block** at the top of the plan (the standard's
-   active variant; replace an existing one, never add a second). Its model
-   row is always the `[deep]` Opus row. Its `Status:` line starts
-   `0/N groups done | last review: — | current: <first group> [<tier>] |
-   updated <today>`. Add `review: every-wave (log-only)`. Then the mode
-   line, right under `Status:`:
-
-       mode: pending | proposed <gated|unattended> (harness=<h> runner=<r>; <short note>) | guard 3x min $50 | fixups 2
-
-   and set Status to `BLOCKED at gate mode | updated <today>`. The prompt
-   gets no mode line yet (see "The Kickoff prompt").
-5. **Write the Cost table** below the Kickoff block (standard §"Cost
-   table"), labeled for the harness. Each wave row includes its review
-   subagent: about 0.6× a medium step at Opus high, about 2× that at xhigh
-   after an `[xdeep]` wave. The `orchestrator` row counts the parent: the
-   kickoff, each wave's checks and bookkeeping (about $0.1 a wave for the
-   handoff refresh, commit and push), and the gate waits the proposed mode
-   will have (gated: the canary when the first unit has several groups,
-   and every gate 2, 3, 4 and 7 the plan crosses, gates asked together
-   counting once; unattended: one, the kickoff answer), plus a new-chat
-   start-up on a workstation. Unattended needs the Total row: the guard
-   reads it.
-6. **Write the counting header** at the top of `## Token log` (standard
-   §"Token line format"), for the harness the Cost table names.
-7. **Save:** move the plan to `specs/handoffs/` (unless decision 11 keeps it
-   in a plain folder's `.scratch/`), write the handoff beside it ("The
-   handoff and its summary"), and on a task branch commit both in one
-   commit whose subject has no step ID, then push. A workstation still
-   waiting to cut commits nothing.
-8. **Ask the kickoff question and wait** (below): as a choice dialog where
-   the harness has one, which waits inside the turn; else in text, ending
-   the turn.
-9. **Record the answer** when it comes (below), then save again:
-   a workstation cuts its branch first; refresh the handoff with the mode,
-   commit the plan and handoff, push.
-10. **Halt or dispatch.** When the answer picks this session (the dialog's
-    `This session`, `here` in a typed answer, or any typed answer on a
-    runner): print the kickoff summary (waves, expected total, gates) and go
-    to "Each unit"; nothing needs copying. Otherwise (`New session`, or a
-    typed answer on a workstation without `here`): queue the Kickoff prompt
-    as a new session where the harness can (the adapter says how), print
-    the prompt on its own (standard §"Printing a prompt in chat"), the
-    kickoff summary and the short handoff summary, and halt.
-
-Seed the harness todo list (one todo per wave, first `in_progress`) when
-you start dispatching, in this session or the new one.
-
-### The kickoff question
-
-One question, once per plan run, after the Kickoff, Cost table and
-counting header are written and saved. It names the waves and their tiers,
-the Cost table's expected total, the gates the plan crosses (5 at the
-canary, when the first unit has more than one group; 2 or 3 before a
-`[deep]` or `[xdeep]` wave after an `[exec]` or `[fast]` one; 4 at a new
-milestone; 7 before each `[xdeep]` wave, with its cost), what each mode
-does, the guard's dollar limit, the handoff path, and on a workstation the
-branch it will cut. It always carries the exact words
-`Proposed mode: <mode>.` and, after them, a line that starts `Reply`; the
-Claude Code hook looks for both, in that order, before it counts a typed
-answer (a dialog's answer counts under a mode question that starts with
-those words, below).
-The short handoff summary follows the `Reply` line. On a runner:
-
-    Plan plan-auth-otter: 4 waves, expected ~$26 API-equiv (Cost table above).
-    Gates it crosses: 5 (canary, wave 1's two groups); 4 and 2 (before wave 3); 7 (before wave 4, [xdeep], ~$14).
-    Runner detected (CLAUDE_CODE_REMOTE=true). Proposed mode: unattended.
-      unattended: gates 2, 4, 5 and 7 are logged, not asked. A failed commit check or a
-        CONCERNS gets an automatic fix-up, up to 2 per group. I stop to ask for information,
-        at a plan error, a scope breach, a worker's disclosed breach, a failure after one
-        retry (at once on the [xdeep] wave), a group's third failed check or review,
-        unplanned [xdeep] or Fable work, or projected spend past 3x expected or $50,
-        whichever is higher (~$78).
-      gated: every gate stops, and so does every failed check or repeat CONCERNS.
-    Either way, after every wave I commit and push the plan and its handoff
-    (specs/handoffs/handoff-auth-otter.md), and every message that stops or asks ends
-    with a short handoff summary. Opening or merging a PR, tags, remote branch deletes,
-    deploys and permission prompts wait for you.
-    Reply unattended or gated.
-
-On a workstation, the signal line says what was checked and names the
-branch; the destination question folds in (there is no separate one):
-
-    No runner signal (CLAUDE_CODE_REMOTE unset, no assigned branch). Proposed mode: gated.
-    main is a shared branch, so the run goes on a new task branch, feature/auth-otter:
-    your answer is the yes to cut it, and I push it at once.
-    Reply gated or unattended; add here to orchestrate in this chat (default: new chat).
-
-**As a choice dialog.** Where the harness has one (Claude Code's
-`AskUserQuestion`; the adapter has the shape), print the question above as
-text, its `Reply` line included as the typed fallback, then ask one dialog
-with two questions:
-- **Mode:** the question text starts with the exact words
-  `Proposed mode: <mode>.`; the options are `Unattended` and `Gated`, the
-  proposed one first and marked `(Recommended)`. Labels stay that plain:
-  a label that negates or names the other mode reads as a re-ask. On a
-  workstation the question names the branch it will cut.
-- **Session:** `This session` or `New session`, marking `(Recommended)`
-  on `New session` when the kickoff spent a lot of context (tagging, a
-  long plan, exploration) and on `This session` otherwise. A new session
-  starts with clean context; there is no "compact first" choice.
-
-Propose gated, and say why, where unattended can't run: no remote for the
-plan's repo (decision 11), or a workstation on a harness with no hook to
-check it. A runner on such a harness (a Cursor cloud agent) still proposes
-unattended, saying that the mode rests on the parent there.
-
-An invoking message that names a mode ("orchestrate this unattended") only
-sets the proposed mode; the question still runs, so Gary sees the waves,
-the total and the gates before he opts in. Only under `runner=ci` do the
-invoking words count as the answer: record them, print the kickoff summary
-and start.
-
-### Reading the answer
-
-The answer is Gary's next message after the question, whole, and only
-that. Read it like this:
-
-- **Unattended** when it names `unattended` and not `gated`, asks nothing
-  back (no `?`) and negates nothing (no, not, never, without, `n't`); or
-  when it is a plain yes ("yes", "ok", "sure, go ahead") and the question
-  carried `Proposed mode: unattended.` (decision 9).
-- **Gated** when it names `gated`, or is a yes to a gated proposal. A yes to
-  a gated proposal records gated, never unattended.
-- **Re-ask** on anything else: a question back, a negation, "hmm", silence,
-  a message that is the plan's Kickoff prompt or holds its mode line, or a
-  declined branch cut (above).
-
-`here` anywhere in a typed answer means orchestrate in this chat.
-
-**A dialog's answers** are read the same way, question by question: the
-mode question's answer by the rules above (a pick, or words typed under
-Other), the session question's pick for step 10. A declined dialog, one
-dismissed, one that resolved itself while Gary was away, or one that
-ended in a request for more questions answers nothing: re-ask. Record
-only the mode question's answer on the mode line; the session choice goes
-in the handoff.
-
-**Record it:** replace `pending` on the mode line with the mode, and append
-` | confirmed <today> session <S>: <the whole answer, whitespace
-collapsed>`. Gary's words come last on the line, so they may hold any
-character; `guard` and `fixups` are read only from before `confirmed`, so
-his words never set them. In the same edit add `Run in <mode> mode.` as the
-Kickoff prompt's mode line and clear `BLOCKED` from Status. Print the
-Kickoff prompt only after this edit: a prompt without its mode line makes
-the next session ask again. If the answer
-picked the other mode, recompute the Cost table's orchestrator row before
-any wave runs, and say so. `<S>` is this session's id (Claude Code:
-`$CLAUDE_CODE_SESSION_ID`; without it, the basename of the newest
-transcript in this project's `projects/<slug>/`, which is wrong when two
-sessions share the folder, so check it is the transcript holding this
-conversation). The Claude Code hook compares it with its own session id.
-
-### The Kickoff prompt
-
-The Kickoff block's `Prompt to paste into the next chat:` is how a new
-session continues the run. After the answer it reads:
-
-    In GaryRudolph/public, read specs/handoffs/plan-auth-otter.md. The plan is already tagged.
-    On branch feature/auth-otter (task branch): subagents commit each finished step.
-    Run in unattended mode.
-    Run the personal-plan-orchestrate skill from the top: walk to
-    each tier boundary, dispatch subagents per the skill's procedure,
-    and pause only where the recorded mode stops. Do not execute plan
-    work inline. Update plan progress after each wave returns per the
-    skill's procedure. The mode line above is the kickoff answer. If the
-    Status line shows BLOCKED, re-post that question and wait; otherwise
-    record the mode, print the kickoff summary and begin dispatching.
-
-- **The plan line** names the repo as `<owner>/<repo>` from its origin URL
-  (its folder name when it has no remote) and the plan's repo-relative
-  path. A plan in no git repo uses `Read <absolute path>.`, and its prompt
-  works only on that machine. `plan_state.py` reports gate 0 when no line
-  names a repo and a plan.
-- **The `On branch` line** names the plan repo's branch. When a repo's
-  branch differs (the name was taken there), it lists each:
-  `On branches public feature/auth-otter, api feature/auth-otter-quill (task branches): subagents commit each finished step.`
-- **The mode line** is exactly `Run in unattended mode.` or `Run in gated
-  mode.` on its own line, written with the answer and never before it.
-  `plan_state.py` reports gate 0 when it doesn't match the confirmed mode.
-- **What rewrites it:** after the answer, only a mode switch (its mode
-  line) and a cloud session keeping its own branch (its `On branch` line).
-  So the handoff's resume step is always "paste the plan's Kickoff prompt".
-
-## A new session on a plan already kicked off
-
-This section covers every session that finds the plan's Kickoff block
-with a `mode:` line, whether Gary pasted the Kickoff prompt or not. Keep the plan's tagging, markers, Cost table and
-counting header as they stand (re-entry adds rows for waves added since).
-
-The paste counts only when a human message, whitespace collapsed, is the
-plan's whole Kickoff prompt as committed, with its mode line; only its `On
-branch` lines may differ. "run unattended", the mode line alone, or the
-prompt plus "and skip the canary" is not a paste: ask the kickoff question.
-A paste never answers a gate, a `needs_info` question, a waiver or the
-kickoff question.
-
-Three ways in:
-- **(a) A new local session on the same machine**, usually right after the
-  kickoff halted for a new chat. The clone is on the task branch already.
-- **(b) A cloud session.** Claude Code on the web gives each session its own
-  `claude/…` branch, cut from the default branch, unless the kickoff
-  started this session on the task branch (the Claude Code adapter's
-  "A new session"): then the branch is the prompt's, and there is nothing
-  to move. If that branch has no
-  commits of its own, fast-forward it to the prompt's branch
-  (`git fetch origin && git merge --ff-only origin/<prompt branch>`), push
-  it, and work there; in the confirmation commit rewrite the prompt's `On
-  branch` line and the handoff's branch to yours. If it has commits of its
-  own and doesn't hold the plan, stop at gate 0 and say to start a session
-  from the prompt's branch.
-- **(c) Another machine** (usually a workstation clone on `main`, where the
-  plan doesn't exist): `git fetch origin`, read the plan with
-  `git show origin/<b>:<path>` without switching, and ask the kickoff
-  question with the switch folded in ("I'll switch to `<b>`; your answer is
-  the yes to both"). After the answer, `git switch <b>` (a local branch
-  tracking `origin/<b>`), then record the answer there.
-
-Then, in this order:
-1. **The plan's Status shows `BLOCKED at gate N`:** re-post that question
-   verbatim (as a dialog, where it was one) and wait. The paste answers nothing.
-2. **The prompt has a mode line, the plan's mode line is confirmed, and its
-   `harness=` and `runner=` tokens equal yours:** replace the mode line's
-   ` | confirmed ...` part with ` | confirmed <today> session <S> by Kickoff
-   prompt: Run in <mode> mode.`, commit and push it (with the path (b)
-   rewrite), print the kickoff summary with the spend so far, and dispatch
-   without asking.
-3. **Otherwise ask the kickoff question again** with a fresh proposal: the
-   environment differs (another runner token, or another harness, which
-   also recomputes the Cost table and refreshes the counting header for
-   that harness), no mode was confirmed yet (a prompt copied before the
-   answer), or path (c).
-
-A session **not** started from a paste: a gated record carries over when
-its `harness=` and `runner=` tokens still match yours (it relaxes nothing,
-and this session's first launch is a canary that stops at gate 5 when
-its unit has several groups): record
-nothing new and go to "Each unit". An unattended record counts only in the
-session that confirmed it. When its tokens match yours, confirm it instead
-of re-asking: a short text (the plan, the session and date that confirmed
-unattended, the spend so far against the expected total, the guard's
-limit, then `Proposed mode: unattended.` and a `Reply unattended or
-gated.` line), then a dialog with one question, starting `Proposed mode:
-unattended.`, whose options are `Unattended (Recommended)` and `Gated`.
-There is no session question: this is the new session. Record the answer
-as this session's confirmation (step 9's save). When the tokens differ,
-ask the full kickoff question with a fresh proposal. A `BLOCKED` Status is
-re-posted first, either way.
-
-**Re-entry with a run in flight.** If the handoff or Status shows a launch
-whose result was never recorded, reconcile from git first (uncommitted and
-unpushed work in each working directory), report it, and ask before
-relaunching. A run that died with its session leaves no record; on Claude
-Code the hook then refuses further launches in that session, so continue in
-a new session from the pasted prompt.
+[`kickoff.md`](kickoff.md) has the runner signals, the kickoff steps, the
+kickoff question and how to read and record its answer, the Kickoff
+prompt, and what a session does on a plan that already has a Kickoff
+block with a `mode:` line. Read it before a kickoff, and in any session
+that finds such a block, before acting. Gary's whole next message is the
+answer, a paste or a non-answer confirms nothing, and nothing dispatches
+while Status reads `BLOCKED`.
 
 ## Gates
 
@@ -567,8 +274,8 @@ only decides which ones stop. Gate names are `gate-<N>` in its output and
 | 1 | A failed, crashed or unreviewed group | Stops | One automatic retry inside the run, then stops |
 | 1 | A worker's `needs_info` (a fix-up worker's too) | Stops | Stops at once |
 | 1 | A `check_wave.py` failure that isn't a scope breach | Stops | Automatic fix-up `N-fix` |
-| 1 | A scope breach (below) | Stops | Stops (decision 10) |
-| 1 | A worker's disclosed breach, blocked or ran (below) | Stops | Stops, and so does its fix-up |
+| 1 | A scope breach (`gates.md`) | Stops | Stops (decision 10) |
+| 1 | A worker's disclosed breach, blocked or ran (`gates.md`) | Stops | Stops, and so does its fix-up |
 | 1 | A second or later CONCERNS or failed check in a row on a group | Stops | Automatic fix-up `N-fix2` ..., up to the cap (2 per group, decision 3); the next failure stops |
 | 2 / 3 | A `[deep]` or `[xdeep]` unit right after an `[exec]` / `[fast]` one | Stops | Checkpoint |
 | 4 | A unit in another milestone | Stops | Checkpoint; on a project with `specs/`, write the milestone handoff first (core.md) |
@@ -578,98 +285,11 @@ only decides which ones stop. Gate names are `gate-<N>` in its output and
 | guard | Projected spend passes the guard | Stops | Stops |
 | any | Status reads `BLOCKED at gate N` | Stops | Stops |
 
-**No gate 5 on a one-group unit.** When a session's first unit has one
-group, nothing is held back, so there is no canary: the unit runs whole, its
-review covers it, and there is no gate-5 stop or checkpoint in either mode.
-`canaryDone` is true from the next launch on all the same, so no later unit
-of the session canaries; a later session whose first unit has several
-groups canaries as usual.
-
-A first review CONCERNS (not a failed check or a disclosed breach) gets its
-`N-fix` without a gate in both modes. Opening a PR, tags, remote branch
-deletes, deploys and permission prompts wait in both modes; on a runner,
-commit and push before a call likely to trip a permission prompt.
-
-**Checkpoints are logged, not asked.** End the unit's Review log note with
-them (`; passed unattended: gate 4, gate 2`; an automatic fix-up's
-`; passed unattended: gate 1 (fix-up 2 of 2)`), keep only the latest unit's on
-the Status line, replacing the earlier ones rather than adding to them
-(`| passed unattended: gate 4, gate 2 before wave 3`), and list every
-checkpoint, automatic retry and fix-up with its reason under **Deviations
-from plan** in the handoff and the Completion summary.
-
-**Automatic retries (unattended only, inside the run).** A worker with no
-result, or a review that died, reruns once on the same tier (a dead review
-reruns only the review). `failed` or `low_quality` reruns once a tier up,
-into `[exec]` or `[deep]` only, logged as a gate-6 checkpoint. Never on an
-`[xdeep]` or Fable unit, never on a step-up Gary approved, never for
-`needs_info`. The retry keeps its wave's number and token row. A second
-failure is gate 1. On Claude Code the workflow does this; elsewhere the
-parent does.
-
-**Fix-ups** come from the Review log, never from open steps. The k-th
-CONCERNS line in a row for a group makes the next unit its fix-up, labeled
-`N-fix` for the first and `N-fix<k>` after (`N-fix2`, `N-fix3`; never
-`N-fix1`). A failed check is logged as a CONCERNS line, so it starts or
-extends the same streak. A PASS ends the streak, and so does a WAIVED line.
-When several groups of one wave have streaks, the longest goes first. A
-fix-up's worker gets the failure verbatim, with the streak's earlier ones,
-and its `from` is the `<from>` of the group's Review log line (the wave's
-start), not HEAD:
-- a review concern is fixed with new commits whose subjects start with the
-  step ID they fix; earlier commits stay as they are;
-- a failed check is fixed at its cause: a missing step commit is made (an
-  empty one when the step changes no file), a by-product path is deleted or
-  a path the group made is committed, and a rejected message (first line,
-  `Co-authored-by`, missing trailer) is reworded on just the commits the
-  check names by SHA: `git commit --amend` when HEAD is one of them,
-  otherwise a non-interactive `git rebase` onto `<from>` (`GIT_SEQUENCE_EDITOR`
-  and `GIT_EDITOR` set to commands) that keeps every other commit's message
-  and content, the parent's bookkeeping commits included;
-- a failed-check note that also carries `; review CONCERNS:` gets both
-  instructions;
-- the fix-up's reviewer checks the quoted failure itself too, not only the
-  change.
-
-A reword replays the commits after it with new SHAs, so after a fix-up that
-rewrote pushed commits, push with `--force-with-lease --force-if-includes`.
-Raising the cap (`fixups N` on the mode line) needs Gary's approval of
-gate 1. Each fix-up gets a Cost table row with expected `—`, labeled with
-its number (`2-fix2 [exec] repo-b m1 s4`), so it adds nothing to the guard's
-projection until it has run.
-
-**The cost guard**, before every unit, in both modes:
-
-    projected = the Token log's dollars so far
-              + the next unit's expected $ (its Cost table row; 0 once any step of
-                that wave is done, which covers a canary's continuation and a split
-                wave's later units; 0 for an unplanned row)
-    stop at gate-guard when projected > max(guard × the Cost table's Total, floor)
-
-With `guard 3x min $50`, a plan expected at $78 stops past $234, and one
-expected at $10 past $50. A yes at the guard raises the multiple to the
-next whole one above the projection, or to what Gary names; the raise needs
-his approval of `gate-guard`. Unplanned premium work stops whatever the
-spend.
-
-**Over expected, a note.** Once `plan_state.py`'s `cost.actual` passes
-`cost.expected_total`, add `| over expected: ~$<actual> of ~$<total>` to
-Status, say so in the handoff and in the next message Gary sees, and carry
-on: it is not a stop in either mode, only the guard is.
-
-**Scope breaches stop at gate 1 in both modes** (decision 10), since no
-fix-up can repair them: edits in a directory with no group, a `from` that
-is no longer an ancestor of HEAD (both in `check_wave.py`'s `scope`), and,
-on a workstation only, a group's new uncommitted path (its `uncommitted`,
-which may be Gary's own edit). Write `BLOCKED at gate 1`, no Review log line
-for the group, leave its steps open, save, ask. On a runner, `uncommitted`
-paths are an ordinary failed check that gets `N-fix`.
-
-**A waiver.** At a gate 1 a streak raised, Gary may waive the concern
-instead of approving the next fix-up. Log `review wave-N (<group-id>)
-<from>..<to>: WAIVED - <Gary's answer, whitespace collapsed> - <date>`,
-which ends the streak as a PASS does. The words must be his message
-verbatim (the Claude Code hook checks); a paste never waives.
+The rest of the gate rules (no canary on a one-group unit, how
+checkpoints are logged, automatic retries, fix-ups and their numbering,
+the cost guard, scope breaches and waivers) are in [`gates.md`](gates.md).
+Read it whenever `plan_state.py` reports a stop or a checkpoint, the next
+unit is a fix-up, a check fails, or a worker discloses a breach.
 
 ## Each unit
 
@@ -697,7 +317,7 @@ verbatim (the Claude Code hook checks); a paste never waives.
    step's spec names (one directory for a single-repo plan), and give each
    group its steps, their headings and text verbatim, the acceptance
    criteria, the standards to read, the directory's task branch and its
-   HEAD SHA now as `from`. Pass the unit's carry-forward too (contract
+   HEAD SHA now as `from`. Pass the unit's carry-forward too (`contract.md`
    item 9): the decisions so far and the environment notes, from the
    handoff. A group's id is `<workdir basename> <steps>`
    (`repo-b m1 s4-s5`). On a fix-up (`next.kind: "fixup"`), the groups are
@@ -733,7 +353,7 @@ verbatim (the Claude Code hook checks); a paste never waives.
      line with verdict CONCERNS and a note that starts `check_wave.py:`,
      quotes the failing output on one line, and ends `; review PASS` or
      `; review CONCERNS: <its note>`. Checkpoints go at the end of the note.
-   - A scope breach gets no line (above).
+   - A scope breach gets no line (`gates.md`).
    - **A worker's disclosed breach** (a rule of its prompt it broke or
      tried to break: an outward command, an edit outside its directory, a
      push; on Claude Code the result's `breaches`, elsewhere its summary)
@@ -853,7 +473,7 @@ range, the Review log verdicts, the fix-ups, retries and checkpoints with
 their reasons, the Token log total against the Cost table's expected total,
 the next unit, how to resume ("paste the plan's Kickoff prompt"), and any
 pending question verbatim. Two carry-forward sections ride along, quoted
-into each later launch (contract item 9): **Decisions so far** (decisions a
+into each later launch (`contract.md` item 9): **Decisions so far** (decisions a
 passed unit made that change later steps' text) and **Environment notes**
 (workarounds the run's agents found, such as a tool version or a missing
 binary). At a stop and at completion it is final: the
@@ -918,70 +538,9 @@ When `plan_state.py` has no `next` and the last review passed:
 
 ## Subagent context contract
 
-Every worker prompt carries items 1-8, and item 9 whenever the handoff has
-anything to carry. On Claude Code the workflow writes the prompt from the
-group and `args` you pass; on Cursor you write it.
-
-1. **Spec excerpt:** the plan section, verbatim. Quote, don't paraphrase.
-2. **Working-directory scope:** the absolute path of the one git working
-   directory it may edit, as a hard limit ("All edits must be inside
-   `<path>`. Do not edit anything outside this directory.").
-3. **Acceptance criteria:** the plan's, quoted, or derived from the step
-   titles.
-4. **Hard scope limit:** the exact step IDs as `plan_state.py` reports
-   them (a heading's `s1` under `m2` is `m2.s1`, since step numbers
-   restart in each milestone), and "stop at the end of this group; do not
-   start the next group or any work not listed here."
-5. **Standards pointers:** the specific standards files the work needs.
-   Don't skimp for `[deep]` and `[xdeep]` work.
-6. **Output contract:** "Write your full output (diffs, decisions,
-   surprises, follow-ups) to
-   `.scratch/orchestrate-{plan-name}-{wave-n}-{task-id}.md`. Return only a
-   structured 1-paragraph summary covering: what changed, what was decided,
-   any surprises (a workaround the environment needed on a line that
-   starts `env:`), every rule of this prompt you broke or tried to break
-   and whether it ran or was blocked (`breaches`, none when there is
-   none), and the artifact path." `{wave-n}` and `{task-id}` are as in
-   "Files a run keeps". The result's status is `done`, `failed`,
-   `low_quality` or `needs_info` (with one question); never report partial
-   work as `done`.
-7. **Token reporting (Cursor `Task` subagents only):** see `adapters/cursor.md`.
-   Claude Code workflow workers get no token instruction; the parent tallies
-   their transcripts.
-8. **Git instruction:** "Commit each finished step on the current branch
-   (`<branch>`) as its own commit, staging only the paths you changed. A
-   step that changes no file gets an empty commit (`git commit
-   --allow-empty`). The first line is the step ID as the scope lists it,
-   a space, and an imperative subject (`m2.s3 Wire the results view`);
-   then a blank line; then, as the last paragraph, exactly these trailer
-   lines: <the harness's trailers>. Never add `Co-authored-by` or
-   `Signed-off-by` lines. Do not
-   push, create, or switch branches." Plus: "If the spec reads two ways
-   with materially different results, or you lack an access the step
-   needs, return `needs_info` with one question. Never run a command that
-   acts outside this working directory: a push, opening or merging a PR, a
-   release, pushing a tag, deleting a remote branch, deploying, publishing
-   a package, posting anywhere, or the repo's own publish, release or
-   deploy scripts; when the spec names a dry-run form, run exactly that
-   form. If a step needs an outward action, return `needs_info` naming
-   it." Plus the resume rule: "Run `git -C
-   <workdir> log --format=%s <from>..HEAD` first. A step that already has a
-   commit whose subject starts with its ID was done by an earlier attempt:
-   check it against the acceptance criteria and skip it if it holds. If a
-   file you need already has uncommitted changes, don't touch it: return
-   `failed` and name it." A retry's prompt also names the earlier attempt
-   and how it ended.
-9. **Carry-forward** (when any): the handoff's "Decisions so far",
-   verbatim, with "where one changes what the spec excerpt says, follow
-   the decision and say so under decided", and its "Environment notes",
-   with "use them rather than finding them again". On Claude Code these
-   are `args.decisions` and `args.environment`.
-
-Reviewers are read-only and get the spec, the carry-forward, the
-acceptance criteria, the standards, the worker's summary (with any breach
-it disclosed, to look for traces of) and the commit range; they read
-command output inline rather than through a file, back every finding with
-evidence and report only defects the plan must fix.
+On the Claude Code workflow path, `plan-segment.js` writes every worker
+and reviewer prompt from the group and `args`. On Cursor and the Agent
+path you write them: follow [`contract.md`](contract.md), items 1-9.
 
 ## Harness steps
 

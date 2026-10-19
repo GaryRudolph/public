@@ -16,7 +16,7 @@ Contents: [Runner signal and setup](#runner-signal-and-setup) · [Asking Gary](#
 ## Runner signal and setup
 
 The runner signal is `CLAUDE_CODE_REMOTE=true`, plus the branch the cloud
-session was assigned (`SKILL.md` "Runner signals" has the tokens to write
+session was assigned (`kickoff.md` "Runner signals" has the tokens to write
 down: `harness=claude-code`, and `runner=cloud`, `self-hosted`, `ci` or
 `none`). The gate hook reads the same environment, so the tokens you record
 are the ones it compares.
@@ -30,7 +30,7 @@ Once per session:
   ends.
 - If `K` isn't known from the skill's base directory:
   `find "$C" /root/.claude -path "*<P>-plan-orchestrate/scripts/plan_state.py" 2>/dev/null | head -1`.
-- Trailers (contract item 8): `Assisted-by: Claude Code`, plus any trailer
+- Trailers (`contract.md` item 8): `Assisted-by: Claude Code`, plus any trailer
   the harness adds to its own commits (on the web, the `Claude-Session:`
   line; check the attribution note in your system prompt). The parent's own
   commits carry `Assisted-by: Claude Code` and no `Co-authored-by`,
@@ -168,7 +168,7 @@ one dispatch unit, at the end of "Each unit" step 4.
 - A `needs_info` group adds `"answer": {"question": "…", "answer": "<the same words as approval>"}`.
 - A fix-up unit's groups are the ones `plan_state.py`'s `next.groups` names.
 - `decisions` and `environment` are optional strings, the handoff's
-  "Decisions so far" and "Environment notes" verbatim (contract item 9);
+  "Decisions so far" and "Environment notes" verbatim (`contract.md` item 9);
   every worker and reviewer of the unit gets them.
 - Optional, each needing Gary's approval: `stepUp` (`"deep"`, `"xdeep"`,
   `"fable"`: gate 6, plus gate 7 into `[xdeep]` or Fable), `max: true` and
@@ -198,7 +198,7 @@ deny reads `PreToolUse:Workflow hook error: personal-plan-orchestrate gate:
    clear only from the plan.
 6. The launch is by name.
 7. An unattended mode was confirmed in this session, for this harness and
-   runner, and not taken back (`SKILL.md` "Reading the answer", decision 9
+   runner, and not taken back (`kickoff.md` "Reading the answer", decision 9
    and the mode switch).
 8. A raised guard carries an approval of `gate-guard`, and a raised fix-up
    cap one of `gate-1`.
@@ -326,7 +326,7 @@ avoids the runner Stop hook.
   also blocks `sleep N; cmd` chains: don't wait in the shell. The container
   stays up while a run works.
 - **A cloud session** gets its own `claude/…` branch from the default
-  branch: `SKILL.md` "A new session on a plan already kicked off", path
+  branch: `kickoff.md` "A new session on a plan already kicked off", path
   (b), fast-forwards it to the prompt's branch. One the kickoff starts
   with `create_session` ("A new session" above) is assigned the task
   branch itself.
