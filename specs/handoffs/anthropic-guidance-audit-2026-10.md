@@ -44,11 +44,13 @@ Nothing in the standards fights the direction of Anthropic's guidance (plain reg
 
 ## Decisions for Gary
 
-- `core.md:62` "scripts emit no classifications" vs `personal-allowlist-scout/scan.py`, which classifies by design. Name it as an exception or rework the script.
-- Key rotation order: `secrets/repository.md:455` vs the newer `personal-secrets/SKILL.md:111`. Flag-only because the newer text adds a command.
-- Test order: `python/testing.md:189` (number tests when order matters) vs `testing.md:61` (never rely on order). Same commit, so history can't break the tie.
-- `[fast]` on Haiku 5.5 at `low` (the standard's rule) or `medium` (Anthropic's start point for agentic coding). `[fast]` is rename-sized work, so `low` fits; measure before changing.
-- Idle compaction (2.1.299): a 200K+ conversation idle about 54 minutes compacts before its cache expires. An orchestrate parent waiting at a gate will hit this. The handoff discipline covers recovery, but consider whether the parent should set `idleCompaction: false` or rely on it to cut the resume cost phase 1 measured.
+All five decided 2026-10-19 and applied on this branch:
+
+- Scripts that classify: the core names sorting by a table the skill documents (the allowlist scout) as the exception (`706ca66`).
+- Key rotation: the skill's order is newer (2026-09-27 vs 2026-06-08); `secrets/repository.md` now matches it.
+- Test order: ordered tests are limited to live end-to-end suites in `python/testing.md`.
+- `[fast]`: Haiku 5.5 at `medium` (`39377ee`).
+- Idle compaction: the orchestrate parent lets it happen and re-reads the plan and handoff before acting; noted in the Claude Code adapter.
 
 ## Leads that did not check out
 
