@@ -97,8 +97,11 @@ absolute `~/Projects/personal/public/standards/...` paths.
   moved to the notes repo as repo-local skills.
 - **Always-on core.** In Claude Code and Cowork, the plugin's SessionStart
   hook prints `core.md`. Hook output is capped at 10,000 characters and
-  `core.md` is about 11,000 (14,300 before m5), so the hook runs in up to
-  three parts of 9,000 characters each, split on line boundaries. The hook
+  `core.md` is about 23,000, so the hook runs in parts of up to 9,000
+  characters each, split on line boundaries. Claude Code runs the hooks in
+  parallel, so the parts can arrive in any order: one that starts inside a
+  section repeats that section's heading, and the hook list asks for two
+  more parts than core needs. The hook
   stays silent in any tool whose home file still has the `personal` block,
   so nothing is injected twice while a machine is mid-migration. Chat
   runs no hooks, so there the `personal-standards` skill (whose description

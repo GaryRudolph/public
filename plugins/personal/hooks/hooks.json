@@ -6,6 +6,8 @@
           { "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT:-${extensionPath}}\"/scripts/session-start.sh 1" },
           { "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT:-${extensionPath}}\"/scripts/session-start.sh 2" },
           { "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT:-${extensionPath}}\"/scripts/session-start.sh 3" },
+          { "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT:-${extensionPath}}\"/scripts/session-start.sh 4" },
+          { "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT:-${extensionPath}}\"/scripts/session-start.sh 5" },
           { "type": "command", "command": "python3 -I \"${CLAUDE_PLUGIN_ROOT:-${extensionPath}}\"/scripts/session-doctor.py" }
         ]
       }
