@@ -20,8 +20,8 @@ def call(mid, model, out, stop, inp=10, read=1000, write=100):
     return {"type": "assistant", "message": msg}
 
 
-def agent(name, label, lines):
-    d = sess / "subagents" / "workflows" / "wf_1"
+def agent(name, label, lines, at=None):
+    d = (at or sess) / "subagents" / "workflows" / "wf_1"
     d.mkdir(parents=True, exist_ok=True)
     (d / f"agent-{name}.jsonl").write_text("".join(json.dumps(x) + "\n" for x in lines))
     (d / f"agent-{name}.meta.json").write_text(json.dumps({"description": label}))
@@ -41,8 +41,8 @@ launch = lambda rid: {"type": "user", "toolUseResult": {"status": "async_launche
     call("p1", O, 300, True), launch("wf_1"), call("p2", O, 400, True, inp=20), launch("wf_2"), call("p3", O, 900, True)]))
 
 
-def tally(*extra):
-    out = subprocess.run([sys.executable, "-I", str(scripts / "token_tally.py"), "--session-dir", str(sess), "--table", str(table), *extra],
+def tally(*extra, at=None):
+    out = subprocess.run([sys.executable, "-I", str(scripts / "token_tally.py"), "--session-dir", str(at or sess), "--table", str(table), *extra],
                          capture_output=True, text=True)
     return out.returncode, out.stdout, out.stderr
 
@@ -122,6 +122,23 @@ def a_lines_model_drops_the_date_suffix_and_pricing_uses_the_raw_id():
 def haiku_5_5_is_priced():
     line = next(l for l in tally()[1].splitlines() if l.startswith("tokens wave-1 repo-d-m1-s2 "))
     assert "(claude-haiku-5-5):" in line and "n/a" not in line, line
+
+
+@test
+def one_model_forced_on_every_workflow_agent_is_misrouted_on_each_other_tier():
+    # CLAUDE_CODE_WORKFLOW_SUBAGENT_MODEL runs every workflow agent on one model, whatever plan-segment.js
+    # passes. Workers expect their tier's alias and reviews expect Opus, so each row on another model is flagged.
+    run = [("Wave 1 of 3 [xdeep] repo-a m1 s1", "wave-1 repo-a-m1-s1"), ("Review Wave 1 of 3 [xdeep] repo-a m1 s1", "review-wave-1 repo-a-m1-s1"),
+           ("Wave 2 of 3 [exec] repo-b m2 s1", "wave-2 repo-b-m2-s1"), ("Review Wave 2 of 3 [exec] repo-b m2 s1", "review-wave-2 repo-b-m2-s1"),
+           ("Wave 3 of 3 [fast] repo-c m3 s1", "wave-3 repo-c-m3-s1")]
+    wrong = {S: {0, 1, 3, 4}, O: {2, 4}, "claude-haiku-5-5": {0, 1, 2, 3}}
+    for forced, flagged in wrong.items():
+        at = tmp / f"forced-{forced}"
+        for i, (label, _) in enumerate(run):
+            agent(f"f{i}", label, [call(f"f{i}", forced, 50, True)], at=at)
+        rc, out, err = tally("--json", "--check-routing", at=at)
+        assert rc == 2, (forced, rc, err)
+        assert sorted(r for r, _ in json.loads(out)["misrouted"]) == sorted(run[i][1] for i in flagged), (forced, out)
 
 
 failed = 0

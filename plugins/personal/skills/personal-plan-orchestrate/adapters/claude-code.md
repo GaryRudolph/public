@@ -431,3 +431,7 @@ tier's (an `availableModels` substitution, or a wrong alias): that is gate 1
   wrapped paste is still a paste.
 - `ANTHROPIC_DEFAULT_*_MODEL` doesn't remap the workflow's models; the
   routing check catches any substitution.
+- `CLAUDE_CODE_WORKFLOW_SUBAGENT_MODEL` (v2.1.296+) does: it runs every
+  workflow agent on one model, whatever the workflow passes. Unset it for a
+  run; if it slips through, `--check-routing` flags every row whose tier
+  expects another model.
