@@ -131,8 +131,8 @@ The tiers table, with each agent's model and effort, is in `SKILL.md`
 the `[xdeep]` worker and reviewer need definitions that say `effort:
 xhigh`, the Agent path's `[exec]` worker one that says `effort: high`
 (Sonnet defaults to medium), and the reviewers need a definition that
-carries the tool allowlist. Haiku still thinks: it inherits the session's
-thinking setting.
+carries the tool allowlist. On the Agent path a `[fast]` worker runs at
+Claude Code's default effort for Haiku, not `low`.
 
 ## The launch
 
