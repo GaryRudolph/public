@@ -11,6 +11,8 @@ happens.
 `<P>` is the plugin's name, read as in `SKILL.md` "Detection" (a renamed
 copy of the plugin has its own). `K` is this skill's `scripts/` folder.
 
+Contents: [Runner signal and setup](#runner-signal-and-setup) · [Asking Gary](#asking-gary) · [The pieces](#the-pieces) · [The launch](#the-launch) · [The hooks](#the-hooks) · [The result](#the-result) · [The Agent path](#the-agent-path) · [Runners, recovery and limits](#runners-recovery-and-limits) · [Permissions](#permissions) · [Tokens](#tokens) · [Gotchas](#gotchas)
+
 ## Runner signal and setup
 
 The runner signal is `CLAUDE_CODE_REMOTE=true`, plus the branch the cloud

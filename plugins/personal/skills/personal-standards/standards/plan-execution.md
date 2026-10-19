@@ -2,6 +2,36 @@
 
 How multi-step plans are executed across models of different cost and capability: tagging steps by tier, grouping them into execution waves, stopping (or delegating to a subagent) at tier boundaries, tracking progress across chat handoffs, budgeting and tallying token cost, and the STOP-gate semantics that keep human oversight intact. This file is the canonical reference. The operational skills implement it in two layers: a shared **tagging** skill (`personal-plan-tag-tiers`) that only tags executable steps with honest complexity tiers, and two **execution drivers** (`personal-plan-model-tiers`, `personal-plan-orchestrate`) that group the tagged steps into waves, apply the no-thrash rule, and either emit STOP markers or dispatch subagents.
 
+Contents:
+
+- [Model-tier stop points](#model-tier-stop-points)
+  - [Tiers](#tiers)
+  - [`[xdeep]` upgrade checklist](#xdeep-upgrade-checklist)
+  - [`[fast]` downgrade checklist](#fast-downgrade-checklist)
+  - [Tag placement](#tag-placement)
+  - [No-thrash rule](#no-thrash-rule)
+  - [Wave annotation format](#wave-annotation-format)
+  - [Model picker](#model-picker)
+  - [Model price table](#model-price-table)
+  - [Token accounting — source precedence](#token-accounting--source-precedence)
+  - [Token line format](#token-line-format)
+  - [Expected cost](#expected-cost)
+  - [Wave title format](#wave-title-format)
+  - [STOP marker template](#stop-marker-template)
+  - [Review beat](#review-beat)
+  - [Review log](#review-log)
+  - [Kickoff template](#kickoff-template)
+  - [Printing a prompt in chat](#printing-a-prompt-in-chat)
+  - [Cost table](#cost-table)
+- [Who updates progress, and how](#who-updates-progress-and-how)
+- [Progress tracking](#progress-tracking)
+  - [Two surfaces](#two-surfaces)
+  - [Marking steps done](#marking-steps-done)
+  - [Updating the Status line](#updating-the-status-line)
+  - [Final completion (all groups done)](#final-completion-all-groups-done)
+- [STOP gate semantics (fail closed)](#stop-gate-semantics-fail-closed)
+- [Delegating execution to subagents](#delegating-execution-to-subagents)
+
 ## Model-tier stop points
 
 Plans are executed by agents of different cost and capability. To make the most of both, tag every executable step with one of four tiers, group consecutive same-tier steps into execution waves, and emit a STOP marker at every tier boundary so the model can be swapped (or the wave delegated to a subagent) before continuing.

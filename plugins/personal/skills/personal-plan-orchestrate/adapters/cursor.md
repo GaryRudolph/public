@@ -19,6 +19,8 @@ gate 5. A worker that discloses a rule it broke, blocked or ran, is gate 1
 in both modes, from its summary (`SKILL.md` "When a unit completes"): no
 retry, and its fix-up waits for Gary.
 
+Contents: [Runner signal](#runner-signal) · [Harness gate: verify before proceeding](#harness-gate-verify-before-proceeding) · [Dispatch](#dispatch) · [Boundaries](#boundaries) · [Cost table and counting header](#cost-table-and-counting-header) · [Tokens](#tokens) · [Mode on Cursor](#mode-on-cursor) · [Phase 3](#phase-3)
+
 ## Runner signal
 
 A Cursor cloud agent is recorded as `harness=cursor runner=cloud` and
