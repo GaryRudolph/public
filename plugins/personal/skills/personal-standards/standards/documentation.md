@@ -46,7 +46,7 @@ Substantive project documents — product specs, technical designs, RFCs, and AD
 - Specs folder landing page (optional) → `specs/README.md` — a table of contents or short orientation for the folder. This is the one `ALL_CAPS.md` filename allowed inside `specs/` (see "Filename Case Conventions" bucket 1).
 - Milestone handoffs → `{project-root}/specs/handoffs/handoff-m{N}-{topic}.md` (see "Implementation Milestones" below)
 - Throwaway drafts, research, spikes → `.scratch/` (gitignored)
-- A runner session's plan, session handoff, and asked-for drafts or research → `{project-root}/specs/handoffs/` under their usual names, removed or promoted before the branch merges, because `.scratch/` dies with the container (see [git.md](git.md) "AI Agent Behavior")
+- A runner session's plan, session handoff, and asked-for drafts or research, and the plan and session handoff of any `personal-plan-orchestrate` run on any machine → `{project-root}/specs/handoffs/` under their usual names, removed or promoted before the branch merges (a runner's `.scratch/` dies with the container; an orchestrate run commits and pushes them after every wave). See [git.md](git.md) "AI Agent Behavior"
 
 Do not scatter spec-level docs across the repo root or language-specific folders. The only exception is when a tool expects a fixed filename at the root (e.g. `README.md`, `AGENTS.md`, `CLAUDE.md`).
 
@@ -106,7 +106,7 @@ When work transitions from one milestone to the next (m{N} → m{N+1}), the agen
 
 Handoff files go in version control; they are part of the project's working record.
 
-This rule supersedes the general-purpose `.scratch/handoff-{topic}.md` convention only for **milestone transitions on a project that has a `specs/` folder**. Ad-hoc handoffs (session wrap-ups, research, one-off spikes) still go to `.scratch/`. The one exception is a runner session, where `.scratch/` dies with the container: its plan, session handoff, and asked-for drafts go to `specs/handoffs/` under their usual names and are removed or promoted before the branch merges (see [git.md](git.md) "AI Agent Behavior").
+This rule supersedes the general-purpose `.scratch/handoff-{topic}-{word}.md` convention only for **milestone transitions on a project that has a `specs/` folder**. Ad-hoc handoffs (session wrap-ups, research, one-off spikes) still go to `.scratch/`. Two cases use `specs/handoffs/` instead, under their usual names, removed or promoted before the branch merges: a runner session, where `.scratch/` dies with the container (its plan, session handoff, and asked-for drafts), and any `personal-plan-orchestrate` run on any machine (its plan and session handoff). See [git.md](git.md) "AI Agent Behavior" and the `personal-handoff` skill.
 
 ## Architecture Decision Records
 
