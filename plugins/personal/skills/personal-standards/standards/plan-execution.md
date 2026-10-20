@@ -10,6 +10,7 @@ Contents:
   - [`[fast]` downgrade checklist](#fast-downgrade-checklist)
   - [Tag placement](#tag-placement)
   - [No-thrash rule](#no-thrash-rule)
+  - [Driver fit](#driver-fit)
   - [Wave annotation format](#wave-annotation-format)
   - [Model picker](#model-picker)
   - [Model price table](#model-price-table)
@@ -128,6 +129,14 @@ Walk the tagged steps in order and collect consecutive same-tier steps into cand
 5. After folding, re-merge adjacent waves of the same **execution tier** before placing STOPs / dispatch boundaries.
 
 **Execution tier vs. tag.** A wave's *execution tier* is the model it runs on; a step's *tag* is its honest complexity. They usually match. They differ only when a short `[fast]` run is folded into a neighboring `[exec]` wave: those steps keep their `[fast]` tags but execute at `[exec]`. The Kickoff "first wave tier", STOP markers, and subagent dispatches all key off the **execution tier** — never off a tag that has been folded.
+
+### Driver fit
+
+Both drivers cost something before any step runs. Orchestrate cuts a task branch, writes a Kickoff block, a Cost table and a handoff, asks the kickoff question, and adds a parent turn (about $0.90 at Opus high), a review subagent (about $0.54) and a handoff commit (about $0.1) to every wave. The passive driver adds STOP markers, a review beat per wave and a model swap at every boundary. On a small plan that overhead outweighs the work: a review can cost more than the `[fast]` wave it reads ([Expected cost](#expected-cost)).
+
+A plan is **direct-sized** when all of these hold: one working directory; one wave after the no-thrash grouping, or three executable steps or fewer; no `[xdeep]` step; and the whole plan fits one context. Run a direct-sized plan in the current session, with the usual pause-after-each-step and commit rules (core.md "Workflow"): no Kickoff block, Cost table or handoff. If the session's model is below the plan's highest execution tier, switch first. The tags stay, so the plan still shows its shape.
+
+This is the agent's call from the tagged plan, not a script verdict. A short plan with a step that would hurt to get wrong (an irreversible migration, an auth change) can still earn orchestrate's review subagents, and Gary can ask for a driver anyway. `personal-plan-tag-tiers` names a direct-sized plan in its readout, and `personal-plan-orchestrate`'s kickoff offers to run one directly before it writes anything.
 
 ### Wave annotation format
 
