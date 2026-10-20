@@ -136,7 +136,7 @@ Both drivers cost something before any step runs. Orchestrate cuts a task branch
 
 A plan is **direct-sized** when all of these hold: one working directory; one wave after the no-thrash grouping, or three executable steps or fewer; no `[xdeep]` step; and the whole plan fits one context. Run a direct-sized plan in the current session, with the usual pause-after-each-step and commit rules (core.md "Workflow"): no Kickoff block, Cost table or handoff. If the session's model is below the plan's highest execution tier, switch first. The tags stay, so the plan still shows its shape.
 
-This is the agent's call from the tagged plan, not a script verdict. A short plan with a step that would hurt to get wrong (an irreversible migration, an auth change) can still earn orchestrate's review subagents, and Gary can ask for a driver anyway. `personal-plan-tag-tiers` names a direct-sized plan in its readout, and `personal-plan-orchestrate`'s kickoff offers to run one directly before it writes anything.
+This is the agent's call from the tagged plan, not a script verdict. A short plan with a step that would hurt to get wrong (an irreversible migration, an auth change) can still earn orchestrate's review subagents, and Gary can ask for a driver anyway. `personal-plan-tag-tiers` names a direct-sized plan in its readout, and both drivers offer to run one directly right after grouping, before they write a Kickoff block.
 
 ### Wave annotation format
 
