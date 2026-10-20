@@ -51,6 +51,19 @@ records `runner=none` and proposes gated.
    write no markers, ask. Then write `--- WAVE N [tier] ---` before each
    wave's first heading (skip when markers exist). Fix-up waves are never
    planned; they come from the Review log.
+
+   **Fit check.** If the grouped plan is direct-sized (standard §"Driver
+   fit"), ask whether to orchestrate it at all before going on, as a
+   choice dialog where the harness has one, else in text: name the waves,
+   step count and tiers and the conditions it met, with the options
+   `Run directly (Recommended)` and `Orchestrate anyway`. Don't start the
+   question with `Proposed mode:`; this isn't the kickoff question, and
+   nothing launches before it. On run directly, keep the tags and markers,
+   write nothing else (no Kickoff block, Cost table or handoff), and work
+   the plan in this session under core.md's rules; this skill ends there.
+   On orchestrate anyway, go on to step 3. Any other answer, or none,
+   re-asks. Under `runner=ci` nobody can answer, so the invoking words
+   stand and the run goes on. A plan that isn't direct-sized skips this.
 3. **Preflight:** the branch, email and `origin/HEAD` checks in "Task branches", the
    runner signals, and `python3 $K/check_wave.py snapshot <each working
    directory>`, which must pass (it flags a `.scratch/` that isn't

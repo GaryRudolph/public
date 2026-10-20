@@ -87,6 +87,10 @@ picking a driver:
   the passive driver), so the
   `[xdeep]` spend is easy to second-guess.
 - A one-line recommendation:
+  - Direct-sized (plan-execution.md §"Driver fit": one working directory,
+    one wave or three steps or fewer, no `[xdeep]`, fits one context) →
+    neither driver: run it in this session. Say which conditions it met,
+    and name the step, if any, that might still earn a driver's reviews.
   - Mostly `[exec]` / `[fast]` with little `[deep]` → good fit for
     [`personal-plan-orchestrate`](../personal-plan-orchestrate/SKILL.md)
     (auto-dispatch, hands-off, Opus parent).

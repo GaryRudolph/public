@@ -253,10 +253,11 @@ branches"), and the git email in each (core.md "Verify git email").
 
 ## Kickoff and re-entry
 
-[`kickoff.md`](kickoff.md) has the runner signals, the kickoff steps, the
-kickoff question and how to read and record its answer, the Kickoff
-prompt, and what a session does on a plan that already has a Kickoff
-block with a `mode:` line. Read it before a kickoff, and in any session
+[`kickoff.md`](kickoff.md) has the runner signals, the kickoff steps (with
+the fit check that offers to run a small plan directly), the kickoff
+question and how to read and record its answer, the Kickoff prompt, and
+what a session does on a plan that already has a Kickoff block with a
+`mode:` line. Read it before a kickoff, and in any session
 that finds such a block, before acting. Gary's whole next message is the
 answer, a paste or a non-answer confirms nothing, and nothing dispatches
 while Status reads `BLOCKED`.

@@ -107,6 +107,18 @@ pair for each wave — `<group-id>` is the same identifier used in the
 Wave title format (e.g. `m1-s1-s5`). Default cadence is `review:
 every-wave` (see step 5).
 
+**Fit check.** If the plan has no Kickoff block yet and the grouped plan
+is direct-sized (standard §"Driver fit"), ask whether to drive it at all
+before writing anything else, as a choice dialog where the harness has
+one, else in text: name the waves, step count and tiers and the
+conditions it met, with the options `Run directly (Recommended)` and
+`STOP-and-swap anyway`. On run directly, keep the tags and wave markers,
+write no REVIEW or STOP markers and no Kickoff block, and work the plan in
+this session under core.md's rules, switching model first if the session
+is below the plan's highest execution tier; this skill ends there. On
+STOP-and-swap anyway, go on to step 4. Any other answer, or none, re-asks.
+A plan that isn't direct-sized skips this.
+
 ### 4. Insert STOP and REVIEW markers with handoff blocks
 
 **REVIEW markers first, then STOP markers** at each inter-wave boundary.
