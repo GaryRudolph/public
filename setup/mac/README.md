@@ -348,6 +348,13 @@ create Symbolic Links
   brew install lolay/tap/triage
   ```
 
+- Man pages for Homebrew packages (lets the `xman` fish function open them;
+see `dotfiles/fish/functions/xman.fish`)
+
+  ```bash
+  echo /opt/homebrew/share/man | sudo tee /etc/manpaths.d/homebrew
+  ```
+
 - Gems (`gem install <package>`)
   - Intentional global exception to the `bundle exec` rule: these are
   standalone CLI tools used outside any project Gemfile
