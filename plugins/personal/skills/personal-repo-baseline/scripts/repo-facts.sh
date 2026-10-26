@@ -339,6 +339,35 @@ facts_for() {
         printf '  present: no\n'
     fi
 
+    # The PR template GitHub's web form fills in, for people and tools the
+    # plugin doesn't reach. Printed verbatim; the agent compares it with
+    # templates/pull_request_template.md. Python, not find or grep: the
+    # tests run this with a minimal PATH.
+    section "PR template"
+    python3 - "$root" <<'PY'
+import os, re, sys
+root = sys.argv[1]
+found = []
+for d in ("", ".github", "docs"):
+    full = os.path.join(root, d)
+    if os.path.isdir(full):
+        found += [os.path.join(d, n) for n in sorted(os.listdir(full))
+                  if n.lower() == "pull_request_template.md" and os.path.isfile(os.path.join(full, n))]
+folder = os.path.join(root, ".github", "PULL_REQUEST_TEMPLATE")
+for rel in found:
+    text = open(os.path.join(root, rel), encoding="utf-8", errors="replace").read()
+    print(f"  path: {rel}")
+    print(f"  has ## Review guide: {'yes' if re.search(r'^##[ \t]+Review guide[ \t]*$', text, re.M | re.I) else 'no'}")
+    print(f"  has Review tier: line: {'yes' if re.search(r'Review tier:', text, re.I) else 'no'}")
+    print("  contents:")
+    for line in text.splitlines():
+        print(f"    | {line}")
+if os.path.isdir(folder):
+    print(f"  template folder: .github/PULL_REQUEST_TEMPLATE/ ({', '.join(sorted(os.listdir(folder)))})")
+if not found and not os.path.isdir(folder):
+    print("  present: no")
+PY
+
     section "GitHub merge settings"
     while IFS= read -r line; do printf '%s\n' "$line"; done < "$ghf"
 }

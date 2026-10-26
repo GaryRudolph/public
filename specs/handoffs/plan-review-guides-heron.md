@@ -1,6 +1,6 @@
 # Review guides for agent-made changes
 
-Status: m3.s1 done; m3.s2 next. Running m2 to m3 unattended (Gary, after m1). Branch `claude/epic-ramanujan-3sdejf` (harness-assigned).
+Status: m1 to m3 done; m4 queued as a task card for nowline. Branch `claude/epic-ramanujan-3sdejf` (harness-assigned). Pending: the review draft and walkthrough, then Gary decides on the PR.
 
 ## Context
 
@@ -197,7 +197,7 @@ The description says why this isn't a template skill. `reference.md` holds the b
 #### ~~s1 - [exec] PR body gate~~
 Add a PreToolUse entry in `plugins/personal/hooks/claude-hooks.json`, next to the existing guards. It fires on PR creation through `gh pr create`, a REST `pulls` POST, or `mcp__github__create_pull_request`. It denies the call when the body lacks `## Review guide` or a `Review tier:` line, and its reason points to the skill. It checks presence only. Add tests beside the existing hook tests.
 
-#### s2 - [exec] Baseline item
+#### ~~s2 - [exec] Baseline item~~
 Add `.github/pull_request_template.md` to `personal-repo-baseline` using its "Adding an item" recipe:
 - When a repo has no template, add one with the layout.
 - When a repo has a template without `## Review guide`, propose inserting the section above the template's AI assistance section.

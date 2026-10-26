@@ -3,10 +3,11 @@ name: personal-repo-baseline
 description: >
   Audit and apply Gary's per-repo agent baseline: the settings the personal
   plugin can't carry. Today that's the repo's .claude/settings.json ($schema,
-  and attribution set to "Assisted-by: Claude Code" for commits and PRs) and
+  and attribution set to "Assisted-by: Claude Code" for commits and PRs),
   GitHub's merge settings (squash only, PR title and description as the
-  commit message, head branches deleted on merge). Dry-run first; apply repo
-  by repo with confirmation; re-run any time to bring a repo up to the
+  commit message, head branches deleted on merge), and a PR template laid
+  out as a review guide. Dry-run first; apply repo by repo with
+  confirmation; re-run any time to bring a repo up to the
   current baseline. personal-new-project runs it last. Triggers: "repo
   baseline", "set up this repo for agents", "add .claude/settings.json",
   "fix commit attribution", "Claude shows up as co-author", "squash merge
@@ -29,6 +30,7 @@ Behavior, and Merging) for the rules these settings serve.
 |------|----------|--------|-------------------|
 | **Agent attribution** | `.claude/settings.json` | [`templates/claude-settings.json`](templates/claude-settings.json): `$schema`, and `attribution.commit` and `attribution.pr` set to `Assisted-by: Claude Code` | Unset, Claude Code adds `Co-authored-by: Claude`. A plugin's settings carry only `agent` and `subagentStatusLine`, and cloud sessions read the repo's `.claude/settings.json`, never `~/.claude/settings.json` |
 | **Merge settings** | GitHub repo settings | [`templates/github-merge-settings.json`](templates/github-merge-settings.json): squash only, `PR_TITLE` and `PR_BODY`, head branches deleted | Squash makes the PR opener the author on `main` and the description, with its `Assisted-by` trailer, the commit message. GitHub still appends a `Co-authored-by` for a runner's branch commits, which git.md accepts. GitHub's defaults (`COMMIT_OR_PR_TITLE` and `COMMIT_MESSAGES`, merge commits and rebase on) copy every branch trailer onto `main`, and a rebase merge puts the agent there as author |
+| **PR template** | `.github/pull_request_template.md` (or another name GitHub reads) | [`templates/pull_request_template.md`](templates/pull_request_template.md): a review guide (`standards/review.md`), with `## Review guide` and a `Review tier:` line | Agents get the layout from the plugin and the `personal-review-guide` skill; people opening a PR on GitHub, and tools the plugin doesn't reach, get it only from the repo |
 
 - **Leave `attribution.sessionUrl` unset** (default `true`) so branch
   commits keep `Claude-Session:`, as git.md wants; `false` drops the link. In
@@ -41,6 +43,16 @@ Behavior, and Merging) for the rules these settings serve.
   each repo's file (Claude Code settings docs, "Settings in cloud sessions"),
   and the plugins those name don't load in the cloud either. `core.md`'s
   attribution rule still holds there.
+- **A PR template that exists stays the repo's** — when it has no `## Review
+  guide`, propose a hand edit that adds the Review guide, Validation and
+  Rollback sections after its summary and the per-tier `<details>` after
+  those, keeping its own sections and leaving any AI assistance or trailer
+  section last. Never replace it wholesale. A repo with a template folder
+  (`.github/PULL_REQUEST_TEMPLATE/`) gets the same proposal per file.
+- **A repo that uses Claude Code Review** — if it has a `REVIEW.md`, propose
+  one line asking the reviewer to check the diff against the PR's stated
+  intent and to flag an area whose code doesn't match its review tag. Don't
+  create a `REVIEW.md` for it.
 - **`.claude/settings.local.json` wins on its machine** — report a local
   `attribution` that differs; don't edit it (it's personal and untracked).
 
@@ -74,6 +86,10 @@ Per repo (default: the current directory) it prints:
   verbatim
 - for `.claude/settings.local.json`: key names and its `attribution` value
   only
+- for the PR template: each file GitHub reads (any case of
+  `pull_request_template.md` at the root, in `.github/` or in `docs/`, and a
+  `.github/PULL_REQUEST_TEMPLATE/` folder), whether it has `## Review
+  guide` and a `Review tier:` line, and its contents verbatim
 - GitHub's value for every key in `templates/github-merge-settings.json`,
   plus `full_name`, `default_branch`, and `permissions`, from
   `gh api repos/<owner>/<name>` (REST; Claude Code's cloud proxy refuses
@@ -108,6 +124,7 @@ Gary confirms the repo. Call out:
 - a local `attribution` override
 - GitHub values that differ, and whether `permissions.admin` allows the change
 - a repo that isn't on GitHub yet: its GitHub item waits
+- a PR template that's missing, or lacks `## Review guide` or `Review tier:`
 
 Preview the exact settings.json change with:
 
@@ -127,6 +144,7 @@ repos in one call):
 - **settings.json** — show the diff, then ask `Apply` or `Skip` for the file,
   and separately about each existing value the template would replace
   (`Keep current` or `Take template`); the merge keeps them unless told.
+- **PR template** — show the new file or the diff, then `Apply` or `Skip`.
 - **GitHub** — a remote, outward-facing change. Ask in this session, naming
   the repo and each value in the question (`Apply` or `Skip`). A yes to the file isn't a yes to GitHub, and a yes
   for one repo isn't a yes for the next. A runner sends nothing, so it
@@ -151,6 +169,12 @@ its formatting, is left as it is, and a symlinked file is written through
 the link. Removing a key, such as
 `includeCoAuthoredBy`, is a hand edit after a yes. The file is an ordinary
 change: commit it per `core.md`.
+
+**PR template.** No template: copy
+`<skill-dir>/templates/pull_request_template.md` to
+`<repo>/.github/pull_request_template.md`. A template without a review
+guide: the hand edit from the bullet under the table, shown as a diff first.
+Either is an ordinary change: commit it per `core.md`.
 
 **GitHub.** On a workstation, with Gary's yes for this repo (a runner can't
 send it; see below):
@@ -223,6 +247,7 @@ the first push. On a runner, hand Gary the command instead (Step 4).
 | `SKILL.md` | This file — baseline, workflow, and invariants |
 | `templates/claude-settings.json` | The baseline keys for a repo's `.claude/settings.json` |
 | `templates/github-merge-settings.json` | Target GitHub merge settings; also the PATCH body |
+| `templates/pull_request_template.md` | The review-guide PR template for a repo without one |
 | `scripts/repo-facts.sh` | Read-only facts per repo (facts only, no verdicts) |
 | `scripts/merge_settings.py` | Mechanical, key-preserving merge of a template into a JSON file |
 | `tests/test-repo-baseline.sh` | Fixture tests for both scripts, with a stub `gh`; `make -C agents test` runs it |

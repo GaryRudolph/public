@@ -29,6 +29,13 @@ printf 'templates\n'
 expect_ok "claude-settings.json parses"          python3 -m json.tool "$tmpl"
 expect_ok "github-merge-settings.json parses"    python3 -m json.tool "$gh_tmpl"
 expect_eq "\$schema comes first"                 "$(first_key "$tmpl")" '$schema'
+pr_tmpl="$here/../templates/pull_request_template.md"
+if grep -qE '^## Review guide$' "$pr_tmpl" && grep -q '^Review tier: ' "$pr_tmpl"; then pass "PR template has the review guide and tier"; else fail "PR template lacks ## Review guide or Review tier:"; fi
+if PERSONAL_REVIEW_GUIDE= python3 -I "$here/../../personal-review-guide/scripts/pr_body_guard.py" <<<"$(python3 -c 'import json,sys; print(json.dumps({"tool_name": "mcp__github__create_pull_request", "tool_input": {"body": open(sys.argv[1]).read()}}))' "$pr_tmpl")" | grep -q deny; then
+    fail "PR template trips the review-guide hook"
+else
+    pass "PR template passes the review-guide hook"
+fi
 
 printf 'merge_settings.py\n'
 t="$work/new/.claude/settings.json"
@@ -178,6 +185,7 @@ expect_grep "  ...settings.json contents"        out '    |   "permissions": {"a
 expect_grep "  ...local attribution value"       out 'attribution: {"commit": ""}'
 expect_grep "  ...local file ignored by git"     out 'ignored by git: yes'
 expect_nogrep "  ...local values otherwise hidden" out 's3cr3t-value'
+expect_grep "  ...no PR template"                 out '  present: no'
 expect_grep "  ...GitHub values printed"         out '"allow_merge_commit": true'
 expect_grep "  ...request names the repo"        gh-args 'repos/acme/widget'
 for key in full_name default_branch $(python3 -c 'import json,sys; print(" ".join(json.load(open(sys.argv[1]))))' "$gh_tmpl"); do
@@ -201,6 +209,17 @@ expect_grep "  ...untracked"                     out 'tracked by git: no'
 expect_grep "  ...still same as HEAD"            out 'differs from HEAD: no'
 expect_grep "  ...still same as origin/main"     out 'same as origin/main (as of the last fetch): yes'
 git -C "$repo" reset -q -- .claude/settings.json
+
+mkdir -p "$repo/.github" && printf '## Summary\n\n## AI assistance\n' > "$repo/.github/PULL_REQUEST_TEMPLATE.md"
+expect_ok "PR template without a review guide"   env PATH="$stub:$PATH" "$bash_bin" "$facts" "$repo"
+expect_grep "  ...path in its own case"          out 'path: .github/PULL_REQUEST_TEMPLATE.md'
+expect_grep "  ...no review guide"               out 'has ## Review guide: no'
+expect_grep "  ...contents verbatim"             out '    | ## AI assistance'
+cp "$here/../templates/pull_request_template.md" "$repo/.github/PULL_REQUEST_TEMPLATE.md"
+expect_ok "PR template from the baseline"        env PATH="$stub:$PATH" "$bash_bin" "$facts" "$repo"
+expect_grep "  ...review guide"                  out 'has ## Review guide: yes'
+expect_grep "  ...tier line"                     out 'has Review tier: line: yes'
+rm -r "$repo/.github"
 
 expect_ok "gh refused"                           env PATH="$stub:$PATH" GH_STUB_FAIL=1 "$bash_bin" "$facts" "$repo"
 expect_grep "  ...error reported"                out 'failed (exit 1): gh: Must have admin rights to Repository. (HTTP 403)'
