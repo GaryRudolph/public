@@ -10,8 +10,7 @@ below are done.
   - On the new phone, open the Watch app and pair the watch (it unpairs from
   the old phone and backs up first)
 - Setup Camera Settings
-  - Settings -> Camera -> Record Video -> `4K at 60 fps` (or the preferred
-  format)
+  - Settings -> Camera -> Record Video -> `4K at 30 fps`
   - Settings -> Camera -> Formats -> pick the preferred photo and video format
   - Settings -> Camera -> Preserve Settings -> turn on what should persist
 - Sign out of ForeFlight on the old phone
