@@ -19,7 +19,9 @@ harness's:
 - `hooks/claude-hooks.json`, which the Claude manifest's `hooks` field loads
   beside `hooks/hooks.json`: a `PreToolUse` gate on `Workflow` and two
   guards on `Bash`, one keeping the orchestrate reviewers read-only and one
-  keeping its workers from outward commands.
+  keeping its workers from outward commands, plus `personal-review-guide`'s
+  check that a new PR's body has a review guide (on `Bash` and MCP
+  `create_pull_request`).
 - `claude-agents/` and `claude-workflows/` inside `personal-plan-orchestrate`:
   its five plan worker and reviewer agents and the `plan-segment` workflow,
   named in the Claude manifest's `agents` and `workflows` fields.

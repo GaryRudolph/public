@@ -1,6 +1,6 @@
 # Review guides for agent-made changes
 
-Status: m2 done; m3.s1 next. Running m2 to m3 unattended (Gary, after m1). Branch `claude/epic-ramanujan-3sdejf` (harness-assigned).
+Status: m3.s1 done; m3.s2 next. Running m2 to m3 unattended (Gary, after m1). Branch `claude/epic-ramanujan-3sdejf` (harness-assigned).
 
 ## Context
 
@@ -194,7 +194,7 @@ The description says why this isn't a template skill. `reference.md` holds the b
 
 ## m3 - Factory hooks
 
-#### s1 - [exec] PR body gate
+#### ~~s1 - [exec] PR body gate~~
 Add a PreToolUse entry in `plugins/personal/hooks/claude-hooks.json`, next to the existing guards. It fires on PR creation through `gh pr create`, a REST `pulls` POST, or `mcp__github__create_pull_request`. It denies the call when the body lacks `## Review guide` or a `Review tier:` line, and its reason points to the skill. It checks presence only. Add tests beside the existing hook tests.
 
 #### s2 - [exec] Baseline item

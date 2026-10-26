@@ -102,6 +102,21 @@ expect_ok "no base found: still prints"                  "$work/lonely"
 expect_grep "  ...says none"                              "base_ref: none (none found)"
 expect_grep "  ...no surfaces"                            "none"
 
+printf 'pr_body_guard.py\n'
+if python3 -I "$here/test_pr_body_guard.py" >"$work/guard" 2>&1; then pass "guard tests"; else fail "guard tests"; sed 's/^/        /' "$work/guard" >&2; fi
+hooks="$here/../../../hooks/claude-hooks.json"
+if python3 - "$hooks" <<'PY'
+import json, re, sys
+entries = json.load(open(sys.argv[1]))["hooks"]["PreToolUse"]
+mine = [e for e in entries if any("personal-review-guide/scripts/pr_body_guard.py" in h["command"] for h in e["hooks"])]
+assert len(mine) == 1 and len(mine[0]["hooks"]) == 1, "one entry, one hook"
+m = re.compile(mine[0]["matcher"])
+assert m.fullmatch("Bash") and m.fullmatch("mcp__github__create_pull_request"), "matcher covers Bash and MCP create"
+assert not m.fullmatch("Read"), "matcher leaves other tools alone"
+assert "exit 2" not in mine[0]["hooks"][0]["command"], "fails open"
+PY
+then pass "claude-hooks.json registers the guard, failing open"; else fail "claude-hooks.json registration"; fi
+
 if [ "$failures" -gt 0 ]; then
     printf '%s review-guide test(s) failed\n' "$failures" >&2
     exit 1
