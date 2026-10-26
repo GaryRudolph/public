@@ -61,14 +61,18 @@ default for marketplaces added this way.
   Besides skills it now carries pieces only Claude Code uses, named in the
   Claude manifest: two agents (`plan-worker`, `plan-reviewer`), the
   `plan-segment` workflow (so `personal:plan-segment`), and
-  `hooks/claude-hooks.json` with three `PreToolUse` hooks: a gate on
+  `hooks/claude-hooks.json` with four `PreToolUse` hooks: a gate on
   `Workflow` (`orchestrate_gate.py`, which denies an orchestrate launch
   unless the plan, the approval and the branch check out) and two guards on
   `Bash`, each its own entry: `reviewer_guard.py` keeps the plan reviewers
   read-only, and `worker_guard.py` keeps the plan workers from outward
   commands such as `git push` or the repo's own publish, release and deploy
-  scripts without their dry-run form. All are for
-  `personal-plan-orchestrate`; the other tools ignore them.
+  scripts without their dry-run form. Those three are for
+  `personal-plan-orchestrate`; the other tools ignore them. The fourth,
+  `pr_body_guard.py` on `Bash` and MCP `create_pull_request`, denies
+  creating a PR whose body has no `## Review guide` heading or
+  `Review tier:` line (`personal-review-guide`); `PERSONAL_REVIEW_GUIDE=0`
+  in the environment turns it off.
 - **Permissions for orchestrate.** An interactive session offers "don't ask
   again" for the plugin workflow. A headless run (`claude -p`, the SDK) has
   no one to ask, so allow `Workflow(personal:plan-segment)` in its settings,
@@ -346,9 +350,9 @@ reports `plugins/personal` as a valid Claude-compatible plugin with its skills
 and hooks. It warns that the manifest's `agents` declare unsupported behavior
 and that `workflows` are ignored, which is expected: those are the orchestrate
 kit's Claude Code pieces, and Muse runs the passive skill. Muse also loads
-`hooks/claude-hooks.json`; its three `PreToolUse` hooks do nothing for a
-tool call that isn't a plan-segment launch or a plan reviewer's or worker's
-Bash call. The
+`hooks/claude-hooks.json`; its four `PreToolUse` hooks do nothing for a
+tool call that isn't a plan-segment launch, a plan reviewer's or worker's
+Bash call, or the creation of a PR. The
 install steps below aren't confirmed; check them on first use:
 
 ```bash

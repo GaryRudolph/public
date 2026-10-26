@@ -19,7 +19,9 @@ harness's:
 - `hooks/claude-hooks.json`, which the Claude manifest's `hooks` field loads
   beside `hooks/hooks.json`: a `PreToolUse` gate on `Workflow` and two
   guards on `Bash`, one keeping the orchestrate reviewers read-only and one
-  keeping its workers from outward commands.
+  keeping its workers from outward commands, plus `personal-review-guide`'s
+  check that a new PR's body has a review guide (on `Bash` and MCP
+  `create_pull_request`).
 - `claude-agents/` and `claude-workflows/` inside `personal-plan-orchestrate`:
   its five plan worker and reviewer agents and the `plan-segment` workflow,
   named in the Claude manifest's `agents` and `workflows` fields.
@@ -153,6 +155,7 @@ cleaned up, then push.
 | `personal` | `personal-secrets` | Run a SOPS + age secrets repo: set up from a tested kit, add secrets, grant access, mint and rotate consumer keys, wire consumer CI with least privilege |
 | `personal` | `personal-release` | Cut SemVer releases and hotfixes: propose the level from what changed, bump every version in lock-step, move the changelog, tag; set up version.txt and a Release workflow |
 | `personal` | `personal-repo-baseline` | Audit and apply the per-repo settings the plugin can't carry: `.claude/settings.json` attribution (`Assisted-by: Claude Code`) and GitHub squash-only merge settings. Dry-run first; re-run to bring a repo up to the current baseline |
+| `personal` | `personal-review-guide` | Write the review guide for a change: tag areas `[study]` / `[check]` / `[skim]` / `[skip]`, read base and head, draw before/after only where structure changed, run the repo's review surfaces, and write the PR description collapsible by tier. Modes: plan, walkthrough, pr |
 | `personal` | `personal-plan-tag-tiers` | Shared tagging layer: tag plan steps `[xdeep]` / `[deep]` / `[exec]` / `[fast]` to show complexity. Tags only; the two drivers call it automatically |
 | `personal` | `personal-plan-model-tiers` | Passive driver: group tagged steps into waves (no-thrash) and insert STOP markers with handoff blocks at tier boundaries |
 | `personal` | `personal-plan-orchestrate` | Active driver: same tagging and waves, but delegates each wave to a subagent on the right model, on Claude Code (a plugin workflow, gated by a hook) and Cursor (`Task`), and pauses only where its recorded mode stops (gated: every STOP gate; unattended: questions, failures, premium work and the cost guard) |

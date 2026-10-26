@@ -18,6 +18,12 @@
         "hooks": [
           { "type": "command", "command": "python3 -I \"${CLAUDE_PLUGIN_ROOT}\"/skills/personal-plan-orchestrate/scripts/worker_guard.py", "timeout": 10 }
         ]
+      },
+      {
+        "matcher": "Bash|mcp__.+__create_pull_request",
+        "hooks": [
+          { "type": "command", "command": "python3 -I \"${CLAUDE_PLUGIN_ROOT}\"/skills/personal-review-guide/scripts/pr_body_guard.py", "timeout": 10 }
+        ]
       }
     ]
   }
