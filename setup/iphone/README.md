@@ -20,6 +20,11 @@ below are done.
 - Sign out of Garmin Pilot on the old phone
   - Same reason as ForeFlight
   - Sign in on the new phone
+- Migrate the Google Fi 2nd line to the new phone
+  - Google Fi app (or fi.google.com) -> Phone -> select the line -> Switch
+  phone / activate eSIM on the new phone, then confirm the number is active
+  - Do this before Signal and WhatsApp if either uses this number, since
+  registration may need an SMS code
 - Transfer Signal
   - Install Signal on the new phone, register with the same number, and
   choose Transfer from iPhone when prompted (old phone must be on the same
