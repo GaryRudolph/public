@@ -25,6 +25,16 @@ below are done.
   phone / activate eSIM on the new phone, then confirm the number is active
   - Do this before Signal and WhatsApp if either uses this number, since
   registration may need an SMS code
+- Setup Tesla phone key (Bluetooth / keyless entry)
+  - Install the Tesla app, sign in, and allow Bluetooth and Location (Always)
+  - In the car: app -> Security -> Phone Key -> add the phone, then tap the
+  key card on the center console when prompted
+  - Remove the old phone from the car's Locks / key list once the new one works
+- Setup Toyota Bluetooth / keyless entry
+  - Pair the new phone in the car (Bluetooth audio, CarPlay) and delete the
+  old phone from the head unit's device list
+  - Install the Toyota app, sign in, and set up the Digital Key (allow
+  Bluetooth and NFC); remove the old phone's key
 - Transfer Signal
   - Install Signal on the new phone, register with the same number, and
   choose Transfer from iPhone when prompted (old phone must be on the same
