@@ -419,7 +419,7 @@ clean-allowlists:
 # test
 # ---------------------------------------------------------------------------
 
-test: test-blocks test-extensions test-hooks test-allowlists test-manifests test-secrets test-release test-orchestrate test-repo-baseline test-session-doctor test-session-start test-roundtrip
+test: test-blocks test-extensions test-hooks test-allowlists test-manifests test-secrets test-release test-orchestrate test-repo-baseline test-review-guide test-session-doctor test-session-start test-roundtrip
 
 # Install + uninstall through this Makefile into a sandboxed $HOME.
 test-roundtrip:
@@ -450,6 +450,9 @@ test-orchestrate:
 
 test-repo-baseline:
 	@bash "$(PLUGINS_DIR)/personal/skills/personal-repo-baseline/tests/test-repo-baseline.sh"
+
+test-review-guide:
+	@bash "$(PLUGINS_DIR)/personal/skills/personal-review-guide/tests/test-review-guide.sh"
 
 # The personal plugin's session doctor hook, against fixture repos and stub tools.
 test-session-doctor:

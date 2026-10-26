@@ -1,6 +1,6 @@
 # Review guides for agent-made changes
 
-Status: m2.s2 done; m2.s3 next. Running m2 to m3 unattended (Gary, after m1). Branch `claude/epic-ramanujan-3sdejf` (harness-assigned).
+Status: m2 done; m3.s1 next. Running m2 to m3 unattended (Gary, after m1). Branch `claude/epic-ramanujan-3sdejf` (harness-assigned).
 
 ## Context
 
@@ -186,7 +186,7 @@ The skill has three modes: `plan`, `walkthrough` and `pr`. The procedure:
 
 The description says why this isn't a template skill. `reference.md` holds the bucket table, the description skeleton, and a diagram guide.
 
-#### s3 - [exec] Tests and registration
+#### ~~s3 - [exec] Tests and registration~~
 - `tests/test-review-facts.sh`, run over a temp repo with a base and a head
 - a `test-review-guide` target in the `agents/Makefile` `test` list
 - a skill row in `plugins/README.md`

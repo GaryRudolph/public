@@ -220,8 +220,9 @@ def main():
             print(f"  from {name}:")
             for line in body.splitlines():
                 print(f"    {line}")
-        hints = [line for line in text.splitlines() if re.match(r"^#{2,4}\s", line) and SURFACE_HINT.search(line)
-                 and not re.match(r"^##\s+Review surfaces\s*$", line, re.I)]
+        outside = set(text.splitlines()) - set((body or "").splitlines())
+        hints = [line for line in text.splitlines() if line in outside and re.match(r"^#{2,4}\s", line)
+                 and SURFACE_HINT.search(line) and not re.match(r"^##\s+Review surfaces\s*$", line, re.I)]
         for line in hints:
             print(f"  heading in {name} that mentions before/after, renders or snapshots: {line.strip()}")
             found = True
