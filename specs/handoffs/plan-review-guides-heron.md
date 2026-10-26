@@ -1,6 +1,6 @@
 # Review guides for agent-made changes
 
-Status: m1 done; m2.s1 next. Branch `claude/epic-ramanujan-3sdejf` (harness-assigned).
+Status: m2.s1 done; m2.s2 next. Running m2 to m3 unattended (Gary, after m1). Branch `claude/epic-ramanujan-3sdejf` (harness-assigned).
 
 ## Context
 
@@ -158,7 +158,7 @@ Add a new file under `plugins/personal/skills/personal-standards/standards/`. It
 
 ## m2 - Skill `personal-review-guide`
 
-#### s1 - [exec] Facts script
+#### ~~s1 - [exec] Facts script~~
 Add `scripts/review-facts.sh`. It gathers:
 - the base ref (the merge-base with the default branch, or a ref that's passed in)
 - commits and the diffstat
