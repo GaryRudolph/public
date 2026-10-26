@@ -5,6 +5,7 @@ Contents:
 - [What to Document](#what-to-document), [Code Comments](#code-comments) (TODO format), [Filename Case Conventions](#filename-case-conventions)
 - [Product and Technical Specs](#product-and-technical-specs): the `specs/` layout; [Runbooks](#runbooks)
 - [Implementation Milestones](#implementation-milestones): `m{N}` / `s{N}` naming, strikethrough when done, milestone handoffs
+- [Diagrams](#diagrams): Mermaid; durable ones in docs and specs, a PR's in its description
 - [Architecture Decision Records](#architecture-decision-records)
 - [Changelog](#changelog): entries ship as `.changelog/` fragments, not edits to `CHANGELOG.md`
 - [Documentation Review Checklist](#documentation-review-checklist)
@@ -102,6 +103,8 @@ Reserve plain "step" prose for procedural steps in user-facing docs (onboarding 
 
 Model-tier tagging, the model picker and price table, STOP markers, kickoff and progress conventions, STOP-gate semantics, and subagent delegation are in [plan-execution.md](plan-execution.md).
 
+A plan that changes a contract, a flow, a schema, or a repo's review surface carries a **Shape of the change** section: the areas it touches with their expected review tags, and a before/after preview when one is cheap (else `Preview skipped: <reason>; before/after at completion`). See [review.md](review.md) "Plan-time preview".
+
 ### Handoffs between milestones
 
 When work transitions from one milestone to the next (m{N} → m{N+1}), the agent finishing m{N} writes a handoff file to `{project-root}/specs/handoffs/handoff-m{N+1}-{topic}.md` describing:
@@ -116,6 +119,10 @@ When work transitions from one milestone to the next (m{N} → m{N+1}), the agen
 Handoff files go in version control; they are part of the project's working record.
 
 This rule supersedes the general-purpose `.scratch/handoff-{topic}-{word}.md` convention only for **milestone transitions on a project that has a `specs/` folder**. Ad-hoc handoffs (session wrap-ups, research, one-off spikes) still go to `.scratch/`. Two cases use `specs/handoffs/` instead, under their usual names, removed or promoted before the branch merges: a runner session, where `.scratch/` dies with the container (its plan, session handoff, and asked-for drafts), and any `personal-plan-orchestrate` run on any machine (its plan and session handoff). See [git.md](git.md) "AI Agent Behavior" and the `personal-handoff` skill.
+
+## Diagrams
+
+Draw diagrams in Mermaid, in the Markdown they explain, so they diff and render on GitHub without an image pipeline. A diagram that should outlive a change (a system's architecture, a protocol, a lifecycle) lives in the repo's docs or `specs/`, next to the prose it illustrates, and is updated in the same PR as the code it describes. A diagram that explains one change (before and after) lives in that PR's description; [review.md](review.md) "Diagrams" covers which kind to draw and how to keep it readable on a phone.
 
 ## Architecture Decision Records
 

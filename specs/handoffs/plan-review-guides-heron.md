@@ -1,6 +1,6 @@
 # Review guides for agent-made changes
 
-Status: m1.s1 done; m1.s2 next. Branch `claude/epic-ramanujan-3sdejf` (harness-assigned).
+Status: m1 done; m2.s1 next. Branch `claude/epic-ramanujan-3sdejf` (harness-assigned).
 
 ## Context
 
@@ -150,7 +150,7 @@ Add a new file under `plugins/personal/skills/personal-standards/standards/`. It
 - the draft-on-branch rule
 - "the author reads and owns the text"
 
-#### s2 - [exec] Cross-links
+#### ~~s2 - [exec] Cross-links~~
 - `git.md` "PR Body": replace the template with the layout from review.md. Keep the squash and trailer rules. Add the review draft to the pre-merge `specs/handoffs/` cleanup.
 - `documentation.md`: the plan content list gains "Shape of the change", and a short Diagrams section points to review.md.
 - `core.md` Workflow: add one bullet, "hand over a review guide, not a diff". It covers the preview at plan time when cheap, the walkthrough before asking to open a PR, and the guide in the PR description, all through `personal-review-guide`. Also add a Standards Reference line, then run `make -C agents cursor-core-rule`.

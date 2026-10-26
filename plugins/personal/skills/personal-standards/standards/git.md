@@ -6,7 +6,7 @@ Contents:
 - [Versioning](#versioning): headlines; the full standard is versioning.md
 - [AI Agent Behavior](#ai-agent-behavior): task vs shared branches, when to commit and push, runners, AI attribution trailers
 - [Commit Messages](#commit-messages): subject format; trailers as the last paragraph
-- [Pull Requests](#pull-requests): hot files, PR body (session link above the `Assisted-by:` trailer paragraph), squash and API merges, `specs/handoffs/` cleanup
+- [Pull Requests](#pull-requests): hot files, PR body (a review guide per review.md; session link above the `Assisted-by:` trailer paragraph), squash and API merges, `specs/handoffs/` cleanup
 - [.gitignore Essentials](#gitignore-essentials)
 
 ## Branch Strategy
@@ -136,21 +136,35 @@ Merge queues need GitHub Enterprise Cloud for private org repos, and a small rep
 
 ### PR Body
 
+The description is a review guide: what a reviewer needs to understand the change in about 2 minutes on a phone, with the rest collapsed by review tier. [review.md](review.md) "Description layout" has the full example and the rules for tiers, evidence and diagrams; the skeleton is:
+
 ```markdown
-## Summary
-Brief description of changes
+One paragraph: what changes and why. Closes #123.
 
-## Changes
-- Added user authentication
-- Updated API endpoints
-- Added tests
+## Review guide
 
-## Test Plan
-- [ ] Unit tests pass
-- [ ] Integration tests pass
+Review tier: [check], because <reason>.
+Blast radius: <who or what breaks if it's wrong; how reversible>.
+Review time: ~N min
 
-## Breaking Changes
-(if any)
+1. [check] `path/one`: <what to look at>
+2. [skim] `path/two`
+
+## Validation
+
+- `make test`: pass
+- `make e2e`: not run, <reason>
+
+## Rollback
+
+<how to undo it>
+
+<details>
+<summary>[check] Control flow and error handling</summary>
+
+<before/after, for this tier's areas>
+
+</details>
 
 Assisted-by: Claude Code
 ```
@@ -159,7 +173,7 @@ The title and description become the squash commit on `main`, so end the descrip
 
 ### Merging
 
-- Before merging, remove the files a runner or a `personal-plan-orchestrate` run kept in `specs/handoffs/` (`plan-*.md`, the session `handoff-{topic}-{word}.md`, drafts) in the last commit on the branch, promoting anything durable to `specs/` or a milestone handoff first. Milestone handoffs (`handoff-m{N}-…`) stay. A forgotten removal lands plain markdown on `main`; one `git rm` fixes it
+- Before merging, remove the files a runner or a `personal-plan-orchestrate` run kept in `specs/handoffs/` (`plan-*.md` and its `plan-*-review.md`, the session `handoff-{topic}-{word}.md`, a `{topic}-{word}-review.md`, drafts) in the last commit on the branch, promoting anything durable to `specs/` or a milestone handoff first. Milestone handoffs (`handoff-m{N}-…`) stay. A forgotten removal lands plain markdown on `main`; one `git rm` fixes it
 - **Squash and merge only**, with the PR title and description as the commit message: one commit on `main`, authored by the PR opener. Merge commits and rebase merges stay off; a rebase merge would put the agent on `main` as author. The `personal-repo-baseline` skill sets this per repo
 - When merging with the button, check the description ends with the trailer paragraph; the agent `Co-authored-by` line GitHub adds below it (one per branch commit author who isn't the PR opener) may stay (see AI attribution under [AI Agent Behavior](#ai-agent-behavior))
 - When asked to merge through the API (`merge_pull_request`, `gh pr merge`), pass the squash title and message explicitly instead of trusting GitHub's default: `commit_title` and `commit_message` (`--subject` and `--body` for `gh pr merge`), set to the PR title plus ` (#<number>)`, as the button writes it, and the PR description, with no agent co-author line. `gh pr merge` goes through GraphQL, so on Claude Code's cloud proxy use REST: `gh api -X PUT "repos/{owner}/{repo}/pulls/{number}/merge" -f merge_method=squash -f commit_title=… -f commit_message=…`
