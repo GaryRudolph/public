@@ -1,6 +1,6 @@
 # Review guides for agent-made changes
 
-Status: m1 to m3 done; m4 queued as a task card for nowline. Branch `claude/epic-ramanujan-3sdejf` (harness-assigned). Pending: the review draft and walkthrough, then Gary decides on the PR.
+Status: m1 to m3 done; review draft written and published as a walkthrough page. m4 (nowline) task card: the queue call timed out, so it may not exist. Branch `claude/epic-ramanujan-3sdejf` (harness-assigned). Pending: the review draft and walkthrough, then Gary decides on the PR.
 
 ## Context
 
