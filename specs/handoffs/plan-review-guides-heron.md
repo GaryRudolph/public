@@ -1,6 +1,6 @@
 # Review guides for agent-made changes
 
-Status: m2.s1 done; m2.s2 next. Running m2 to m3 unattended (Gary, after m1). Branch `claude/epic-ramanujan-3sdejf` (harness-assigned).
+Status: m2.s2 done; m2.s3 next. Running m2 to m3 unattended (Gary, after m1). Branch `claude/epic-ramanujan-3sdejf` (harness-assigned).
 
 ## Context
 
@@ -172,7 +172,7 @@ Add `scripts/review-facts.sh`. It gathers:
 
 It emits no verdicts. Model it on `personal-handoff/scripts/handoff-facts.sh` and `personal-repo-baseline/scripts/repo-facts.sh`.
 
-#### s2 - [deep] SKILL.md and reference.md
+#### ~~s2 - [deep] SKILL.md and reference.md~~
 The skill has three modes: `plan`, `walkthrough` and `pr`. The procedure:
 1. Run the facts script.
 2. Read the review surfaces.
