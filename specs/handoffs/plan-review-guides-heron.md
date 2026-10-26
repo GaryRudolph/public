@@ -1,6 +1,6 @@
 # Review guides for agent-made changes
 
-Status: m1.s1 in progress. Branch `claude/epic-ramanujan-3sdejf` (harness-assigned).
+Status: m1.s1 done; m1.s2 next. Branch `claude/epic-ramanujan-3sdejf` (harness-assigned).
 
 ## Context
 
@@ -135,7 +135,7 @@ nowline's "Visual changes" maps onto this directly.
 
 ## m1 - Standard
 
-#### s1 - [deep] `standards/review.md`
+#### ~~s1 - [deep] `standards/review.md`~~
 Add a new file under `plugins/personal/skills/personal-standards/standards/`. It covers:
 - purpose
 - review tiers, with the upgrade and downgrade checklists
