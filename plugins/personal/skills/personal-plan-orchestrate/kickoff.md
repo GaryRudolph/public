@@ -52,6 +52,18 @@ records `runner=none` and proposes gated.
    wave's first heading (skip when markers exist). Fix-up waves are never
    planned; they come from the Review log.
 
+   **Consolidation step.** Before writing markers, apply the standard's
+   §"Consolidation step" criteria (two or more waves change source code;
+   the Shape section's Creates lists three or more source files; a wave
+   runs in worktrees of one repo). When one fires, append the step with
+   its verbatim text as the last step of the last milestone, tagged
+   `[deep]`, in its own wave with its own marker, never merged into the
+   previous wave. The kickoff summary and the kickoff question say which
+   criterion fired, or why it was skipped (docs-only, all code in one
+   wave, disjoint files). Gary may add or remove it before the kickoff
+   question is answered. A plan with no `## Shape` section gets one first
+   (run `personal-plan-tag-tiers` step 4).
+
    **Fit check.** If the grouped plan is direct-sized (standard §"Driver
    fit"), ask whether to orchestrate it at all before going on, as a
    choice dialog where the harness has one, else in text: name the waves,
@@ -63,7 +75,13 @@ records `runner=none` and proposes gated.
    the plan in this session under core.md's rules; this skill ends there.
    On orchestrate anyway, go on to step 3. Any other answer, or none,
    re-asks. Under `runner=ci` nobody can answer, so the invoking words
-   stand and the run goes on. A plan that isn't direct-sized skips this.
+   stand and the run goes on. A plan that isn't direct-sized skips this,
+   but one that is one-session-sized (§"Driver fit", "When orchestrate
+   pays off": a single-repo feature with a written spec one engineer could
+   do in a day) gets the same question with `Run directly` or the passive
+   driver recommended and the reason named: orchestrate would split it
+   into workers that each see one step and write more code than one
+   session would.
 3. **Preflight:** the branch, email and `origin/HEAD` checks in "Task branches", the
    runner signals, and `python3 $K/check_wave.py snapshot <each working
    directory>`, which must pass (it flags a `.scratch/` that isn't
@@ -105,7 +123,8 @@ records `runner=none` and proposes gated.
    commit the plan and handoff, push.
 10. **Halt or dispatch.** When the answer picks this session (the dialog's
     `This session`, `here` in a typed answer, or any typed answer on a
-    runner): print the kickoff summary (waves, expected total, gates) and go
+    runner): print the kickoff summary (waves, expected total, gates, the
+    Shape summary and the consolidation decision) and go
     to "Each unit"; nothing needs copying. Otherwise (`New session`, or a
     typed answer on a workstation without `here`): queue the Kickoff prompt
     as a new session where the harness can (the adapter says how), print
@@ -123,8 +142,9 @@ the Cost table's expected total, the gates the plan crosses (5 at the
 canary, when the first unit has more than one group; 2 or 3 before a
 `[deep]` or `[xdeep]` wave after an `[exec]` or `[fast]` one; 4 at a new
 milestone; 7 before each `[xdeep]` wave, with its cost), what each mode
-does, the guard's dollar limit, the handoff path, and on a workstation the
-branch it will cut. It always carries the exact words
+does, the guard's dollar limit, the handoff path, the plan's Shape section
+(its Creates list, for Gary to trim, and the consolidation decision), and
+on a workstation the branch it will cut. It always carries the exact words
 `Proposed mode: <mode>.` and, after them, a line that starts `Reply`; the
 Claude Code hook looks for both, in that order, before it counts a typed
 answer (a dialog's answer counts under a mode question that starts with
@@ -132,6 +152,9 @@ those words, below).
 The short handoff summary follows the `Reply` line. On a runner:
 
     Plan plan-auth-otter: 4 waves, expected ~$26 API-equiv (Cost table above).
+    Shape: creates src/auth/otp.py (no module owns one-time codes), src/auth/otp_store.py (its storage);
+      modifies 5 files. Consolidation step added as m2.s4 (two waves change source code).
+      Strike a file from Creates by naming it, and that step extends an existing file instead.
     Gates it crosses: 5 (canary, wave 1's two groups); 4 and 2 (before wave 3); 7 (before wave 4, [xdeep], ~$14).
     Runner detected (CLAUDE_CODE_REMOTE=true). Proposed mode: unattended.
       unattended: gates 2, 4, 5 and 7 are logged, not asked. A failed commit check or a
@@ -145,7 +168,7 @@ The short handoff summary follows the `Reply` line. On a runner:
     (specs/handoffs/handoff-auth-otter.md), and every message that stops or asks ends
     with a short handoff summary. Opening or merging a PR, tags, remote branch deletes,
     deploys and permission prompts wait for you.
-    Reply unattended or gated.
+    Reply unattended or gated; name any file to strike from Creates.
 
 On a workstation, the signal line says what was checked and names the
 branch; the destination question folds in (there is no separate one):
@@ -168,6 +191,15 @@ with two questions:
   on `New session` when the kickoff spent a lot of context (tagging, a
   long plan, exploration) and on `This session` otherwise. A new session
   starts with clean context; there is no "compact first" choice.
+- **Shape:** when the Shape section's Creates list has any entry, a third
+  question naming the new files, with `Keep as listed (Recommended)` and
+  `Trim first`. On `Trim first`, the mode and session answers still
+  stand: after recording the mode, ask in plain text which files to
+  strike, apply it to the plan's Shape section (and to the consolidation
+  decision if the count changes), save, and go on to step 10 without
+  asking the kickoff question again. Typed, a strike names the file
+  (`unattended; strike src/auth/otp_store.py`); a negation ("don't create
+  x") re-asks by the rules below, so name the file instead.
 
 Propose gated, and say why, where unattended can't run: no remote for the
 plan's repo (decision 11), or a workstation on a harness with no hook to

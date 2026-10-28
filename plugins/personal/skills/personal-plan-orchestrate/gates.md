@@ -8,12 +8,18 @@ refer to `SKILL.md`.
 
 Contents: no gate 5 on a one-group unit · checkpoints · automatic retries · fix-ups · the cost guard · over expected · scope breaches · a waiver
 
-**No gate 5 on a one-group unit.** When a session's first unit has one
-group, nothing is held back, so there is no canary: the unit runs whole, its
-review covers it, and there is no gate-5 stop or checkpoint in either mode.
-`canaryDone` is true from the next launch on all the same, so no later unit
-of the session canaries; a later session whose first unit has several
-groups canaries as usual.
+**When the canary fires.** It holds back every group but the first of a
+multi-group unit until that group passes its check and review, to catch a
+bad setup (branch, access, routing) on one worker rather than N. On a
+workstation it fires once per plan: `plan_state.py`'s `canary_passed` is
+true once any Review log line is a PASS, and from then on a session's first
+launch runs whole waves. On a cloud or self-hosted runner every session is
+a new container, so its first launch canaries again (`mode.runner` is
+`cloud` or `self-hosted`). The parent still passes `canaryDone: false` on
+a session's first launch and true after; the script decides whether to
+split. **No gate 5 on a one-group unit:** nothing is held back, so there is
+no canary, and no gate-5 stop or checkpoint in either mode. `canaryDone` is
+true from the next launch on all the same.
 
 A first review CONCERNS (not a failed check or a disclosed breach) gets its
 `N-fix` without a gate in both modes. Opening a PR, tags, remote branch
@@ -45,7 +51,11 @@ extends the same streak. A PASS ends the streak, and so does a WAIVED line.
 When several groups of one wave have streaks, the longest goes first. A
 fix-up's worker gets the failure verbatim, with the streak's earlier ones,
 and its `from` is the `<from>` of the group's Review log line (the wave's
-start), not HEAD:
+start), not HEAD. A **check-only fix-up** (every group's latest failure is a
+`check_wave.py:` note with no `; review CONCERNS:`) runs its worker on the
+`[fast]` row (Haiku medium) with a Sonnet high review, labeled `[fast]` in
+its titles and token lines, since the script is the real check; a fix-up
+that carries a review concern keeps the wave's tier and an Opus review:
 - a review concern is fixed with new commits whose subjects start with the
   step ID they fix; earlier commits stay as they are;
 - a failed check is fixed at its cause: a missing step commit is made (an
