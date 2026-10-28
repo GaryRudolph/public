@@ -9,7 +9,9 @@ Contents:
   - [`[xdeep]` upgrade checklist](#xdeep-upgrade-checklist)
   - [`[fast]` downgrade checklist](#fast-downgrade-checklist)
   - [Tag placement](#tag-placement)
+  - [Shape](#shape)
   - [No-thrash rule](#no-thrash-rule)
+  - [Consolidation step](#consolidation-step)
   - [Driver fit](#driver-fit)
   - [Wave annotation format](#wave-annotation-format)
   - [Model picker](#model-picker)
@@ -125,6 +127,25 @@ Edge cases:
 
 To find tagged headings use the regex: `^#+\s+.*\[(xdeep|deep|exec|fast)\]`
 
+### Shape
+
+Over-decomposition is visible in a plan before a line of code exists: how many new modules and public functions it will create. So `personal-plan-tag-tiers` writes a **`## Shape`** section when it tags, and Gary trims it before anything runs. It goes before the first milestone heading, below the Kickoff block and Cost table when those exist (they are added later and go above it):
+
+    ## Shape
+
+    Creates:
+    - `src/search/debounce.py` — no existing module owns timing; one new unit
+    Modifies:
+    - `src/search/view_model.py`
+    - `tests/search/test_view_model.py`
+
+- **Creates** lists every file the plan will add, one per line, each with one line on why a new file is needed rather than an existing one extended. **Modifies** lists the files it will change, bare. Tests and docs count in both lists.
+- The tagger reads the repo to tell new from existing, and writes the section from the steps' text; a step that names no files gets its best guess, marked `(guess)`.
+- The section is idempotent: a tagger re-run keeps it and adds a line per step added since; it never removes a line Gary trimmed.
+- The drivers show it in the kickoff question (orchestrate) or with the Kickoff (the passive driver), and Gary trims it: a file struck from Creates means "extend an existing file instead". The [consolidation step](#consolidation-step) reads its Creates count.
+- Every worker and reviewer gets it. A worker that creates a file Creates lacks reports it under `newFiles` with one line on why; the reviewer treats a new file that is neither in Creates nor explained in `newFiles` as a finding.
+- `plan_state.py` emits the section's text as `shape`, so the orchestrate launch carries it without the parent retyping it.
+
 ### No-thrash rule
 
 The no-thrash rule runs at the **execution-grouping layer**, not the tagging layer. Tagging (owned by `personal-plan-tag-tiers`) records the honest complexity of each step and is **never** rewritten for thrash reasons — a `[fast]` step stays `[fast]` in the plan so the true shape of the work stays visible. The no-thrash rule only decides how the tagged steps are grouped into **execution waves** and which model tier each wave runs on. The driver skills (`personal-plan-model-tiers`, `personal-plan-orchestrate`) apply it; the tagging skill does not.
@@ -140,6 +161,24 @@ Walk the tagged steps in order and collect consecutive same-tier steps into cand
 5. After folding, re-merge adjacent waves of the same **execution tier** before placing STOPs / dispatch boundaries.
 
 **Execution tier vs. tag.** A wave's *execution tier* is the model it runs on; a step's *tag* is its honest complexity. They usually match. They differ only when a short `[fast]` run is folded into a neighboring `[exec]` wave: those steps keep their `[fast]` tags but execute at `[exec]`. The Kickoff "first wave tier", STOP markers, and subagent dispatches all key off the **execution tier** — never off a tag that has been folded.
+
+### Consolidation step
+
+Workers that each see one step's excerpt write adjacent code without seeing each other's, so a plan of several waves accretes duplicated helpers, one-use wrappers and near-identical readers that no single worker was positioned to merge. The one step in the process whose job is to make the code smaller is a **consolidation step**, appended by the driver at grouping, after the no-thrash pass and before any marker is written, when at least one of these holds:
+
+- two or more waves change source code (not only tests, docs or config);
+- the [Shape](#shape) section's Creates lists three or more source files (tests and docs excluded);
+- a wave runs in more than one working directory of the same repo (worktrees), so its groups wrote the same codebase blind to each other.
+
+It is skipped when the plan is docs-only, when every code change sits in one wave (that worker already saw the whole change), or when every code step touches disjoint files. The driver says in chat which criterion fired, or why it skipped the step, and Gary may add or remove it before the kickoff question (orchestrate) or before the first wave runs (the passive driver).
+
+The step is the last step of the last milestone, numbered after its last `s{K}`, tagged `[deep]`, and always in **its own wave** with its own `--- WAVE N [deep] ---` marker, never merged into the previous wave even when that wave is `[deep]`: one worker reads the whole diff. Its text, verbatim apart from the placeholders:
+
+    #### s{K+1} - [deep] Consolidate the plan's code
+
+    Read `git diff <plan start>..HEAD` (the `<from>` of the first Review log line; before any wave, the task branch's first commit) as one change. Merge duplicated helpers, inline one-use wrappers and thin indirections, delete dead code, and tighten names, across every file the plan touched. No behaviour change: the repo's tests are the check, and a test that fails after a merge means the merge was wrong, not the test. Prefer fewer files and fewer public functions; a helper that exists only to keep a function under a length rule is inlined. Commit under this step's ID, one commit per cohesive merge where that reads better than one. Added because: <the criterion that fired>.
+
+Its [Cost table](#cost-table) row is a medium `[deep]` step plus its review. It is gated like any wave (gate 2 or 3 when it follows an `[exec]` or `[fast]` wave), and its review reads the whole range, so it also serves as the plan's whole-diff review at the end.
 
 ### Driver fit
 
