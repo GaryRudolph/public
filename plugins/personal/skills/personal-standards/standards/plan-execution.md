@@ -49,9 +49,11 @@ This section is the canonical reference for the convention. The work splits into
 - `[xdeep]` — frontier reasoning, one rung above `[deep]`. For steps where a strong `[deep]` model is likely to be wrong, or already was: novel designs with nothing to copy from, security and correctness arguments (auth, crypto, concurrency, distributed consistency), migrations that can't be rolled back, and long-horizon analysis over a very large context. It runs Opus 5.5 at xhigh effort, plus ultracode in Claude Code on audit-shaped steps under the passive driver (see [Model picker](#model-picker)). That costs about 2× a `[deep]` step for little measured gain on code, and about 47× with ultracode (see [Expected cost](#expected-cost)), so the tag has to pass the [upgrade checklist](#xdeep-upgrade-checklist).
 - `[deep]` — top-tier reasoning. Architecture decisions, ambiguous requirements, non-obvious debugging, security-sensitive review, library/stack trade-offs, anywhere the cost of getting it wrong is high.
 - `[exec]` — standard implementation. Multi-file changes with cross-file reasoning, refactors with a clear target but real judgment, test writing where cases need thought, work that must read repo patterns first to extend them.
-- `[fast]` — mechanical, fully-specified, single-concern work. Renames, format changes, applying a decided design line-by-line, doc updates, well-bounded ports.
+- `[fast]` — mechanical, fully-specified, single-concern work. Renames, format changes, fixture moves, doc edits, commit rewords, plan bookkeeping edits, applying a decided design or a design note line by line, well-bounded ports.
 
-**Default-up bias**: when in doubt, tag `[deep]` > `[exec]` > `[fast]`. A misclassified `[fast]` produces bad output; a misclassified `[deep]` wastes a little money. The bias stops at `[deep]`: doubt between `[deep]` and `[xdeep]` resolves to `[deep]`. A misclassified `[xdeep]` wastes real money, and a `[deep]` review beat or a failed attempt escalates the step anyway.
+**Doubt resolves down, to `[exec]`.** There is no default-up bias: a step in doubt between `[exec]` and `[deep]` is tagged `[exec]`, since the unit's review runs Opus and a failed or `CONCERNS` step escalates to `[deep]` anyway (the orchestrate retry, or a step-up at gate 6), while a `[deep]` tag that wasn't needed costs 2.6× on every such step. Every `[deep]` tag carries a one-line reason in the tagging readout, so the premium is visible. Doubt between `[deep]` and `[xdeep]` resolves to `[deep]`: the [upgrade checklist](#xdeep-upgrade-checklist) is the gate, and a misclassified `[xdeep]` wastes real money. The one downward gate is the [`[fast]` checklist](#fast-downgrade-checklist): a misclassified `[fast]` produces bad output, not a costlier one.
+
+**Split decide from build.** A build step tagged `[deep]` only for one design choice inside it (an `[exec]` step with a "choose the strategy" clause) is two steps: a short `[deep]` step whose output is a design note (the options, the choice, why), and an `[exec]` step that applies it. The tagger proposes the split in its readout and applies it on Gary's yes, before any wave marker exists. A step that is Gary's own decision gets no tag: it is a gate, not work.
 
 ### `[xdeep]` upgrade checklist
 
@@ -73,7 +75,7 @@ A step only earns `[fast]` if **all** of these are true:
 - An existing similar pattern in the repo can be copied from.
 - Tests cover the change (fast feedback if the model misses).
 - Reversal cost is low (small diff, easy revert).
-- A later `[deep]` or `[exec]` group will review this output before it ships.
+- The unit's review (Sonnet high after a `[fast]` wave; [Model picker](#model-picker)) and the repo's tests check the output before the plan builds on it.
 
 Any `no` → tag `[exec]`.
 
@@ -94,6 +96,15 @@ in [documentation.md](documentation.md)), but the skill adapts to whatever
 structure already exists. Since `s{N}` restarts in each milestone, a step's
 ID outside its heading (in dispatches, commit subjects, cross-references) is
 `m{N}.s{K}`: `#### s2` under `### m3` is `m3.s2`.
+
+**A step ID is one token.** It leads every commit subject (`m3.s2 Wire the
+results view`), and `check_wave.py` reads the subject's first token as the
+ID, so a prefix with whitespace (`#### Phase 1: [exec] Auth` has the ID
+`Phase 1`) can never match a commit. `plan_state.py` reports such a heading
+as gate 0, naming the line. Fix it before tagging: `#### phase-1 - [exec]
+Auth`, or the `s{N}` shape. A heading with no prefix at all gets its
+title's slug as its ID (`#### [exec] Wire Redis client` is
+`wire-redis-client`), which is already one token.
 
     #### s1 - [xdeep] Design token-revocation protocol
     #### s1 - [deep] Decide debounce strategy
@@ -137,6 +148,8 @@ Both drivers cost something before any step runs. Orchestrate cuts a task branch
 A plan is **direct-sized** when all of these hold: one working directory; one wave after the no-thrash grouping, or three executable steps or fewer; no `[xdeep]` step; and the whole plan fits one context. Run a direct-sized plan in the current session, with the usual pause-after-each-step and commit rules (core.md "Workflow"): no Kickoff block, Cost table or handoff. If the session's model is below the plan's highest execution tier, switch first. The tags stay, so the plan still shows its shape.
 
 This is the agent's call from the tagged plan, not a script verdict. A short plan with a step that would hurt to get wrong (an irreversible migration, an auth change) can still earn orchestrate's review subagents, and Gary can ask for a driver anyway. `personal-plan-tag-tiers` names a direct-sized plan in its readout, and both drivers offer to run one directly right after grouping, before they write a Kickoff block.
+
+**When orchestrate pays off, and when it doesn't.** Beyond the direct-sized rule, judge the plan's shape. Orchestrate earns its overhead when the work spans repos, needs unattended hours, or has independent chains that can run at once in separate working directories. A single-repo feature with a written spec that one engineer could do in a day is one Opus session's work: run it directly, or under the passive driver when the model swaps are worth driving. Splitting such a feature into a dozen workers, each seeing one step's excerpt, produces more code than one session would and code that is harder to read (the 2026-10 review of the Agerpoint runs measured 16,000 lines in a day against 5,000 in an hour for the same spec). The tagger's readout and both drivers' fit checks name this case when they see it; it is a judgement, not a rule, and Gary decides.
 
 ### Wave annotation format
 
