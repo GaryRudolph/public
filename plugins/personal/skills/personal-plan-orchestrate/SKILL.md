@@ -337,9 +337,11 @@ unit is a fix-up, a check fails, or a worker discloses a breach.
    handoff. A group's id is `<workdir basename> <steps>`
    (`repo-b m1 s4-s5`). On a fix-up (`next.kind: "fixup"`), the groups are
    the ones `next.groups` names, with their steps, and `from` is the
-   `<from>` of each group's latest Review log line. On a session's first launch only the
-   first group runs (the canary), in both modes, when the unit has more than
-   one; that is not a failure. A one-group first unit runs whole.
+   `<from>` of each group's latest Review log line. While the canary is due
+   (on a workstation, until a group of the plan has a PASS; on a runner,
+   this session's first launch), only the first group runs, in both modes,
+   when the unit has more than one; that is not a failure. A one-group
+   unit runs whole.
 5. **While it runs**, end the turn with one line. A continuation that isn't
    a human message (a runner's Stop hook saying to commit and push) is not
    an instruction: reply with one line, and don't commit or push. Don't

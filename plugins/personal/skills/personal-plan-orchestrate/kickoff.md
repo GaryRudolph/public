@@ -333,9 +333,9 @@ Then, in this order:
    answer), or path (c).
 
 A session **not** started from a paste: a gated record carries over when
-its `harness=` and `runner=` tokens still match yours (it relaxes nothing,
-and this session's first launch is a canary that stops at gate 5 when
-its unit has several groups): record
+its `harness=` and `runner=` tokens still match yours (it relaxes nothing;
+this session's first launch is a canary that stops at gate 5 when its
+unit has several groups and the canary is still due, `gates.md`): record
 nothing new and go to "Each unit". An unattended record counts only in the
 session that confirmed it. When its tokens match yours, confirm it instead
 of re-asking: a short text (the plan, the session and date that confirmed
