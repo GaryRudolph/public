@@ -10,12 +10,15 @@ enforce. Read `SKILL.md` first.
 The Cursor fixes (the list at the end) are phase 3 of the orchestrate-native
 plan; until they ship, the parent applies the core by hand: it runs
 `plan_state.py` before every dispatch and applies its stops itself (no hook
-checks them), and reviews `[deep]`, `[exec]` and `[fast]` units inline and
-`[xdeep]` units with a read-only xhigh subagent. It applies the canary
-itself: on a session's first dispatch, only the first group of a unit with
-more than one goes out, and that unit stops at gate 5 (gated) or passes it
-as a checkpoint (unattended); a one-group first unit goes out whole with no
-gate 5. A worker that discloses a rule it broke, blocked or ran, is gate 1
+checks them), and reviews `[deep]`, `[exec]` and `[fast]` units inline
+(the spec check and `contract.md` item 10's shape questions, the worker's
+`newFiles` against the plan's Shape section included) and `[xdeep]` units
+with a read-only xhigh subagent. It applies the canary itself, by the
+standard's rule: on a workstation, until `plan_state.py`'s `canary_passed`
+is true (a group of the plan has a PASS), and on a cloud agent on every
+session's first dispatch, only the first group of a unit with more than
+one goes out, and that unit stops at gate 5 (gated) or passes it as a
+checkpoint (unattended); a one-group unit goes out whole with no gate 5. A worker that discloses a rule it broke, blocked or ran, is gate 1
 in both modes, from its summary (`SKILL.md` "When a unit completes"): no
 retry, and its fix-up waits for Gary.
 
