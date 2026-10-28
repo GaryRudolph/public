@@ -7,14 +7,22 @@ cover the gates it reports (the PreToolUse hook re-runs it from disk).
 
 Reads only the plan file: wave markers, tagged headings and their (done)
 markers, the Kickoff Status and mode lines and its prompt, the Cost table,
-the Review log and the Token log.
+the Shape section, the Review log and the Token log.
 
 A step's ID is its heading prefix, qualified by its milestone: step numbers
 restart at s1 in each milestone (documentation.md "Steps within a
 milestone"), so "#### s2 - [exec] ..." under "## m3 - ..." is m3.s2, the
 prefix its commits carry. An explicit m3.s2 prefix is the same ID; a step in
 no milestone keeps its bare prefix, and one with no prefix gets its title's
-slug.
+slug. An ID is one token: a prefix with whitespace ("#### Phase 1: ...") can
+never lead a commit subject, so it is gate 0.
+
+Three plan facts ride along for the launch: `shape`, the body of the plan's
+"## Shape" section without its heading (plan-execution.md "Shape"); `plan_start`, the <from> of
+the first Review log line, the commit the plan's work began at; and
+`canary_passed`, true once any Review log line is a PASS, after which a
+workstation session launches whole waves (the canary fires per plan there,
+and per session on a runner, whose session is a new container).
 
 Every gate derives from the plan in every mode. The mode only splits them:
 in gated mode every gate stops; in unattended mode gates 2, 3, 4, a planned
@@ -124,7 +132,7 @@ def mode_of(line):
 
 
 def parse(text):
-    errors, steps, reviews = [], [], []
+    errors, steps, reviews, shape = [], [], [], []
     status, mode, wave, fence, kickoff_fence = None, None, None, False, False
     prompt, in_prompt = None, False  # the Kickoff prompt's lines, stripped
     enclosing = {}  # heading level -> milestone of the latest heading at that level
@@ -165,6 +173,9 @@ def parse(text):
                 in_cost = False
         if line.startswith("## "):
             section = line.strip().lower()
+        elif section == "## shape":
+            shape.append(line)
+            continue
         if section == "## review log":
             m = REVIEW_RE.match(line)
             if m:
@@ -202,17 +213,20 @@ def parse(text):
         ms = milestone_of(prefix) or next((v for k, v in sorted(enclosing.items(), reverse=True) if k < level and v), None)
         if ms and BARE_STEP_RE.match(prefix):
             sid = f"{ms}.{prefix}"  # s{K} restarts in each milestone (documentation.md), so its ID is m{N}.s{K}, as in commits
+        if re.search(r"\s", sid):
+            errors.append(f"line {no}: step ID {sid!r} has whitespace, so no commit subject can start with it; "
+                          f"make the prefix one token ({re.sub(r'[^A-Za-z0-9.]+', '-', sid).strip('-').lower()}, or the s{{K}} shape)")
         if wave is None:
             errors.append(f"line {no}: tagged step {sid} comes before any wave marker")
             continue
         steps.append({"id": sid, "tag": tag.group(1), "done": bool(DONE_RE.search(body)), "wave": wave["n"],
                       "label": wave["label"], "tier": wave["tier"], "milestone": ms, "line": no})
-    return status, mode, cost, markers, steps, reviews, errors, prompt
+    return status, mode, cost, markers, steps, reviews, errors, prompt, "\n".join(shape).strip()
 
 
 def kickoff_prompt(text):
     """The Kickoff block's prompt to paste into the next chat, one stripped line per line, or None."""
-    prompt = parse(text)[-1]
+    prompt = parse(text)[7]
     return "\n".join(prompt) if prompt is not None else None
 
 
@@ -229,7 +243,7 @@ def units_of(steps):
 
 
 def state(text):
-    status, mode, cost, markers, steps, reviews, errors, prompt = parse(text)
+    status, mode, cost, markers, steps, reviews, errors, prompt, shape = parse(text)
     ns = [w["n"] for w in markers if not w["fix"]]  # a fix-up marker reuses its wave's number
     if ns != list(range(1, len(ns) + 1)):
         errors.append(f"wave markers are numbered {ns}, expected 1..{len(ns)} in order")
@@ -249,7 +263,9 @@ def state(text):
     out = {"version": 3, "t": len(ns), "done": sum(s["done"] for s in steps), "total": len(steps),
            "status": status, "mode": mode, "blocked": None, "concerns": [], "prev": None, "next": None, "gates": [],
            "stops": [], "checkpoints": [], "waivers": [], "cost": None, "milestones": any(s["milestone"] for s in steps),
-           "prompt_mode": None, "prompt_plan": None, "errors": errors}
+           "prompt_mode": None, "prompt_plan": None, "shape": shape,
+           "plan_start": reviews[0]["from"] if reviews else None,
+           "canary_passed": any(r["verdict"] == "PASS" for r in reviews), "errors": errors}
     if prompt is not None:  # the prompt carries the confirmed mode, and nothing before it is confirmed
         out["prompt_mode"] = next((m.group(1) for m in map(PROMPT_MODE_RE.match, prompt) if m), None)
         confirmed = mode["value"] if mode and mode["value"] != "pending" else None
