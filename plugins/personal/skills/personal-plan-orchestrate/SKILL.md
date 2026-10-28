@@ -183,10 +183,14 @@ disagree, the picker wins and the kit's consistency check fails.
   directories (separate repos, or `git worktree`s of one repo) run in
   parallel; within one directory, serially. Gary opts into in-repo
   parallelism by creating worktrees before he invokes the skill.
-- **One read-only reviewer per working directory per unit**, at the
-  author's tier: Opus high, or Opus xhigh after an `[xdeep]` unit. On
-  Cursor, until its phase 3, the parent reviews below `[xdeep]` inline
-  (`adapters/cursor.md`).
+- **One read-only reviewer per working directory per unit**, at the tier
+  the standard's review routing gives ("Tiers and models"): Opus high after
+  an `[exec]` or `[deep]` unit, Opus xhigh after `[xdeep]`, Sonnet high
+  after a `[fast]` unit or a check-only fix-up. It reviews the spec and the
+  code's shape (readability, duplication against the plan's earlier
+  commits, file and function count, a new file the plan's Shape section
+  lacks). On Cursor, until its phase 3, the parent reviews below `[xdeep]`
+  inline (`adapters/cursor.md`).
 - **Task branches only** (below). Subagents commit each finished step and
   never push; the parent pushes.
 - **The plan and its handoff are committed and pushed** at kickoff and
@@ -223,7 +227,8 @@ disagree, the picker wins and the kit's consistency check fails.
   directory with no remote. Unattended needs the plan in a repo with a
   remote, so there the kickoff question proposes gated and says why.
 - **Worker artifacts:** `<workdir>/.scratch/orchestrate-{plan-name}-{wave-n}-{task-id}.md`,
-  gitignored. `{wave-n}` is the unit's label: `2`, `2-fix`, `2-fix2`;
+  gitignored, holding decisions, surprises and follow-ups, never diffs
+  (git holds them). `{wave-n}` is the unit's label: `2`, `2-fix`, `2-fix2`;
   `{task-id}` is the group id with every run of other characters than
   letters, digits, `.`, `_` and `-` turned into `-` (`repo-b-m1-s4-s5`). An
   automatic retry writes the same path.
@@ -289,7 +294,7 @@ only decides which ones stop. Gate names are `gate-<N>` in its output and
 | 1 | A second or later CONCERNS or failed check in a row on a group | Stops | Automatic fix-up `N-fix2` ..., up to the cap (2 per group, decision 3); the next failure stops |
 | 2 / 3 | A `[deep]` or `[xdeep]` unit right after an `[exec]` / `[fast]` one | Stops | Checkpoint |
 | 4 | A unit in another milestone | Stops | Checkpoint; on a project with `specs/`, write the milestone handoff first (core.md) |
-| 5 | The canary: the first launch of a session runs only its first group, when its unit has more than one | Stops | Checkpoint once that group passes `check_wave.py` and its review, fix-ups included; the rest of the wave then launches |
+| 5 | The canary: a launch runs only its first group, when its unit has more than one, until a group of the plan has a PASS in the Review log (per plan, on a workstation) and on a cloud or self-hosted session's first launch (per session on a runner, whose session is a new container) | Stops | Checkpoint once that group passes `check_wave.py` and its review, fix-ups included; the rest of the wave then launches |
 | 6 | A step-up to a stronger model or effort | Stops | Checkpoint for the in-run retry into `[exec]` or `[deep]`; stops for `[xdeep]` or Fable |
 | 7 | The first unit of an `[xdeep]` wave, and every fix-up of one | Stops | Checkpoint on a wave the Cost table planned (decision 2); stops for unplanned `[xdeep]` work (a fix-up, a re-plan row, a step-up), drafts and `max` |
 | guard | Projected spend passes the guard | Stops | Stops |
@@ -350,6 +355,10 @@ unit is a fix-up, a check fails, or a worker discloses a breach.
 2. **Tally** the unit's tokens and append the lines to `## Token log`
    (below). Quote any MISROUTED line: it is gate 1.
 3. **For each group that ran:**
+   - Note the worker's `newFiles` against the plan's Shape section; a new
+     file the reviewer passed stays, and its line goes into the Shape
+     section's Creates list in the same bookkeeping commit, so later
+     workers and reviewers see it.
    - Mark each step ` (done)` at the **end** of its heading, after all
      other text. A group whose check failed or whose review said CONCERNS
      is still marked done; its fix-up comes from the Review log. A group
