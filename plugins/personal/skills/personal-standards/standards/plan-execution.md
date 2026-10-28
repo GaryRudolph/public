@@ -9,7 +9,9 @@ Contents:
   - [`[xdeep]` upgrade checklist](#xdeep-upgrade-checklist)
   - [`[fast]` downgrade checklist](#fast-downgrade-checklist)
   - [Tag placement](#tag-placement)
+  - [Shape](#shape)
   - [No-thrash rule](#no-thrash-rule)
+  - [Consolidation step](#consolidation-step)
   - [Driver fit](#driver-fit)
   - [Wave annotation format](#wave-annotation-format)
   - [Model picker](#model-picker)
@@ -49,9 +51,11 @@ This section is the canonical reference for the convention. The work splits into
 - `[xdeep]` — frontier reasoning, one rung above `[deep]`. For steps where a strong `[deep]` model is likely to be wrong, or already was: novel designs with nothing to copy from, security and correctness arguments (auth, crypto, concurrency, distributed consistency), migrations that can't be rolled back, and long-horizon analysis over a very large context. It runs Opus 5.5 at xhigh effort, plus ultracode in Claude Code on audit-shaped steps under the passive driver (see [Model picker](#model-picker)). That costs about 2× a `[deep]` step for little measured gain on code, and about 47× with ultracode (see [Expected cost](#expected-cost)), so the tag has to pass the [upgrade checklist](#xdeep-upgrade-checklist).
 - `[deep]` — top-tier reasoning. Architecture decisions, ambiguous requirements, non-obvious debugging, security-sensitive review, library/stack trade-offs, anywhere the cost of getting it wrong is high.
 - `[exec]` — standard implementation. Multi-file changes with cross-file reasoning, refactors with a clear target but real judgment, test writing where cases need thought, work that must read repo patterns first to extend them.
-- `[fast]` — mechanical, fully-specified, single-concern work. Renames, format changes, applying a decided design line-by-line, doc updates, well-bounded ports.
+- `[fast]` — mechanical, fully-specified, single-concern work. Renames, format changes, fixture moves, doc edits, commit rewords, plan bookkeeping edits, applying a decided design or a design note line by line, well-bounded ports.
 
-**Default-up bias**: when in doubt, tag `[deep]` > `[exec]` > `[fast]`. A misclassified `[fast]` produces bad output; a misclassified `[deep]` wastes a little money. The bias stops at `[deep]`: doubt between `[deep]` and `[xdeep]` resolves to `[deep]`. A misclassified `[xdeep]` wastes real money, and a `[deep]` review beat or a failed attempt escalates the step anyway.
+**Doubt resolves down, to `[exec]`.** There is no default-up bias: a step in doubt between `[exec]` and `[deep]` is tagged `[exec]`, since the unit's review runs Opus and a failed or `CONCERNS` step escalates to `[deep]` anyway (the orchestrate retry, or a step-up at gate 6), while a `[deep]` tag that wasn't needed costs 2.6× on every such step. Every `[deep]` tag carries a one-line reason in the tagging readout, so the premium is visible. Doubt between `[deep]` and `[xdeep]` resolves to `[deep]`: the [upgrade checklist](#xdeep-upgrade-checklist) is the gate, and a misclassified `[xdeep]` wastes real money. The one downward gate is the [`[fast]` checklist](#fast-downgrade-checklist): a misclassified `[fast]` produces bad output, not a costlier one.
+
+**Split decide from build.** A build step tagged `[deep]` only for one design choice inside it (an `[exec]` step with a "choose the strategy" clause) is two steps: a short `[deep]` step whose output is a design note (the options, the choice, why), and an `[exec]` step that applies it. The tagger proposes the split in its readout and applies it on Gary's yes, before any wave marker exists. A step that is Gary's own decision gets no tag: it is a gate, not work.
 
 ### `[xdeep]` upgrade checklist
 
@@ -73,7 +77,7 @@ A step only earns `[fast]` if **all** of these are true:
 - An existing similar pattern in the repo can be copied from.
 - Tests cover the change (fast feedback if the model misses).
 - Reversal cost is low (small diff, easy revert).
-- A later `[deep]` or `[exec]` group will review this output before it ships.
+- The unit's review (Sonnet high after a `[fast]` wave; [Model picker](#model-picker)) and the repo's tests check the output before the plan builds on it.
 
 Any `no` → tag `[exec]`.
 
@@ -95,6 +99,15 @@ structure already exists. Since `s{N}` restarts in each milestone, a step's
 ID outside its heading (in dispatches, commit subjects, cross-references) is
 `m{N}.s{K}`: `#### s2` under `### m3` is `m3.s2`.
 
+**A step ID is one token.** It leads every commit subject (`m3.s2 Wire the
+results view`), and `check_wave.py` reads the subject's first token as the
+ID, so a prefix with whitespace (`#### Phase 1: [exec] Auth` has the ID
+`Phase 1`) can never match a commit. `plan_state.py` reports such a heading
+as gate 0, naming the line. Fix it before tagging: `#### phase-1 - [exec]
+Auth`, or the `s{N}` shape. A heading with no prefix at all gets its
+title's slug as its ID (`#### [exec] Wire Redis client` is
+`wire-redis-client`), which is already one token.
+
     #### s1 - [xdeep] Design token-revocation protocol
     #### s1 - [deep] Decide debounce strategy
     #### s2 - [exec] Wire search results to view model
@@ -114,6 +127,25 @@ Edge cases:
 
 To find tagged headings use the regex: `^#+\s+.*\[(xdeep|deep|exec|fast)\]`
 
+### Shape
+
+Over-decomposition is visible in a plan before a line of code exists: how many new modules and public functions it will create. So `personal-plan-tag-tiers` writes a **`## Shape`** section when it tags, and Gary trims it before anything runs. It goes before the first milestone heading, below the Kickoff block and Cost table when those exist (they are added later and go above it):
+
+    ## Shape
+
+    Creates:
+    - `src/search/debounce.py` — no existing module owns timing; one new unit
+    Modifies:
+    - `src/search/view_model.py`
+    - `tests/search/test_view_model.py`
+
+- **Creates** lists every file the plan will add, one per line, each with one line on why a new file is needed rather than an existing one extended. **Modifies** lists the files it will change, bare. Tests and docs count in both lists.
+- The tagger reads the repo to tell new from existing, and writes the section from the steps' text; a step that names no files gets its best guess, marked `(guess)`.
+- The section is idempotent: a tagger re-run keeps it and adds a line per step added since; it never removes a line Gary trimmed.
+- The drivers show it in the kickoff question (orchestrate) or with the Kickoff (the passive driver), and Gary trims it: a file struck from Creates means "extend an existing file instead". The [consolidation step](#consolidation-step) reads its Creates count.
+- Every worker and reviewer gets it. A worker that creates a file Creates lacks reports it under `newFiles` with one line on why; the reviewer treats a new file that is neither in Creates nor explained in `newFiles` as a finding.
+- `plan_state.py` emits the section's text as `shape`, so the orchestrate launch carries it without the parent retyping it.
+
 ### No-thrash rule
 
 The no-thrash rule runs at the **execution-grouping layer**, not the tagging layer. Tagging (owned by `personal-plan-tag-tiers`) records the honest complexity of each step and is **never** rewritten for thrash reasons — a `[fast]` step stays `[fast]` in the plan so the true shape of the work stays visible. The no-thrash rule only decides how the tagged steps are grouped into **execution waves** and which model tier each wave runs on. The driver skills (`personal-plan-model-tiers`, `personal-plan-orchestrate`) apply it; the tagging skill does not.
@@ -130,6 +162,24 @@ Walk the tagged steps in order and collect consecutive same-tier steps into cand
 
 **Execution tier vs. tag.** A wave's *execution tier* is the model it runs on; a step's *tag* is its honest complexity. They usually match. They differ only when a short `[fast]` run is folded into a neighboring `[exec]` wave: those steps keep their `[fast]` tags but execute at `[exec]`. The Kickoff "first wave tier", STOP markers, and subagent dispatches all key off the **execution tier** — never off a tag that has been folded.
 
+### Consolidation step
+
+Workers that each see one step's excerpt write adjacent code without seeing each other's, so a plan of several waves accretes duplicated helpers, one-use wrappers and near-identical readers that no single worker was positioned to merge. The one step in the process whose job is to make the code smaller is a **consolidation step**, appended by the driver at grouping, after the no-thrash pass and before any marker is written, when at least one of these holds:
+
+- two or more waves change source code (not only tests, docs or config);
+- the [Shape](#shape) section's Creates lists three or more source files (tests and docs excluded);
+- a wave runs in more than one working directory of the same repo (worktrees), so its groups wrote the same codebase blind to each other.
+
+It is skipped when the plan is docs-only, when every code change sits in one wave (that worker already saw the whole change), or when every code step touches disjoint files. The driver says in chat which criterion fired, or why it skipped the step, and Gary may add or remove it before the kickoff question (orchestrate) or before the first wave runs (the passive driver).
+
+The step is the last step of the last milestone, numbered after its last `s{K}`, tagged `[deep]`, and always in **its own wave** with its own `--- WAVE N [deep] ---` marker, never merged into the previous wave even when that wave is `[deep]`: one worker reads the whole diff. Its text, verbatim apart from the placeholders:
+
+    #### s{K+1} - [deep] Consolidate the plan's code
+
+    Read `git diff <plan start>..HEAD` (the `<from>` of the first Review log line; before any wave, the task branch's first commit) as one change. Merge duplicated helpers, inline one-use wrappers and thin indirections, delete dead code, and tighten names, across every file the plan touched. No behaviour change: the repo's tests are the check, and a test that fails after a merge means the merge was wrong, not the test. Prefer fewer files and fewer public functions; a helper that exists only to keep a function under a length rule is inlined. Commit under this step's ID, one commit per cohesive merge where that reads better than one. Added because: <the criterion that fired>.
+
+Its [Cost table](#cost-table) row is a medium `[deep]` step plus its review. It is gated like any wave (gate 2 or 3 when it follows an `[exec]` or `[fast]` wave), and its review reads the whole range, so it also serves as the plan's whole-diff review at the end.
+
 ### Driver fit
 
 Both drivers cost something before any step runs. Orchestrate cuts a task branch, writes a Kickoff block, a Cost table and a handoff, asks the kickoff question, and adds a parent turn (about $0.90 at Opus high), a review subagent (about $0.54) and a handoff commit (about $0.1) to every wave. The passive driver adds STOP markers, a review beat per wave and a model swap at every boundary. On a small plan that overhead outweighs the work: a review can cost more than the `[fast]` wave it reads ([Expected cost](#expected-cost)).
@@ -137,6 +187,8 @@ Both drivers cost something before any step runs. Orchestrate cuts a task branch
 A plan is **direct-sized** when all of these hold: one working directory; one wave after the no-thrash grouping, or three executable steps or fewer; no `[xdeep]` step; and the whole plan fits one context. Run a direct-sized plan in the current session, with the usual pause-after-each-step and commit rules (core.md "Workflow"): no Kickoff block, Cost table or handoff. If the session's model is below the plan's highest execution tier, switch first. The tags stay, so the plan still shows its shape.
 
 This is the agent's call from the tagged plan, not a script verdict. A short plan with a step that would hurt to get wrong (an irreversible migration, an auth change) can still earn orchestrate's review subagents, and Gary can ask for a driver anyway. `personal-plan-tag-tiers` names a direct-sized plan in its readout, and both drivers offer to run one directly right after grouping, before they write a Kickoff block.
+
+**When orchestrate pays off, and when it doesn't.** Beyond the direct-sized rule, judge the plan's shape. Orchestrate earns its overhead when the work spans repos, needs unattended hours, or has independent chains that can run at once in separate working directories. A single-repo feature with a written spec that one engineer could do in a day is one Opus session's work: run it directly, or under the passive driver when the model swaps are worth driving. Splitting such a feature into a dozen workers, each seeing one step's excerpt, produces more code than one session would and code that is harder to read (the 2026-10 review of the Agerpoint runs measured 16,000 lines in a day against 5,000 in an hour for the same spec). The tagger's readout and both drivers' fit checks name this case when they see it; it is a judgement, not a rule, and Gary decides.
 
 ### Wave annotation format
 
@@ -204,7 +256,7 @@ Notes:
 - **In Cursor, prefer the Cursor pool when it's close.** Take Grok or Composer over a third-party model when it scores within about 5 points on CursorBench 4.0 (table below). That puts `[exec]` on Grok 4.7 at high: 43.9%, 3.9 points below the Sonnet alt at high (47.8%). It keeps `[deep]` on Opus 5.5 (Grok 4.7 at xhigh is 46.3%, against Opus 5.5 at high 56.0% and at medium 52.5%). The pool is the saving, not the per-task price: at list, Grok 4.7 high costs $4.69 a task against the Sonnet alt's $1.67 (2.8×). A stalled Grok step re-tags to `[deep]`, as a stalled Sonnet step does: Opus 5.5 at high beats Grok at xhigh on score and list cost (56.0% at $3.97, against 46.3% at $6.01). Once included Cursor usage runs out and on-demand billing starts, move `[exec]` to the Sonnet alt, at high as in Claude Code. This decides the model only; cost figures still use list rates ([Model price table](#model-price-table)).
 - **Cursor `[fast]` is Composer 2.5 standard** ($0.50/$2.50). Fast is the product default and costs 6× on input and output (2.5× on cache reads); `[fast=false]` or empty brackets (`composer-2.5[]`) select standard. `[fast]` is the one exception to the pool rule: Composer scores 27.7% on CursorBench 4.0, 8.1 points below the Sonnet alt at low (35.8%), at a higher list price ($0.68 vs $0.50 a task), but it bills from the Cursor pool and is enough for steps that pass the [`[fast]` checklist](#fast-downgrade-checklist). Once included Cursor usage runs out, move `[fast]` to the Sonnet alt.
 - **Cursor slugs** use the bracket parameters from Cursor's subagent docs (`[effort=...]`, `[fast=false]`). Cursor publishes no full ID list, so confirm with `agent --list-models`. Cursor runs Sonnet 5.5 at high by default (Claude Code: medium), and Opus 5.5 at medium and Fable 5.1 at high in both, so every slug names its effort: a bare `claude-sonnet-5-5` runs at high. `[fast=false]` keeps a call off a model's Fast variant, so the `[exec]` Grok slug carries it as `[fast]`'s Composer slug does. Cursor's docs show only `high` and `max` as Claude effort values; `xhigh`, `medium` and `low` rest on CursorBench 4.0's runs, so confirm them too. The Fable alt in Cursor needs the data-retention opt-in under Privacy Mode, and Cursor reroutes guardrail-tripped Fable requests to Opus. Cursor doesn't offer GPT-6, and GPT-5.6 Sol scores 41.7%, so the Cursor row has no OpenAI alt.
-- **Review beats are a high-ROI place to pin the top model.** A [review beat](#review-beat) reads the prior wave's diff and emits a short verdict, but its cost is mostly input, not output: every call re-sends the whole context, so cache reads and writes make up about 70% of a reviewer's API-equivalent cost (output about 30%). It still costs only about 0.6× a [medium step](#expected-cost) at the reviewer's model because it makes fewer calls, so a review is a cheap way to spend `[deep]` credit. Point it at the diff and the plan rather than the whole repo, since its cost scales with calls × context. Pin it rather than letting Auto downgrade it.
+- **Review routing.** A [review beat](#review-beat) or orchestrate's review subagent reads the wave's diff and emits a short verdict, and its cost is mostly input: every call re-sends the whole context, so cache reads and writes make up about 70% of a reviewer's API-equivalent cost. It costs about 0.6× a [medium step](#expected-cost) at the reviewer's model because it makes fewer calls. The reviewer is pinned per tier of the unit it reads, never left to Auto: Opus at `high` after an `[exec]` or `[deep]` wave (a stronger model over Sonnet's work is the point of the review), Opus at `xhigh` after an `[xdeep]` wave (a reviewer below the author's tier caps the review at its own level), and **Sonnet at `high` after a `[fast]` wave or a check-only fix-up**, where an Opus review would cost several times the wave it reads (the example under [Expected cost](#expected-cost)). A check-only fix-up (one whose only failure was `check_wave.py`: a reword, a missing commit, a stray path) runs its worker on the `[fast]` row too, since the script is the real check. In Cursor the Sonnet review is `claude-sonnet-5-5[effort=high]`; orchestrate on Cursor reviews inline until its phase 3. Point every review at the diff and the plan rather than the whole repo, since its cost scales with calls × context.
 - **`[fast]` runs Haiku 5.5 at `medium`**, Anthropic's starting level for agentic coding on it: at `low` it more often stops early or reports a change done without running a check in a long agent prompt, and the step costs cents either way. Fast work run on Sonnet 5.5 sets `low`, Claude Code's level for small changes like a rename: FrontierCode 43.4 at $0.17 a step, CursorBench 4.0 35.8% at $0.50 a task. A folded `[fast]` step runs at its `[exec]` wave's level, since folding exists to keep the wave in one chat or dispatch; the Sonnet-low alt is for a whole `[fast]` wave run on Sonnet.
 - **Haiku vs Composer.** Haiku is Claude Code's `[fast]` model and Composer is Cursor's. They are platform-specific choices, not alternatives to each other; each harness uses its own native fast model.
 - **Codex** runs the GPT-6 family. Set effort with `/model` → "More reasoning…", `model_reasoning_effort` in `config.toml`, or `-c model_reasoning_effort='"xhigh"'`. Skip `ultra`: it hands delegation to the model, and these plans do their own delegation (Claude Code's ultracode on audit-shaped `[xdeep]` steps is the one exception, and it fans out only inside one wave). Astra costs the same as Fable.
@@ -402,7 +454,7 @@ The [Cost table](#cost-table) budgets each wave at kickoff from per-step anchors
     wave tokens  = sum over its steps of (row tokens  × size factor) + review tokens
     wave dollars = sum over its steps of (row dollars × size factor) + review dollars
 
-- **Review beat** (passive driver) and **review subagent** (orchestrate: one per working directory): 0.6× a medium step at the reviewer's model, in tokens and dollars (range 0.4-1.2×). After a `[deep]`, `[exec]` or `[fast]` wave that is Opus 5.5 (high): about 1.0M and $0.54. After an `[xdeep]` wave it is Opus 5.5 (xhigh) without ultracode: about 1.9M and $1.1 (up to about $1.3 at 0.7×, the ratio read-only work shows at max). On another harness it is 0.6× that harness's row at the review's tier: its `[deep]` row (GPT-6.1 Sol xhigh: about $0.29), or its `[xdeep]` row after an `[xdeep]` wave (GPT-6 Astra xhigh: about $1.7). A review's cost follows calls × context, not output, so the review of a small `[fast]` wave can cost more than the wave.
+- **Review beat** (passive driver) and **review subagent** (orchestrate: one per working directory): 0.6× a medium step at the reviewer's model, in tokens and dollars (range 0.4-1.2×). After a `[deep]` or `[exec]` wave that is Opus 5.5 (high): about 1.0M and $0.54. After a `[fast]` wave, or for a check-only fix-up, it is Sonnet 5.5 (high): about 0.6M and $0.21 ([Model picker](#model-picker), review routing). After an `[xdeep]` wave it is Opus 5.5 (xhigh) without ultracode: about 1.9M and $1.1 (up to about $1.3 at 0.7×, the ratio read-only work shows at max). On another harness it is 0.6× that harness's row at the review's tier: its `[deep]` row (GPT-6.1 Sol xhigh: about $0.29), its `[exec]` row after a `[fast]` wave, or its `[xdeep]` row after an `[xdeep]` wave (GPT-6 Astra xhigh: about $1.7). A review's cost follows calls × context, not output, so even at Sonnet the review of a small `[fast]` wave can cost more than the wave.
 - **Orchestrate's review after an `[xdeep]` wave** is the same 0.6× of the Opus 5.5 (xhigh) row, about 1.9M and $1.1, for each working directory the wave touched.
 
 **Kickoff row** (passive driver). The kickoff chat reads the skill and plan, tags, and writes the markers, the Kickoff and the Cost table, the same work as the orchestrator's kickoff part below: about 1.5M and $1.0 on Opus 5.5 (high).
@@ -416,15 +468,15 @@ The [Cost table](#cost-table) budgets each wave at kickoff from per-step anchors
 | Each wave: summary review, Review log line, plan bookkeeping, and the handoff refresh, commit and push | 1.1M, plus 0.16M per earlier wave | $0.95, plus $0.11 per earlier wave |
 | Each gate that waits on a human past the 5-minute cache TTL | 0.45M | $0.8 |
 
-The per-wave share grows with the parent's context, by about 16k tokens a wave. A wave outlasts the cache TTL while the parent makes no calls, so each wave starts by re-writing the parent's whole context at the write rate. The waits follow the mode the kickoff proposes. Gated: count the canary gate, which waits when the first unit has more than one group (a one-group first unit has none), and each gate 2, 3, 4 or 7 the plan crosses; gates asked in one question count as one wait. Unattended: those gates are logged, not asked, so count one wait, the kickoff answer. These figures come from the accumulation heuristic with Claude Code's 50k base context; Cursor's base is unknown.
+The per-wave share grows with the parent's context, by about 16k tokens a wave. A wave outlasts the cache TTL while the parent makes no calls, so each wave starts by re-writing the parent's whole context at the write rate. The waits follow the mode the kickoff proposes. Gated: count the canary gate, which waits when the first unit has more than one group and no group of the plan has passed yet (a one-group first unit has none; on a runner, each session's first multi-group unit waits again), and each gate 2, 3, 4 or 7 the plan crosses; gates asked in one question count as one wait. Unattended: those gates are logged, not asked, so count one wait, the kickoff answer. These figures come from the accumulation heuristic with Claude Code's 50k base context; Cursor's base is unknown.
 
 **Example** (Claude Code, passive driver; the [Cost table](#cost-table) shows the result):
 
 - Wave 1 `[exec]`, 3 medium steps on Sonnet 5.5 (high): 3 × (1.0M, $0.35) = 3.0M and $1.05, plus its review, 0.6 × (1.7M, $0.90) = 1.0M and $0.54. About 4.0M and $1.6.
 - Wave 2 `[deep]`, 1 large step on Opus 5.5 (high): 3 × (1.7M, $0.90) = 5.1M and $2.70, plus its review. About 6.1M and $3.2.
-- Wave 3 `[fast]`, 4 small steps on Haiku 5.5 (medium): 4 × 0.3 × (2.6M, $0.05) = 3.1M and $0.06, plus its review. About 4.1M and $0.60.
+- Wave 3 `[fast]`, 4 small steps on Haiku 5.5 (medium): 4 × 0.3 × (2.6M, $0.05) = 3.1M and $0.06, plus its Sonnet review, 0.6 × (1.0M, $0.35) = 0.6M and $0.21. About 3.7M and $0.27.
 - Kickoff on Opus 5.5 (high): about 1.5M and $1.0.
-- Total: about 16M and $6.4. The reviews are 25% of it, and wave 3's review costs about nine times the wave.
+- Total: about 15M and $6.1. The reviews are 21% of it, and wave 3's review still costs about three times the wave.
 
 **Accuracy.** A single step's figure is good to about 2-3× either way, and so are a wave's and a plan total's: the largest errors (the harness's base context, how a plan step compares to a FrontierCode task) are shared by every wave, so they don't cancel. Token counts also depend on the assumed cache split, while the dollars don't, since the anchors are dollars. Harness matters: Grok 4.7 (high) costs $5.6 a step in Grok Build against the Cursor row's estimated $1.0, and Composer's FrontierCode cost is 3.8× its CursorBench cost on a longer task, for reasons unknown. The Opus and Sonnet rows below max come from Claude Code runs that carried about 23-36k tokens of context per model call on average (input backed out of FrontierCode's dollars, over its call counts), so a setup with a 50k base context (skills, MCP and tool listings) runs above them: the cache reads of the extra base alone take the Opus 5.5 rows at medium, high and xhigh to at least about 1.45×, 1.35× and 1.15×, and the Sonnet 5.5 rows at low and high to about 1.45× and 1.3×.
 
@@ -553,7 +605,9 @@ Rules for filling in the template:
 
 ### Review beat
 
-A **review beat** is a dedicated, read-only `[deep]` pass over the work a wave just produced, run **after every wave** before the next one starts. It exists so cheaper-tier output (`[exec]`/`[fast]`) — and even `[deep]` output — is checked by a top-tier model against the spec before the plan builds further on it. Reviewing is `[deep]` work (catching architectural drift, broken contracts, security smells), so a review beat pins the `[deep]` model for any `[deep]`, `[exec]`, or `[fast]` wave. A wave that ran at `[xdeep]` gets an `[xdeep]` review (`--- REVIEW: wave-N [xdeep] ---`, Opus 5.5 at xhigh effort without ultracode; see the note after the template): a reviewer below the author's tier caps the review at its own level.
+A **review beat** is a dedicated, read-only pass over the work a wave just produced, run **after every wave** before the next one starts. It exists so cheaper-tier output, and even `[deep]` output, is checked against the spec by a model at or above the author's tier before the plan builds further on it. Reviewing `[exec]` or `[deep]` work is `[deep]` work (catching architectural drift, broken contracts, security smells, duplication across the plan's earlier commits), so the beat pins Opus at high for those waves. A `[fast]` wave's beat runs Sonnet at high (`--- REVIEW: wave-N [exec] ---`): the wave is mechanical and specified line by line, and an Opus review would cost several times the wave. A wave that ran at `[xdeep]` gets an `[xdeep]` review (`--- REVIEW: wave-N [xdeep] ---`, Opus 5.5 at xhigh effort without ultracode; see the note after the template): a reviewer below the author's tier caps the review at its own level. The routing is the [Model picker](#model-picker)'s review bullet.
+
+Whatever its tier, a review asks the code-shape questions as well as the spec ones: could an engineer who didn't write it understand it in one reading; does it duplicate something already in the repo or in this plan's earlier commits (name the pair); could it be fewer files or fewer public functions with no loss; does any helper exist only to satisfy a length rule (extraction that threads intermediate state through new parameters is a finding, not a fix). About 50 lines a function is a smell test, not a gate (code-style.md). A `consolidate` finding that names the files to merge is a legitimate `CONCERNS`, and a new file that the plan's [Shape](#shape) section lacks and the worker didn't explain is one too.
 
 Cadence is recorded in the Kickoff block as a `review:` line. The default is `review: every-wave` — a beat follows every wave, including same-tier `[exec] -> [exec]` boundaries. (Contrast `personal-plan-orchestrate`, whose review is a read-only subagent per working directory after each wave, at the author's tier (on Cursor, until its phase 3, the parent reviews inline), with the parent writing the same verdict to the [Review log](#review-log). It participates **log-only** and adds no human review gate beyond the gates of its recorded mode; see [Who updates progress, and how](#who-updates-progress-and-how).)
 
@@ -619,6 +673,12 @@ For a wave that ran at `[xdeep]`, change `[deep]` to `[xdeep]` in the marker, th
         Claude Code: /model opus                (/effort xhigh)
 
 Leave ultracode off for the review, in Claude Code too: a review is one read-only verdict, and fan-out would multiply its tokens. The reviewer runs at the tier's model and effort, Opus 5.5 at xhigh, even after a wave that ran the Fable alt or max.
+
+For a wave that ran at `[fast]`, the marker is `--- REVIEW: wave-N [exec] ---`, the chat title and the prompt's first line say `[exec]`, and the rows are:
+
+      Next model
+        Cursor:      claude-sonnet-5-5[effort=high]
+        Claude Code: /model sonnet              (/effort high)
 
 ### Review log
 
@@ -795,9 +855,9 @@ At kickoff, for the [Expected cost](#expected-cost) example:
     |---|---|---|
     | 1 [exec] m1 s1-s3 | ~4.0M | ~$1.6 |
     | 2 [deep] m2 s1 | ~6.1M | ~$3.2 |
-    | 3 [fast] m3 s1-s4 | ~4.1M | ~$0.60 |
+    | 3 [fast] m3 s1-s4 | ~3.7M | ~$0.27 |
     | kickoff | ~1.5M | ~$1.0 |
-    | **Total** | ~16M | ~$6.4 |
+    | **Total** | ~15M | ~$6.1 |
 
     Expected values are estimates, good to about 2-3× per wave.
 
@@ -815,9 +875,9 @@ Completed, with a fix-up wave after wave 1's review:
     | 1 [exec] m1 s1-s3 | ~4.0M | ~$1.6 | … | … |
     | 1-fix [exec] m1 s2 | — | — | … | … |
     | 2 [deep] m2 s1 | ~6.1M | ~$3.2 | … | … |
-    | 3 [fast] m3 s1-s4 | ~4.1M | ~$0.60 | … | … |
+    | 3 [fast] m3 s1-s4 | ~3.7M | ~$0.27 | … | … |
     | kickoff | ~1.5M | ~$1.0 | … | … |
-    | **Total** | ~16M | ~$6.4 | … | … |
+    | **Total** | ~15M | ~$6.1 | … | … |
 
 ## Who updates progress, and how
 
@@ -899,7 +959,7 @@ Under orchestrate, final completion also lists every unattended checkpoint, auto
   - the pasted Kickoff prompt is the same opt-in in the session it is pasted into, when the paste is the plan's whole prompt with its `Run in unattended mode.` line and the harness and runner match the record;
   - anything else (a question back, a negation, silence, a prompt copied before the answer) re-asks, and a mode named only by the message that invoked the skill sets the proposal, not the answer. A short message (10 words or fewer) that names `gated` and not `unattended` takes unattended back;
   - the answer is recorded on the Kickoff's `mode:` line, with his words.
-- **Gates come from the plan.** Under orchestrate, `plan_state.py` derives every gate from the plan in every mode, and the mode only decides which ones stop, so a gate can't be skipped by forgetting it. Gated, every gate stops. Unattended, these are logged as checkpoints and not asked: gates 2, 3 and 4, the canary (5) once its first group passes its check and review (a session's first unit with one group has no canary), an in-run step-up into `[exec]` or `[deep]` (6), a planned `[xdeep]` wave's gate 7, and gate 1 on an automatic fix-up inside the `fixups` cap (the first `CONCERNS` gets its fix-up in both modes). Unattended still stops for a worker's `needs_info`, a plan or launch error (gate 0), a failure after one automatic retry, a group's failure past the fix-up cap, a scope breach, a worker's disclosed breach (blocked or ran, and its fix-up), unplanned `[xdeep]` or Fable work (fix-ups, re-plans, step-ups, drafts and `max`), and the cost guard: projected spend past the `guard` multiple of the Cost table's Total or its dollar floor, whichever is higher. Opening or merging a PR, tags, remote branch deletes, deploys and permission prompts wait in both modes. The per-gate table is in `personal-plan-orchestrate`'s `SKILL.md`.
+- **Gates come from the plan.** Under orchestrate, `plan_state.py` derives every gate from the plan in every mode, and the mode only decides which ones stop, so a gate can't be skipped by forgetting it. Gated, every gate stops. Unattended, these are logged as checkpoints and not asked: gates 2, 3 and 4, the canary (5) once its first group passes its check and review (the canary fires on a workstation only until any group of the plan has a `PASS` in the Review log, and on a cloud or self-hosted session's first launch, since that session is a new container; a unit with one group never canaries), an in-run step-up into `[exec]` or `[deep]` (6), a planned `[xdeep]` wave's gate 7, and gate 1 on an automatic fix-up inside the `fixups` cap (the first `CONCERNS` gets its fix-up in both modes). Unattended still stops for a worker's `needs_info`, a plan or launch error (gate 0), a failure after one automatic retry, a group's failure past the fix-up cap, a scope breach, a worker's disclosed breach (blocked or ran, and its fix-up), unplanned `[xdeep]` or Fable work (fix-ups, re-plans, step-ups, drafts and `max`), and the cost guard: projected spend past the `guard` multiple of the Cost table's Total or its dollar floor, whichever is higher. Opening or merging a PR, tags, remote branch deletes, deploys and permission prompts wait in both modes. The per-gate table is in `personal-plan-orchestrate`'s `SKILL.md`.
 - **On a blocked gate, do both:**
   1. Re-post the exact gate question, end the turn, and wait. Do not poll, do not dispatch.
   2. Record durable pending state in the Kickoff `Status:` line, e.g.
@@ -921,7 +981,7 @@ When a `[deep]` agent finishes a deep step and the next step is `[exec]` or `[fa
 
 - Use the harness's subagent/Task tool (Cursor `Task` with `subagent_type` and optional `model`; Claude Code `Agent`, called `Task` before 2.1.63 and still accepted under that name; other harnesses use the equivalent). `personal-plan-orchestrate` on Claude Code launches its plugin workflow instead, one unit per launch.
 - Pass the cheapest model that can plausibly complete the step (see the model picker in "Model-tier stop points" above). Step up only if the subagent fails or returns low-quality output.
-- Give the subagent: the spec section, the exact files to touch, acceptance criteria, and a hard scope limit. Subagents do not see the parent conversation, so be explicit.
+- Give the subagent: the spec section, the exact files to touch, acceptance criteria, and a hard scope limit. Subagents do not see the parent conversation, so be explicit. Give it the whole feature too: the plan read-only (the steps before and after its own, and the [Shape](#shape) section) and `git log --stat <plan start>..HEAD`, so it knows what earlier steps built and where. The scope limit reads "do not implement later steps; prefer extending a file an earlier step created over adding a new one", and a new file the Shape section lacks is reported with one line on why.
 - Check the branch and the git email first, in each working directory the subagents will touch (git.md "Task branches and shared branches", core.md "Verify git email"), since they commit there. A runner on any branch that isn't a task branch cuts one; a workstation on a shared branch asks whether to cut one before the first dispatch, and without a yes the subagents don't commit.
 - Give it the git instruction too. On a task branch: commit each finished step on the current branch (`m{N}.s{K} <imperative subject>`, only the paths it changed), and don't push, branch, or switch. On a shared branch: don't commit. A subagent may not get the always-on rules (Claude Code subagents don't get SessionStart output, which is how runners load core.md), so spell it out. The parent reviews, then pushes: the one exception to a runner pushing after every commit. A stop with worker commits not yet reviewed is the exception to that: an orchestrate parent pushes them too, labeled `UNREVIEWED` in the Status line, the handoff and the question, so a lost container costs no commits (decision 12).
 - `personal-plan-orchestrate` runs only on a task branch, on any machine and in both modes, so its subagents always commit. Its kickoff finds a task branch in each repo or cuts one off any branch that isn't one (on a workstation after Gary's answer to the kickoff question, which names it; a runner switches to the branch it was assigned), never on `main`, `master`, `release/*`, the remote's default branch or a detached HEAD. The shared-branch rules above stay for other delegation and for the passive driver.

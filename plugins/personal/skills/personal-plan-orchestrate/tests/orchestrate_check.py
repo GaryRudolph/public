@@ -1,7 +1,9 @@
 #!/usr/bin/env python3
 """Check that the copies of the Claude Code tier routing agree: the Claude
 Code row of plan-execution.md's model picker, the ROUTE table in
-plan-segment.js, and the agent frontmatter; that reviewers are read-only;
+plan-segment.js, the worker and reviewer columns of SKILL.md's "Tiers and
+models" table (the reviewer column against plan-segment.js's REVIEWER
+table), and the agent frontmatter; that reviewers are read-only;
 and that the Claude manifest is named for the org and lists exactly the
 agent files, the workflows folder, the gate hook on Workflow, and the
 reviewer and worker guards on Bash, each its own entry with no exit-2
@@ -37,10 +39,43 @@ if alt:
     picked["fable"] = (alt.group(1), alt.group(2))
 
 src = wf.read_text()
-route = {m.group(1): (m.group(2), m.group(3)) for m in
-         re.finditer(r"^\s+(\w+): \{ model: '(\w+)'(?:, effort: '(\w+)')? \},?$", src, re.M)}
+
+
+def table(name):
+    """One routing table of plan-segment.js, by its const name: tier -> (model, effort)."""
+    block = re.search(r"^const " + name + r" = \{\n(.*?)^\}", src, re.M | re.S)
+    if not block:
+        errors.append(f"plan-segment.js has no {name} table")
+        return {}
+    return {m.group(1): (m.group(2), m.group(3)) for m in
+            re.finditer(r"^\s+(\w+): \{ model: '(\w+)'(?:, effort: '(\w+)')? \},?$", block.group(1), re.M)}
+
+
+route, reviewer = table("ROUTE"), table("REVIEWER")
 if route != picked:
     errors.append(f"plan-segment.js ROUTE {route} != picker {picked}")
+
+# SKILL.md "Tiers and models": the worker column is ROUTE and the reviewer column is REVIEWER, tier by tier.
+skill_rows = {}
+for line in (kit / "SKILL.md").read_text().splitlines():
+    m = re.match(r"^\| (?:`\[(\w+)\]`|(Check-only) fix-up\b[^|]*|(Fable) step-up[^|]*) \|([^|]*)\|([^|]*)\|$", line)
+    if m:
+        cells = []
+        for cell in (m.group(4), m.group(5)):
+            mm = re.search(r"\b(Opus|Sonnet|Haiku|Fable) (\w+)\b", cell)
+            cells.append((mm.group(1).lower(), mm.group(2)) if mm else None)
+        skill_rows[(m.group(1) or m.group(2) or m.group(3)).lower()] = tuple(cells)
+for tier in ("xdeep", "deep", "exec", "fast", "fable"):
+    row = skill_rows.get(tier)
+    if not row:
+        errors.append(f"SKILL.md \"Tiers and models\" has no [{tier}] row")
+        continue
+    if row[0] != route.get(tier):
+        errors.append(f"SKILL.md [{tier}] worker {row[0]} != plan-segment.js ROUTE {route.get(tier)}")
+    if row[1] != reviewer.get(tier):
+        errors.append(f"SKILL.md [{tier}] reviewer {row[1]} != plan-segment.js REVIEWER {reviewer.get(tier)}")
+if skill_rows.get("check-only") != (route.get("fast"), reviewer.get("fast")):
+    errors.append(f"SKILL.md check-only fix-up row {skill_rows.get('check-only')} != the [fast] routing {(route.get('fast'), reviewer.get('fast'))}")
 
 
 def front(path):

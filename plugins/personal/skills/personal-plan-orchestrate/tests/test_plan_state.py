@@ -579,6 +579,37 @@ def a_split_waves_later_unit_adds_nothing_to_the_projection():
 
 
 @test
+def the_shape_section_rides_along_verbatim():
+    shape = "## Shape\n\nCreates:\n- `src/a.py` — one new unit\nModifies:\n- `src/b.py`\n\n"
+    s = state(plan(marked(0)).replace("# Plan: x\n\n", "# Plan: x\n\n" + shape))
+    assert s["errors"] == [] and s["next"]["wave"] == 1, s["errors"]
+    assert s["shape"] == shape.split("\n", 2)[2].strip(), s["shape"]  # the body, without its heading
+    assert state(plan(marked(0)))["shape"] == ""
+
+
+@test
+def plan_start_and_canary_passed_come_from_the_review_log():
+    fresh = state(plan(marked(0)))
+    assert fresh["plan_start"] is None and fresh["canary_passed"] is False
+    log = "review wave-1 (repo-b m1 s1-s3) 846932b..518e99f: CONCERNS - gamma lacks a newline - 2026-10-06\n"
+    s = state(plan(marked(3), log=log))
+    assert s["plan_start"] == "846932b" and s["canary_passed"] is False
+    log += "review wave-1-fix (repo-b m1 s1-s3) 846932b..9a1b2c3: PASS - fixed - 2026-10-06\n"
+    s = state(plan(marked(3), log=log))
+    assert s["plan_start"] == "846932b" and s["canary_passed"] is True, s
+
+
+@test
+def a_step_id_with_whitespace_is_gate_0():
+    body = marked(0).replace("#### m1.s1 - [fast] One", "#### Phase 1: [fast] One")
+    s = state(plan(body))
+    assert "gate-0" in s["gates"] and any("'Phase 1'" in e and "phase-1" in e for e in s["errors"]), s["errors"]
+    slug = marked(0).replace("#### m1.s1 - [fast] One", "#### [fast] Wire Redis client")
+    s = state(plan(slug))
+    assert s["errors"] == [] and s["next"]["steps"][0] == "wire-redis-client", s
+
+
+@test
 def wave_markers_follow_the_standards_fix_up_grammar():
     import re
     standard = re.compile(r"^--- WAVE \d+(-fix([2-9]|[1-9]\d+)?)? \[(xdeep|deep|exec|fast)\] ---$")  # proposal §4 (b)

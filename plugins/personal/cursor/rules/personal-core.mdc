@@ -33,7 +33,7 @@ A project or organization rule can override a personal preference if there's a d
 - Prefix booleans: `is`, `has`, `can`, `should`
 - File name matches primary export; colocate related files
 - Imports ordered: stdlib, third-party, local
-- Functions < 50 lines; extract complex logic
+- Functions short (about 50 lines is a smell, not a gate); extract logic that has a name of its own
 
 ## Git Conventions
 

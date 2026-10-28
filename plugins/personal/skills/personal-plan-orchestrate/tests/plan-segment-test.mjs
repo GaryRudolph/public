@@ -553,6 +553,68 @@ test('a reviewer reads command output inline, never through a file', async () =>
   assert.match(calls[1].prompt, /Read command output inline \(pipe it to `tail` or `head`\); never redirect it to a file/)
 })
 
+// ---- the 2026-10 orchestrate review: canary per plan, review routing, the whole plan, Shape ----
+
+test('the canary fires per plan on a workstation and per session on a runner', async () => {
+  const two = [G('/r/a', ['m1.s1']), G('/r/b', ['m1.s2'])]
+  const passed = await harness({ ...base, canaryDone: false, state: st(unit(1, 'exec', ['m1.s1', 'm1.s2']), [], { canary_passed: true }), groups: two })
+  assert.equal(passed.result.stop, 'done')
+  assert.deepEqual([passed.result.canary, passed.result.groups.length, kinds(passed.calls).sort()], [false, 2, ['Review', 'Review', 'Wave', 'Wave']])
+  const cloud = await harness({ ...base, canaryDone: false, state: un(unit(1, 'exec', ['m1.s1', 'm1.s2']), [], [], { canary_passed: true }), groups: two })
+  assert.deepEqual([cloud.result.canary, cloud.result.groups.length, cloud.result.checkpoints], [true, 1, ['gate-5']])
+  const hosted = await harness({ ...base, canaryDone: false, state: st(unit(1, 'exec', ['m1.s1', 'm1.s2']), [], { canary_passed: true, mode: { ...GATED, runner: 'self-hosted' } }), groups: two })
+  assert.deepEqual([hosted.result.canary, hosted.result.gates], [true, ['gate-5']])
+  const fresh = await harness({ ...base, canaryDone: false, state: st(unit(1, 'exec', ['m1.s1', 'm1.s2']), [], { canary_passed: false }), groups: two })
+  assert.deepEqual([fresh.result.canary, fresh.result.gates], [true, ['gate-5']])
+})
+
+test('reviews route by the unit tier: Sonnet high after [fast], Opus high after [exec] and [deep], Opus xhigh after [xdeep]', async () => {
+  const fast = await harness({ ...base, state: st(unit(1, 'fast', ['m1.s1'])), groups: [G('/r/a', ['m1.s1'])] })
+  assert.deepEqual([fast.calls[1].agentType, fast.calls[1].model, fast.calls[1].effort, fast.calls[1].label], ['personal:plan-reviewer', 'sonnet', 'high', 'Review Wave 1 of 4 [fast] a m1 s1'])
+  const exec = await harness({ ...base, state: st(unit(2, 'exec', ['m1.s2'])), groups: [G('/r/a', ['m1.s2'])] })
+  assert.deepEqual([exec.calls[1].model, exec.calls[1].effort], ['opus', 'high'])
+  assert.match(src, /required: \['status', 'changed', 'decided', 'surprises', 'artifact', 'commits', 'breaches', 'newFiles'\]/)
+})
+
+test('a check-only fix-up runs on Haiku with a Sonnet review, labeled [fast]; a check with a review concern keeps the wave tier', async () => {
+  const only = un(fixup(1), [], ['gate-1'], { concerns: [concern(['check_wave.py: repo-b: m1.s3 has no commit'], 'check')] })
+  const { result, calls } = await harness({ ...base, state: only, groups: [G('/r/repo-b', ['m1.s3'])] })
+  assert.equal(result.stop, 'done')
+  assert.deepEqual(calls.map(c => [c.label, c.model, c.effort]), [['Wave 2-fix of 4 [fast] repo-b m1 s3', 'haiku', 'medium'], ['Review Wave 2-fix of 4 [fast] repo-b m1 s3', 'sonnet', 'high']])
+  assert.equal(result.tier, 'fast')
+  assert.match(calls[0].prompt, /Mechanical edits/)
+  const both = un(fixup(1), [], ['gate-1'], { concerns: [concern(['check_wave.py: repo-b: m1.s3 has no commit; review CONCERNS: gamma lacks a newline'], 'check')] })
+  const b = await harness({ ...base, state: both, groups: [G('/r/repo-b', ['m1.s3'])] })
+  assert.deepEqual(b.calls.map(c => [c.label.split(' ')[0], c.model, c.effort]), [['Wave', 'sonnet', 'high'], ['Review', 'opus', 'high']])
+  const review = st(fixup(1), [], { concerns: [concern(['gamma lacks a newline'])] })
+  const r = await harness({ ...base, state: review, groups: [G('/r/repo-b', ['m1.s3'])] })
+  assert.deepEqual(r.calls.map(c => c.model), ['sonnet', 'opus'])
+  let n = 0  // a failed Haiku fix-up retries one tier up, on Sonnet, as any [fast] unit does
+  const retried = await harness({ ...base, state: only, groups: [G('/r/repo-b', ['m1.s3'])] }, { Wave: () => (n++ ? DONE : { ...DONE, status: 'failed' }) })
+  assert.deepEqual(retried.calls.map(c => c.model), ['haiku', 'sonnet', 'opus'])
+})
+
+test('workers see the whole plan, its Shape section and earlier commits; reviewers check the shape and new files', async () => {
+  const shape = 'Creates:\n- `src/a.py` — one new unit\nModifies:\n- `src/b.py`'
+  const { calls } = await harness({ ...base, state: st(unit(2, 'exec', ['m1.s2']), [], { shape, plan_start: '1111111' }), groups: [G('/r/a', ['m1.s2'])] }, { Wave: () => ({ ...DONE, newFiles: ['src/c.py: the cache has no home'] }) })
+  const w = calls[0].prompt
+  assert.match(w, /## The whole plan\n\nRead `\/p\/plan-x\.md` \(read-only\) for the steps before and after yours and its Shape section, quoted below, and run `git -C \/r\/a log --stat 1111111\.\.HEAD` first/)
+  assert.match(w, /## Shape \(from the plan\)\n\nCreates:\n- `src\/a\.py`/)
+  assert.match(w, /Execute only: m1\.s2\. Do not implement later steps[\s\S]*Prefer extending a file an earlier step created over adding a new one; a file you create that the Shape section's Creates list lacks goes under `newFiles`/)
+  assert.match(w, /not diffs, which git holds/)
+  assert.doesNotMatch(w, /Stop at the end of this group/)
+  const r = calls[1].prompt
+  assert.match(r, /could an engineer who didn't write it understand it in one reading\?[\s\S]*git log --stat 1111111\.\.HEAD[\s\S]*fewer files or fewer public functions[\s\S]*only to satisfy a length rule[\s\S]*smell, not a gate[\s\S]*`consolidate` finding/)
+  assert.match(r, /git diff --diff-filter=A --name-only aaa0000[\s\S]*Shape section below/)
+  assert.match(r, /## Shape \(from the plan\)/)
+  assert.match(r, /New files: src\/c\.py: the cache has no home/)
+  const none = await harness({ ...base, state: st(unit(2, 'exec', ['m1.s2'])), groups: [G('/r/a', ['m1.s2'])] })
+  assert.match(none.calls[0].prompt, /for the steps before and after yours, and run `git -C \/r\/a log --stat aaa0000\.\.HEAD`/)
+  assert.doesNotMatch(none.calls[0].prompt, /## Shape/)
+  assert.match(none.calls[1].prompt, /this plan has none/)
+  assert.match(none.calls[1].prompt, /New files: none/)
+})
+
 let failed = 0
 for (const [name, fn] of tests) {
   try { await fn(); console.log(`ok   ${name}`) } catch (e) { failed++; console.log(`FAIL ${name}\n     ${e.message}`) }

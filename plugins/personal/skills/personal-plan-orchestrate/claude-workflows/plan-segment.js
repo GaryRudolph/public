@@ -27,6 +27,17 @@ const ROUTE = {
   xdeep: { model: 'opus', effort: 'xhigh' },
   fable: { model: 'fable', effort: 'xhigh' },
 }
+// Review routing, by the tier of the unit reviewed (the standard's review bullet; SKILL.md "Tiers and
+// models", which orchestrate_check.py compares with this table). A stronger model over Sonnet's work is
+// the point of the review; a [fast] wave or a check-only fix-up gets Sonnet, since an Opus review would
+// cost several times the wave it reads.
+const REVIEWER = {
+  fast: { model: 'sonnet', effort: 'high' },
+  exec: { model: 'opus', effort: 'high' },
+  deep: { model: 'opus', effort: 'high' },
+  xdeep: { model: 'opus', effort: 'xhigh' },
+  fable: { model: 'opus', effort: 'xhigh' },
+}
 const CHAIN = ['fast', 'exec', 'deep', 'xdeep', 'fable']
 const PREMIUM = { xdeep: true, fable: true }  // the tiers max and drafts apply to
 const ANGLES = [
@@ -36,10 +47,10 @@ const ANGLES = [
   'reuse first: the closest existing pattern in the repo, the standards, or the dependencies',
 ]
 
-const RESULT = { type: 'object', required: ['status', 'changed', 'decided', 'surprises', 'artifact', 'commits', 'breaches'], properties: {
+const RESULT = { type: 'object', required: ['status', 'changed', 'decided', 'surprises', 'artifact', 'commits', 'breaches', 'newFiles'], properties: {
   status: { type: 'string', enum: ['done', 'failed', 'low_quality', 'needs_info'] }, changed: { type: 'string' }, decided: { type: 'string' },
   surprises: { type: 'string' }, artifact: { type: 'string' }, commits: { type: 'array', items: { type: 'string' } },
-  breaches: { type: 'array', items: { type: 'string' } }, question: { type: 'string' } } }
+  breaches: { type: 'array', items: { type: 'string' } }, newFiles: { type: 'array', items: { type: 'string' } }, question: { type: 'string' } } }
 const REVIEW = { type: 'object', required: ['verdict', 'note', 'findings'], properties: {
   verdict: { type: 'string', enum: ['PASS', 'CONCERNS'] }, note: { type: 'string' },
   findings: { type: 'array', items: { type: 'object', required: ['claim', 'evidence'], properties: { claim: { type: 'string' }, evidence: { type: 'string' } } } } } }
@@ -48,7 +59,14 @@ const JUDGE = { type: 'object', required: ['pick', 'synthesis'], properties: { p
 
 const S = args && args.state
 const U = S && S.next
-const tier = (args && args.stepUp) || (U && U.tier)
+// A check-only fix-up (every group's last failure is check_wave.py's, with no review concern folded in: a
+// reword, a missing commit, a stray path) runs on the [fast] row with a Sonnet review: the script is the check.
+function checkOnly() {
+  if (!U || U.kind !== 'fixup' || !U.groups || !U.groups.length) return false
+  const mine = (S.concerns || []).filter(c => c.wave === U.wave && U.groups.includes(c.group))
+  return mine.length === U.groups.length && mine.every(c => c.source === 'check' && !/; review CONCERNS:/.test(c.note || ''))
+}
+const tier = (args && args.stepUp) || (U && (checkOnly() ? 'fast' : U.tier))
 const P = args && args.plugin
 const unattended = !!(S && S.mode && S.mode.value === 'unattended')
 const NEVER_APPROVED = ['gate-0', 'gate-mode']  // cleared only by fixing the plan or recording the kickoff answer
@@ -57,7 +75,7 @@ const NEVER_APPROVED = ['gate-0', 'gate-mode']  // cleared only by fixing the pl
 // it, so a stalled [exec] step re-tags to [deep] (stepUp, or the unattended retry below).
 function route(t) { return PREMIUM[t] && args.max ? { ...ROUTE[t], effort: 'max' } : ROUTE[t] }
 function worker(t = tier) { return { agentType: `${P}:plan-worker`, ...route(t) } }
-function reader(t = tier) { return { agentType: `${P}:plan-reviewer`, ...(PREMIUM[t] ? ROUTE.xdeep : ROUTE.deep) } }
+function reader(t = tier) { return { agentType: `${P}:plan-reviewer`, ...REVIEWER[t] } }
 function norm(x) { return String(x || '').replace(/\s+/g, ' ').trim() }
 
 function base(dir) { return dir.replace(/\/+$/, '').split('/').pop() }
@@ -95,11 +113,16 @@ function carried(forReview) {
 }
 const OUTWARD = 'Never run a command that acts outside this working directory: a push, opening or merging a PR, creating or uploading a release, pushing a tag, deleting a remote branch, deploying, publishing a package, posting anywhere, or the repo\'s own publish, release or deploy scripts. When the spec names a dry-run form (`DRY_RUN=1 scripts/publish.sh`), run exactly that form and nothing wider. If a step needs an outward action, return `needs_info` naming it.'
 function artifactPath(g) { return `${g.workdir}/.scratch/orchestrate-${args.plan.name}-${U.label || U.wave}-${g.id.replace(/[^\w.-]+/g, '-')}.md` }
+// The plan's Shape section (plan-execution.md "Shape") and the commit its work began at, both from plan_state.py.
+function planStart(g) { return S.plan_start || g.from }
+function shapeSection() { return S.shape ? `## Shape (from the plan)\n\n${S.shape}` : '' }
 
 function workerPrompt(g, design, t = tier, earlier = null) {
   const parts = [title(g, t),
     `You execute one dispatch unit of the tagged plan at ${args.plan.path}. Do not edit the plan file.`,
-    `## Spec excerpt (verbatim)\n\n${g.spec}`]
+    `## Spec excerpt (verbatim)\n\n${g.spec}`,
+    `## The whole plan\n\nRead \`${args.plan.path}\` (read-only) for the steps before and after yours${S.shape ? ' and its Shape section, quoted below' : ''}, and run \`git -C ${g.workdir} log --stat ${planStart(g)}..HEAD\` first, so you know what earlier steps built and where.`,
+    shapeSection()]
   if (g.answer) parts.push(`## Gary's answer (verbatim)\n\nAn earlier attempt asked: ${g.answer.question}\n\nGary answered: ${g.answer.answer}\n\nWork from that answer.`)
   if (earlier) parts.push(`## Earlier attempt\n\nAn earlier attempt at this group in this run ended ${earlier}. Its commits, if any, are in ${g.from}..HEAD; check them against the acceptance criteria before you build on them.`)
   if (g.concern) parts.push(fixupSection(g.concern))
@@ -107,12 +130,12 @@ function workerPrompt(g, design, t = tier, earlier = null) {
   if (design) parts.push(`## Chosen design (from an independent draft panel)\n\n${design}\n\nImplement it. Where it contradicts the spec excerpt, follow the spec and say so under surprises.`)
   parts.push(`## Working directory\n\nAll edits must be inside \`${g.workdir}\`. Do not edit anything outside this directory.`,
     `## Acceptance criteria\n\n${g.acceptance}`,
-    `## Scope\n\nExecute only: ${g.steps.join(', ')}. Stop at the end of this group; do not start the next group or any work not listed here.`)
+    `## Scope\n\nExecute only: ${g.steps.join(', ')}. Do not implement later steps, and do no work not listed here. Prefer extending a file an earlier step created over adding a new one; a file you create that the Shape section's Creates list lacks goes under \`newFiles\` with one line on why.`)
   if (t === 'fast') parts.push('## Mechanical edits\n\nApply exactly what the plan specifies. Do not refactor, rename, or generalize.')
   parts.push(`## Standards to read first\n\n${list(g.standards, 'none beyond the always-on core')}`)
   parts.push(`## Before you start\n\nRun \`git -C ${g.workdir} log --format=%s ${g.from}..HEAD\`. A step that already has a commit whose subject starts with its ID was done by an earlier attempt: check that commit against the acceptance criteria and skip the step if it holds. If a file you need to change already has uncommitted changes, do not touch it: return \`failed\` and name the file.`)
   parts.push(`## When to ask\n\nIf the spec reads two ways that lead to materially different results, or you lack an access, credential or tool the step needs, stop: return \`needs_info\` with one question in \`question\`. Do not guess, and do not work around missing access.\n\n${OUTWARD}`,
-    `## Output\n\nWrite your full output (diffs, decisions, surprises, follow-ups) to \`${artifactPath(g)}\`. Return the structured result: status, what changed, what was decided, any surprises, the artifact path, the short SHA of every commit you made, and \`breaches\`. Use \`failed\` or \`low_quality\` when you could not meet the acceptance criteria; never report partial work as \`done\`.\n\n\`breaches\` lists every rule of this prompt you broke or tried to break (an outward command, an edit outside the working directory, a push), one entry each: what you ran, and whether it ran or was blocked. Return \`[]\` when there is none. A workaround the environment needed (a tool version, a missing binary, a variable the runner sets) goes under surprises as a line that starts \`env:\`, so the parent can pass it to later agents.`,
+    `## Output\n\nWrite your full output (decisions, surprises, follow-ups; not diffs, which git holds) to \`${artifactPath(g)}\`. Return the structured result: status, what changed, what was decided, any surprises, \`newFiles\` (each file you created, with its reason when the Shape section lacks it; \`[]\` when none), the artifact path, the short SHA of every commit you made, and \`breaches\`. Use \`failed\` or \`low_quality\` when you could not meet the acceptance criteria; never report partial work as \`done\`.\n\n\`breaches\` lists every rule of this prompt you broke or tried to break (an outward command, an edit outside the working directory, a push), one entry each: what you ran, and whether it ran or was blocked. Return \`[]\` when there is none. A workaround the environment needed (a tool version, a missing binary, a variable the runner sets) goes under surprises as a line that starts \`env:\`, so the parent can pass it to later agents.`,
     `## Git\n\n${gitLine(g)}`)
   return parts.join('\n\n')
 }
@@ -143,10 +166,11 @@ function reviewPrompt(g, r, t = tier) {
     : ''
   return [`Review ${title(g, t)}. READ-ONLY: do not edit files, commit, push, open or merge a PR, tag, deploy, or start other work. Read command output inline (pipe it to \`tail\` or \`head\`); never redirect it to a file, which the read-only guard denies.`,
     `In \`${g.workdir}\`, ${changes(g)}, then the worker's artifact \`${r.artifact}\`. Check the change against the spec excerpt, the acceptance criteria and the standards below: does it do what they ask, no more and no less, correctly, with tests where the repo expects them?`,
+    `Then the code's shape, whatever the tier: could an engineer who didn't write it understand it in one reading? Does it duplicate something already in the repo, or in this plan's earlier commits (\`git log --stat ${planStart(g)}..HEAD\`)? Name the pair. Could it be fewer files or fewer public functions with no loss? Does any helper exist only to satisfy a length rule? Extraction that threads intermediate state through new parameters is a finding, not a fix, and about 50 lines a function is a smell, not a gate. A \`consolidate\` finding that names the files to merge is a legitimate CONCERNS. Compare \`git diff --diff-filter=A --name-only ${g.from}\` with the plan's Shape section${S.shape ? ' below' : ' (this plan has none)'} and the worker's new files: a new file in neither, or one whose reason doesn't hold, is a finding.`,
     `${g.concern && g.concern.source === 'check' ? 'A script checks commit subjects, trailers, step coverage and paths after you. This fix-up exists because that check failed, so check the failure quoted below yourself as well.' : 'A script checks commit subjects, trailers, step coverage and paths after you; leave those to it.'} List only defects the change must fix before the plan builds on it, each with evidence (a file and line, a command and its output, or a quoted spec line). Checks that passed go in the note. Return PASS with no findings when you find nothing real.`,
-    `## Spec excerpt (verbatim)\n\n${g.spec}`, ...carried(true), `## Acceptance criteria\n\n${g.acceptance}`, `## Standards\n\n${list(g.standards, 'the always-on core')}`,
+    `## Spec excerpt (verbatim)\n\n${g.spec}`, shapeSection(), ...carried(true), `## Acceptance criteria\n\n${g.acceptance}`, `## Standards\n\n${list(g.standards, 'the always-on core')}`,
     disclosed, g.concern ? `## This is fix-up ${U.label}\n\nThe last ${g.concern.source === 'check' ? (withReview(g.concern) ? 'check_wave.py run and review' : 'check_wave.py run') : g.concern.source === 'disclosed' ? "worker's disclosure and its review" : 'review'} raised (verbatim):\n\n${quote(g.concern.note)}\n\nCheck that it is fixed, and review the whole range.` : '',
-    `## Worker summary\n\nChanged: ${r.changed}\nDecided: ${r.decided}\nSurprises: ${r.surprises}\nCommits: ${r.commits.join(', ') || 'none'}`].filter(Boolean).join('\n\n')
+    `## Worker summary\n\nChanged: ${r.changed}\nDecided: ${r.decided}\nSurprises: ${r.surprises}\nNew files: ${(r.newFiles || []).join(', ') || 'none'}\nCommits: ${r.commits.join(', ') || 'none'}`].filter(Boolean).join('\n\n')
 }
 function draftPrompt(g, angle) {
   return [`Draft for ${title(g)}. READ-ONLY: do not edit files, commit, push, open or merge a PR, tag, deploy, or run anything else that changes state.`,
@@ -240,13 +264,20 @@ let groups = args.groups.map(g => {
   const c = U.kind === 'fixup' ? concernOf(id) : {}
   return { ...g, id, concern: c.note ? c : null, from: c.from || g.from }
 })
-// The canary (gate 5): a session's first launch runs only its first group. A first unit with one group holds nothing
+// The canary (gate 5): a launch runs only its first group, until a group of the plan has passed its review. On a
+// workstation that is once per plan (the Review log says so: plan_state.py's canary_passed); on a cloud or self-hosted
+// runner every session is a new container, so its first launch canaries again. A unit with one group holds nothing
 // back, so it runs whole with no gate 5, and its review covers the unit; canaryDone is true from the next launch on.
-const canary = !args.canaryDone && groups.length > 1
+const runner = S.mode && S.mode.runner
+const canaryDue = !S.canary_passed || runner === 'cloud' || runner === 'self-hosted'
+const canary = canaryDue && !args.canaryDone && groups.length > 1
 if (canary) {
   log(`Canary: running ${groups[0].id} only; ${groups.length - 1} group(s) wait for the gate-5 ${unattended ? 'checkpoint' : 'answer'}`)
   groups = groups.slice(0, 1)
-} else if (!args.canaryDone) log('No canary: this first unit has one group, and its review covers the unit')
+} else if (!args.canaryDone) {
+  log(groups.length > 1 ? 'No canary: a group of this plan already passed its review, and this is a workstation'
+    : 'No canary: this first unit has one group, and its review covers the unit')
+}
 
 const ph = unitTitle()
 phase(ph)

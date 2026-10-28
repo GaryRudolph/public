@@ -37,7 +37,7 @@ Keep module dependencies unidirectional; extract shared code to separate modules
 
 ## Anti-Patterns
 
-- **Large functions**: keep < 50 lines; extract complex logic
+- **Large functions**: about 50 lines is a smell test, not a gate. Split where the pieces have names of their own; extraction that threads intermediate state through new parameters is worse than the long function
 - **Magic numbers**: use named constants
 - **Deep nesting**: use early returns/guards
 
