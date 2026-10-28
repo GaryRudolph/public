@@ -63,8 +63,9 @@ Check whether the plan's executable headings already carry tiers (regex
 - **Not tagged** → run [`personal-plan-tag-tiers`](../personal-plan-tag-tiers/SKILL.md)
   (the shared tagging skill) to tag every executable step, then return here.
 - **Already tagged** → keep the existing tags. Do a light sanity pass against
-  the `[fast]` downgrade checklist, the `[xdeep]` upgrade checklist, and
-  default-up bias, but do not churn tags.
+  the `[fast]` downgrade checklist and the `[xdeep]` upgrade checklist
+  (doubt resolves down, to `[exec]`), but do not churn tags. A plan with
+  no `## Shape` section gets one from the tagging skill's step 4.
 
 Tags reflect honest complexity and stay as-is from here on. This skill never
 rewrites a tag for thrash reasons — that happens only at the wave-grouping
@@ -99,6 +100,17 @@ This is an execution-grouping decision only: a folded wave's execution tier
 STOP markers and the Kickoff key off the execution tier. See the standards
 section §"Wave annotation format" and §"No-thrash rule" for the full rules.
 
+**Append the consolidation step when a criterion fires.** After grouping
+and before any marker is written, apply the standards' §"Consolidation
+step" criteria (two or more waves change source code; the Shape section's
+Creates lists three or more source files; a wave runs in worktrees of one
+repo). When one fires, append the step with its verbatim text as the last
+step of the last milestone, tagged `[deep]`, and give it its own wave and
+`--- WAVE N [deep] ---` marker, never merged into the previous wave. Say in
+chat which criterion fired, or why the step was skipped (docs-only, all
+code in one wave, disjoint files); Gary may add or remove it before the
+first wave runs.
+
 **Compute a review point for every wave.** After grouping, each wave N
 (1-based, through the total wave count) gets a [review beat](../personal-standards/standards/plan-execution.md)
 when that wave finishes and before wave N+1 starts (including after the
@@ -124,7 +136,9 @@ A plan that isn't direct-sized skips this.
 **REVIEW markers first, then STOP markers** at each inter-wave boundary.
 For each wave N, insert an inline-complete `--- REVIEW: wave-N [deep] ---`
 block (`--- REVIEW: wave-N [xdeep] ---` after an `[xdeep]` wave, so Opus at
-xhigh reviews it) immediately after that wave's last executable
+xhigh reviews it; `--- REVIEW: wave-N [exec] ---` after a `[fast]` wave,
+with the Sonnet high rows from the standards' `[fast]` note under that
+template) immediately after that wave's last executable
 heading and **before**
 the next `--- STOP …` or `--- WAVE …` marker (for the final wave, after
 its last heading and before end-of-file or the Completion section). Use
@@ -293,7 +307,8 @@ and the only way to authorize multiple unattended steps is an explicit
 
 - **New chat (default).** Append this chat's `kickoff` token line to
   `## Token log` (see "Token tally on report-back" below). Print a short
-  summary (the waves with their tiers, the Cost table, the plan path),
+  summary (the waves with their tiers, the Cost table, the Shape section
+  for Gary to trim, the plan path),
   then hand over the Kickoff prompt: on Claude, where the
   `mcp__ccd_session__spawn_task` tool is available, queue it as a
   suggested-task card (`title` the Kickoff's `Suggested chat title`,
