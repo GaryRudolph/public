@@ -108,7 +108,9 @@ each with:
 - `subagent_type: "generalPurpose"`.
 - `model`: the slug above.
 - `prompt`: the full contract (`contract.md`),
-  scoped to that directory, with item 7 below.
+  scoped to that directory, with item 7 below; item 1's Shape section is
+  the plan's `## Shape` body, quoted, and its `<plan start>` is
+  `plan_state.py`'s `plan_start` or the group's `from`.
 
 Every `[deep]` wave goes out too, even on one working directory: the
 parent's context never holds a wave's diffs. Groups in distinct working
@@ -146,6 +148,7 @@ per the mode (`SKILL.md` "Gates"); the parent dispatches only after it.
 | to `[fast]`, three or more contiguous `[fast]` steps | `composer-2.5[fast=false]`, one per directory |
 | to `[fast]`, fewer than three | the run was folded into the adjacent `[exec]` wave (its `[fast]` tags stay): treat as `[exec]` |
 | `[exec]` to `[fast]` | the same no-thrash split: three or more, a `[fast]` wave; fewer, folded into the `[exec]` wave |
+| a check-only fix-up (the group's latest failure is a `check_wave.py:` note with no `; review CONCERNS:`) | `composer-2.5[fast=false]`, one per directory, labeled `[fast]`, whatever the wave's tier; a fix-up with a review concern keeps the wave's row |
 | `[exec]` or `[fast]` to `[deep]` | gate 2 or 3, then `claude-opus-5-5[effort=high]`, one per directory; the parent never runs the group itself |
 | into `[xdeep]` | gate 7 (and 2 or 3 from `[exec]` or `[fast]`), then `claude-opus-5-5[effort=xhigh]`, one per directory; the Fable alt only on a gate-6 step-up after Opus xhigh failed the step |
 | leaving `[xdeep]` | the rows for leaving `[deep]` |
@@ -240,8 +243,10 @@ it. A new session is a pasted prompt: print it on its own (the standard's
 Not built yet; the parent applies the core by hand until it is:
 - The gates `plan_state.py` computes enforced in code at dispatch, not only
   applied by the parent from its output.
-- A review subagent per working directory, on Opus, in place of the inline
-  review.
+- A review subagent per working directory, routed by the unit's tier as
+  on Claude Code (Opus high after `[exec]` and `[deep]`,
+  `claude-sonnet-5-5[effort=high]` after `[fast]` or a check-only fix-up,
+  Opus xhigh after `[xdeep]`), in place of the inline review.
 - An optional fail-closed `subagentStart` hook that checks a dispatch the
   way the Claude Code hook checks a launch. A cloud agent reads only
   `.cursor/hooks.json`, so the hook has to live there.

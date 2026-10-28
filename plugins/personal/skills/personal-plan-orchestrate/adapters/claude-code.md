@@ -123,8 +123,8 @@ paste, say once that the new session picks its own model: `/model opus`,
 
 | Piece | Job |
 |---|---|
-| `<P>:plan-segment` workflow (`claude-workflows/plan-segment.js`) | Runs one dispatch unit. It checks its `args` against `plan_state.py`'s unit and refuses a stopping gate not approved for that wave. While `canaryDone` is false it runs only the first group (the canary, gate 5) when the unit has more than one; a one-group unit runs whole with no gate 5. It then runs each group's worker and, as soon as that finishes, its reviewer. Unattended, it retries a broken group once and returns the checkpoints it passed. A worker's disclosed breach stops the run at gate 1, with no retry. A fix-up unit quotes its failed check, concern or disclosure, verbatim, into the worker's and reviewer's prompts. It returns a result object only. |
-| Two plugin agents (`claude-agents/`) | `plan-worker` (`model: inherit`) and `plan-reviewer` (Opus, high; tools Read, Grep, Glob, Bash). Every call sets the tier's model and effort. |
+| `<P>:plan-segment` workflow (`claude-workflows/plan-segment.js`) | Runs one dispatch unit. It checks its `args` against `plan_state.py`'s unit and refuses a stopping gate not approved for that wave. While `canaryDone` is false it runs only the first group (the canary, gate 5) when the unit has more than one and the canary is due: on a workstation, until a group of the plan has a PASS (`plan_state.py`'s `canary_passed`); on a cloud or self-hosted runner, on every session's first launch. A one-group unit runs whole with no gate 5. It then runs each group's worker and, as soon as that finishes, its reviewer, routed by the unit's tier (`SKILL.md` "Tiers and models"; a check-only fix-up runs on the `[fast]` row with a Sonnet review and `[fast]` labels). Unattended, it retries a broken group once and returns the checkpoints it passed. A worker's disclosed breach stops the run at gate 1, with no retry. A fix-up unit quotes its failed check, concern or disclosure, verbatim, into the worker's and reviewer's prompts. It returns a result object only. |
+| Two plugin agents (`claude-agents/`) | `plan-worker` (`model: inherit`) and `plan-reviewer` (Opus, high, as a default; tools Read, Grep, Glob, Bash). Every call sets the tier's model and effort, the reviewer's from the review routing. |
 | `hooks/claude-hooks.json` | A `PreToolUse` hook on `Workflow` (`orchestrate_gate.py`) and two on `Bash`, each its own entry: `reviewer_guard.py` and `worker_guard.py`. The plugin manifest loads it beside `hooks/hooks.json`. |
 | `plan_state.py`, `check_wave.py`, `token_tally.py` | `SKILL.md` lists them after "Detection"; below are the Claude Code arguments. |
 
@@ -157,7 +157,13 @@ one dispatch unit, at the end of "Each unit" step 4.
 ```
 
 - `canaryDone` is false on this session's first launch and true after,
-  whether that launch split off a canary or, with one group, ran whole.
+  whether that launch split off a canary, ran whole with one group, or ran
+  whole because the plan's canary had already passed (a workstation after
+  the first PASS). The script decides whether to split; the hook only
+  checks that the flag is honest.
+- `state` carries the plan's `shape`, `plan_start` and `canary_passed`,
+  so the launch needs no field for them: the script quotes the Shape
+  section into every worker and reviewer prompt from `state`.
 - `steps` are the IDs `plan_state.py` reports, which commit subjects carry:
   a heading `#### s2` under `## m1` is `m1.s2`.
 - `approved` is `[]` except in the turn Gary's answer started (or joined):
@@ -281,9 +287,11 @@ completes" in `SKILL.md`:
   `needs_info` group's question, asked verbatim), `breaches` (`{id,
   breach}` for every rule a worker disclosed breaking: the run stopped at
   gate 1 for them, and `SKILL.md` "When a unit completes" makes each group
-  CONCERNS), and per group `work` (with `breaches` and `surprises`, whose
-  `env:` lines go to the handoff's Environment notes), `review` (verdict,
-  note, findings), `from`, `branch`, `tier`.
+  CONCERNS), and per group `work` (with `breaches`, `newFiles`, each file
+  the worker created with its reason when the Shape section lacks it, and
+  `surprises`, whose `env:` lines go to the handoff's Environment notes),
+  `review` (verdict, note, findings), `from`, `branch`, `tier` (`fast` for
+  a check-only fix-up, whatever its wave's tier).
 - A `stop` of `gate` or a failed check goes to the branch step in `SKILL.md`
   (a fix-up is the next unit, or the stop is asked); `done` goes back to
   "Each unit"; `end` is final completion.
