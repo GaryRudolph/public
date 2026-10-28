@@ -154,8 +154,17 @@ The scripts are harness-neutral Python 3:
 | `[xdeep]` | `<P>:plan-worker`, Opus xhigh | `<P>:plan-reviewer`, Opus xhigh |
 | `[deep]` | `<P>:plan-worker`, Opus high | `<P>:plan-reviewer`, Opus high |
 | `[exec]` | `<P>:plan-worker`, Sonnet high | `<P>:plan-reviewer`, Opus high |
-| `[fast]` | `<P>:plan-worker`, Haiku medium | `<P>:plan-reviewer`, Opus high |
+| `[fast]` | `<P>:plan-worker`, Haiku medium | `<P>:plan-reviewer`, Sonnet high |
+| Check-only fix-up, any wave tier | `<P>:plan-worker`, Haiku medium (the `[fast]` row) | `<P>:plan-reviewer`, Sonnet high |
 | Fable step-up (gates 6 and 7) | `<P>:plan-worker`, Fable xhigh | `<P>:plan-reviewer`, Opus xhigh |
+
+The reviewer column is the standard's review routing (plan-execution.md
+"Model picker", the review bullet): Opus over `[exec]` and `[deep]` work,
+Opus xhigh over `[xdeep]`, Sonnet over a `[fast]` wave or a check-only
+fix-up (one whose only failure was `check_wave.py`: a reword, a missing
+commit, a stray path), whose worker also runs on the `[fast]` row and whose
+labels say `[fast]`. `plan-segment.js` holds both tables (`ROUTE`,
+`REVIEWER`) and `orchestrate_check.py` compares them with this one.
 
 The workflow sets these itself. `[exec]` never runs past high: a stalled
 `[exec]` group re-tags to `[deep]`. `max` runs an `[xdeep]` or Fable worker

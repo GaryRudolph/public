@@ -17,7 +17,8 @@ labeled (output est.) and ends with session <id>. A line's <model> drops a
 trailing -YYYYMMDD; pricing and --check-routing use the raw id.
 
 With --check-routing, exit 2 when an agent ran on another model than its
-tier's (an availableModels substitution, or a wrong alias).
+tier's (an availableModels substitution, or a wrong alias): a worker on its
+tier's alias, a review on Sonnet after a [fast] unit and Opus otherwise.
 """
 
 import argparse
@@ -81,8 +82,9 @@ def row_for(label):
         return label or "unlabelled", None
     kind, wave, tier, group = m.groups()
     prefix = "review-wave" if kind == "Review" else "wave"
-    # Workers run on their tier's model; reviewers, drafts and judges on Opus.
-    expect = tier if kind is None else "deep"
+    # Workers run on their tier's model. Reviews run Sonnet after a [fast] unit (a check-only fix-up is
+    # labeled [fast] too) and Opus otherwise; drafts and judges run Opus (plan-segment.js REVIEWER).
+    expect = tier if kind is None else "exec" if kind == "Review" and tier == "fast" else "deep"
     return f"{prefix}-{wave} {re.sub(r'[^A-Za-z0-9.]+', '-', group).strip('-')}", expect
 
 
