@@ -82,6 +82,8 @@ alias "disablelid=sudo pmset -a lidwake 0"
 alias "ql=qlmanage -p"
 #alias "flushdns=sudo dscacheutil -flushcache"
 alias "flushdns=sudo discoveryutil mdnsflushcache; sudo discoveryutil udnsflushcaches"
+# Over ssh the login keychain stays locked, so codesign and friends fail.
+alias unlock-keychain='security unlock-keychain "$HOME/Library/Keychains/login.keychain-db"'
 alias "gitu=git pull; git submodule init; git submodule update"
 alias "gitkt=git log --graph --pretty=format:'%Cred%h%Creset -%C(yellow)%d%Creset %s %Cgreen(%cr) %C(bold blue)<%an>%Creset' --abbrev-commit --date=relative"
 alias "symbolicate=/Applications/Xcode.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/Library/PrivateFrameworks/DTDeviceKitBase.framework/Versions/Current/Resources/symbolicatecrash"
