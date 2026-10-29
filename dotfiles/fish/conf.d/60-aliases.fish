@@ -55,6 +55,8 @@ alias enablelid 'sudo pmset -a lidwake 1'
 alias disablelid 'sudo pmset -a lidwake 0'
 alias ql 'qlmanage -p'
 alias flushdns 'sudo discoveryutil mdnsflushcache; sudo discoveryutil udnsflushcaches'
+# Over ssh the login keychain stays locked, so codesign and friends fail.
+alias unlock-keychain 'security unlock-keychain $HOME/Library/Keychains/login.keychain-db'
 
 # --- Git ---------------------------------------------------------------------
 alias gitu 'git pull; and git submodule init; and git submodule update'
