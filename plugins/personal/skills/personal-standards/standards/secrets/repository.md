@@ -123,13 +123,13 @@ key can open. Prefer the [least-privilege hierarchy](makefile.md#least-privilege
 - name: Use required secret for one command only
   env:
     SOPS_AGE_KEY: ${{ secrets.SOPS_AGE_KEY }}
-  run: PUBLIC_API_URL="$(make -C _secrets dist-decrypt-env KEY=PUBLIC_API_URL)" npm run build
+  run: SENTRY_AUTH_TOKEN="$(make -C _secrets dist-decrypt-env KEY=SENTRY_AUTH_TOKEN)" npm run build
 
 # 2a. Export one key to the job environment for later steps
 - name: Export one required secret for later steps
   env:
     SOPS_AGE_KEY: ${{ secrets.SOPS_AGE_KEY }}
-  run: make -C _secrets dist-decrypt-env KEY=PUBLIC_API_URL FORMAT=dotenv >> "$GITHUB_ENV"
+  run: make -C _secrets dist-decrypt-env KEY=SENTRY_AUTH_TOKEN FORMAT=dotenv >> "$GITHUB_ENV"
 
 # 2b. Export all decryptable env secrets for later steps
 - name: Export all decryptable env secrets for later steps

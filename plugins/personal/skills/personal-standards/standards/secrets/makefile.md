@@ -53,9 +53,9 @@ Decrypts `*.env.sops` files only. Never writes plaintext env files to disk.
 |------------|--------|-------|
 | `make dist-decrypt-env` | All decryptable env files as dotenv `KEY=VALUE` lines | Append to `$GITHUB_ENV` in Actions |
 | `make dist-decrypt-env FILE=oss.env` | One env file as dotenv lines | Logical name, no `.sops` suffix |
-| `make dist-decrypt-env KEY=PUBLIC_API_URL` | Raw value only | Scans all decryptable env files; errors if key appears in more than one file |
-| `make dist-decrypt-env FILE=oss.env KEY=PUBLIC_API_URL` | Raw value only | Disambiguates or avoids scanning |
-| `make dist-decrypt-env KEY=PUBLIC_API_URL FORMAT=dotenv` | `PUBLIC_API_URL=value` | For `$GITHUB_ENV` export of one key |
+| `make dist-decrypt-env KEY=SENTRY_AUTH_TOKEN` | Raw value only | Scans all decryptable env files; errors if key appears in more than one file |
+| `make dist-decrypt-env FILE=oss.env KEY=SENTRY_AUTH_TOKEN` | Raw value only | Disambiguates or avoids scanning |
+| `make dist-decrypt-env KEY=SENTRY_AUTH_TOKEN FORMAT=dotenv` | `SENTRY_AUTH_TOKEN=value` | For `$GITHUB_ENV` export of one key |
 
 **Environment:** `SOPS_AGE_KEY` (required).
 
@@ -85,7 +85,7 @@ Use the narrowest target that satisfies the job:
    - name: Use required secret for one command only
      env:
        SOPS_AGE_KEY: ${{ secrets.SOPS_AGE_KEY }}
-     run: PUBLIC_API_URL="$(make -C _secrets dist-decrypt-env KEY=PUBLIC_API_URL)" npm run build
+     run: SENTRY_AUTH_TOKEN="$(make -C _secrets dist-decrypt-env KEY=SENTRY_AUTH_TOKEN)" npm run build
    ```
 
 2. **Export to job environment** (when later steps need env vars):
@@ -94,7 +94,7 @@ Use the narrowest target that satisfies the job:
    - name: Export one required secret for later steps
      env:
        SOPS_AGE_KEY: ${{ secrets.SOPS_AGE_KEY }}
-     run: make -C _secrets dist-decrypt-env KEY=PUBLIC_API_URL FORMAT=dotenv >> "$GITHUB_ENV"
+     run: make -C _secrets dist-decrypt-env KEY=SENTRY_AUTH_TOKEN FORMAT=dotenv >> "$GITHUB_ENV"
 
    - name: Export all decryptable env secrets for later steps
      env:
