@@ -76,6 +76,7 @@ For personal data that has to be erasable from stores nobody edits: revisions ([
 ## Secrets Management
 
 - Never commit **plaintext** secrets to source repositories
+- Don't treat non-secret config as a secret: project ids, service account emails and public web config are committed, not hidden in CI settings ([architecture.md](architecture.md#ci-configuration))
 - Externalize secrets to environment variables, managed secret stores, or a dedicated encrypted secrets repository — not into application source trees
 - Validate required secrets at startup; never log secrets
 - Support multiple active keys during rotation (current + previous)
