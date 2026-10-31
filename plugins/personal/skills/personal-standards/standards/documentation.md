@@ -3,7 +3,7 @@
 Contents:
 
 - [What to Document](#what-to-document), [Code Comments](#code-comments) (TODO format), [Filename Case Conventions](#filename-case-conventions)
-- [Product and Technical Specs](#product-and-technical-specs): the `specs/` layout; [Runbooks](#runbooks)
+- [Product and Technical Specs](#product-and-technical-specs): the `specs/` layout; [Runbooks](#runbooks); [Shell Snippets](#shell-snippets): fish
 - [Implementation Milestones](#implementation-milestones): `m{N}` / `s{N}` naming, strikethrough when done, milestone handoffs
 - [Diagrams](#diagrams): Mermaid; durable ones in docs and specs, a PR's in its description
 - [Architecture Decision Records](#architecture-decision-records)
@@ -76,6 +76,29 @@ Do not scatter spec-level docs across the repo root or language-specific folders
 ## Runbooks
 
 Operational procedures (environment setup, deploys, verification checks, incident and recovery steps) live in `{project-root}/runbooks/{topic}.md` (e.g. `runbooks/setup.md`, `runbooks/public-cache-check.md`). Not `ops/`: "ops" names the platform operations plane, meaning the ops console, ops API and `OPS` role that staff use to run the product for customers. A runbook says what to do. The reasoning behind it belongs in a spec or ADR, linked from the runbook.
+
+## Shell Snippets
+
+My interactive shell is fish, so a command written for me to paste (chat, handoffs, plans, a PR's test steps, runbooks in my own repos) is fish, fenced `fish`. bash syntax mostly runs until it sets a variable, and that's where it fails quietly or loudly. Translate these:
+
+| bash | fish |
+| --- | --- |
+| `export NAME=value` | `set -gx NAME value` |
+| `NAME=value` (local) | `set NAME value` |
+| `NAME=value cmd` | same (fish 3.1+) |
+| `unset NAME` | `set -e NAME` |
+| `export PATH="$HOME/bin:$PATH"` | `fish_add_path $HOME/bin` |
+| `` `cmd` `` or `$(cmd)` | `(cmd)` |
+| `$?` | `$status` |
+| `source .venv/bin/activate` | `source .venv/bin/activate.fish` |
+| `eval "$(tool init bash)"` | `tool init fish \| source` |
+| `if [ -f x ]; then ...; fi` | `if test -f x; ...; end` |
+| `for f in *.md; do ...; done` | `for f in *.md; ...; end` |
+| `cmd <<EOF ... EOF` | `printf '%s\n' ... \| cmd` |
+
+Keep the `set` lines and the commands that use them in one fenced block, so copying a single block can't drop a variable. A value only one command needs goes inline as `NAME=value cmd` rather than `set -gx`, so it doesn't linger in my session.
+
+This covers what I run by hand. Scripts with a shebang, Makefiles, CI steps, and git hooks stay POSIX `sh` or bash, and an agent's own tool calls use whatever shell the harness gives it. In a repo whose README or runbooks are written for a team in another shell, follow the repo.
 
 ## Implementation Milestones
 
