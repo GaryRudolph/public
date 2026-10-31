@@ -2,7 +2,7 @@
 
 How to meet the generic rules in [security.md](security.md) and [architecture.md](architecture.md) on Google Cloud and Firebase. Quotas, propagation times and launch stages change, so this file links Google's docs for the numbers instead of restating them.
 
-Contents: [Ops Plane on IAP](#ops-plane-on-iap) · [Access Groups in Terraform](#access-groups-in-terraform) · [Revocation](#revocation) · [Break-Glass](#break-glass) · [Identity Platform](#identity-platform) · [Firebase Emulator Guard](#firebase-emulator-guard) · [Encryption and Erasure](#encryption-and-erasure) · [Resource History Stores](#resource-history-stores) · [Activity Log](#activity-log)
+Contents: [Ops Plane on IAP](#ops-plane-on-iap) · [Access Groups in Terraform](#access-groups-in-terraform) · [Revocation](#revocation) · [Break-Glass](#break-glass) · [Identity Platform](#identity-platform) · [Firebase Emulator Guard](#firebase-emulator-guard) · [CI Identity](#ci-identity) · [Encryption and Erasure](#encryption-and-erasure) · [Resource History Stores](#resource-history-stores) · [Activity Log](#activity-log)
 
 ## Ops Plane on IAP
 
@@ -49,6 +49,13 @@ Tenant users sign in through Identity Platform (Firebase Auth). Ops staff sign i
 - **Guard in the verify wrapper**: all token verification goes through one function, and when the variable is set, that function rejects every token unless the project id starts with `demo-` and none of `K_SERVICE`, `CLOUD_RUN_JOB` or `CLOUD_RUN_WORKER_POOL` is set ([Cloud Run environment variables][run-env]). Run the same check at startup to fail fast
 - **Use `demo-` projects** for every emulator run, as Firebase recommends. Seed scripts refuse any other project and any emulator host that isn't local
 
+## CI Identity
+
+What makes the committed CI values in [architecture.md](architecture.md#ci-configuration) safe to publish: the controls behind them, not their obscurity.
+
+- **Pin workload identity federation to ids, not names**: the provider's attribute condition and the service account's binding check `assertion.repository_owner_id` and `assertion.repository_id`, which GitHub never reuses. A deleted repo's or org's name can be registered again ([auth security considerations][wif-gh]). Then the provider path, project id and service account email are identifiers, and Google's own examples put them in the workflow
+- **Restrict the Firebase web API key**: it's fine in a checked-in file only while it's limited to the Firebase APIs the app calls, never the Generative Language API, with Security Rules and App Check doing the access control ([Firebase API keys][fb-keys]). Expect a public-key warning from Google or a secret-scanning alert; check the restrictions and close it with that reason
+
 ## Encryption and Erasure
 
 The generic rules are in [security.md](security.md#encryption-and-erasure).
@@ -79,6 +86,7 @@ The generic rules are in [architecture.md](architecture.md#activity-log).
 [fb-claims]: https://firebase.google.com/docs/auth/admin/custom-claims
 [fb-cookies]: https://firebase.google.com/docs/auth/admin/manage-cookies
 [fb-emulator]: https://firebase.google.com/docs/emulator-suite/connect_auth
+[fb-keys]: https://firebase.google.com/docs/projects/api-keys
 [fs-audit]: https://docs.cloud.google.com/firestore/docs/audit-logging
 [fs-backups]: https://docs.cloud.google.com/firestore/docs/backups
 [fs-bq]: https://extensions.dev/extensions/firebase/firestore-bigquery-export
@@ -106,4 +114,5 @@ The generic rules are in [architecture.md](architecture.md#activity-log).
 [tf-membership]: https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/cloud_identity_group_membership
 [tf-run]: https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/cloud_run_v2_service
 [tink]: https://developers.google.com/tink
+[wif-gh]: https://github.com/google-github-actions/auth/blob/main/docs/SECURITY_CONSIDERATIONS.md
 [ws-admins]: https://knowledge.workspace.google.com/admin/users/security-best-practices-for-administrator-accounts

@@ -2,7 +2,7 @@
 
 Contents:
 
-- [Core Principles](#core-principles), [Starting New Projects](#starting-new-projects), [Toolchain Floor and Pin](#toolchain-floor-and-pin)
+- [Core Principles](#core-principles), [Starting New Projects](#starting-new-projects), [Toolchain Floor and Pin](#toolchain-floor-and-pin), [CI Configuration](#ci-configuration)
 - [Layered Architecture](#layered-architecture), [Dependency Management](#dependency-management), [Error Handling Layers](#error-handling-layers)
 - [API Design](#api-design): the standards table, then house conventions (lowerCamel JSON, strict decoding, custom methods, `/health`, success envelope)
 - [Error Responses (RFC 9457)](#error-responses-rfc-9457), [Hidden Resources](#hidden-resources), [Custom Headers](#custom-headers), [Timestamps](#timestamps)
@@ -51,6 +51,19 @@ Go, Rust, Python and Android all split it this way; follow the ecosystem rather 
 - **Raising the floor is a breaking change; bumping the pin isn't** — raise the floor on purpose, usually at the floor version's end of life, in a minor or major release ([versioning.md](versioning.md)), never as a side effect of a dependency bump. Don't let a dependency bot move it.
 - **Each version has one source** — CI and docs read the pin file or point to it rather than restating it. Triage can't read `engines` or `go.mod`, so the floor is a literal in `triage.yaml`; list `triage.yaml` among the files to change when the floor moves.
 - **No consumers, no separate floor** — a deployed service or internal tool that nothing else builds against can treat the pin as the floor (`version_from:` alone, error below it).
+
+## CI Configuration
+
+Non-secret values a workflow needs (cloud project ids, workload identity provider paths, deploy service account emails, API origins, public web config such as a Firebase web API key) are committed to the repo, not kept in GitHub Actions variables. Secrets stay secrets ([security.md](security.md#secrets-management)).
+
+- **Why** — an unset or empty `vars.X` expands to an empty string without complaint, and a change to one leaves no review and no history. A committed value can't be silently unset, changes through a PR, and is the value a local `make` run uses too. A value that ships in a browser bundle, or that an identity provider's conditions already scope, gains nothing from being hidden in repo settings
+- **One `KEY=value` file per environment** — `deploy/dev.env` and `deploy/prod.env`, or a single `.github/ci.env` when nothing varies by environment (per deployable, in a monorepo whose deployables target different projects). Files are per named environment, not per deploy: a preview deploy derives its values from its environment's file and its own id. The Makefile `include`s it and exports build-time values only to the targets that need them, so a developer's local `.env` overrides still win. CI loads it with `make -s deploy-env ENVIRONMENT=<env> >> "$GITHUB_ENV"` and reads `${{ env.X }}` or the shell variable. Set `ENVIRONMENT` and the job's `environment:` from the same value, so dev secrets never meet prod config
+- **Keep the file to what both readers parse the same way** — GitHub's `$GITHUB_ENV` parser and make's `include`. `make lint` checks it, so pre-commit and CI do too: LF line endings and a final newline; no quotes, whitespace, `$`, `#`, `\` or backticks in values; no empty values; no duplicate or reserved keys (`GITHUB_*`, `RUNNER_*` and `NODE_OPTIONS`, which [`$GITHUB_ENV` refuses][gh-env], and names the Makefile uses); the same keys in every environment unless a written exception says otherwise. Add the cross-checks that are cheap: the deploy service account lives in the project, origins end in the environment's domain ([Environment Domains](#environment-domains)). A value that can't fit goes in its own committed file, with its path in the env file
+- **Required config still fails loudly where it's read** — the file keeps a value from going missing in settings, but a typo in `${{ env.X }}` is as empty as an unset variable. Shell steps use `${X:?}`, builds and apps reject missing required config at startup as they do secrets, and anything gated on config fails closed without it ([dev-only auth shortcuts](security.md#authorization))
+- **The repo holds a copy, not the source** — Terraform outputs, or whatever created the resource, stay the source of truth. Each repo keeps its own copy and syncs it by hand in a PR; no shared action or Terraform-managed variables for values that change about once per project. A stale value fails at deploy; a valid but wrong one is what the cross-checks are for
+- **A public repo publishes it** — fine for anything already public, and for infrastructure identifiers only when the control behind them doesn't depend on their staying hidden. GCP specifics: [gcp.md](gcp.md#ci-identity)
+
+A GitHub variable is still the right call for a value that must change without a commit (a kill switch, or one set out of band like the Play `versionCode` in [versioning.md](versioning.md#android-play-caveat-for-hotfixes)), one a documented decision keeps out of git, or an org-wide value that sits beside the org secret it pairs with, like the secrets App's id ([secrets/repository.md](secrets/repository.md#the-consumer-step)). An empty value as an off switch isn't one of them: that's the failure this rule exists to stop, so commit an explicit `true` or `false` key.
 
 ## Layered Architecture
 
@@ -400,3 +413,4 @@ Identity, bootstrap, revocation and break-glass: [security.md](security.md#autho
 [GDPR]: https://eur-lex.europa.eu/eli/reg/2016/679/oj
 [draft-ietf-httpapi-idempotency-key-header]: https://datatracker.ietf.org/doc/draft-ietf-httpapi-idempotency-key-header/
 [draft-ietf-httpapi-ratelimit-headers]: https://datatracker.ietf.org/doc/draft-ietf-httpapi-ratelimit-headers/
+[gh-env]: https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-commands#setting-an-environment-variable
