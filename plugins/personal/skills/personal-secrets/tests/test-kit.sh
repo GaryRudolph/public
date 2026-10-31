@@ -85,7 +85,7 @@ commercial.env:  @commercial
 ios/AuthKey.p8:  app__actions
 EOF
 mkdir -p src/ios
-printf 'SENTRY_AUTH_TOKEN=sntrys_oss_test\nSHARED=oss\n' > src/oss.env
+printf 'AUTH_TOKEN=token_oss_test\nSHARED=oss\n' > src/oss.env
 printf 'STRIPE_KEY=sk_live_x\nSHARED=commercial\n' > src/commercial.env
 head -c 512 /dev/urandom > src/ios/AuthKey.p8
 cp src/ios/AuthKey.p8 "$work/p8.orig"
@@ -101,8 +101,8 @@ agents=$(consumer_key app__agents)
 site=$(consumer_key site__actions)
 
 printf '\nconsumers\n'
-expect_eq   "KEY lookup, raw value"               "$(as_consumer "$site" make -s dist-decrypt-env KEY=SENTRY_AUTH_TOKEN)" "sntrys_oss_test"
-expect_eq   "KEY + FORMAT=dotenv"                 "$(as_consumer "$site" make -s dist-decrypt-env KEY=SENTRY_AUTH_TOKEN FORMAT=dotenv)" "SENTRY_AUTH_TOKEN=sntrys_oss_test"
+expect_eq   "KEY lookup, raw value"               "$(as_consumer "$site" make -s dist-decrypt-env KEY=AUTH_TOKEN)" "token_oss_test"
+expect_eq   "KEY + FORMAT=dotenv"                 "$(as_consumer "$site" make -s dist-decrypt-env KEY=AUTH_TOKEN FORMAT=dotenv)" "AUTH_TOKEN=token_oss_test"
 expect_fail "site can't read commercial.env"      as_consumer "$site" make -s dist-decrypt-env FILE=commercial.env
 expect_fail "KEY in two files needs FILE="         as_consumer "$app" make -s dist-decrypt-env KEY=SHARED
 expect_eq   "FILE= disambiguates"                  "$(as_consumer "$app" make -s dist-decrypt-env FILE=commercial.env KEY=SHARED)" "commercial"
@@ -112,7 +112,7 @@ expect_ok   "app decrypts the signing key"         as_consumer "$app" make -s di
 expect_ok   "binary round-trips"                   cmp dist/ios/AuthKey.p8 "$work/p8.orig"
 expect_eq   "decrypted file is owner-only"         "$(stat -c '%a' dist/ios/AuthKey.p8 2>/dev/null || stat -f '%Lp' dist/ios/AuthKey.p8)" "600"
 expect_ok   "all-env export skips what it can't open" as_consumer "$site" make -s dist-decrypt-env
-expect_grep "  ...and emits only oss.env"          "SENTRY_AUTH_TOKEN="
+expect_grep "  ...and emits only oss.env"          "AUTH_TOKEN="
 make -s clean >/dev/null
 
 printf '\ncommits\n'
@@ -197,7 +197,7 @@ expect_ok   "secrets-facts runs in a secrets repo" bash "$here/../scripts/secret
 expect_grep "  ...lists registry identities"        "app__actions"
 expect_grep "  ...reports plaintext on disk"        "plaintext on disk: src/oss.env"
 if grep -q 'AGE-SECRET-KEY' "$work/out"; then fail "secrets-facts printed a private key"; else pass "  ...prints no private key"; fi
-if grep -q 'sntrys_oss_test' "$work/out"; then fail "secrets-facts printed a secret value"; else pass "  ...prints no secret value"; fi
+if grep -q 'token_oss_test' "$work/out"; then fail "secrets-facts printed a secret value"; else pass "  ...prints no secret value"; fi
 make -s clean >/dev/null
 
 printf '\n'
