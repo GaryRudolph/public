@@ -1,4 +1,4 @@
-Status: m2.s3 in progress (m1, m2.s1, m2.s2 done)
+Status: m3.s1 in progress (m1, m2 done)
 
 # Codebase reviews from main: full, incremental, estate, logged
 
@@ -77,7 +77,7 @@ Read-only, `python3 -I`, no verdicts. Prints layout (mirroring `personal-makefil
 #### s2 - [deep] `SKILL.md` and `reference.md` (done)
 Modes `status`, `incremental`, `full`, `interim`; `--estate` resolves members (workspace, previous record, or asks for a list or wildcard) and a home repo, and confirms both before reviewing. Procedure: facts, choose kind per the standard, resolve and size-check the range, dispatch dimension subagents (under 10) with accepted findings as context, adversarially verify each finding, write register, derive summary, fix review of prior findings, update log, show it (Artifact page, terminal summary), then on a task branch the docs commit and the PR plus issue wait for Gary's ask. `reference.md`: templates, log grammar, dimension prompts, harness table.
 
-#### s3 - [exec] Tests and wiring
+#### s3 - [exec] Tests and wiring (done)
 `tests/test-codebase-review.sh` with fixture repos (log with prior reviews, unreachable anchor, accepted finding, a `repos.mk` estate, a plain folder matched by glob, members taken from a previous record). `test-codebase-review` in `agents/Makefile` `test:` and `.PHONY`. Update `plugins/README.md` tree and skills table.
 
 ### m3 - Plan integration
