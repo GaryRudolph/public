@@ -1,4 +1,4 @@
-Status: m1.s2 in progress (m1.s1 done)
+Status: m2.s1 in progress (m1 done)
 
 # Codebase reviews from main: full, incremental, estate, logged
 
@@ -66,7 +66,7 @@ Branch: `claude/happy-wozniak-jyjnwh` (assigned).
 #### s1 - [deep] `specs/codebase-review.md` (done)
 Problem, the layers, research with sources, decisions above. Row in `specs/README.md`.
 
-#### s2 - [deep] `standards/codebase-review.md`
+#### s2 - [deep] `standards/codebase-review.md` (done)
 In `plugins/personal/skills/personal-standards/standards/`: kinds and what each covers, triggers (milestone landed, merged `[study]`-tier PR or `[xdeep]` step, churn threshold, optional monthly), anchors on main, interim reviews, record layout and log grammar, finding fields and statuses, accepted findings, outputs (PR, issue, remediation), summary layout pointing at `review.md`, estate scope, reviewer model (strongest, fresh context), closing the loop, ownership (agent review is a sensor; decisions are Gary's). Index it in `personal-standards/SKILL.md` and `core.md` Standards Reference.
 
 ### m2 - Skill `personal-codebase-review`
