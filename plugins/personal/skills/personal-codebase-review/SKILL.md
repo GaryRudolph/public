@@ -50,13 +50,19 @@ With no mode, run `status` and propose one.
 python3 -I "${CLAUDE_PLUGIN_ROOT:-<plugin root>}/skills/personal-codebase-review/scripts/review_log_facts.py" [--members <list|glob>] [<repo>]
 ```
 
-It fetches the default branch and prints, per repo: the default branch and
+It fetches the default branch (unshallowing a shallow clone, so anchors and
+hotspots are real) and reads the log and registers from it, not from the
+checked-out branch. It prints, per repo: the default branch and
 its head SHA, the log's rows, the last anchor and whether it's still on the
 default branch, days and changed lines since it by bucket, hotspots, the
-open and accepted findings in earlier registers, the last estate's members,
-and the next `r{N}`. From a workspace it reads `repos.mk`; with `--members`
+open, accepted and oddly-statused findings in earlier registers, unmerged
+`review/r*` branches, the last estate's members, and the next `r{N}` (past
+any unmerged review). A `found=outside local history` anchor means the fetch
+couldn't deepen: fix that, don't fall back to a full review. From a workspace it reads `repos.mk`; with `--members`
 it matches names or a glob against the folders beside the repo and, with
-`gh`, the owner's GitHub repos. It decides nothing.
+`gh`, the owner's GitHub repos; a `github: error` line means `gh` couldn't
+list them (a runner bound to its own repos), so use the harness's repo
+listing (`list_repos`) or ask. It decides nothing.
 
 ### 2. Choose
 
@@ -109,7 +115,10 @@ Then one verifier, also fresh, tries to disprove each finding (reference.md
 
 For every open finding in the facts, read its issue and any PR citing its
 ID, and the code at its location at `<to>`. Set the new status per the
-standard, and update the Outcome cell of each earlier review touched.
+standard and write it back in this review's PR: the `Status:` and
+`Resolution:` lines in the earlier register, and the Outcome cell of each
+earlier review touched. Report `other_status_findings` too, and normalize
+their status while you're there.
 
 ### 6. Write the register, then the summary
 
@@ -134,9 +143,11 @@ print the terminal summary (reference.md). Commit the record on the task
 branch (on a runner, push). Then ask, in one choice dialog, whether to open
 the review PR and the tracking issue. The PR body is the summary, with its
 `Review tier: [skim]` line; the issue follows reference.md "Issue" and its
-number goes back into the log row in a follow-up commit. In an estate, the
-home PR and issue first, then one PR per member, each with its log row and
-the member's own issue for findings that land there.
+number goes back into the log row in a follow-up commit. The PR body guard
+needs both the `## Review guide` heading and the `Review tier:` line; the
+summary template has them. In an estate, the home PR and issue first, then
+one PR per member, each with its log row, a body from reference.md "Member
+PR", and the member's own issue for findings that land there.
 
 Remediation isn't part of this run. Offer to start it, as separate PRs that
 cite finding IDs.

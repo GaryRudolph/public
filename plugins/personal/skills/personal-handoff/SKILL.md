@@ -94,7 +94,7 @@ durable, promote it to a spec in `specs/` or to a milestone handoff.
 - **Suggested plan**: a short ordered task list to start from
 - **Gotchas**: traps, known bugs, unwired dependencies, platform quirks
 - **Files to reference**: specific paths the next agent should read first
-- **Review**: the codebase review of m{N} on `main` (its `specs/reviews/` record and issue), or that it's pending as `m{N+1}.s1`
+- **Review**: `pending, after m{N}'s PR merges`, or the codebase review's `specs/reviews/` record and issue once it ran; the session starting m{N+1} runs a pending one before planning (plan-execution.md "Review gate")
 
 The canonical rules are in
 [`../personal-standards/standards/documentation.md`](../personal-standards/standards/documentation.md)

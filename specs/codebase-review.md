@@ -77,10 +77,14 @@ the next incremental knows where to start.
   `AGENTS.md`, `REVIEW.md` or a linter, and the summary says so.
 - **One model, the strongest, in a fresh context.** No second model family;
   see the evidence below.
-- **Milestones carry review gates.** When `m{N}` lands on `main` and the
-  plan goes on, `m{N+1}` opens with an incremental review whose findings may
-  change `m{N+1}`. That's the earliest point the review sees integrated
-  code, and the latest point its findings are cheap to act on.
+- **Milestones carry review gates, between plans rather than inside them.**
+  When `m{N}` lands on `main`, the session that starts `m{N+1}` runs an
+  incremental review before planning it, and folds the findings in. That's
+  the earliest point the review sees integrated code, and the latest point
+  its findings are cheap to act on. It isn't a plan step: a plan worker
+  can't spawn reviewers, push its own branch or edit the plan, and a plan's
+  files leave the branch before its PR merges. The milestone handoff marks
+  it pending, and a numbered task card can queue it ahead of `m{N+1}`.
 - **A monthly cadence is optional.** `status` mode says whether a review is
   due and is a no-op otherwise, so a scheduled task can run it without
   producing noise. Not built in; offered once the first review has shown

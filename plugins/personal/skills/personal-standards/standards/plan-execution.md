@@ -182,18 +182,17 @@ Its [Cost table](#cost-table) row is a medium `[deep]` step plus its review. It 
 
 ### Review gate
 
-The per-wave reviews and the consolidation step read the plan's own diff on its task branch. Once a milestone lands on the default branch, `main` gets its own review ([codebase-review.md](codebase-review.md)): an incremental review from the repo's last logged anchor, so it also sees what other plans merged meanwhile. The driver adds it at grouping, beside the consolidation step, when any of these holds:
+The per-wave reviews and the consolidation step read the plan's own diff on its task branch. Once a milestone lands on the default branch, `main` gets its own review ([codebase-review.md](codebase-review.md)): incremental from the repo's last logged anchor (full when the repo has no `specs/reviews/` log), so it also sees what other work merged meanwhile.
 
-- the plan has more than one milestone and they land on the default branch as separate PRs: every milestone after the first opens with the review of the one before;
-- a milestone contains an `[xdeep]` step, or its PR is expected to be `[study]` tier ([review.md](review.md) "Review tiers"): the review comes right after that PR merges, even mid-plan.
+It's a gate between milestones, not a plan step. The review dispatches its own fresh reviewers, records itself on its own branch and PR, and can change the next milestone's plan; a plan worker may do none of those, and a plan's files leave the branch before its PR merges ([git.md](git.md) "Merging"). So it sits where milestones already hand over:
 
-The step is `m{N+1}.s1`, numbered ahead of the milestone's own steps, tagged `[deep]`, and in its own wave with a STOP before it, since it can't start until Gary merges `m{N}`'s PR. Its text, verbatim apart from the placeholders:
+- **Milestones that land as separate PRs run as separate plans.** The durable milestone list is the spec (`### m{N}` headings); each milestone's plan lives on its own task branch and leaves with its PR; the [milestone handoff](documentation.md#handoffs-between-milestones) carries what's next.
+- **The session that finishes `m{N}`** writes the `m{N+1}` handoff with `Review: pending, after m{N}'s PR merges`. Where the harness can queue task cards, it queues `1: Review m{N} on main` and `2 after 1: Start m{N+1}` (core.md "Number ordered task cards"); otherwise the handoff tells the next session to run the review first.
+- **The session that starts `m{N+1}`** checks the handoff. If the review is pending and `m{N}` has merged, it runs `personal-codebase-review` in its own context before planning, and folds the summary's decisions and high findings into `m{N+1}`'s plan: a high finding in code the previous milestone wrote is a step, not a follow-up. If `m{N}` hasn't merged, it stops and says so.
+- **A plan that ships as one PR**, however many milestones it has, gets the review after that PR merges: its [Completion summary](#final-completion-all-groups-done) lists it under Follow-ups, and the session queues the review card if it can. Inside one PR `main` doesn't change, so there's nothing to review between its milestones.
+- **A complex change** (a `[study]`-tier PR, a plan with an `[xdeep]` step) gets the same follow-up and card when it merges, even mid-project.
 
-    #### s1 - [deep] Review m{N} on main
-
-    After m{N}'s PR merges, fetch the default branch and run `personal-codebase-review` in incremental mode from the repo's last logged anchor. Record the review on its own task branch and PR, as the skill says; don't fold it into this plan's branch. Read the summary's decisions and fixes against the rest of this milestone, and amend m{N+1}'s steps before running them: a high finding in code this plan wrote is a step in m{N+1}, not a follow-up. Added because: <the criterion that fired>.
-
-A plan that ships as one PR gets no gate step, since the plan file is gone before that PR merges: its [Completion summary](#final-completion-all-groups-done) lists "incremental codebase review after merge" under Follow-ups. The gate is gated like any wave and never auto-approved: under orchestrate's unattended mode it stops, because the merge it waits on is Gary's. A plan in a repo without `specs/reviews/` runs a full review at the first gate instead.
+The drivers don't dispatch the review: `personal-plan-orchestrate` never sends it to a worker, and neither driver writes it as a step. Both name the gate at grouping when the plan is one milestone of several.
 
 ### Driver fit
 
@@ -960,7 +959,7 @@ Final completion runs once the last group finishes and its review passes: in the
        **Deviations from plan**: <list, or "none">
        **Follow-ups**: <list, or "none">
 
-   A plan that shipped as one PR, or whose last milestone had no [review gate](#review-gate) after it, lists "incremental codebase review after merge" ([codebase-review.md](codebase-review.md)) among the Follow-ups.
+   Follow-ups always include "codebase review of `main` after merge" ([review gate](#review-gate)), unless the next milestone's handoff already carries it.
 
    This summary dovetails with the handoff convention — promote it to a `.scratch/handoff-*.md` or `handoffs/` file if the work needs to be picked up by another engineer or session.
 

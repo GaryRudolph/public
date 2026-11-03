@@ -113,10 +113,15 @@ def default_branch(repo, fetch):
         return "", "", "none found"
     fetched = "not fetched"
     if fetch and git(repo, "remote"):
-        r = subprocess.run(["git", "fetch", "-q", "origin", name], cwd=repo, capture_output=True, text=True)
-        fetched = "fetched" if r.returncode == 0 else "fetch failed"
+        deepen = ["--unshallow"] if is_shallow(repo) else []
+        r = subprocess.run(["git", "fetch", "-q", *deepen, "origin", name], cwd=repo, capture_output=True, text=True)
+        fetched = ("fetched, unshallowed" if deepen else "fetched") if r.returncode == 0 else "fetch failed"
     ref = f"origin/{name}" if git(repo, "rev-parse", "--verify", "--quiet", f"origin/{name}") else name
     return name, ref, fetched
+
+
+def is_shallow(repo):
+    return git(repo, "rev-parse", "--is-shallow-repository") == "true"
 
 
 def origin_owner(repo):
@@ -125,56 +130,62 @@ def origin_owner(repo):
     return m.group(1) if m else ""
 
 
-def log_rows(repo):
-    path = os.path.join(repo, LOG)
-    if not os.path.isfile(path):
+def show(repo, ref, path):
+    """A file's text at ref, or None when it isn't there."""
+    r = subprocess.run(["git", "show", f"{ref}:{path}"], cwd=repo, capture_output=True, text=True)
+    return r.stdout if r.returncode == 0 else None
+
+
+def log_rows(repo, ref):
+    text = show(repo, ref, LOG)
+    if text is None:
         return None
     rows = []
-    with open(path) as f:
-        for line in f:
-            if not ROW.match(line):
-                continue
-            cells = [c.strip() for c in line.strip().strip("|").split("|")]
-            cells += [""] * (8 - len(cells))
-            rows.append(dict(zip(("review", "date", "kind", "range", "findings", "issue", "outcome", "record"),
-                                 cells)))
+    for line in text.splitlines():
+        if not ROW.match(line):
+            continue
+        cells = [c.strip() for c in line.strip().strip("|").split("|")]
+        cells += [""] * (8 - len(cells))
+        rows.append(dict(zip(("review", "date", "kind", "range", "findings", "issue", "outcome", "record"), cells)))
     return rows
 
 
-def registers(repo):
-    folder = os.path.join(repo, "specs", "reviews")
-    if not os.path.isdir(folder):
-        return []
-    return sorted(os.path.join(folder, n) for n in os.listdir(folder) if n.endswith("-findings.md"))
+def registers(repo, ref):
+    names = git(repo, "ls-tree", "--name-only", f"{ref}:specs/reviews")
+    return sorted(f"specs/reviews/{n}" for n in names.splitlines() if n.endswith("-findings.md"))
 
 
-def findings(path):
+def findings(repo, ref, path):
     found, current = [], None
-    with open(path) as f:
-        for line in f:
-            m = FINDING.match(line.rstrip("\n"))
-            if m:
-                current = {"id": m.group(1), "title": m.group(2).strip(), "file": os.path.basename(path)}
-                found.append(current)
-                continue
-            if line.startswith("## ") or line.startswith("### "):
-                current = None
-                continue
-            m = FIELD.match(line.strip())
-            if current is not None and m:
-                current[m.group(1).lower()] = m.group(2).strip()
+    for line in (show(repo, ref, path) or "").splitlines():
+        m = FINDING.match(line)
+        if m:
+            current = {"id": m.group(1), "title": m.group(2).strip(), "file": os.path.basename(path)}
+            found.append(current)
+            continue
+        if line.startswith("## ") or line.startswith("### "):
+            current = None
+            continue
+        m = FIELD.match(line.strip())
+        if current is not None and m:
+            current[m.group(1).lower()] = m.group(2).strip()
     return found
 
 
-def register_header(path, key):
-    with open(path) as f:
-        for line in f:
-            m = re.match(r"^-?\s*" + key + r":\s*(.*)$", line.strip())
-            if m:
-                return m.group(1).strip()
-            if FINDING.match(line):
-                break
+def register_header(repo, ref, path, key):
+    for line in (show(repo, ref, path) or "").splitlines():
+        m = re.match(r"^-?\s*" + key + r":\s*(.*)$", line.strip())
+        if m:
+            return m.group(1).strip()
+        if FINDING.match(line):
+            break
     return ""
+
+
+def status_word(value):
+    """The first word of a Status value, without backticks or punctuation."""
+    m = re.match(r"[`*_\s]*([A-Za-z-]+)", value or "")
+    return m.group(1).lower() if m else ""
 
 
 def resolve(repo, short):
@@ -227,18 +238,26 @@ def report_repo(repo, args):
     print(f"  default_branch: {name} ({ref}, {fetched})")
     print(f"  head: {head}")
     print(f"  checked_out: {git(repo, 'branch', '--show-current') or '(detached)'}")
+    print(f"  shallow: {'yes' if is_shallow(repo) else 'no'}")
+    print(f"  records_read_from: {ref}")
 
-    rows = log_rows(repo)
+    rows = log_rows(repo, ref)
     if rows is None:
-        print(f"  log: none ({LOG} missing)")
-        print("  next_review: r1")
+        print(f"  log: none ({LOG} missing on {ref})")
     else:
         print(f"  log: {LOG}, {len(rows)} rows")
         for r in rows:
             print(f"    {r['review']} {r['date']} {r['kind']} {r['range']} | findings: {r['findings']} | "
                   f"issue: {r['issue']} | outcome: {r['outcome']}")
         last = max((int(r["review"][1:]) for r in rows if r["review"][1:].isdigit()), default=0)
-        print(f"  next_review: r{last + 1}")
+        print(f"  logged_last: r{last}")
+
+    pending = sorted(set(re.findall(r"refs/heads/(review/r(\d+)-\S+)", git(repo, "ls-remote", "--heads", "origin",
+                                                                       "review/r*")) +
+                         re.findall(r"^\*?\s*(review/r(\d+)-\S+)$", git(repo, "branch", "--list", "review/r*"), re.M)))
+    print(f"  unmerged_review_branches: {', '.join(b for b, _ in pending) or 'none'}")
+    taken = [int(r["review"][1:]) for r in (rows or []) if r["review"][1:].isdigit()] + [int(n) for _, n in pending]
+    print(f"  next_review: r{max(taken, default=0) + 1}")
 
     anchors = [r for r in (rows or []) if r["kind"] in ("incremental", "full")]
     for label, pool in (("last_anchor", anchors), ("last_full", [r for r in anchors if r["kind"] == "full"]),
@@ -254,8 +273,9 @@ def report_repo(repo, args):
         if to_sha:
             reach = "yes" if subprocess.run(["git", "merge-base", "--is-ancestor", to_sha, head], cwd=repo,
                                             capture_output=True).returncode == 0 else "no"
+        found = "yes" if to_sha else ("outside local history (shallow)" if is_shallow(repo) else "no")
         print(f"  {label}: {r['review']} {r['kind']} {r['date']} to={to_sha or (m.group(2) if m else '?')} "
-              f"days_since={days if days is not None else '?'} found={'yes' if to_sha else 'no'} "
+              f"days_since={days if days is not None else '?'} found={found} "
               f"reachable_from_default={reach}")
         if label == "last_anchor" and to_sha and reach == "yes":
             commits = git(repo, "rev-list", "--count", f"{to_sha}..{head}")
@@ -271,41 +291,63 @@ def report_repo(repo, args):
     for score, commits, lines, path in hotspots(repo, ref, args.hotspot_days):
         print(f"    {score} {commits} {lines} {path}")
 
-    regs = registers(repo)
-    open_, accepted = [], []
+    regs = registers(repo, ref)
+    open_, accepted, other = [], [], []
     for path in regs:
-        for f in findings(path):
-            status = f.get("status", "").split()[0].lower() if f.get("status") else ""
+        for f in findings(repo, ref, path):
+            status = status_word(f.get("status"))
             if status in ("open", "deferred", ""):
                 open_.append(f)
             elif status == "accepted":
                 accepted.append(f)
+            elif status not in ("fixed", "decided"):
+                other.append(f)
     print(f"  registers: {len(regs)}")
-    print(f"  open_findings ({len(open_)}): id | status | severity | kind | location | title")
+    print(f"  open_findings ({len(open_)}): id | status | severity | kind | location | resolution | title")
     for f in open_:
         print(f"    {f['id']} | {f.get('status', '?')} | {f.get('severity', '?')} | {f.get('kind', '?')} | "
-              f"{f.get('location', '?')} | {f['title']}")
+              f"{f.get('location', '?')} | {f.get('resolution', '-')} | {f['title']}")
     print(f"  accepted_findings ({len(accepted)}): id | location | title | reason")
     for f in accepted:
         print(f"    {f['id']} | {f.get('location', '?')} | {f['title']} | {f.get('reason', '(no reason)')}")
+    print(f"  other_status_findings ({len(other)}): id | status | title")
+    for f in other:
+        print(f"    {f['id']} | {f.get('status')} | {f['title']}")
 
     estate_regs = [p for p in regs if p.endswith("-estate-findings.md")]
     if estate_regs:
-        print(f"  last_estate_members: {register_header(estate_regs[-1], 'Members') or '(none recorded)'}"
+        print(f"  last_estate_members: {register_header(repo, ref, estate_regs[-1], 'Members') or '(none recorded)'}"
               f" ({os.path.basename(estate_regs[-1])})")
 
 
+def github_repos(owner, cwd):
+    """The owner's repo names over REST (an org's, then the signed-in user's own), or an error."""
+    if not owner:
+        return None, "owner unknown (pass --owner)"
+    if not shutil.which("gh"):
+        return None, "gh missing"
+    errors = []
+    for path in (f"orgs/{owner}/repos?type=all&per_page=100", "user/repos?affiliation=owner&per_page=100",
+                 f"users/{owner}/repos?per_page=100"):
+        r = subprocess.run(["gh", "api", "--paginate", path, "-q", ".[] | .owner.login + \"/\" + .name"], cwd=cwd,
+                           capture_output=True, text=True)
+        if r.returncode != 0:
+            errors.append(f"{path.split('?')[0]}: {(r.stderr.strip().splitlines() or ['failed'])[-1]}")
+            continue
+        names = [n.split("/", 1)[1] for n in r.stdout.splitlines() if n.lower().startswith(owner.lower() + "/")]
+        if names:
+            return names, ""
+    return None, "error: " + "; ".join(errors) if errors else "none listed"
+
+
 def match_members(spec, folder, owner):
-    """Local folders beside the home repo, then the owner's GitHub repos, matching a list or a glob."""
+    """Local folders, then the owner's GitHub repos, matching a list or a glob."""
     patterns = [p.strip() for p in spec.split(",") if p.strip()]
     local = sorted(d for d in os.listdir(folder) if is_repo(os.path.join(folder, d))
                    and any(fnmatch.fnmatchcase(d, p) for p in patterns))
-    remote = []
-    if owner and shutil.which("gh"):
-        out = run(["gh", "api", "-X", "GET", f"users/{owner}/repos", "-f", "per_page=100", "--paginate",
-                   "-q", ".[].name"], folder)
-        remote = sorted(n for n in out.splitlines() if any(fnmatch.fnmatchcase(n, p) for p in patterns))
-    return local, remote
+    names, problem = github_repos(owner, folder)
+    remote = sorted(n for n in (names or []) if any(fnmatch.fnmatchcase(n, p) for p in patterns))
+    return local, remote, problem
 
 
 def main():
@@ -332,13 +374,13 @@ def main():
         repos.append(root)
 
     if args.members:
-        folder = root if layout in ("plain_folder", "not_a_repo") else os.path.dirname(root)
+        folder = root if layout in ("plain_folder", "not_a_repo", "workspace") else os.path.dirname(root)
         owner = args.owner or origin_owner(root)
-        local, remote = match_members(args.members, folder, owner)
+        local, remote, problem = match_members(args.members, folder, owner)
         print(f"\n== members from --members '{args.members}' (owner: {owner or 'unknown'})")
         print(f"  local ({folder}): {', '.join(local) or 'none'}")
-        print(f"  github: {', '.join(remote) or ('none' if shutil.which('gh') else 'gh missing')}")
-        print(f"  github_not_cloned: {', '.join(n for n in remote if n not in local) or 'none'}")
+        print(f"  github: {problem or ', '.join(remote) or 'none matched'}")
+        print(f"  github_not_cloned: {'unknown' if problem else ', '.join(n for n in remote if n not in local) or 'none'}")
         repos += [os.path.join(folder, d) for d in local if os.path.join(folder, d) != root]
     elif layout == "workspace":
         names = repos_mk_members(root)
@@ -348,6 +390,9 @@ def main():
             print(f"  {n}: {'cloned' if is_repo(path) else 'not cloned'}")
             if is_repo(path):
                 repos.append(path)
+    elif layout == "submodule_estate":
+        paths = re.findall(r"^\s*path\s*=\s*(.+)$", open(os.path.join(root, ".gitmodules")).read(), re.M)
+        print(f"\n== submodules (candidates, not members until confirmed): {', '.join(p.strip() for p in paths)}")
     elif layout == "plain_folder":
         names = sorted(d for d in os.listdir(root) if is_repo(os.path.join(root, d)))
         print(f"\n== repos in this folder (not members until confirmed): {', '.join(names)}")

@@ -64,13 +64,11 @@ records `runner=none` and proposes gated.
    question is answered. A plan with no `## Shape` section gets one first
    (run `personal-plan-tag-tiers` step 4).
 
-   **Review gates.** Apply the standard's §"Review gate" criteria the same
-   way, after the consolidation decision. A gate step is `m{N+1}.s1`,
-   `[deep]`, in its own wave, and needs `m{N}`'s PR merged, which only Gary
-   can do: the parent asks whether it has merged before dispatching that
-   wave, in gated and unattended mode alike, and holds on any answer but
-   yes. The kickoff summary names the gates added, or says the plan ships
-   as one PR and lists the post-merge review as a follow-up.
+   **Review gate.** The review of `main` is never dispatched to a worker
+   (the standard's §"Review gate"): it runs between milestones, in the
+   session that starts the next one. The kickoff summary says whether this
+   plan is one milestone of several, and final completion lists the
+   post-merge review under Follow-ups and queues its card where it can.
 
    **Fit check.** If the grouped plan is direct-sized (standard §"Driver
    fit"), ask whether to orchestrate it at all before going on, as a

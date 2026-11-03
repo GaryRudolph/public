@@ -116,6 +116,26 @@ Keep the visible part near 250 words, and drop empty sections. A full
 review replaces "Since last review" with "Architecture": the current shape
 drawn from the code, beside the previous full review's when there is one.
 
+## Member PR
+
+The body of an estate's PR in a member repo, which carries only its log row:
+
+```markdown
+Logs the r2 estate review from <owner>/<home> in this repo's review log.
+Range here: 4be1c09..9d02f6a. Record: <link to the home summary>.
+
+## Review guide
+
+Review tier: [skip], a log row only; the review is in the home repo.
+Review time: ~1 min
+
+1. [skip] `specs/reviews/README.md`: one `estate` row
+
+Findings that land here: #<member issue>, or none.
+
+Assisted-by: Claude Code
+```
+
 ## Issue
 
 Title: `r7 incremental review: 1 high, 4 medium, 2 decisions`. Body:

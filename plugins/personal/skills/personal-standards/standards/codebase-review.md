@@ -35,9 +35,9 @@ Contents:
 | Trigger | Kind |
 | --- | --- |
 | A repo adopts this standard (no log yet) | `full` |
-| `m{N}` lands on the default branch and the plan goes on | `incremental`, as `m{N+1}.s1` ([plan-execution.md](plan-execution.md) "Review gate") |
-| A `[study]`-tier PR or a plan's `[xdeep]` step merges | `incremental` |
-| A plan that shipped as one PR merges | `incremental`, named in the plan's Completion summary |
+| `m{N}` lands on the default branch and `m{N+1}` follows | `incremental`, run by the session that starts `m{N+1}`, before planning it ([plan-execution.md](plan-execution.md) "Review gate") |
+| A `[study]`-tier PR, or a plan with an `[xdeep]` step, merges | `incremental`, as a follow-up card |
+| A plan that shipped as one PR merges | `incremental`, from the plan's Completion summary |
 | More than about 8,000 changed lines since the anchor | `full`, or `incremental` split by path |
 | Before a major release, or after a large migration | `full` |
 | Repos that coordinate each reached a milestone, or the cross-repo shape changed | `estate` |
@@ -47,7 +47,7 @@ A review is **due** when the anchor is 30 or more days old and anything changed 
 
 ## Anchors
 
-An anchor is a full commit SHA on the default branch. A logged review covers `<from>..<to>`, both on the default branch, and the next incremental starts at the last logged `<to>` of an `incremental` or `full` row. Review `origin/<default>` at a fetched SHA, never a task branch: squash merges erase a branch's commits, so its SHAs can't anchor anything. If the last anchor isn't reachable from the default branch (a force-push, a rewritten history), say so in the summary and run a full review.
+An anchor is a full commit SHA on the default branch. A logged review covers `<from>..<to>`, both on the default branch, and the next incremental starts at the last logged `<to>` of an `incremental` or `full` row. Review `origin/<default>` at a fetched SHA, and read the log and registers from it too, never from a task branch: squash merges erase a branch's commits, so its SHAs can't anchor anything. If the last anchor isn't reachable from the default branch (a force-push, a rewritten history), say so in the summary and run a full review.
 
 ## The record
 
@@ -125,7 +125,7 @@ Drop a section with nothing to say.
 
 A review produces three things, in this order:
 
-1. **The review PR**, on a task branch off the default branch: the register, the summary, and the log row. Its description is the summary, with the `Review tier:` line the PR body guard needs (`[skim]`; nothing in it changes behavior). Opening it waits for Gary, as any PR does. Nothing else rides in it: no fixes.
+1. **The review PR**, on a task branch off the default branch: the register, the summary, the log row, and the fix review's status updates to earlier registers. Its description is the summary, which carries the `## Review guide` heading and the `Review tier: [skim]` line the PR body guard needs (nothing in it changes behavior). Opening it waits for Gary, as any PR does. Nothing else rides in it: no fixes.
 2. **A tracking issue**, titled `r{N} {kind} review: <verdict>`, listing each decision and each fix as a checklist item with its ID and a link to the register. Its number goes in the log row. Opened with the PR, when Gary asks for the PR.
 3. **Remediation PRs**, ordinary changes with ordinary review guides, each citing the finding IDs it addresses (`Fixes r7.f2`) and checking off the issue. They don't edit `specs/reviews/`; the next review's fix review records the outcome.
 
@@ -139,11 +139,11 @@ An estate is several repos that coordinate: a product split across services, an 
 
 1. A workspace's `repos.mk` ([makefile.md](makefile.md)), when run from one.
 2. The member list in the previous estate review's register.
-3. A list or wildcard from Gary (`nowline*`), matched against sibling folders on a workstation or the owner's repos through `gh` on a runner. Show the resolved list and wait for a yes before reviewing.
+3. A list or wildcard from Gary (`nowline*`), matched against the folders beside the home repo (inside it, for a workspace) and the owner's repos through `gh`. Where `gh` can't list them (a runner bound to its own repos), use the harness's repo listing, or ask. Show the resolved list and wait for a yes before reviewing.
 
 No workspace repo is required. **Home**: the workspace if there is one, else the repo Gary names, by default the one the session runs in. The home repo holds the register, the summary, an `estate` row in its log, and the tracking issue.
 
-**Every member logs it too**: an `estate` row in its own `specs/reviews/README.md`, with its own range, the findings that land in it, and a link to the home record. The row doesn't move the member's incremental anchor. Each member's row lands through a small PR in that repo, and a finding that needs work in a member gets its issue there, linked from the home issue. A workspace home's allowlist `.gitignore` needs `!/specs`.
+**Every member logs it too**: an `estate` row in its own `specs/reviews/README.md`, with its own range, the findings that land in it, and a link to the home record. The row doesn't move the member's incremental anchor. Each member's row lands through a small PR in that repo (its body: the skill's member template), and a finding that needs work in a member gets its issue there, linked from the home issue. A workspace home's allowlist `.gitignore` needs `!/specs`.
 
 ## Reviewers
 
@@ -156,7 +156,7 @@ No workspace repo is required. **Home**: the workspace if there is one, else the
 
 A log that only accumulates findings changes nothing. Two habits keep it working:
 
-- **Fix review**: every review starts by reading the previous reviews' open findings, sets each one's status from its issue, PRs and the code at `<to>`, and updates those reviews' Outcome cells in the log. A finding fixed in the code with no PR citing it is still `fixed`; one with a closed checkbox and unchanged code is still `open`.
+- **Fix review**: every review starts by reading the previous reviews' open findings, sets each one's status from its issue, PRs and the code at `<to>`, and writes it back in the review PR: the `Status:` and `Resolution:` lines in the earlier register, and that review's Outcome cell in the log. The register is the only place later reviews read status from. A finding fixed in the code with no PR citing it is still `fixed`; one with a closed checkbox and unchanged code is still `open`.
 - **Rules**: when a finding class shows up in two reviews, or three times in one, the answer is a rule, not another fix: a line in the repo's `AGENTS.md` or `REVIEW.md`, a lint rule, a CI check, or a proposal for these standards. The summary's "Rules changed" names it.
 
 ## Ownership

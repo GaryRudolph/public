@@ -104,12 +104,43 @@ expect_grep "hotspot" "src/a.go"
 expect_nogrep "tests aren't hotspots" "tests/a_test.go"
 
 echo "reads the default branch, not the checked-out one"
-git switch -qc feature
+git switch -qc feature "$r2"
 printf 'func D() {}\n' >> src/a.go && commit d >/dev/null
-expect_ok "runs on a feature branch" "$repo"
+expect_ok "runs on a branch cut before the log" "$repo"
 expect_grep "head stays main" "head: $head"
 expect_grep "checked out" "checked_out: feature"
+expect_grep "records from main" "records_read_from: main"
+expect_grep "log from main" "log: specs/reviews/README.md, 3 rows"
+expect_grep "next review from main" "next_review: r4"
+expect_grep "accepted finding from main" "r1.f2 |"
 git switch -q main
+
+echo "unmerged review branch takes its number"
+git branch review/r4-incremental
+expect_ok "runs" "$repo"
+expect_grep "lists the branch" "unmerged_review_branches: review/r4-incremental"
+expect_grep "skips its number" "next_review: r5"
+git branch -q -D review/r4-incremental
+
+echo "status values written loosely"
+cat >> specs/reviews/2026-09-01-r1-full-findings.md <<'EOS'
+
+### r1.f4 - Backticked status
+
+- Severity: low
+- Status: `accepted`
+- Reason: fine as is
+
+### r1.f5 - Unknown status
+
+- Severity: low
+- Status: wontfix
+EOS
+commit "loose statuses" >/dev/null
+expect_ok "runs" "$repo"
+expect_grep "backticks stripped" "r1.f4 |"
+expect_grep "accepted count" "accepted_findings (2)"
+expect_grep "unknown status surfaced" "r1.f5 | wontfix | Unknown status"
 
 echo "anchor rewritten away"
 other="$work/rewritten"
@@ -124,6 +155,13 @@ git -C "$other" remote remove origin
 expect_ok "runs" "$other"
 expect_grep "anchor not on main" "reachable_from_default=no"
 expect_nogrep "no churn from an unreachable anchor" "since_anchor:"
+
+echo "shallow clone"
+shallow="$work/shallow"
+git clone -q --depth 2 "file://$repo" "$shallow"
+expect_ok "runs" "$shallow"
+expect_grep "reports shallow" "shallow: yes"
+expect_grep "anchor outside history" "found=outside local history (shallow)"
 
 echo "no log"
 bare="$work/bare"
@@ -153,7 +191,7 @@ done
 expect_ok "glob from the home repo" --members 'nowline*' "$repo"
 expect_grep "local matches" "local ($work/estate): nowline-cloud, nowline-core, nowline-web"
 expect_nogrep "non-matching repo" "other-tool"
-expect_grep "gh missing" "github: gh missing"
+expect_grep "no owner, no github lookup" "github: owner unknown (pass --owner)"
 expect_grep "reports each member" "== repo nowline-web"
 expect_ok "list from the folder" --members 'nowline-cloud,other-tool' "$work/estate"
 expect_grep "plain folder layout" "layout: plain_folder"
@@ -161,6 +199,28 @@ expect_grep "list matches" "local ($work/estate): nowline-cloud, other-tool"
 expect_nogrep "unlisted repo not reported" "== repo nowline-web"
 expect_ok "plain folder without --members" "$work/estate"
 expect_grep "lists candidates" "== repos in this folder (not members until confirmed): nowline-cloud, nowline-core, nowline-web, other-tool"
+
+echo "github lookup that fails"
+cat > "$work/bin/gh" <<'EOS'
+#!/bin/sh
+echo "HTTP 403: sessions are bound to their configured repositories" >&2
+exit 1
+EOS
+chmod +x "$work/bin/gh"
+expect_ok "runs" --members 'nowline*' --owner someone "$repo"
+expect_grep "error shown, not none" "github: error: orgs/someone/repos: HTTP 403"
+expect_grep "not-cloned unknown" "github_not_cloned: unknown"
+cat > "$work/bin/gh" <<'EOS'
+#!/bin/sh
+case "$*" in
+  *orgs/someone/repos*) printf 'someone/nowline-cloud\nsomeone/nowline-pro\nsomeone/other\n' ;;
+  *) exit 1 ;;
+esac
+EOS
+expect_ok "runs" --members 'nowline*' --owner someone "$repo"
+expect_grep "org repos matched" "github: nowline-cloud, nowline-pro"
+expect_grep "uncloned repo" "github_not_cloned: nowline-pro"
+rm -f "$work/bin/gh"
 
 echo "workspace with repos.mk"
 ws="$work/ws"
@@ -177,6 +237,16 @@ expect_grep "members from repos.mk" "== members from repos.mk: svc-a, svc-b, svc
 expect_grep "uncloned member" "svc-c: not cloned"
 expect_grep "workspace reported" "== repo ws"
 expect_grep "member reported" "== repo svc-b"
+expect_ok "--members from the workspace root" --members 'svc*' "$ws"
+expect_grep "members inside the workspace" "local ($ws): svc-a, svc-b"
+
+echo "submodules are candidates"
+sub="$work/sub"
+mkdir -p "$sub" && cd "$sub" && git init -q -b main
+printf '[submodule "vendor/lib"]\n\tpath = vendor/lib\n\turl = ../lib\n' > .gitmodules
+commit sub >/dev/null
+expect_ok "runs" "$sub"
+expect_grep "candidates listed" "== submodules (candidates, not members until confirmed): vendor/lib"
 
 echo "not a repo"
 mkdir -p "$work/empty"
