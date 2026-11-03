@@ -1,4 +1,4 @@
-Status: m1.s1 in progress
+Status: m1.s2 in progress (m1.s1 done)
 
 # Codebase reviews from main: full, incremental, estate, logged
 
@@ -63,7 +63,7 @@ Branch: `claude/happy-wozniak-jyjnwh` (assigned).
 
 ### m1 - Spec and standard
 
-#### s1 - [deep] `specs/codebase-review.md`
+#### s1 - [deep] `specs/codebase-review.md` (done)
 Problem, the layers, research with sources, decisions above. Row in `specs/README.md`.
 
 #### s2 - [deep] `standards/codebase-review.md`
