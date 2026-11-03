@@ -1,4 +1,4 @@
-Status: m2.s1 in progress (m1 done)
+Status: m2.s2 in progress (m1, m2.s1 done)
 
 # Codebase reviews from main: full, incremental, estate, logged
 
@@ -71,7 +71,7 @@ In `plugins/personal/skills/personal-standards/standards/`: kinds and what each 
 
 ### m2 - Skill `personal-codebase-review`
 
-#### s1 - [deep] `scripts/review_log_facts.py`
+#### s1 - [deep] `scripts/review_log_facts.py` (done)
 Read-only, `python3 -I`, no verdicts. Prints layout (mirroring `personal-makefile/scripts/audit.sh` `detect_layout` and the `repos.mk` parse in its `reference.md`); with `--members <list|glob>` resolves sibling folders or `gh` repos matching the pattern, else the previous estate record's members; per repo: default branch and SHA, log rows, last anchor per kind and whether it's reachable from the default branch, days and churn since (files, lines, by bucket, mirroring `BUCKETS` in `personal-review-guide/scripts/review_facts.py` with a keep-in-step note), open and accepted findings across registers, next `r{N}`, `gh` availability.
 
 #### s2 - [deep] `SKILL.md` and `reference.md`
