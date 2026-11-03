@@ -12,7 +12,7 @@ Contents:
 - [Diagrams](#diagrams): before from the base commit, after from head, only where structure changed
 - [Plan-time preview](#plan-time-preview): when cheap, else at completion
 - [Review surfaces](#review-surfaces): a repo's own before/after renderers, in `AGENTS.md`
-- [The draft](#the-draft): `-review.md` on the branch, published to the description
+- [The draft](#the-draft): `-review.md` on the branch until the PR opens, then the description itself
 - [Ownership](#ownership)
 
 The `personal-review-guide` skill runs the procedure. This file says what good looks like.
@@ -221,7 +221,7 @@ A repo's existing rule in other words (nowline's "Visual changes") counts as a s
 
 The description is drafted in a file the skill regenerates from, kept where plans are kept: `specs/handoffs/` on a runner, committed and pushed so it survives the container; `.scratch/` on a workstation. Its name is the plan's name with `-review` added, so they sort together: `plan-auth-otter.md` and `plan-auth-otter-review.md`. Without a plan it's `{topic}-{word}-review.md`.
 
-The draft is a working copy. The PR description is what people read, and the squash copies it to `main`, so the draft is removed before merge with the other `specs/handoffs/` files ([git.md](git.md) "Merging").
+The draft is a working copy until the PR opens; from then on the description is the copy. The squash copies the description to `main`, so the draft file must not ride along, and a PR can merge minutes after it opens, before any cleanup commit. So a runner removes the draft (`git rm`) in the push that opens the PR: commit the removal, push, then open the PR with the draft's text as the body, and restore the file if the PR doesn't open. Later runs on that PR write the draft to `.scratch/` and publish it straight to the description, which is what outlives the container. A workstation's draft is in `.scratch/` and never reaches the branch. Plans and session handoffs in `specs/handoffs/` still come out in the last commit before merge ([git.md](git.md) "Merging").
 
 ## Ownership
 
