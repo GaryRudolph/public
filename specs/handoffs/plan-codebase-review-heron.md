@@ -1,4 +1,4 @@
-Status: all steps done; review guide walkthrough pending
+Status: all steps done; review fixes in; waiting on PR approval
 
 # Codebase reviews from main: full, incremental, estate, logged
 
