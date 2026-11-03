@@ -1,4 +1,4 @@
-Status: m2.s2 in progress (m1, m2.s1 done)
+Status: m2.s3 in progress (m1, m2.s1, m2.s2 done)
 
 # Codebase reviews from main: full, incremental, estate, logged
 
@@ -74,7 +74,7 @@ In `plugins/personal/skills/personal-standards/standards/`: kinds and what each 
 #### s1 - [deep] `scripts/review_log_facts.py` (done)
 Read-only, `python3 -I`, no verdicts. Prints layout (mirroring `personal-makefile/scripts/audit.sh` `detect_layout` and the `repos.mk` parse in its `reference.md`); with `--members <list|glob>` resolves sibling folders or `gh` repos matching the pattern, else the previous estate record's members; per repo: default branch and SHA, log rows, last anchor per kind and whether it's reachable from the default branch, days and churn since (files, lines, by bucket, mirroring `BUCKETS` in `personal-review-guide/scripts/review_facts.py` with a keep-in-step note), open and accepted findings across registers, next `r{N}`, `gh` availability.
 
-#### s2 - [deep] `SKILL.md` and `reference.md`
+#### s2 - [deep] `SKILL.md` and `reference.md` (done)
 Modes `status`, `incremental`, `full`, `interim`; `--estate` resolves members (workspace, previous record, or asks for a list or wildcard) and a home repo, and confirms both before reviewing. Procedure: facts, choose kind per the standard, resolve and size-check the range, dispatch dimension subagents (under 10) with accepted findings as context, adversarially verify each finding, write register, derive summary, fix review of prior findings, update log, show it (Artifact page, terminal summary), then on a task branch the docs commit and the PR plus issue wait for Gary's ask. `reference.md`: templates, log grammar, dimension prompts, harness table.
 
 #### s3 - [exec] Tests and wiring
