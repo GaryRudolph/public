@@ -106,7 +106,8 @@ The draft goes where plans go, named after the plan with `-review` added
 (review.md "The draft"): `specs/handoffs/plan-{topic}-{word}-review.md` on a
 runner, committed and pushed with the step, or `.scratch/` on a
 workstation; `{topic}-{word}-review.md` when there's no plan. Overwrite it
-on every run.
+on every run. Once the PR is open the description is the copy: a runner
+writes later drafts to `.scratch/` and doesn't commit them.
 
 If the repo has a PR template, keep its sections and order, and put the
 review guide's sections in after the intent; an AI assistance or trailer
@@ -123,7 +124,10 @@ section stays last.
   terminal summary (reference.md). Without Artifacts, print the summary and
   the draft's path.
 - `pr`: opening a PR waits for Gary's ask, as always. When he asks, the
-  description is the draft, with the trailer paragraph last. On later
+  description is the draft, with the trailer paragraph last. On a runner,
+  `git rm` the committed draft, commit and push, then open the PR with the
+  draft's text as the body, so the file can't reach `main` if the PR
+  merges before a cleanup commit; restore it if the PR doesn't open. On later
   pushes to a PR this session opened or drives, regenerate the draft and
   update the description when a tagged area, the tier, or the evidence
   changed, and say in the report what changed in the guide. On Claude
