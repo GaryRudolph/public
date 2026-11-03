@@ -180,6 +180,21 @@ The step is the last step of the last milestone, numbered after its last `s{K}`,
 
 Its [Cost table](#cost-table) row is a medium `[deep]` step plus its review. It is gated like any wave (gate 2 or 3 when it follows an `[exec]` or `[fast]` wave), and its review reads the whole range, so it also serves as the plan's whole-diff review at the end.
 
+### Review gate
+
+The per-wave reviews and the consolidation step read the plan's own diff on its task branch. Once a milestone lands on the default branch, `main` gets its own review ([codebase-review.md](codebase-review.md)): an incremental review from the repo's last logged anchor, so it also sees what other plans merged meanwhile. The driver adds it at grouping, beside the consolidation step, when any of these holds:
+
+- the plan has more than one milestone and they land on the default branch as separate PRs: every milestone after the first opens with the review of the one before;
+- a milestone contains an `[xdeep]` step, or its PR is expected to be `[study]` tier ([review.md](review.md) "Review tiers"): the review comes right after that PR merges, even mid-plan.
+
+The step is `m{N+1}.s1`, numbered ahead of the milestone's own steps, tagged `[deep]`, and in its own wave with a STOP before it, since it can't start until Gary merges `m{N}`'s PR. Its text, verbatim apart from the placeholders:
+
+    #### s1 - [deep] Review m{N} on main
+
+    After m{N}'s PR merges, fetch the default branch and run `personal-codebase-review` in incremental mode from the repo's last logged anchor. Record the review on its own task branch and PR, as the skill says; don't fold it into this plan's branch. Read the summary's decisions and fixes against the rest of this milestone, and amend m{N+1}'s steps before running them: a high finding in code this plan wrote is a step in m{N+1}, not a follow-up. Added because: <the criterion that fired>.
+
+A plan that ships as one PR gets no gate step, since the plan file is gone before that PR merges: its [Completion summary](#final-completion-all-groups-done) lists "incremental codebase review after merge" under Follow-ups. The gate is gated like any wave and never auto-approved: under orchestrate's unattended mode it stops, because the merge it waits on is Gary's. A plan in a repo without `specs/reviews/` runs a full review at the first gate instead.
+
 ### Driver fit
 
 Both drivers cost something before any step runs. Orchestrate cuts a task branch, writes a Kickoff block, a Cost table and a handoff, asks the kickoff question, and adds a parent turn (about $0.90 at Opus high), a review subagent (about $0.54) and a handoff commit (about $0.1) to every wave. The passive driver adds STOP markers, a review beat per wave and a model swap at every boundary. On a small plan that overhead outweighs the work: a review can cost more than the `[fast]` wave it reads ([Expected cost](#expected-cost)).
@@ -944,6 +959,8 @@ Final completion runs once the last group finishes and its review passes: in the
        **What shipped**: <one-paragraph summary>
        **Deviations from plan**: <list, or "none">
        **Follow-ups**: <list, or "none">
+
+   A plan that shipped as one PR, or whose last milestone had no [review gate](#review-gate) after it, lists "incremental codebase review after merge" ([codebase-review.md](codebase-review.md)) among the Follow-ups.
 
    This summary dovetails with the handoff convention — promote it to a `.scratch/handoff-*.md` or `handoffs/` file if the work needs to be picked up by another engineer or session.
 

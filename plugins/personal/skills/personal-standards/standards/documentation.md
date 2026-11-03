@@ -138,6 +138,7 @@ When work transitions from one milestone to the next (m{N} → m{N+1}), the agen
 - **Suggested plan** — a short ordered task list to start from
 - **Gotchas** — traps, known bugs, dependencies not yet wired, platform quirks
 - **Files to reference** — specific paths the next agent should read first
+- **Review** — the codebase review of m{N} on `main` (`specs/reviews/` link and its issue), or that it's pending as `m{N+1}.s1` ([codebase-review.md](codebase-review.md); [plan-execution.md](plan-execution.md) "Review gate")
 
 Handoff files go in version control; they are part of the project's working record.
 

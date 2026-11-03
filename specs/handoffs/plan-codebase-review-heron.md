@@ -1,4 +1,4 @@
-Status: m3.s1 in progress (m1, m2 done)
+Status: m3.s2 in progress (m1, m2, m3.s1 done)
 
 # Codebase reviews from main: full, incremental, estate, logged
 
@@ -82,7 +82,7 @@ Modes `status`, `incremental`, `full`, `interim`; `--estate` resolves members (w
 
 ### m3 - Plan integration
 
-#### s1 - [deep] Review gates in `plan-execution.md` and `documentation.md`
+#### s1 - [deep] Review gates in `plan-execution.md` and `documentation.md` (done)
 "Review gate" beside "Consolidation step": when m{N} lands on main and the plan continues, m{N+1} opens with `s1 - [deep] Review m{N} on main` (incremental), whose findings may amend m{N+1}; same after a merged `[study]`-tier PR or `[xdeep]` step. Single-PR plans put the post-merge review in the Completion summary. Milestone handoffs gain a "Review" line. Pre-PR review stays as is (review guide plus fresh-context `/code-review`), now nameable as `interim`.
 
 #### s2 - [exec] Drivers and core

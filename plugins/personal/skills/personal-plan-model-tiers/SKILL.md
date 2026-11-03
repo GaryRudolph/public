@@ -111,6 +111,14 @@ chat which criterion fired, or why the step was skipped (docs-only, all
 code in one wave, disjoint files); Gary may add or remove it before the
 first wave runs.
 
+**Add review gates when a criterion fires.** Apply the standards'
+§"Review gate" criteria too (milestones that land as separate PRs; a
+milestone with an `[xdeep]` step or an expected `[study]`-tier PR). Each
+gate is `m{N+1}.s1` with its verbatim text, tagged `[deep]`, in its own wave
+behind a STOP whose prompt says to merge `m{N}`'s PR first. A plan that
+ships as one PR gets no gate: its Completion summary lists the post-merge
+review instead. Say in chat which gates were added and why.
+
 **Compute a review point for every wave.** After grouping, each wave N
 (1-based, through the total wave count) gets a [review beat](../personal-standards/standards/plan-execution.md)
 when that wave finishes and before wave N+1 starts (including after the
