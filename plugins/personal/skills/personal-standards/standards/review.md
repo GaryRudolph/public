@@ -108,7 +108,7 @@ Review time: ~12 min
 2. [check] [`orders/service.go`](https://github.com/acme/orders/pull/124/files#diff-<sha256>): fills it, new carrier timeout path
 3. [check] [`orders/service_test.go`](https://github.com/acme/orders/pull/124/files#diff-<sha256>): two cases rewritten
 4. [skim] [`docs/orders.md`](https://github.com/acme/orders/pull/124/files#diff-<sha256>)
-5. [skip] `gen/`, `go.sum` (buf, go mod tidy)
+5. [skip] `gen/`, [`go.sum`](https://github.com/acme/orders/pull/124/files#diff-<sha256>) (buf, go mod tidy)
 
 ## Validation
 
@@ -147,11 +147,11 @@ Assisted-by: Claude Code
 ````
 
 - **Intent**: one paragraph on what changes and why, linking the issue, spec or plan. No heading.
-- **Review guide**: the `Review tier:` line with its reason, the blast radius, the review time, and the reading order as a numbered, tagged list. Contracts and the tests that define new behavior come first. Each `[study]`, `[check]` and `[skim]` path links straight to its diff, `https://github.com/<owner>/<repo>/pull/<n>/files#diff-<sha256 of the path>`, the anchor GitHub gives each file in the PR's changed files; `[skip]` stays plain, since nobody reads generated files. An area that's a directory links its main file, or nothing. The PR number doesn't exist until the PR opens, so the draft links the compare view (`/compare/<base>...<branch>#diff-<sha256>`, same anchor) and the description switches to the PR's links once it's open, since the compare view dies with the branch.
+- **Review guide**: the `Review tier:` line with its reason, the blast radius, the review time, and the reading order as a numbered, tagged list. Contracts and the tests that define new behavior come first. Each path in the reading order links straight to its diff, `https://github.com/<owner>/<repo>/pull/<n>/files#diff-<sha256 of the path>`, the anchor GitHub gives each file in the PR's changed files; `[skip]` paths too, since a link is markup and adds nothing to the length on a phone. An area that's a directory links its main file, or nothing. The PR number doesn't exist until the PR opens, so the draft links the compare view (`/compare/<base>...<branch>#diff-<sha256>`, same anchor) and the description switches to the PR's links once it's open, since the compare view dies with the branch.
 - **Validation** and **Rollback**: see [Evidence](#evidence). Rollback says how to undo it, including flags and migrations.
 - **Tier blocks**: inside each, whichever of these the tier's areas need: Contracts (a before/after table), Control flow (before/after diagrams), Data and schema, Error handling (new failure modes, retries, what's swallowed). Leave a blank line after `<summary>` or the Markdown inside won't render.
 - **Decisions**: alternatives ruled out and why, collapsed, last.
-- Drop any section or tier with nothing to say. A `[skip]` block, if any, is just the file list with the tool that produced each.
+- Drop any section or tier with nothing to say. A `[skip]` block, if any, is just the linked file list with the tool that produced each.
 - Keep tables to three or four narrow columns; wider ones scroll sideways on a phone.
 - Trailers stay the last paragraph, with any session link and harness footer above them ([git.md](git.md) "PR Body").
 
