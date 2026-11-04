@@ -153,7 +153,7 @@ Assisted-by: Claude Code
 - **Decisions**: alternatives ruled out and why, collapsed, last.
 - Drop any section or tier with nothing to say. A `[skip]` block, if any, is just the file list with the tool that produced each.
 - Keep tables to three or four narrow columns; wider ones scroll sideways on a phone.
-- Trailers stay the last paragraph, with any session link above them ([git.md](git.md) "PR Body").
+- Trailers stay the last paragraph, with any session link and harness footer above them ([git.md](git.md) "PR Body").
 
 `<details>` tags and Mermaid source land on `main` through the squash. That's accepted: the design record sits with the change.
 
