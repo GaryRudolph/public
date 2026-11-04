@@ -4,8 +4,9 @@
 Prints what the agent needs to write a review guide for the change on the
 current branch: the base it diffs against, the commits, every changed file
 with its line counts and the bucket its path falls in, test lines removed,
-paths that name a sensitive area, the repo's review surfaces, the PR
-template, and the plan, handoff and review files already on the branch.
+paths that name a sensitive area, each file's GitHub diff anchor, the repo's
+review surfaces, the PR template, and the plan, handoff and review files
+already on the branch.
 
 Emits no verdicts. Buckets come from the fixed path table below, which
 reference.md documents; the agent reads the code and assigns the review
@@ -20,6 +21,7 @@ Usage: review_facts.py [--base <ref>] [--committed] [<repo>]
 
 import argparse
 import fnmatch
+import hashlib
 import os
 import re
 import subprocess
@@ -68,6 +70,9 @@ SURFACE_HINT = re.compile(r"before|after|visual|render|screenshot|snapshot|diagr
 
 PR_TEMPLATES = [".github/pull_request_template.md", ".github/PULL_REQUEST_TEMPLATE.md", "PULL_REQUEST_TEMPLATE.md",
                 "pull_request_template.md", "docs/pull_request_template.md", "docs/PULL_REQUEST_TEMPLATE.md"]
+
+
+GITHUB_REMOTE = re.compile(r"github\.com[:/]+([^/]+)/([^/]+?)(?:\.git)?/*$")
 
 
 def git(*args, check=False):
@@ -125,6 +130,16 @@ def changed_files(base, committed):
     return files
 
 
+def github_repo():
+    m = GITHUB_REMOTE.search(git("remote", "get-url", "origin"))
+    return f"{m.group(1)}/{m.group(2)}" if m else "none"
+
+
+def diff_anchor(path):
+    """GitHub's anchor for a file in a PR's or compare view's diff: sha256 of the path."""
+    return "diff-" + hashlib.sha256(path.encode("utf-8")).hexdigest()
+
+
 def to_int(n):
     return int(n) if n.isdigit() else 0
 
@@ -166,6 +181,7 @@ def main():
     print(f"base_ref: {base_ref or 'none'} ({how})")
     print(f"merge_base: {git('rev-parse', '--short', merge_base) if merge_base else 'none'}")
     print(f"diff: {'merge_base..HEAD' if args.committed else 'merge_base..working tree (tracked files)'}")
+    print(f"github_repo: {github_repo()} (from origin)")
     print(f"claude_code_remote: {os.environ.get('CLAUDE_CODE_REMOTE', 'unset')}")
 
     print("\n== commits since merge_base")
@@ -207,6 +223,10 @@ def main():
         m = SENSITIVE.search(f["path"])
         if m:
             print(f"  {m.group(0).lower()}: {f['path']}")
+
+    print("\n== diff anchors (path #anchor)")
+    for f in files:
+        print(f"  {f['path']} #{diff_anchor(f['path'])}")
 
     print("\n== review surfaces")
     found = False

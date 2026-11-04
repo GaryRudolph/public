@@ -76,6 +76,16 @@ expect_nogrep "  ...not a heading inside the section"      "snapshots: ### Rende
 expect_grep "  ...PR template with a review guide"        ".github/pull_request_template.md (has ## Review guide: yes)"
 expect_grep "  ...review draft listed"                    "specs/handoffs/plan-orders-otter-review.md"
 expect_grep "  ...totals by bucket"                       "schema: 1 +1 -0"
+anchor=$(printf '%s' api/orders.proto | sha256sum | cut -d' ' -f1)
+expect_grep "  ...diff anchor is sha256 of the path"      "api/orders.proto #diff-$anchor"
+expect_grep "  ...no GitHub origin"                       "github_repo: none (from origin)"
+git remote add origin git@github.com:acme/orders.git
+expect_ok "github origin"                                --base main --committed
+expect_grep "  ...owner/repo from an ssh remote"          "github_repo: acme/orders (from origin)"
+git remote set-url origin https://github.com/acme/orders
+expect_ok "github https origin"                          --base main --committed
+expect_grep "  ...owner/repo from an https remote"        "github_repo: acme/orders (from origin)"
+git remote remove origin
 
 printf 'working tree\n'
 printf 'package orders\nfunc Create() { retry() }\n' > orders/service.go

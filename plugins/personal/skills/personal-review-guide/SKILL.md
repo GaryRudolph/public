@@ -51,7 +51,7 @@ python3 -I "${CLAUDE_PLUGIN_ROOT:-<plugin root>}/skills/personal-review-guide/sc
 
 It prints the base and merge-base, commits, each changed file with
 `+added -deleted`, its bucket, totals, test lines removed, paths naming a
-sensitive area, the repo's review surfaces (and other `AGENTS.md` or
+sensitive area, each file's GitHub diff anchor and the GitHub `owner/repo`, the repo's review surfaces (and other `AGENTS.md` or
 `CLAUDE.md` headings about before/after, renders or snapshots), the PR
 template, and the plan, handoff and review files. Use `--committed` in `pr`
 mode, so the guide describes what's pushed. In `plan` mode the diff is
@@ -100,7 +100,9 @@ Follow review.md "Description layout": intent, `## Review guide`,
 Validation, Rollback, then one `<details>` per tier, deepest first, with
 `[study]` open, then Decisions. Validation lists only what ran, with
 results, and `not run` with a reason for the rest. Keep the visible part
-near 250 words.
+near 250 words. Link each `[study]` and `[check]` path in the reading order
+to its diff with the anchor from step 1 (review.md "Description layout"):
+the compare view in the draft, the PR's changed files once it's open.
 
 The draft goes where plans go, named after the plan with `-review` added
 (review.md "The draft"): `specs/handoffs/plan-{topic}-{word}-review.md` on a
@@ -127,7 +129,9 @@ section stays last.
   description is the draft, with the trailer paragraph last. On a runner,
   `git rm` the committed draft, commit and push, then open the PR with the
   draft's text as the body, so the file can't reach `main` if the PR
-  merges before a cleanup commit; restore it if the PR doesn't open. On later
+  merges before a cleanup commit; restore it if the PR doesn't open. Once
+  it's open, update the description so the diff links point at
+  `/pull/<n>/files` instead of the compare view. On later
   pushes to a PR this session opened or drives, regenerate the draft and
   update the description when a tagged area, the tier, or the evidence
   changed, and say in the report what changed in the guide. On Claude
