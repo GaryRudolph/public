@@ -64,6 +64,12 @@ records `runner=none` and proposes gated.
    question is answered. A plan with no `## Shape` section gets one first
    (run `personal-plan-tag-tiers` step 4).
 
+   **Review gate.** The review of `main` is never dispatched to a worker
+   (the standard's §"Review gate"): it runs between milestones, in the
+   session that starts the next one. The kickoff summary says whether this
+   plan is one milestone of several, and final completion lists the
+   post-merge review under Follow-ups and queues its card where it can.
+
    **Fit check.** If the grouped plan is direct-sized (standard §"Driver
    fit"), ask whether to orchestrate it at all before going on, as a
    choice dialog where the harness has one, else in text: name the waves,

@@ -111,6 +111,12 @@ chat which criterion fired, or why the step was skipped (docs-only, all
 code in one wave, disjoint files); Gary may add or remove it before the
 first wave runs.
 
+**Name the review gate, don't write it as a step.** Per the standards'
+§"Review gate", the review of `main` happens between milestones that land
+as separate PRs, in the session that starts the next one, never as a wave.
+When the plan is one milestone of several, say so in chat at grouping;
+final completion lists the post-merge review under Follow-ups.
+
 **Compute a review point for every wave.** After grouping, each wave N
 (1-based, through the total wave count) gets a [review beat](../personal-standards/standards/plan-execution.md)
 when that wave finishes and before wave N+1 starts (including after the

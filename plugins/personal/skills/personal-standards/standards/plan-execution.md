@@ -180,6 +180,20 @@ The step is the last step of the last milestone, numbered after its last `s{K}`,
 
 Its [Cost table](#cost-table) row is a medium `[deep]` step plus its review. It is gated like any wave (gate 2 or 3 when it follows an `[exec]` or `[fast]` wave), and its review reads the whole range, so it also serves as the plan's whole-diff review at the end.
 
+### Review gate
+
+The per-wave reviews and the consolidation step read the plan's own diff on its task branch. Once a milestone lands on the default branch, `main` gets its own review ([codebase-review.md](codebase-review.md)): incremental from the repo's last logged anchor (full when the repo has no `specs/reviews/` log), so it also sees what other work merged meanwhile.
+
+It's a gate between milestones, not a plan step. The review dispatches its own fresh reviewers, records itself on its own branch and PR, and can change the next milestone's plan; a plan worker may do none of those, and a plan's files leave the branch before its PR merges ([git.md](git.md) "Merging"). So it sits where milestones already hand over:
+
+- **Milestones that land as separate PRs run as separate plans.** The durable milestone list is the spec (`### m{N}` headings); each milestone's plan lives on its own task branch and leaves with its PR; the [milestone handoff](documentation.md#handoffs-between-milestones) carries what's next.
+- **The session that finishes `m{N}`** writes the `m{N+1}` handoff with `Review: pending, after m{N}'s PR merges`. Where the harness can queue task cards, it queues `1: Review m{N} on main` and `2 after 1: Start m{N+1}` (core.md "Number ordered task cards"); otherwise the handoff tells the next session to run the review first.
+- **The session that starts `m{N+1}`** checks the handoff. If the review is pending and `m{N}` has merged, it runs `personal-codebase-review` in its own context before planning, and folds the summary's decisions and high findings into `m{N+1}`'s plan: a high finding in code the previous milestone wrote is a step, not a follow-up. If `m{N}` hasn't merged, it stops and says so.
+- **A plan that ships as one PR**, however many milestones it has, gets the review after that PR merges: its [Completion summary](#final-completion-all-groups-done) lists it under Follow-ups, and the session queues the review card if it can. Inside one PR `main` doesn't change, so there's nothing to review between its milestones.
+- **A complex change** (a `[study]`-tier PR, a plan with an `[xdeep]` step) gets the same follow-up and card when it merges, even mid-project.
+
+The drivers don't dispatch the review: `personal-plan-orchestrate` never sends it to a worker, and neither driver writes it as a step. Both name the gate at grouping when the plan is one milestone of several.
+
 ### Driver fit
 
 Both drivers cost something before any step runs. Orchestrate cuts a task branch, writes a Kickoff block, a Cost table and a handoff, asks the kickoff question, and adds a parent turn (about $0.90 at Opus high), a review subagent (about $0.54) and a handoff commit (about $0.1) to every wave. The passive driver adds STOP markers, a review beat per wave and a model swap at every boundary. On a small plan that overhead outweighs the work: a review can cost more than the `[fast]` wave it reads ([Expected cost](#expected-cost)).
@@ -944,6 +958,8 @@ Final completion runs once the last group finishes and its review passes: in the
        **What shipped**: <one-paragraph summary>
        **Deviations from plan**: <list, or "none">
        **Follow-ups**: <list, or "none">
+
+   Follow-ups always include "codebase review of `main` after merge" ([review gate](#review-gate)), unless the next milestone's handoff already carries it.
 
    This summary dovetails with the handoff convention — promote it to a `.scratch/handoff-*.md` or `handoffs/` file if the work needs to be picked up by another engineer or session.
 

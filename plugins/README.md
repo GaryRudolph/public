@@ -55,6 +55,7 @@ plugins/
       personal-secrets/             <- SOPS + age secrets repo: procedures + tested kit
       personal-release/             <- cut releases and hotfixes; bump script + workflow
       personal-repo-baseline/       <- per-repo settings the plugin can't carry; facts + merge scripts
+      personal-codebase-review/     <- reviews of main: full, incremental, estate; log facts script + tests
       personal-plan-tag-tiers/ personal-plan-model-tiers/
       personal-plan-orchestrate/
         SKILL.md                    <- harness-neutral core
@@ -156,6 +157,7 @@ cleaned up, then push.
 | `personal` | `personal-release` | Cut SemVer releases and hotfixes: propose the level from what changed, bump every version in lock-step, move the changelog, tag; set up version.txt and a Release workflow |
 | `personal` | `personal-repo-baseline` | Audit and apply the per-repo settings the plugin can't carry: `.claude/settings.json` attribution (`Assisted-by: Claude Code`) and GitHub squash-only merge settings. Dry-run first; re-run to bring a repo up to the current baseline |
 | `personal` | `personal-review-guide` | Write the review guide for a change: tag areas `[study]` / `[check]` / `[skim]` / `[skip]`, read base and head, draw before/after only where structure changed, run the repo's review surfaces, and write the PR description collapsible by tier. Modes: plan, walkthrough, pr |
+| `personal` | `personal-codebase-review` | Review `main`, not a diff: incremental (every line since the last logged review, via `/code-review` on the range), full (architecture, contracts, boundaries, hotspots) or estate (architecture and duplication across repos, with or without a workspace). Writes a findings register and a PR-shaped summary to `specs/reviews/`, logs the range, and drafts the review PR and a tracking issue. Modes: status, incremental, full, estate, interim |
 | `personal` | `personal-plan-tag-tiers` | Shared tagging layer: tag plan steps `[xdeep]` / `[deep]` / `[exec]` / `[fast]` to show complexity. Tags only; the two drivers call it automatically |
 | `personal` | `personal-plan-model-tiers` | Passive driver: group tagged steps into waves (no-thrash) and insert STOP markers with handoff blocks at tier boundaries |
 | `personal` | `personal-plan-orchestrate` | Active driver: same tagging and waves, but delegates each wave to a subagent on the right model, on Claude Code (a plugin workflow, gated by a hook) and Cursor (`Task`), and pauses only where its recorded mode stops (gated: every STOP gate; unattended: questions, failures, premium work and the cost guard) |

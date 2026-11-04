@@ -226,3 +226,5 @@ The draft is a working copy until the PR opens; from then on the description is 
 ## Ownership
 
 Whoever directed the agent owns the guide as much as the code: read it before the PR opens, because a confident, wrong review guide is worse than none. The agent that wrote the change writes the guide, since it knows the intent; a fresh-context reviewer, not the author, checks the code against it.
+
+This is the review of a change on its way in. A review of `main` after changes land, full, incremental or across repos, is [codebase-review.md](codebase-review.md); a branch's own pre-PR review is that standard's `interim` kind, and stays out of `specs/reviews/`.

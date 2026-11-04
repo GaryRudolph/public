@@ -12,6 +12,7 @@ This directory contains coding standards for consistent, maintainable, quality c
 - **[Plan Execution](plan-execution.md)** — Model-tier tagging, STOP gates, kickoff/progress tracking, subagent delegation
 - **[Git Workflow](git.md)** — Branching, commit format, PR workflow
 - **[Review Guides](review.md)** — Review tiers, PR descriptions as review guides, before/after diagrams, review surfaces
+- **[Codebase Review](codebase-review.md)** — Reviews of `main`: full, incremental and estate reviews, the `specs/reviews/` log, findings, review gates
 - **[Versioning](versioning.md)** — SemVer for artifacts, integer-major for contracts, commit-count `versionCode`, per-platform surface map, release & hotfix flows
 - **[Security](security.md)** — Auth (OAuth, JWT, native-app BCPs), authorization and bootstrap, shared-domain cookies, encryption and erasure, input validation, checklists
 - **[Makefile](makefile.md)** — Target vocabulary, self-documenting help, workspace/polyrepo delegation, danger guards
