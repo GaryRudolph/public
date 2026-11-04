@@ -131,7 +131,9 @@ section stays last.
   draft's text as the body, so the file can't reach `main` if the PR
   merges before a cleanup commit; restore it if the PR doesn't open. Once
   it's open, update the description so the diff links point at
-  `/pull/<n>/files` instead of the compare view. On later
+  `/pull/<n>/files` instead of the compare view, and so a footer the
+  harness appended sits above the session link and trailers (git.md
+  "PR Body"). On later
   pushes to a PR this session opened or drives, regenerate the draft and
   update the description when a tagged area, the tier, or the evidence
   changed, and say in the report what changed in the guide. On Claude
