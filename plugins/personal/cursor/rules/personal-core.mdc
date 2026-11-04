@@ -7,6 +7,8 @@ alwaysApply: true
 
 Guidelines for AI coding agents working with me.
 
+The skills and standards files call me **the Owner**: the person the agent works for, who owns the repos it works in and makes the calls the work raises.
+
 ## Core Preferences
 
 - **Simplicity first** — solve the current problem; prefer boring, established technology and published standards (RFCs) over home-grown conventions

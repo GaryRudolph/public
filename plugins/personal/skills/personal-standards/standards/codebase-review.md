@@ -1,6 +1,6 @@
 # Codebase Review
 
-How `main` gets reviewed after integration, beside the review of each change. [review.md](review.md) covers a change on its way in: its guide, its tiers, its fresh-context reviewer. This file covers what that can't see: drift across many changes, and across repos that coordinate. The Owner is the person the agent works for, who owns the repos under review and makes the calls a review raises. The `personal-codebase-review` skill runs it; `specs/codebase-review.md` in the public repo has the reasoning and sources.
+How `main` gets reviewed after integration, beside the review of each change. [review.md](review.md) covers a change on its way in: its guide, its tiers, its fresh-context reviewer. This file covers what that can't see: drift across many changes, and across repos that coordinate. The `personal-codebase-review` skill runs it; `specs/codebase-review.md` in the public repo has the reasoning and sources.
 
 Contents:
 
