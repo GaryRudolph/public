@@ -100,8 +100,8 @@ Follow review.md "Description layout": intent, `## Review guide`,
 Validation, Rollback, then one `<details>` per tier, deepest first, with
 `[study]` open, then Decisions. Validation lists only what ran, with
 results, and `not run` with a reason for the rest. Keep the visible part
-near 250 words. Link each path in the reading order except `[skip]`
-to its diff with the anchor from step 1 (review.md "Description layout"):
+near 250 words. Link each path in the reading order, `[skip]`
+included, to its diff with the anchor from step 1 (review.md "Description layout"):
 the compare view in the draft, the PR's changed files once it's open.
 
 The draft goes where plans go, named after the plan with `-review` added
