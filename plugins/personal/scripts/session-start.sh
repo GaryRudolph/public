@@ -31,7 +31,7 @@ skill_dir="$root/skills/personal-standards"
 core="$skill_dir/core.md"
 [ -f "$core" ] || finish_silently
 
-# On Gary's workstation `make install` already puts core.md in each tool's
+# On the Owner's workstation `make install` already puts core.md in each tool's
 # home file. Injecting it again would only duplicate it.
 if [ -f "$home_file" ] && grep -qF '# >>> personal >>>' "$home_file"; then
     finish_silently

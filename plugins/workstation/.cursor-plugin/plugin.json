@@ -1,6 +1,6 @@
 {
   "name": "workstation",
-  "description": "Skills that need Gary's Mac: agent allowlist scouting across local repos.",
+  "description": "Skills that need a local Mac: agent allowlist scouting across local repos.",
   "author": {
     "name": "Gary Rudolph"
   },

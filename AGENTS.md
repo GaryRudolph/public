@@ -1,6 +1,6 @@
 # Working in this repo
 
-Gary's personal standards load separately: from the `personal` plugin in
+The personal standards load separately: from the `personal` plugin in
 Claude surfaces, or from the home-directory blocks `agents/Makefile`
 installs. This file only covers the layout of this repo.
 

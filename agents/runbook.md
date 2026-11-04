@@ -1,7 +1,7 @@
 # Runbook: standards and skills on every agent
 
 One-time setup that gets `personal` standards and skills into every surface
-Gary uses. Background and design:
+the Owner uses. Background and design:
 [`../specs/agent-distribution.md`](../specs/agent-distribution.md).
 
 Do the milestones in order. m2 has to come before m3: m3's `make install`
