@@ -6,4 +6,4 @@ in each review's issue.
 
 | Review | Date | Kind | Range | Findings | Issue | Outcome | Record |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| r1 | 2026-11-04 | full | ..fe5a3fe | 7 high, 19 medium | pending | open | [summary](2026-11-04-r1-full.md) |
+| r1 | 2026-11-04 | full | ..fe5a3fe | 7 high, 19 medium | [#45](https://github.com/GaryRudolph/public/issues/45) | open | [summary](2026-11-04-r1-full.md) |
