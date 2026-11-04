@@ -23,10 +23,10 @@ environment with the record:
 | none of these (Remote Control included) | `runner=none`: a workstation |
 
 `harness` is `claude-code`, `cursor`, `codex`, `grok`, `gemini` or `muse`.
-A runner proposes unattended; a workstation proposes gated. Gary's answer
+A runner proposes unattended; a workstation proposes gated. The Owner's answer
 decides. `CLAUDE_CODE_SESSION_ATTENDED` is undocumented; ignore it.
 
-**A Cursor cloud agent** proposes unattended, and Gary may still answer
+**A Cursor cloud agent** proposes unattended, and the Owner may still answer
 gated. Cursor documents its Cloud MCP, with the `run-info` tool, as
 "available during Cloud Agent runs", so the tool answering is the signal
 (`adapters/cursor.md` "Runner signal"). `CURSOR_AGENT` marks any Cursor
@@ -60,7 +60,7 @@ records `runner=none` and proposes gated.
    `[deep]`, in its own wave with its own marker, never merged into the
    previous wave. The kickoff summary and the kickoff question say which
    criterion fired, or why it was skipped (docs-only, all code in one
-   wave, disjoint files). Gary may add or remove it before the kickoff
+   wave, disjoint files). The Owner may add or remove it before the kickoff
    question is answered. A plan with no `## Shape` section gets one first
    (run `personal-plan-tag-tiers` step 4).
 
@@ -149,7 +149,7 @@ canary, when the first unit has more than one group; 2 or 3 before a
 `[deep]` or `[xdeep]` wave after an `[exec]` or `[fast]` one; 4 at a new
 milestone; 7 before each `[xdeep]` wave, with its cost), what each mode
 does, the guard's dollar limit, the handoff path, the plan's Shape section
-(its Creates list, for Gary to trim, and the consolidation decision), and
+(its Creates list, for the Owner to trim, and the consolidation decision), and
 on a workstation the branch it will cut. It always carries the exact words
 `Proposed mode: <mode>.` and, after them, a line that starts `Reply`; the
 Claude Code hook looks for both, in that order, before it counts a typed
@@ -213,14 +213,14 @@ check it. A runner on such a harness (a Cursor cloud agent) still proposes
 unattended, saying that the mode rests on the parent there.
 
 An invoking message that names a mode ("orchestrate this unattended") only
-sets the proposed mode; the question still runs, so Gary sees the waves,
-the total and the gates before he opts in. Only under `runner=ci` do the
+sets the proposed mode; the question still runs, so the Owner sees the waves,
+the total and the gates before opting in. Only under `runner=ci` do the
 invoking words count as the answer: record them, print the kickoff summary
 and start.
 
 ### Reading the answer
 
-The answer is Gary's next message after the question, whole, and only
+The answer is the Owner's next message after the question, whole, and only
 that. Read it like this:
 
 - **Unattended** when it names `unattended` and not `gated`, asks nothing
@@ -238,16 +238,16 @@ that. Read it like this:
 **A dialog's answers** are read the same way, question by question: the
 mode question's answer by the rules above (a pick, or words typed under
 Other), the session question's pick for step 10. A declined dialog, one
-dismissed, one that resolved itself while Gary was away, or one that
+dismissed, one that resolved itself while the Owner was away, or one that
 ended in a request for more questions answers nothing: re-ask. Record
 only the mode question's answer on the mode line; the session choice goes
 in the handoff.
 
 **Record it:** replace `pending` on the mode line with the mode, and append
 ` | confirmed <today> session <S>: <the whole answer, whitespace
-collapsed>`. Gary's words come last on the line, so they may hold any
+collapsed>`. The Owner's words come last on the line, so they may hold any
 character; `guard` and `fixups` are read only from before `confirmed`, so
-his words never set them. In the same edit add `Run in <mode> mode.` as the
+their words never set them. In the same edit add `Run in <mode> mode.` as the
 Kickoff prompt's mode line and clear `BLOCKED` from Status. Print the
 Kickoff prompt only after this edit: a prompt without its mode line makes
 the next session ask again. If the answer
@@ -292,7 +292,7 @@ session continues the run. After the answer it reads:
 ## A new session on a plan already kicked off
 
 This section covers every session that finds the plan's Kickoff block
-with a `mode:` line, whether Gary pasted the Kickoff prompt or not. Keep the plan's tagging, markers, Cost table and
+with a `mode:` line, whether the Owner pasted the Kickoff prompt or not. Keep the plan's tagging, markers, Cost table and
 counting header as they stand (re-entry adds rows for waves added since).
 
 The paste counts only when a human message, whitespace collapsed, is the

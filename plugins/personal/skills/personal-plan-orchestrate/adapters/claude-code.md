@@ -11,7 +11,7 @@ happens.
 `<P>` is the plugin's name, read as in `SKILL.md` "Detection" (a renamed
 copy of the plugin has its own). `K` is this skill's `scripts/` folder.
 
-Contents: [Runner signal and setup](#runner-signal-and-setup) · [Asking Gary](#asking-gary) · [The pieces](#the-pieces) · [The launch](#the-launch) · [The hooks](#the-hooks) · [The result](#the-result) · [The Agent path](#the-agent-path) · [Runners, recovery and limits](#runners-recovery-and-limits) · [Permissions](#permissions) · [Tokens](#tokens) · [Gotchas](#gotchas)
+Contents: [Runner signal and setup](#runner-signal-and-setup) · [Asking the Owner](#asking-the-owner) · [The pieces](#the-pieces) · [The launch](#the-launch) · [The hooks](#the-hooks) · [The result](#the-result) · [The Agent path](#the-agent-path) · [Runners, recovery and limits](#runners-recovery-and-limits) · [Permissions](#permissions) · [Tokens](#tokens) · [Gotchas](#gotchas)
 
 ## Runner signal and setup
 
@@ -36,13 +36,13 @@ Once per session:
   commits carry `Assisted-by: Claude Code` and no `Co-authored-by`,
   whatever the CLI's default attribution says.
 
-## Asking Gary
+## Asking the Owner
 
 Every fixed-choice question is an `AskUserQuestion` call; open questions
 (a worker's `needs_info`, a re-plan) stay text. The dialog waits inside the
 turn, so save first ("Questions, and saving before them" in `SKILL.md`).
 - **The kickoff question:** the text block first (it keeps its `Reply`
-  line, the fallback if Gary declines the dialog and types), then one call
+  line, the fallback if the Owner declines the dialog and types), then one call
   with two questions:
 
   ```json
@@ -73,7 +73,7 @@ turn, so save first ("Questions, and saving before them" in `SKILL.md`).
 - **A gate or a stop:** one question, its text naming each repo's commit
   range, with options such as `Continue wave 3 [deep] m3 s1`, `Stop here`,
   and the step-up or waiver the gate allows (`Waive: <the concern>`). The
-  approval you launch with is the picked label, verbatim, or the words he
+  approval you launch with is the picked label, verbatim, or the words the Owner
   typed under Other.
 - **The PR at completion:** `Open the PR` or `Not yet`.
 
@@ -81,8 +81,8 @@ turn, so save first ("Questions, and saving before them" in `SKILL.md`).
 message of the turn it joins, after its question's text: a gate answered
 in the turn a completion notification started launches in that same turn.
 It counts for nothing when the call's input carried answers, when the
-dialog was declined, when it resolved itself while Gary was away
-(`afkTimeoutMs`), or when he asked for more questions (`followUp`); re-ask
+dialog was declined, when it resolved itself while the Owner was away
+(`afkTimeoutMs`), or when they asked for more questions (`followUp`); re-ask
 then. A `Gated` pick in a later dialog is a take-back, like a short typed
 message naming gated.
 
@@ -102,7 +102,7 @@ save, start or queue it (load a deferred tool with ToolSearch):
   approval. A plan spanning repos passes only the plan's repo; the new
   session attaches the rest with `add_repo` and switches each to its task
   branch. The prompt arrives as `inbound_origin: mcp_create_session`, not
-  a human message, so it is no paste: the new session asks Gary to confirm
+  a human message, so it is no paste: the new session asks the Owner to confirm
   unattended with one click ("A session **not** started from a paste" in
   `SKILL.md`, and "The confirmation" above). Say so, with the new
   session's id. If the call fails, fall back to the card.
@@ -110,7 +110,7 @@ save, start or queue it (load a deferred tool with ToolSearch):
   `Orchestrate <plan name>`, `tldr` one line naming the waves and the
   mode, and `prompt` the Kickoff prompt verbatim, so the new session's
   first message is a paste the hook accepts. The tool's own description
-  says not to use it for parts of your own task; Gary asked for this one.
+  says not to use it for parts of your own task; the Owner asked for this one.
   On a runner, the card's session gets its own `claude/…` branch, which
   path (b) fast-forwards.
 
@@ -166,17 +166,17 @@ one dispatch unit, at the end of "Each unit" step 4.
   section into every worker and reviewer prompt from `state`.
 - `steps` are the IDs `plan_state.py` reports, which commit subjects carry:
   a heading `#### s2` under `## m1` is `m1.s2`.
-- `approved` is `[]` except in the turn Gary's answer started (or joined):
-  then one `{gate, wave}` per gate he answered, `wave` being the launched
+- `approved` is `[]` except in the turn the Owner's answer started (or joined):
+  then one `{gate, wave}` per gate they answered, `wave` being the launched
   unit's wave number ("After an answer" in `SKILL.md` says which gates).
   `approval` is a top-level string beside `approved`, never inside its
-  items, holding his message verbatim.
+  items, holding their message verbatim.
 - A `needs_info` group adds `"answer": {"question": "…", "answer": "<the same words as approval>"}`.
 - A fix-up unit's groups are the ones `plan_state.py`'s `next.groups` names.
 - `decisions` and `environment` are optional strings, the handoff's
   "Decisions so far" and "Environment notes" verbatim (`contract.md` item 9);
   every worker and reviewer of the unit gets them.
-- Optional, each needing Gary's approval: `stepUp` (`"deep"`, `"xdeep"`,
+- Optional, each needing the Owner's approval: `stepUp` (`"deep"`, `"xdeep"`,
   `"fable"`: gate 6, plus gate 7 into `[xdeep]` or Fable), `max: true` and
   `xdeepDrafts: 2-4` (an `[xdeep]` or Fable unit only; gate 7 in every
   mode).
@@ -184,7 +184,7 @@ one dispatch unit, at the end of "Each unit" step 4.
 **The launch result.** `async_launched` with a `runId`: end the turn with
 one line. `error` set: the script failed its own check, gate 0.
 `remote_launched`: the run went to a cloud session whose commits land
-elsewhere, gate 0; use the Agent path. Show any `warning` to Gary. A hook
+elsewhere, gate 0; use the Agent path. Show any `warning` to the Owner. A hook
 deny reads `PreToolUse:Workflow hook error: personal-plan-orchestrate gate:
 …` even when the hook exited 0: it is a deny. Quote it, fix what it names
 (table below), and never work around it.
@@ -212,7 +212,7 @@ deny reads `PreToolUse:Workflow hook error: personal-plan-orchestrate gate:
    `origin/HEAD` known, the branch being the group's; the plan and a
    refreshed handoff are committed and pushed, and so is every working
    directory of the last run.
-10. A new `WAIVED` line is Gary's message verbatim, typed in this session.
+10. A new `WAIVED` line is the Owner's message verbatim, typed in this session.
 
 The numbers are `orchestrate_gate.py`'s.
 
@@ -230,17 +230,17 @@ loaded checks nothing. Quote the reason, then:
 | `task branch: … no branch checked out`, `is on X, not the group's branch`, `shared branch` | Cut or switch to the task branch (`SKILL.md` "Task branches"); the group's `branch` is the directory's. |
 | `origin's default branch is unknown` | `git -C <dir> remote set-head origin --auto`. |
 | `unattended mode is not confirmed` | Another session, harness or runner confirmed it, or no human turn here is the answer: ask the kickoff question again. |
-| `no human turn in this session is the recorded mode answer verbatim`, after a dialog | The dialog was declined, resolved itself while Gary was away, ended in a follow-up, or its input carried answers: ask it again. |
+| `no human turn in this session is the recorded mode answer verbatim`, after a dialog | The dialog was declined, resolved itself while the Owner was away, ended in a follow-up, or its input carried answers: ask it again. |
 | `a yes to a gated proposal records gated` | Record gated, or ask again with an unattended proposal. |
 | `a later short human message names gated` | Record gated (the take-back), or ask again. |
 | `per-wave handoff: … not pushed`, `uncommitted changes`, `no session handoff`, `changed after the handoff` | Refresh the handoff, commit both in one bookkeeping commit, push every working directory. |
 | `run <id> has not finished` | Wait for its notification. A run with no record after a crash: start a new session from the Kickoff prompt. |
-| `the last run stopped at <gates>` | Approve each in the turn Gary's answer starts, or relaunch only after he answers. |
-| `approvals can ride only on a launch in the turn …`, `args.approval is not the human's last message` | Relaunch with `approved: []`, or with his message verbatim. |
+| `the last run stopped at <gates>` | Approve each in the turn the Owner's answer starts, or relaunch only after they answer. |
+| `approvals can ride only on a launch in the turn …`, `args.approval is not the human's last message` | Relaunch with `approved: []`, or with the Owner's message verbatim. |
 | `the approval is the pasted Kickoff prompt` | Re-post the `BLOCKED` question and wait. |
 | `canaryDone is true, but …` | Pass `canaryDone: false` for this session's first launch. |
-| `the cost guard rose`, `the fix-up cap rose` | Approve `gate-guard` or `gate-1` with Gary's answer, or restore the line. |
-| `the WAIVED line … is not a human message of this session` | The waiver must be Gary's message verbatim, typed in this session. |
+| `the cost guard rose`, `the fix-up cap rose` | Approve `gate-guard` or `gate-1` with the Owner's answer, or restore the line. |
+| `the WAIVED line … is not a human message of this session` | The waiver must be the Owner's message verbatim, typed in this session. |
 | `hook error (…)` | A bug or a missing file; report it, don't retry blind. |
 
 **The two Bash guards** read the hook input's `agent_type`, which a
@@ -383,12 +383,12 @@ avoids the runner Stop hook.
 - Start the session with `--add-dir <repo>` for each working directory
   outside the current one.
 - In auto mode, the prompt the script passes to `agent()` doesn't count as
-  a request from Gary (Claude Code's workflow docs); worker commits pass
+  a request from the Owner (Claude Code's workflow docs); worker commits pass
   under auto mode with the allow rules above (verified on the Mac and the
   web). `worker_guard.py`, not the auto-mode classifier, is what stops a
   publish script run without its dry-run flag.
 - Unattended answers no permission prompt: one mid-run still waits for
-  Gary. A run works best with the allow rules above in place.
+  the Owner. A run works best with the allow rules above in place.
 - When the snapshot reports a repo whose `.claude/settings.json`
   attribution would add a `Co-authored-by` line, say so at kickoff:
   `check_wave.py` fails such commits, and `personal-repo-baseline` fixes the

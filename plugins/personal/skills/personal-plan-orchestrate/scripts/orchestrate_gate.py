@@ -55,7 +55,7 @@ true, from disk and from the transcript, and fails closed:
    remote must record origin's default branch (refs/remotes/origin/HEAD), and
    any git error other than "not a git repository" denies.
 10. A WAIVED Review log line added since this session's last launch must be
-   a human turn of this session, verbatim: a waiver is Gary's answer to a
+   a human turn of this session, verbatim: a waiver is the Owner's answer to a
    gate 1, never the parent's. In any session, a WAIVED line whose words are
    the Kickoff prompt or hold its mode line denies.
 
@@ -78,8 +78,8 @@ an AskUserQuestion dialog joins the turn too, one entry per question, after
 that question's text: the harness writes the tool_result, and the hook
 takes it only when the dialog's input carried no answers of the model's own,
 the result isn't an error or a decline, and it didn't auto-resolve while
-Gary was away (afkTimeoutMs) or end in a request for more questions
-(followUp). A host app that answers dialogs for him is trusted as he is,
+the Owner was away (afkTimeoutMs) or end in a request for more questions
+(followUp). A host app that answers dialogs for the Owner is trusted as the Owner is,
 like the web's typed messages. A record whose uuid
 was seen before (a replay after a compaction) counts once. The Mac CLI wraps
 a bracketed paste in <pasted_content id="..."> tags; they are removed before
@@ -159,7 +159,7 @@ def ask_answers(question_input, res, block):
     if not isinstance(question_input, dict) or any(k in question_input for k in ASK_FILLED):
         return []  # the model filled in an answer of its own
     if block.get("is_error") or not isinstance(res, dict) or res.get("afkTimeoutMs") or res.get("followUp"):
-        return []  # declined, auto-resolved while Gary was away, or he asked for more questions
+        return []  # declined, auto-resolved while the Owner was away, or they asked for more questions
     answers = res.get("answers") if isinstance(res.get("answers"), dict) else {}
     out = []
     for q in question_input.get("questions") or []:
@@ -231,7 +231,7 @@ def turn_and_launches(path):
                 continue
             blocks = [b for b in msg.get("content") or [] if isinstance(b, dict) and b.get("type") == "tool_result"
                       and b.get("tool_use_id") in asks] if isinstance(msg.get("content"), list) else []
-            for b in blocks:  # Gary's answers in a dialog join the running turn, as a queued message does
+            for b in blocks:  # The Owner's answers in a dialog join the running turn, as a queued message does
                 for question, answer in ask_answers(asks.pop(b["tool_use_id"]), res, b):
                     t = {"human": True, "text": unwrap(answer), "after": question, "ask": True}
                     turns.append(t)
@@ -290,7 +290,7 @@ def unattended_proof(mode, session_id, turns, prompt, prompt_mode):
                 f"harness={here[0]} runner={here[1]}; ask the kickoff question again with a fresh proposal")
     words = norm(mode.get("words"))
     if mode.get("via") == "prompt":
-        # Pasting the Kickoff prompt is Gary's own message. Only the whole prompt counts, never a message that mentions the mode.
+        # Pasting the Kickoff prompt is the Owner's own message. Only the whole prompt counts, never a message that mentions the mode.
         if words != PROMPT_WORDS or prompt_mode != "unattended" or not prompt:
             return f'a confirmation by Kickoff prompt records its mode line, "{PROMPT_WORDS}", and the plan\'s prompt must carry it'
         hits = [i for i, t in enumerate(turns) if t["human"] and is_paste(t["text"], prompt)]
@@ -508,7 +508,7 @@ def check(inp):
         had = ((segs[-1].get("args") or {}).get("state") or {}).get("waivers") or []
         for w in fresh.get("waivers") or []:
             if w not in had and not any(t["human"] and norm(t["text"]) == norm(w.get("words")) for t in turns):
-                deny(f"the WAIVED line for wave {w.get('wave')} ({w.get('group')}) is not a human message of this session, verbatim; a waiver records Gary's answer")
+                deny(f"the WAIVED line for wave {w.get('wave')} ({w.get('group')}) is not a human message of this session, verbatim; a waiver records the Owner's answer")
     answers = [(g.get("answer") or {}).get("answer") for g in groups if isinstance(g.get("answer"), dict)]
     if args.get("approved") or answers:
         said_now = [t for t in turn if t["human"]]  # the human message that started this turn, or one typed into it
@@ -518,7 +518,7 @@ def check(inp):
             deny("args.approval is not the human's last message verbatim")
         if any(not_an_answer(a, prompt) for a in [args.get("approval")] + answers):
             deny("the approval is the pasted Kickoff prompt, or holds its mode line; a paste answers no gate or question: "
-                 "re-post the BLOCKED question and wait for Gary's answer")
+                 "re-post the BLOCKED question and wait for the Owner's answer")
     if args.get("canaryDone") and not any(is_segment(u.get("name") or "") and not (u.get("args") or {}).get("canaryDone")
                                           for u in launched):
         deny("canaryDone is true, but this session has no earlier canary launch of plan-segment (one with canaryDone false)")

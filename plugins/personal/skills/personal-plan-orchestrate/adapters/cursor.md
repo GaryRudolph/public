@@ -20,14 +20,14 @@ session's first dispatch, only the first group of a unit with more than
 one goes out, and that unit stops at gate 5 (gated) or passes it as a
 checkpoint (unattended); a one-group unit goes out whole with no gate 5. A worker that discloses a rule it broke, blocked or ran, is gate 1
 in both modes, from its summary (`SKILL.md` "When a unit completes"): no
-retry, and its fix-up waits for Gary.
+retry, and its fix-up waits for the Owner.
 
 Contents: [Runner signal](#runner-signal) · [Harness gate: verify before proceeding](#harness-gate-verify-before-proceeding) · [Dispatch](#dispatch) · [Boundaries](#boundaries) · [Cost table and counting header](#cost-table-and-counting-header) · [Tokens](#tokens) · [Mode on Cursor](#mode-on-cursor) · [Phase 3](#phase-3)
 
 ## Runner signal
 
 A Cursor cloud agent is recorded as `harness=cursor runner=cloud` and
-proposes unattended (`kickoff.md` "Runner signals"); Gary may still answer
+proposes unattended (`kickoff.md` "Runner signals"); the Owner may still answer
 gated. The signal is the Cursor Cloud MCP, which Cursor documents as "a
 built-in diagnostics server available during Cloud Agent runs"
 (<https://cursor.com/docs/cloud-agent/capabilities>, checked 2026-10-11):
@@ -63,7 +63,7 @@ If the standard's model picker and this list disagree, the picker wins.
 
 **Default for Cursor: proceed.** Inspect your tool list. If a `Task` tool's
 `model` parameter accepts these slugs, or takes a free-form model string,
-assume it works and continue. The schema is enough evidence; don't ask Gary
+assume it works and continue. The schema is enough evidence; don't ask the Owner
 to confirm, and don't verify that the parameter "actually takes effect"
 beyond the schema.
 
@@ -72,7 +72,7 @@ from Cursor's subagent docs, which don't list the `Task` enum and list only
 `high` and `max` as Claude efforts, so `xhigh`, `medium` and `low` are
 unverified. A dropped value runs Cursor's default (medium on Opus 5.5). If
 the enum offers plain or suffixed IDs instead, dispatch the entry for the
-same model at the same or nearest effort, and tell Gary to refresh the
+same model at the same or nearest effort, and tell the Owner to refresh the
 standard's model picker. If the only Composer entry is Fast, use it, name
 its token lines' model `composer-2.5 Fast`, and price them at the Fast row
 of the Model price table (6x standard on input and output, 2.5x on cache
@@ -80,25 +80,25 @@ reads).
 
 **Use the newest version of each family.** Cursor has no version-less
 alias, so these slugs go stale. If the enum offers a newer entry of the same
-family at the same effort, dispatch that one and tell Gary to refresh the
+family at the same effort, dispatch that one and tell the Owner to refresh the
 picker. A missing exact slug is not a reason to stop while a newer entry of
 the same family is present.
 
-**Stop and ask Gary** only when one of these is true:
+**Stop and ask the Owner** only when one of these is true:
 - `Task` is absent from your tool list.
 - `Task` has no `model` parameter, or its enum lacks Opus, Composer, or
   both Grok and Sonnet: recommend `personal-plan-model-tiers` and wait. A
   missing Fable entry only removes the `[xdeep]` alt.
 - No xhigh Opus entry exists, or `model` takes free text so nothing confirms
   `[effort=xhigh]`: say so in the gate-7 question and dispatch the effort
-  Gary picks, for the wave and its review.
+  the Owner picks, for the wave and its review.
 
 When you stop, name the specific concern, recommend the fallback, and wait
 for an explicit answer.
 
 ## Dispatch
 
-Issue real `Task` tool calls, never text for Gary to run, and never a code
+Issue real `Task` tool calls, never text for the Owner to run, and never a code
 block of calls: one per working directory, all in one assistant message,
 each with:
 - `description`: the wave title in the standard's [Wave title
@@ -117,7 +117,7 @@ each with:
 
 Every `[deep]` wave goes out too, even on one working directory: the
 parent's context never holds a wave's diffs. Groups in distinct working
-directories run in parallel; Gary opts into in-repo parallelism by creating
+directories run in parallel; the Owner opts into in-repo parallelism by creating
 worktrees (Cursor's `/worktree`, or `git worktree add`) before invoking the
 skill.
 
@@ -206,7 +206,7 @@ previous line in this chat, gates included. Inline review work counts
 there, not as `review-wave-N` lines; only the `[xdeep]` reviewer subagent
 reports its own.
 
-**Pasted usage.** Cursor usage Gary pastes replaces the lines it covers
+**Pasted usage.** Cursor usage the Owner pastes replaces the lines it covers
 (the standard's §"Token line format", "Token log"). CSV rows that can't
 tell the parent from an Opus subagent become one `(combined: <rows>)` line.
 Never blend the parent's and the subagents' counts into one line: they run
@@ -234,7 +234,7 @@ A Cursor session proposes the mode its runner token says (`kickoff.md`
 "Runner signals"): unattended on a cloud agent the Cloud MCP confirms,
 gated anywhere else. No hook checks an unattended confirmation or the gates
 on Cursor, so the kickoff question says the mode rests on the parent there,
-and Gary may answer either mode.
+and the Owner may answer either mode.
 
 Questions are typed answers, read by `kickoff.md` "Reading the answer", unless
 the session offers a multiple-choice tool; then ask the same choices with

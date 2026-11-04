@@ -2,7 +2,7 @@
 """Claude Code PreToolUse hook on Bash: keep personal-plan-orchestrate's workers inside their working directory.
 
 Workers (<plugin>:plan-worker) write and commit, but never act
-outside their working directory: the parent pushes, and Gary opens PRs,
+outside their working directory: the parent pushes, and the Owner opens PRs,
 releases and deploys. Phase 1's dogfood showed a worker can run an outward
 command its prompt forbids, so this hook denies, when the hook input's
 agent_type names a worker:
@@ -226,7 +226,7 @@ def main():
     if why:
         print(json.dumps({"hookSpecificOutput": {"hookEventName": "PreToolUse", "permissionDecision": "deny",
                                                  "permissionDecisionReason": f"personal-plan-orchestrate worker: {why} acts outside "
-                                                 "your working directory, and only the parent or Gary does that. If the step needs "
+                                                 "your working directory, and only the parent or the Owner does that. If the step needs "
                                                  "it, return needs_info naming it; if the spec names a dry-run form, run that."}}))
 
 

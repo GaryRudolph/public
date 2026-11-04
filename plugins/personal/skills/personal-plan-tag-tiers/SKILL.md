@@ -71,7 +71,7 @@ before assigning `[xdeep]`. There is no default-up bias: doubt between
 escalation path catch a step that needed more); doubt between `[deep]` and
 `[xdeep]` resolves to `[deep]`. Every `[deep]` tag needs a one-line reason
 (what in the step needs top-tier reasoning), which goes in the readout, not
-the heading. A step that is Gary's own decision gets no tag: it is a gate,
+the heading. A step that is the Owner's own decision gets no tag: it is a gate,
 not work. Do not rename, renumber, or otherwise change any other content.
 
 A step ID must be one token (standard §"Tag placement"): a heading whose
@@ -96,7 +96,7 @@ applies it. List each such step in the readout as a proposed split:
     s3 [deep] "Wire the cache" -> s3 [deep] decide the invalidation strategy
     (design note); s4 [exec] wire the cache per s3; s4..s6 become s5..s7
 
-Apply a split only on Gary's yes, and only while the plan has no wave
+Apply a split only on the Owner's yes, and only while the plan has no wave
 marker (after that, the drivers own the numbering): split the heading and
 its text, renumber the later steps of that milestone, and update every
 cross-reference in the plan to the renumbered steps. Without a yes, the
@@ -110,7 +110,7 @@ needed, and every file it will modify, bare. Read the repo to tell new from
 existing; a step that names no files gets your best guess, marked
 `(guess)`. Put it before the first milestone heading (below a Kickoff
 block and Cost table when those exist). If the plan already has one, keep
-it and add a line per step added since; never remove a line Gary trimmed.
+it and add a line per step added since; never remove a line the Owner trimmed.
 
 ### 5. Report the complexity readout
 

@@ -67,7 +67,7 @@ def write_plan(mode="gated | proposed gated (harness=claude-code runner=none) | 
 
 ST = write_plan()
 assert ST["errors"] == [] and ST["next"]["steps"] == ["m1.s1"], ST  # a standard s1 heading under m1 is step m1.s1
-# Unattended, confirmed by an answer on a workstation (the hook's default environment): Gary overrode a gated proposal.
+# Unattended, confirmed by an answer on a workstation (the hook's default environment): the Owner overrode a gated proposal.
 UN = "unattended | proposed gated (harness=claude-code runner=none) | guard 2x | fixups 2 | confirmed 2026-10-06 session s: "
 
 
@@ -259,7 +259,7 @@ def a_hook_that_cannot_decide_denies_with_exit_2():
         assert out.returncode == 2 and "fail closed" in out.stderr, (out.returncode, out.stderr)
 
 
-# ---- AskUserQuestion: a choice dialog's answers are Gary's ----
+# ---- AskUserQuestion: a choice dialog's answers are the Owner's ----
 
 MODE_Q = "Proposed mode: unattended. Which mode for plan-x?"
 RUNNER_Q_TEXT = said("Plan plan-x: 1 wave. Proposed mode: unattended. Reply unattended or gated; add here to stay in this chat.")
@@ -305,8 +305,8 @@ def a_dialog_answer_counts_only_under_the_kickoff_question():
 def a_dialog_answer_that_is_not_gary_s_counts_for_nothing():
     st = write_plan(UN + "Unattended")
     for t in (ask({MODE_Q: "Unattended"}, error=True),  # declined
-              ask({MODE_Q: "Unattended"}, afkTimeoutMs=60000),  # auto-resolved while he was away
-              ask({MODE_Q: "Unattended"}, followUp=True),  # he asked for more questions
+              ask({MODE_Q: "Unattended"}, afkTimeoutMs=60000),  # auto-resolved while the Owner was away
+              ask({MODE_Q: "Unattended"}, followUp=True),  # the Owner asked for more questions
               ask({MODE_Q: "Unattended"}, given={"answers": {MODE_Q: "Unattended"}}),  # the model answered itself
               ask({MODE_Q: "(notes only)"})):
         assert "verbatim" in hook(seg(args(state=st)), [human("orchestrate")] + t), t
@@ -665,7 +665,7 @@ PROMPTED = "unattended | proposed unattended (harness=claude-code runner=cloud) 
 
 
 def paste(mode="unattended", indent="  "):
-    """Gary pasting the Kickoff prompt as his first message in a new session, indented as the chat printed it."""
+    """The Owner pasting the Kickoff prompt as their first message in a new session, indented as the chat printed it."""
     return human("\n".join(indent + line for line in kickoff_prompt(mode)) + "\n")
 
 
@@ -707,7 +707,7 @@ def a_pasted_prompt_re_asks_when_the_environment_or_the_session_differs():
 
 @case
 def a_runner_on_its_own_assigned_branch_still_counts_the_paste():
-    # The cloud session was assigned claude/abc and rewrote the prompt's On branch line; Gary pasted the earlier prompt.
+    # The cloud session was assigned claude/abc and rewrote the prompt's On branch line; the Owner pasted the earlier prompt.
     moved = [x.replace("On branch feature/x", "On branch claude/abc") for x in kickoff_prompt("unattended")]
     st = write_plan(PROMPTED, prompt=moved)
     assert hook(seg(args(state=st, groups=TASK)), [paste()], runner=True) is None
@@ -811,7 +811,7 @@ def a_git_error_in_the_plan_repo_denies_instead_of_skipping_checks():
 def compact_summary(web=False):
     """A compaction summary: the CLI's has no turnOrigin, the desktop app's and the web's carry turnOrigin human."""
     r = {"type": "user", "isCompactSummary": True, "isVisibleInTranscriptOnly": True,
-         "message": {"role": "user", "content": "This session is being continued ... Gary typed gated, then unattended ..."}}
+         "message": {"role": "user", "content": "This session is being continued ... The Owner typed gated, then unattended ..."}}
     return {**r, "turnOrigin": "human"} if web else r
 
 
@@ -897,7 +897,7 @@ def a_wrapped_paste_is_the_paste_and_still_answers_nothing():
 @case
 def a_record_replayed_after_a_compaction_counts_once():
     st = write_plan(UN + "unattended")
-    early = {**human("gated"), "uuid": "u1"}  # Gary first said gated, then answered unattended to the question
+    early = {**human("gated"), "uuid": "u1"}  # The Owner first said gated, then answered unattended to the question
     t = [human("orchestrate"), early, QUESTION, human("unattended"), said("Running."), early]
     assert hook(seg(args(state=st)), t) is None
     assert "names gated" in hook(seg(args(state=st)), t[:-1] + [{**human("gated"), "uuid": "u2"}])
