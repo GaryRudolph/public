@@ -196,6 +196,27 @@ better findings."
 | estate architecture | estate | Which repo owns which concept and contract; contracts between members that don't fit; responsibilities split or doubled across repos |
 | estate duplication | estate | The same model, client, algorithm or config written in two or more members, worth sharing |
 
+## Slices
+
+A range over about 8,000 changed lines is split by path, from the facts'
+`since_anchor_by_dir`. Proposal, shown before reviewing:
+
+```text
+r7 incremental, 4be1c09..9d02f6a: 19,400 changed lines, over the cap; 3 slices
+1. api/, services/orders/        6,900
+2. services/billing/, db/        7,100
+3. web/                          5,200
+left out: gen/ (buf), vendor/    11,300
+```
+
+Each slice's correctness review covers `<from>..<to>` for its paths only: on
+Claude Code, run `/code-review high` with the range and name the slice's
+paths as the target, or, where the command takes only one target, give a
+fresh correctness reviewer `git diff <from>..<to> -- <paths>` and the
+correctness prompt. The register header adds
+`- Slices: 1 api/, services/orders/; 2 services/billing/, db/; 3 web/`, and
+each finding's Location already places it in a slice.
+
 ## Verifier
 
 One fresh reviewer gets every candidate finding and the code at `<to>`, and

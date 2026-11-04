@@ -30,7 +30,7 @@ Three layers, each with one job:
 | --- | --- | --- | --- |
 | Per change | A branch's diff, line by line | Each PR, each plan wave | The PR; `interim` drafts are removed before it opens |
 | Incremental | `main` since the last anchor, line by line plus drift | A milestone lands, a complex change merges, churn passes a threshold | `specs/reviews/` |
-| Full | `main` at a commit: architecture, contracts, boundaries, hotspots | Adoption, before a major release, when an incremental range is too big | `specs/reviews/` |
+| Full | `main` at a commit: architecture, contracts, boundaries, hotspots | Adoption, before a major release, when the anchor is lost | `specs/reviews/` |
 
 An **estate** review runs across several repos that coordinate (nowline's
 OSS and commercial repos, say) and looks only at architecture across them
@@ -109,8 +109,8 @@ integration is assembled from other practices.
 - **Claude Code**: `/code-review` accepts a commit range or a path and can
   run from a scheduled task, so "since the last review" is one argument.
   Ultrareview takes a commit or tag as base and caps a review near 8,000
-  changed lines, a useful threshold for "split it or do a full review
-  instead". The best-practices guide says the reviewer shouldn't be the
+  changed lines, a useful threshold for splitting a range into path
+  slices. The best-practices guide says the reviewer shouldn't be the
   author, and warns that a reviewer asked to find problems always finds
   some, so not every finding deserves a fix.
 - **Anthropic's own SDLC**: codebases tiered by risk, scheduled scans,
@@ -132,8 +132,9 @@ What cut against the log, and how the design answers it: squash merges
 erase branch SHAs (anchor on `main` only); vendors keep live findings in
 trackers, not files (the issue is the work queue, the register is the
 record); logging alone changes nothing (fix review plus rules); long gaps
-make ranges too big to review (churn triggers, and a full review when an
-incremental would pass about 8,000 changed lines).
+make ranges too big to review (churn triggers, and a range past about
+8,000 changed lines split into path slices, each reviewed line by line; a
+full review would skip exactly the lines that changed).
 
 ## Sources
 

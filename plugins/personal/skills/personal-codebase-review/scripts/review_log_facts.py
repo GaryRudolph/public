@@ -193,14 +193,17 @@ def resolve(repo, short):
 
 
 def churn(repo, frm, to):
-    totals = {}
+    """Changed files and lines since the anchor, by bucket and by directory (two levels deep)."""
+    by_bucket, by_dir = {}, {}
     for line in git(repo, "diff", "--numstat", "--no-renames", f"{frm}..{to}").splitlines():
         added, deleted, path = line.split("\t", 2)
-        t = totals.setdefault(bucket(path), [0, 0, 0])
-        t[0] += 1
-        t[1] += int(added) if added.isdigit() else 0
-        t[2] += int(deleted) if deleted.isdigit() else 0
-    return totals
+        parts = path.split("/")[:-1][:2]
+        for key, totals in ((bucket(path), by_bucket), ("/".join(parts) + "/" if parts else "(root)", by_dir)):
+            t = totals.setdefault(key, [0, 0, 0])
+            t[0] += 1
+            t[1] += int(added) if added.isdigit() else 0
+            t[2] += int(deleted) if deleted.isdigit() else 0
+    return by_bucket, by_dir
 
 
 def hotspots(repo, ref, days):
@@ -279,13 +282,16 @@ def report_repo(repo, args):
               f"reachable_from_default={reach}")
         if label == "last_anchor" and to_sha and reach == "yes":
             commits = git(repo, "rev-list", "--count", f"{to_sha}..{head}")
-            totals = churn(repo, to_sha, head)
+            totals, dirs = churn(repo, to_sha, head)
             added = sum(t[1] for t in totals.values())
             deleted = sum(t[2] for t in totals.values())
             print(f"  since_anchor: commits={commits} files={sum(t[0] for t in totals.values())} "
                   f"+{added} -{deleted} changed_lines={added + deleted}")
             for b, (n, a, d) in sorted(totals.items()):
                 print(f"    {b}: {n} +{a} -{d}")
+            print("  since_anchor_by_dir (changed_lines files +added -deleted dir, largest first):")
+            for path, (n, a, d) in sorted(dirs.items(), key=lambda kv: -(kv[1][1] + kv[1][2])):
+                print(f"    {a + d} {n} +{a} -{d} {path}")
 
     print(f"  hotspots (score=commits_in_{args.hotspot_days}d*lines commits lines path):")
     for score, commits, lines, path in hotspots(repo, ref, args.hotspot_days):

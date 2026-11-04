@@ -67,9 +67,12 @@ listing (`list_repos`) or ask. It decides nothing.
 ### 2. Choose
 
 Apply the standard's "When" table to the facts. Say which kind and why in
-one line. `status` stops here. Switch to `full` when there's no log, the
-anchor isn't reachable from the default branch, or more than about 8,000
-lines changed since it (or split the incremental by path and say so).
+one line. `status` stops here. Switch to `full` only when there's no log or
+the anchor isn't reachable from the default branch. A large range stays
+incremental: over about 8,000 changed lines, propose path slices from the
+facts' `since_anchor_by_dir` (each under the cap, related paths together,
+generated and vendored paths left out), show them with their line counts,
+and wait for a yes (the standard's "Large ranges").
 
 For `estate`, settle members and home before anything else: `repos.mk`,
 else the last estate's members, else ask Gary for a list or wildcard (a
@@ -99,8 +102,10 @@ severity floor.
 
 - `incremental`: correctness is the harness's range review. On Claude
   Code, run `/code-review high <from>..<to>` (xhigh for a range over about
-  2,000 changed lines); elsewhere, reference.md "Harnesses". Then the
-  drift, tests and duplication reviewers on the same range.
+  2,000 changed lines); elsewhere, reference.md "Harnesses". A split range
+  gets one correctness review per slice, limited to the slice's paths
+  (reference.md "Slices"). Then the drift, tests and duplication reviewers
+  on the whole range.
 - `full`: architecture, contracts, boundaries, test strategy, dependencies
   and security posture over the whole tree at `<to>`, then hotspots: the
   facts' top files, line by line.

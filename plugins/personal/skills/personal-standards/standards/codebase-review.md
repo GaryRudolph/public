@@ -24,7 +24,7 @@ Contents:
 | `estate` | Architecture across repos and major duplicated code between them | each member's `<anchor>..<head>` | Yes, in the home repo and in every member; doesn't move a member's anchor |
 | `interim` | A branch before its PR, when a session wants one | merge-base`..HEAD` | No. A draft, removed before the PR opens |
 
-**Incremental** is the line-level review. It runs the harness's range review over the commits since the anchor (Claude Code: `/code-review high <from>..<to>`), then a drift pass on what the range changed: a contract or schema altered, a layer reaching past its neighbor, a helper written again beside an existing one, a test loosened. It ends with the [fix review](#closing-the-loop). Above about 8,000 changed lines, split the range by path, or run a full review instead.
+**Incremental** is the line-level review. It runs the harness's range review over the commits since the anchor (Claude Code: `/code-review high <from>..<to>`), then a drift pass on what the range changed: a contract or schema altered, a layer reaching past its neighbor, a helper written again beside an existing one, a test loosened. It ends with the [fix review](#closing-the-loop). Above about 8,000 changed lines, it's still incremental: split the range into slices by path, each under the cap, and review every slice (see [Large ranges](#large-ranges)). A full review is no substitute, since it doesn't read the changed lines.
 
 **Full** doesn't read every line; each line was read once as a diff. It reads structure: the architecture against the repo's specs and ADRs (draw it, from the code), every contract the repo exposes or consumes, module boundaries and the direction of dependencies, module-level duplication, test strategy (what has no tests that should, what's tested only through mocks), dependency and toolchain currency against end-of-life dates, and security posture at the design level (trust boundaries, where secrets live, who can call what). Then it reads hotspots, the files that are both large and frequently changed, line by line.
 
@@ -38,12 +38,16 @@ Contents:
 | `m{N}` lands on the default branch and `m{N+1}` follows | `incremental`, run by the session that starts `m{N+1}`, before planning it ([plan-execution.md](plan-execution.md) "Review gate") |
 | A `[study]`-tier PR, or a plan with an `[xdeep]` step, merges | `incremental`, as a follow-up card |
 | A plan that shipped as one PR merges | `incremental`, from the plan's Completion summary |
-| More than about 8,000 changed lines since the anchor | `full`, or `incremental` split by path |
+| More than about 8,000 changed lines since the anchor | `incremental`, split into path slices ([Large ranges](#large-ranges)) |
 | Before a major release, or after a large migration | `full` |
 | Repos that coordinate each reached a milestone, or the cross-repo shape changed | `estate` |
 | Optional schedule, at most monthly | `status`, then `incremental` only if it's due |
 
 A review is **due** when the anchor is 30 or more days old and anything changed since, or when a trigger above fired and no review covers it. `status` reports the facts (days, commits, changed lines since the anchor) and says whether one is due; on a schedule, it does nothing when none is.
+
+### Large ranges
+
+A range over the cap is split, never skipped or traded for a full review. The facts script prints changed lines by directory; group directories into slices that each stay under about 8,000 changed lines and keep together what a reviewer would read together (a contract and its handlers, a migration and the code reading the new column). Generated and vendored paths get no slice. Show the slices, with their line counts, and wait for a yes before reviewing. Each slice gets its own correctness review of `<from>..<to>` limited to its paths; the drift, tests and duplication passes still look across the whole range, since drift crosses slice lines. It's one review: one `r{N}`, one register listing the slices in its header, one summary, one log row.
 
 ## Anchors
 
