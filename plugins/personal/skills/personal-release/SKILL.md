@@ -1,7 +1,7 @@
 ---
 name: personal-release
 description: >-
-  Cut releases Gary's way: pick patch/minor/major from what changed since the
+  Cut releases to the personal versioning standard: pick patch/minor/major from what changed since the
   last v-tag, bump version.txt and every package version in lock-step, move
   the CHANGELOG's Unreleased entries, tag vMAJOR.MINOR.PATCH (no pre-release
   suffixes), run the hotfix flow from a release/vX or release/vX.Y line
@@ -57,14 +57,14 @@ recommendation. Decide from these facts.
    - `patch`: bug fixes only
 
    On `0.x`, a breaking change may be a minor, but call it out in the
-   changelog. Give Gary the level and a sentence of evidence. **He picks**,
+   changelog. Give the Owner the level and a sentence of evidence. **The Owner picks**,
    in a choice dialog where the harness has one (Claude Code's
    `AskUserQuestion`): `patch`, `minor`, `major`, the proposed one first
    and marked `(Recommended)`.
 3. **Check the changelog.** Unreleased (or, with fragments,
    `python3 scripts/changelog.py preview`) should describe what ships.
    Offer to fill gaps from the commits, but don't invent entries.
-4. **Release.** With Gary's go-ahead (a dialog naming the exact command and
+4. **Release.** With the Owner's go-ahead (a dialog naming the exact command and
    version: `Release vX.Y.Z` or `Not yet`):
    - If the repo has a Release workflow:
      `gh workflow run release.yml -f level=<level>` (add

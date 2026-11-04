@@ -130,14 +130,14 @@ Work down this list and take the first that matches.
 4. **Codex (`spawn_agent`), Grok Build (`spawn_subagent`), Gemini CLI
    (`invoke_agent`), Muse Code (`subagent_spawn`)**, or nothing that
    matches: this skill doesn't drive them yet. Recommend
-   `personal-plan-model-tiers`, and stop until Gary answers.
+   `personal-plan-model-tiers`, and stop until the Owner answers.
 
 `K` below is the absolute path of this skill's `scripts/` folder (Claude
 Code prints the skill's base directory when it loads it). Shell state
 doesn't carry over between tool calls, so write `$K`, `$C` and the like out
 as absolute paths in each command. Other files this skill cites:
 `core.md` is `../personal-standards/core.md`, and `git.md` is
-`../personal-standards/standards/git.md`. "Decision N" names one of Gary's
+`../personal-standards/standards/git.md`. "Decision N" names one of the Owner's
 recorded design decisions; the rule it labels is stated where it is cited.
 The scripts are harness-neutral Python 3:
 - `plan_state.py <plan>`: the next dispatch unit and every gate in front of
@@ -181,8 +181,8 @@ disagree, the picker wins and the kit's consistency check fails.
   names it. Never batch two waves.
 - **One subagent per git working directory.** Groups in distinct working
   directories (separate repos, or `git worktree`s of one repo) run in
-  parallel; within one directory, serially. Gary opts into in-repo
-  parallelism by creating worktrees before he invokes the skill.
+  parallel; within one directory, serially. The Owner opts into in-repo
+  parallelism by creating worktrees before invoking the skill.
 - **One read-only reviewer per working directory per unit**, at the tier
   the standard's review routing gives ("Tiers and models"): Opus high after
   an `[exec]` or `[deep]` unit, Opus xhigh after `[xdeep]`, Sonnet high
@@ -198,13 +198,13 @@ disagree, the picker wins and the kit's consistency check fails.
 - **While a run works, write nothing to the tree**, commit nothing and push
   nothing. The plan is tracked, so an edit shows up as a new dirty path to
   `check_wave.py`. Reply to anything that arrives with one line.
-- **Outward actions wait for Gary in every mode:** opening or merging a PR,
+- **Outward actions wait for the Owner in every mode:** opening or merging a PR,
   pushing a tag, deleting a remote branch, deploying, publishing a release
   or a package, posting anywhere outside the branch and the chat, and
   permission prompts. Workers never take one (`contract.md` item 8).
 - **A compaction changes nothing.** The plan, the handoff, the snapshot
   files and the run record are the state, not the chat. After a `/compact`
-  (Gary's or automatic), re-read the plan's Status and the handoff before
+  (the Owner's or automatic), re-read the plan's Status and the handoff before
   acting, and find a run in flight by its notification. A compaction never
   answers, confirms or takes back anything.
 - **What this procedure doesn't cover:** take the conservative choice, and
@@ -240,7 +240,7 @@ disagree, the picker wins and the kit's consistency check fails.
 
 Orchestrate runs only on a task branch, on every machine, in both modes:
 never `main`, `master`, `release/*`, the remote's default branch, a
-detached HEAD, or Gary's own branch. Check each working directory and the
+detached HEAD, or the Owner's own branch. Check each working directory and the
 repo that holds the plan, each on its own (git.md "Task branches and shared
 branches"), and the git email in each (core.md "Verify git email").
 
@@ -254,7 +254,7 @@ branches"), and the git email in each (core.md "Verify git email").
   --no-track` when it doesn't exist) and pushes it before saving anything,
   without asking, and says which branch it started on and which it works on.
 - **A workstation** names the branch in the kickoff question and commits
-  nothing before the answer: the answer to the kickoff question is Gary's
+  nothing before the answer: the answer to the kickoff question is the Owner's
   yes to cut it. Then it cuts and pushes; uncommitted plan and handoff
   edits ride along.
 - **A declined cut** (`gated, but stay on main`) dispatches nothing. Re-ask
@@ -272,7 +272,7 @@ the fit check that offers to run a small plan directly), the kickoff
 question and how to read and record its answer, the Kickoff prompt, and
 what a session does on a plan that already has a Kickoff block with a
 `mode:` line. Read it before a kickoff, and in any session
-that finds such a block, before acting. Gary's whole next message is the
+that finds such a block, before acting. The Owner's whole next message is the
 answer, a paste or a non-answer confirms nothing, and nothing dispatches
 while Status reads `BLOCKED`.
 
@@ -385,7 +385,7 @@ unit is a fix-up, a check fails, or a worker discloses a breach.
      stops there, and `plan_state.py` makes the group's `N-fix` gate 1,
      never a checkpoint. Write `BLOCKED at gate 1`, save, and ask, saying
      whether it ran and what, if anything, left the machine or the
-     directory. Gary answers with the fix-up, a waiver, or a re-plan.
+     directory. The Owner answers with the fix-up, a waiver, or a re-plan.
    - **Carry forward:** add a decision the group made that changes a later
      step's text (its review passed) to the handoff's "Decisions so far",
      quoted from its Review log line or the worker's `decided`; and every
@@ -417,16 +417,16 @@ unit is a fix-up, a check fails, or a worker discloses a breach.
 
 ### After an answer
 
-In the turn Gary's answer starts (a typed reply) or joins (a dialog's
+In the turn the Owner's answer starts (a typed reply) or joins (a dialog's
 answer): clear `BLOCKED`, then go through "Each unit" from step 1 (refresh
 the handoff, commit, push, `plan_state.py`, a fresh snapshot) and launch the
-unit with his message, or the label he picked, as the approval, verbatim, and each gate approved for the launched unit's wave: every gate
+unit with their message, or the label they picked, as the approval, verbatim, and each gate approved for the launched unit's wave: every gate
 the last run stopped at (gate 5 after a gated canary, though Status no
 longer shows it) and every gate in `plan_state.py`'s `stops`. Never approve
 `gate-0` or `gate-mode`: they clear only from the plan (fix the plan, or
 record the kickoff answer), and nothing accepts an approval for them. A
 `needs_info` group also carries `answer: {question, answer}`, the answer
-being the same words. A gate answer counts only in the turn his message
+being the same words. A gate answer counts only in the turn the Owner's message
 starts or joins; never reuse it in a later turn. Gated, an answer at gate 1
 may also be a step-up (gate 6, plus gate 7 into `[xdeep]` or Fable), a
 re-plan (new waves take the next unused numbers, with their markers after
@@ -437,10 +437,10 @@ order, and get Cost table rows with expected `—`), or a waiver.
 
 A short human message (10 words or fewer) that names `gated` and not
 `unattended` switches to gated. Rewrite the mode line's ` | confirmed ...`
-part with today, this session and his words, and the prompt's mode line to
-`Run in gated mode.`; commit and push. A switch to unattended takes his
+part with today, this session and the Owner's words, and the prompt's mode line to
+`Run in gated mode.`; commit and push. A switch to unattended takes the Owner's
 explicit words naming it, recorded the same way; it also answers a pending
-gate that unattended would pass as a checkpoint (relaunch with his words as
+gate that unattended would pass as a checkpoint (relaunch with those words as
 the approval), never one that stops in both modes. A message that holds a prompt mode line is a paste and switches
 nothing. If a run is in flight, reply with one line and record the switch
 first thing in the turn its completion starts; the run finishes as
@@ -449,7 +449,7 @@ and handoff stay in `specs/handoffs/` in both modes.
 
 ## Questions, and saving before them
 
-Unattended, the parent asks only for what is Gary's:
+Unattended, the parent asks only for what is the Owner's:
 - an ambiguous spec (a worker's `needs_info`, or a choice the plan leaves
   open); missing access or credentials (a `needs_info`, a push refused by a
   ruleset, a git email mismatch);
@@ -523,7 +523,7 @@ appended to `## Token log` below its counting header as soon as it exists:
 - **The open stretch.** Every save that ends a turn to wait or ends the
   session ("Questions, and saving before them") first appends the parent's
   stretch since its last line, up to now, under that stretch's row. If the
-  same session goes on (Gary answers here), the next line for the same row
+  same session goes on (the Owner answers here), the next line for the same row
   covers the longer span and replaces the one written at the stop (the
   standard's replace rule). So a session that ends at a gate, at the
   kickoff's halt for a new chat, or at completion leaves no parent spend
@@ -578,4 +578,4 @@ path you write them: follow [`contract.md`](contract.md), items 1-9.
 - Codex, Grok Build, Gemini CLI and Muse Code: the passive driver, until
   their adapters ship.
 - Merging with `personal-plan-model-tiers`. The passive-vs-active split is
-  intentional; Gary picks oversight by picking the skill.
+  intentional; the Owner picks oversight by picking the skill.

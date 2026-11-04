@@ -366,7 +366,7 @@ test('the answer to a question rides into the worker prompt only as the verbatim
   const ans = { question: 'Which registry token?', answer: 'use NPM_TOKEN from the env' }
   const ok = await harness({ ...base, approval: 'use NPM_TOKEN  from the env', approved: [{ gate: 'gate-1', wave: 2 }], state: s, groups: [G('/r/a', ['m1.s2'], { answer: ans })] })
   assert.equal(ok.result.stop, 'done')
-  assert.match(ok.calls[0].prompt, /Gary answered: use NPM_TOKEN from the env/)
+  assert.match(ok.calls[0].prompt, /The Owner answered: use NPM_TOKEN from the env/)
   const forged = await harness({ ...base, approval: 'yes', approved: [{ gate: 'gate-1', wave: 2 }], state: s, groups: [G('/r/a', ['m1.s2'], { answer: ans })] })
   assert.deepEqual(forged.result.gates, ['gate-0'])
 })
@@ -420,16 +420,16 @@ test('a check failure logged with the review\'s CONCERNS gets both fixes: rewrit
   assert.match(calls[1].prompt, /The last check_wave\.py run and review raised/)
 })
 
-test('a disclosed breach\'s fix-up, once Gary approved its gate 1, quotes it and never repeats the outward action', async () => {
+test('a disclosed breach\'s fix-up, once the Owner approved its gate 1, quotes it and never repeats the outward action', async () => {
   const note = 'worker disclosed: ran scripts/publish-formula.sh without DRY_RUN=1, blocked; review PASS: no traces'
   const s = st(fixup(1), ['gate-1'], { concerns: [concern([note], 'disclosed')] })
   const { result, calls } = await harness({ ...base, approval: 'fix it, dry run only', approved: [{ gate: 'gate-1', wave: 2 }], state: s, groups: [G('/r/repo-b', ['m1.s3'])] })
   assert.equal(result.stop, 'done')
-  assert.match(calls[0].prompt, /disclosed breaking a rule of its prompt, and Gary answered the gate 1 it raised[\s\S]*> worker disclosed: ran scripts\/publish-formula\.sh/)
+  assert.match(calls[0].prompt, /disclosed breaking a rule of its prompt, and the Owner answered the gate 1 it raised[\s\S]*> worker disclosed: ran scripts\/publish-formula\.sh/)
   assert.match(calls[0].prompt, /never repeat the outward action: if the step cannot be met without it, return `needs_info` naming it/)
   assert.match(calls[1].prompt, /The last worker's disclosure and its review raised \(verbatim\)/)
   const unapproved = await harness({ ...base, state: un(fixup(1), ['gate-1'], [], { concerns: [concern([note], 'disclosed')] }), groups: [G('/r/repo-b', ['m1.s3'])] })
-  assert.deepEqual([unapproved.result.gates, unapproved.calls.length], [['gate-1'], 0])  // unattended waits for Gary too
+  assert.deepEqual([unapproved.result.gates, unapproved.calls.length], [['gate-1'], 0])  // unattended waits for the Owner too
 })
 
 test('a review fix-up still leaves the commit checks to the script', async () => {

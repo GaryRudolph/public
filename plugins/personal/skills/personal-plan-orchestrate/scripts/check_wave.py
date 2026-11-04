@@ -28,7 +28,7 @@ The output also sorts out the scope breaches that stop at gate 1 in both
 modes (decision 10), since no fix-up can repair them: `scope` lists a `from`
 that is no longer an ancestor of HEAD and every directory with no group that
 changed; `uncommitted` lists each group's new uncommitted paths, which are a
-scope breach on a workstation only (they may be Gary's own edits) and an
+scope breach on a workstation only (they may be the Owner's own edits) and an
 ordinary failure, fixed by `N-fix`, on a runner.
 """
 

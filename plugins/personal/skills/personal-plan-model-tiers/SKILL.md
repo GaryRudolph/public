@@ -108,7 +108,7 @@ repo). When one fires, append the step with its verbatim text as the last
 step of the last milestone, tagged `[deep]`, and give it its own wave and
 `--- WAVE N [deep] ---` marker, never merged into the previous wave. Say in
 chat which criterion fired, or why the step was skipped (docs-only, all
-code in one wave, disjoint files); Gary may add or remove it before the
+code in one wave, disjoint files); the Owner may add or remove it before the
 first wave runs.
 
 **Name the review gate, don't write it as a step.** Per the standards'
@@ -187,7 +187,7 @@ include:
    the **progress-update reminder spelled out inline** (before stopping:
    append ` (done)` to finished headings, update the Status line, flip
    todos), carries `On branch <name> (task branch): commit each finished
-   step.` on a task branch (Gary pasting it names the branch for that chat;
+   step.` on a task branch (the Owner pasting it names the branch for that chat;
    leave it out until a task branch exists; a chat on another branch
    follows the standards' fill-in rule: a runner keeps its assigned branch
    and says so, a workstation proposes switching and waits), carries the
@@ -314,11 +314,11 @@ and the only way to authorize multiple unattended steps is an explicit
 - **New chat (default).** Append this chat's `kickoff` token line to
   `## Token log` (see "Token tally on report-back" below). Print a short
   summary (the waves with their tiers, the Cost table, the Shape section
-  for Gary to trim, the plan path),
+  for the Owner to trim, the plan path),
   then hand over the Kickoff prompt: on Claude, where the
   `mcp__ccd_session__spawn_task` tool is available, queue it as a
   suggested-task card (`title` the Kickoff's `Suggested chat title`,
-  `prompt` the Kickoff prompt verbatim; Gary asked for this, though the
+  `prompt` the Kickoff prompt verbatim; the Owner asked for this, though the
   tool's description says not to split off your own task), and always
   print the prompt on its own, with the model to pick above it (standards
   §"Printing a prompt in chat"). Halt. Do **not** begin executing any
@@ -326,7 +326,7 @@ and the only way to authorize multiple unattended steps is an explicit
 - **Current chat.** Append this chat's `kickoff` token line, print the
   short summary, then begin executing the first group. When the first
   wave's model isn't the one this chat runs on, say which `/model` and
-  `/effort` to switch to first, and wait for his go. Stop at the
+  `/effort` to switch to first, and wait for the Owner's go. Stop at the
   first STOP marker and report back, with a `wave-1` token line for the
   work since the kickoff line.
 
@@ -472,7 +472,7 @@ human can make one: `/model` in the session, or a new session started from
 the STOP prompt. On a runner (a cloud or self-hosted session) it saves at
 each STOP (the plan, the handoff with the pending question, a commit and a
 push, per core.md "Save before you wait") and stops, as it does anywhere,
-and Gary starts the next wave on the model the marker names. On Claude Code
+and the Owner starts the next wave on the model the marker names. On Claude Code
 with the plugin loaded, say in one line that
 [`personal-plan-orchestrate`](../personal-plan-orchestrate/SKILL.md) can run
 the plan instead, since it sets the model per subagent. Don't run every

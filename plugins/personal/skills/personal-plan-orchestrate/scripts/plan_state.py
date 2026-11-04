@@ -37,7 +37,7 @@ a CONCERNS line whose note starts "check_wave.py:", so it starts or extends
 the same streak, and it is gate 1. A worker's disclosed breach is logged as a
 CONCERNS line whose note starts "worker disclosed:", and its fix-up is gate 1
 in both modes, never an automatic one. A streak of two or more is gate 1 too.
-A PASS ends the streak, and so does a WAIVED line, which carries Gary's
+A PASS ends the streak, and so does a WAIVED line, which carries the Owner's
 answer to that gate 1 verbatim (the hook checks the words).
 
 The Kickoff prompt carries the confirmed mode on a line of its own, "Run in
@@ -71,13 +71,13 @@ MILESTONE_RE = re.compile(r"^(?:m(\d+)\b|milestone\s+(\d+)\b)", re.I)
 BARE_STEP_RE = re.compile(r"^s\d+$")  # a step heading's s{K} prefix with no m{N} before it
 BLOCKED_RE = re.compile(r"BLOCKED at gate ([\w-]+)")
 # A fix-up's review is logged as wave-N-fix, wave-N-fix2, ...; it counts toward wave N's group.
-# WAIVED is never a review: it records Gary's answer to a gate 1, verbatim, and ends the streak.
+# WAIVED is never a review: it records the Owner's answer to a gate 1, verbatim, and ends the streak.
 REVIEW_RE = re.compile(
     r"^\s*(?:[-*]\s+)?`?review wave-(\d+)(?:" + FIX + r")? \((.+?)\) (\S+)\.\.(\S+): (PASS|CONCERNS|WAIVED) - (.*) - (\d{4}-\d\d-\d\d)`?\s*$")
 REVIEW_START_RE = re.compile(r"^\s*(?:[-*]\s+)?`?review wave-")
-# Kickoff mode line. Gary's words come last, verbatim, so they may hold any character:
+# Kickoff mode line. The Owner's words come last, verbatim, so they may hold any character:
 #   mode: unattended | proposed unattended (harness=claude-code runner=cloud) | guard 3x min $50 | fixups 2 | confirmed 2026-10-06 session <id>: <words>
-# A new session that Gary started by pasting the Kickoff prompt records the prompt's mode line as the words:
+# A new session that the Owner started by pasting the Kickoff prompt records the prompt's mode line as the words:
 #   ... | confirmed 2026-10-07 session <id> by Kickoff prompt: Run in unattended mode.
 MODE_RE = re.compile(r"^mode:\s*(gated|unattended|pending)\b(.*)$")
 CONFIRMED_RE = re.compile(r"\|\s*confirmed (\d{4}-\d\d-\d\d) session (\S+?)( by Kickoff prompt)?: (.*)$")
@@ -120,7 +120,7 @@ def mode_of(line):
     if not m:
         return None
     rest, c = m.group(2), CONFIRMED_RE.search(m.group(2))
-    head = rest[:c.start()] if c else rest  # the words after "confirmed" are Gary's, never fields
+    head = rest[:c.start()] if c else rest  # the words after "confirmed" are the Owner's, never fields
     p, g, f = PROPOSED_RE.search(head), GUARD_RE.search(head), FIXUPS_RE.search(head)
     sig = SIGNAL_RE.match((p and p.group(2) or "").strip())
     return {"value": m.group(1) if c else "pending", "proposed": p and p.group(1), "signal": p and p.group(2),

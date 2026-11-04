@@ -38,7 +38,7 @@ from plan** in the handoff and the Completion summary.
 result, or a review that died, reruns once on the same tier (a dead review
 reruns only the review). `failed` or `low_quality` reruns once a tier up,
 into `[exec]` or `[deep]` only, logged as a gate-6 checkpoint. Never on an
-`[xdeep]` or Fable unit, never on a step-up Gary approved, never for
+`[xdeep]` or Fable unit, never on a step-up the Owner approved, never for
 `needs_info`. The retry keeps its wave's number and token row. A second
 failure is gate 1. On Claude Code the workflow does this; elsewhere the
 parent does.
@@ -73,7 +73,7 @@ that carries a review concern keeps the wave's tier and an Opus review:
 
 A reword replays the commits after it with new SHAs, so after a fix-up that
 rewrote pushed commits, push with `--force-with-lease --force-if-includes`.
-Raising the cap (`fixups N` on the mode line) needs Gary's approval of
+Raising the cap (`fixups N` on the mode line) needs the Owner's approval of
 gate 1. Each fix-up gets a Cost table row with expected `—`, labeled with
 its number (`2-fix2 [exec] repo-b m1 s4`), so it adds nothing to the guard's
 projection until it has run.
@@ -88,25 +88,25 @@ projection until it has run.
 
 With `guard 3x min $50`, a plan expected at $78 stops past $234, and one
 expected at $10 past $50. A yes at the guard raises the multiple to the
-next whole one above the projection, or to what Gary names; the raise needs
-his approval of `gate-guard`. Unplanned premium work stops whatever the
+next whole one above the projection, or to what the Owner names; the raise needs
+their approval of `gate-guard`. Unplanned premium work stops whatever the
 spend.
 
 **Over expected, a note.** Once `plan_state.py`'s `cost.actual` passes
 `cost.expected_total`, add `| over expected: ~$<actual> of ~$<total>` to
-Status, say so in the handoff and in the next message Gary sees, and carry
+Status, say so in the handoff and in the next message the Owner sees, and carry
 on: it is not a stop in either mode, only the guard is.
 
 **Scope breaches stop at gate 1 in both modes** (decision 10), since no
 fix-up can repair them: edits in a directory with no group, a `from` that
 is no longer an ancestor of HEAD (both in `check_wave.py`'s `scope`), and,
 on a workstation only, a group's new uncommitted path (its `uncommitted`,
-which may be Gary's own edit). Write `BLOCKED at gate 1`, no Review log line
+which may be the Owner's own edit). Write `BLOCKED at gate 1`, no Review log line
 for the group, leave its steps open, save, ask. On a runner, `uncommitted`
 paths are an ordinary failed check that gets `N-fix`.
 
-**A waiver.** At a gate 1 a streak raised, Gary may waive the concern
+**A waiver.** At a gate 1 a streak raised, the Owner may waive the concern
 instead of approving the next fix-up. Log `review wave-N (<group-id>)
-<from>..<to>: WAIVED - <Gary's answer, whitespace collapsed> - <date>`,
-which ends the streak as a PASS does. The words must be his message
+<from>..<to>: WAIVED - <the Owner's answer, whitespace collapsed> - <date>`,
+which ends the streak as a PASS does. The words must be their message
 verbatim (the Claude Code hook checks); a paste never waives.

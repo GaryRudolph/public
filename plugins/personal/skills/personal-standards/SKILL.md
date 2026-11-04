@@ -8,7 +8,7 @@ description: >-
   attribution, versioning, security, secrets, Makefile, and plan-execution
   standards, with Python, Swift, Kotlin, Go, and GCP/Firebase specifics.
   Use whenever writing, reviewing, refactoring, planning, or documenting
-  code, specs, commits, or PRs for Gary, whenever another personal-* skill
+  code, specs, commits, or PRs, whenever another personal-* skill
   cites a standards file, and whenever asked for the personal canary
   phrase.
 ---
@@ -33,7 +33,7 @@ Then load only the standards the current task touches, from
 
 `core.md` and some standards cite files as
 `~/Projects/personal/public/standards/<file>`. That path exists only on
-Gary's workstation. When it doesn't resolve, read `standards/<file>` from
+the Owner's workstation. When it doesn't resolve, read `standards/<file>` from
 this skill's directory instead; the files are identical.
 
 ## Standards index

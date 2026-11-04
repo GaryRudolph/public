@@ -157,7 +157,7 @@ def main():
             "permissionDecisionReason": f"personal-review-guide: this PR's body has no {missing}. Write the review "
             "guide with the personal-review-guide skill (pr mode) and use its draft as the body, per "
             "standards/review.md \"Description layout\". A repo or machine that doesn't use review guides sets "
-            "PERSONAL_REVIEW_GUIDE=0 in the harness environment; ask Gary rather than setting it yourself."}}))
+            "PERSONAL_REVIEW_GUIDE=0 in the harness environment; ask the Owner rather than setting it yourself."}}))
 
 
 if __name__ == "__main__":

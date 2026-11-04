@@ -1,6 +1,6 @@
 # Agent standards and skills distribution
 
-How personal standards and skills reach every agent Gary uses: Claude Code
+How personal standards and skills reach every agent the Owner uses: Claude Code
 (Mac, cloud, self-hosted runner), Cowork, Claude chat, Codex/ChatGPT, Cursor,
 Gemini CLI, and Muse Code. Setup steps live in
 [`../agents/runbook.md`](../agents/runbook.md).
@@ -69,7 +69,7 @@ absolute `~/Projects/personal/public/standards/...` paths.
 | --- | --- | --- | --- |
 | A. Keep the installer; upload skill zips to claude.ai by hand | Chat, Cowork, synced sessions | Manual re-upload after every edit; drifts | Rejected |
 | B. Server-managed `claudeMd` plus an org-synced plugin | All Claude Code, org-wide | Needs a private marketplace repo; applies to every Team member | Optional (runbook m6) |
-| C. **Repo as plugin marketplace, added to Gary's claude.ai account; installer kept for other tools** | Every Claude surface, plus local Codex/Gemini/Cursor/Muse | One-time account setup; push to update | **Chosen** |
+| C. **Repo as plugin marketplace, added to the Owner's claude.ai account; installer kept for other tools** | Every Claude surface, plus local Codex/Gemini/Cursor/Muse | One-time account setup; push to update | **Chosen** |
 | D. Commit `.claude/settings.json` plugin config to each repo | Local Claude Code only | Per repo; ignored by cloud sessions | Rejected |
 
 ## Design
@@ -195,7 +195,7 @@ Fable ships. In Cursor,
 `[exec]` moved to Grok 4.7, which bills from Cursor's included pool and
 scores within 4 points of Sonnet 5.5 on CursorBench 4.0 (both at high);
 `[deep]` stays on Opus because Grok trails it by about 10. Cursor slugs now
-use the bracket parameters from Cursor's subagent docs. Gary's effort rules
+use the bracket parameters from Cursor's subagent docs. The Owner's effort rules
 of 2026-10-07 set `[xdeep]` to Opus 5.5 at xhigh (max only where a gain is
 measured, ultracode only on audit-shaped steps), `[deep]` to Opus at high
 (medium for interactive planning), and `[exec]` to Sonnet at high, never

@@ -1,7 +1,7 @@
 ---
 name: personal-repo-baseline
 description: >
-  Audit and apply Gary's per-repo agent baseline: the settings the personal
+  Audit and apply the per-repo agent baseline: the settings the personal
   plugin can't carry. Today that's the repo's .claude/settings.json ($schema,
   and attribution set to "Assisted-by: Claude Code" for commits and PRs),
   GitHub's merge settings (squash only, PR title and description as the
@@ -112,7 +112,7 @@ a row per baseline item: current value, target, and the change you propose
 (add, replace, or none). First confirm GitHub's `full_name` is the
 `owner/name` from origin: an ssh alias can point anywhere, and a rename or
 transfer redirects. On a mismatch, say so and leave the GitHub item until
-Gary confirms the repo. Call out:
+the Owner confirms the repo. Call out:
 
 - a `.claude/settings.json` that doesn't parse or has duplicate keys (it needs
   a hand fix first; the merge refuses it)
@@ -132,7 +132,7 @@ Preview the exact settings.json change with:
 python3 <skill-dir>/scripts/merge_settings.py <skill-dir>/templates/claude-settings.json <repo>/.claude/settings.json --diff
 ```
 
-**In plan mode, on dry-run-only requests, or when Gary hasn't approved apply:
+**In plan mode, on dry-run-only requests, or when the Owner hasn't approved apply:
 stop here.** Present the report; write nothing.
 
 ### Step 3 — Confirm, repo by repo and item by item
@@ -148,14 +148,14 @@ repos in one call):
 - **GitHub** — a remote, outward-facing change. Ask in this session, naming
   the repo and each value in the question (`Apply` or `Skip`). A yes to the file isn't a yes to GitHub, and a yes
   for one repo isn't a yes for the next. A runner sends nothing, so it
-  doesn't ask; Step 4 hands Gary the command.
+  doesn't ask; Step 4 hands the Owner the command.
 - **Fail closed** — no response, a dismissed or declined dialog, or an
   ambiguous reply means skip.
 
 ### Step 4 — Apply
 
 **settings.json.** Merge the template in, with one `--take` per replacement
-Gary approved:
+the Owner approved:
 
 ```
 python3 <skill-dir>/scripts/merge_settings.py <skill-dir>/templates/claude-settings.json <repo>/.claude/settings.json --write [--take attribution.commit ...]
@@ -176,36 +176,36 @@ change: commit it per `core.md`.
 guide: the hand edit from the bullet under the table, shown as a diff first.
 Either is an ordinary change: commit it per `core.md`.
 
-**GitHub.** On a workstation, with Gary's yes for this repo (a runner can't
+**GitHub.** On a workstation, with the Owner's yes for this repo (a runner can't
 send it; see below):
 
 ```
 gh api -X PATCH repos/<owner>/<name> --input <skill-dir>/templates/github-merge-settings.json --silent
 ```
 
-If he approved only some values, send just those (`-F key=true` for booleans,
+If the Owner approved only some values, send just those (`-F key=true` for booleans,
 `-f key=VALUE` for strings) instead of `--input`, within two limits, since
 GitHub can refuse the PATCH with a 422: the two `squash_merge_*` values go
 together, as one of the pairs Settings offers (the baseline's `PR_TITLE`
 with `PR_BODY`; `COMMIT_OR_PR_TITLE` only with `COMMIT_MESSAGES`), and at
-least one merge method stays on. If his subset breaks either, say which and
+least one merge method stays on. If their subset breaks either, say which and
 ask again. It needs admin on the repo.
 
 **On a runner, don't send the PATCH.** Claude Code's cloud GitHub proxy
 refuses repository settings writes (HTTP 403 "Repository settings writes
 are not permitted through this proxy."); reads go through. So when
 `CLAUDE_CODE_REMOTE=true`, or a PATCH already got that 403, don't attempt or
-retry it, with or without a yes. Give Gary the command to run on a
+retry it, with or without a yes. Give the Owner the command to run on a
 workstation:
 
 ```
 gh api -X PATCH repos/<owner>/<name> -F allow_squash_merge=true -F allow_merge_commit=false -F allow_rebase_merge=false -f squash_merge_commit_title=PR_TITLE -f squash_merge_commit_message=PR_BODY -F delete_branch_on_merge=true
 ```
 
-plus the Settings path below (a subset he wants follows the limits above),
-and once he says it's done, re-run the audit (Step 5).
+plus the Settings path below (a subset the Owner wants follows the limits above),
+and once they say it's done, re-run the audit (Step 5).
 
-If `gh` is missing or the call is refused, don't work around it: give Gary the
+If `gh` is missing or the call is refused, don't work around it: give the Owner the
 values to set by hand in Settings → General → Pull Requests:
 
 - **Allow merge commits**: off
@@ -222,9 +222,9 @@ matches its template. Report anything that didn't take.
 ## Called from personal-new-project
 
 A new repo has no `.claude/settings.json`, so the merge writes the template as
-is, and it goes into the first commit (on `main`, when Gary asks). The GitHub
+is, and it goes into the first commit (on `main`, when the Owner asks). The GitHub
 item waits until the repo exists on GitHub: say so, and offer to run it after
-the first push. On a runner, hand Gary the command instead (Step 4).
+the first push. On a runner, hand the Owner the command instead (Step 4).
 
 ## Safety invariants (always enforce)
 
@@ -233,7 +233,7 @@ the first push. On a runner, hand Gary the command instead (Step 4).
    GitHub.
 3. **Never drop a key** — the merge only adds, or replaces with `--take`;
    anything else is a hand edit after a yes.
-4. **Remote changes ask in-session** — GitHub settings change only after Gary
+4. **Remote changes ask in-session** — GitHub settings change only after the Owner
    confirms in this session, repo by repo.
 5. **Only what the plugin can't carry** — the standards reach sessions through
    the plugin; don't copy them into repos.

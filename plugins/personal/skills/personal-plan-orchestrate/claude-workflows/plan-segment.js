@@ -123,7 +123,7 @@ function workerPrompt(g, design, t = tier, earlier = null) {
     `## Spec excerpt (verbatim)\n\n${g.spec}`,
     `## The whole plan\n\nRead \`${args.plan.path}\` (read-only) for the steps before and after yours${S.shape ? ' and its Shape section, quoted below' : ''}, and run \`git -C ${g.workdir} log --stat ${planStart(g)}..HEAD\` first, so you know what earlier steps built and where.`,
     shapeSection()]
-  if (g.answer) parts.push(`## Gary's answer (verbatim)\n\nAn earlier attempt asked: ${g.answer.question}\n\nGary answered: ${g.answer.answer}\n\nWork from that answer.`)
+  if (g.answer) parts.push(`## The Owner's answer (verbatim)\n\nAn earlier attempt asked: ${g.answer.question}\n\nThe Owner answered: ${g.answer.answer}\n\nWork from that answer.`)
   if (earlier) parts.push(`## Earlier attempt\n\nAn earlier attempt at this group in this run ended ${earlier}. Its commits, if any, are in ${g.from}..HEAD; check them against the acceptance criteria before you build on them.`)
   if (g.concern) parts.push(fixupSection(g.concern))
   parts.push(...carried(false))
@@ -147,7 +147,7 @@ function fixupSection(c) {
   const what = c.source === 'check'
     ? `The commit and scope checks (check_wave.py) failed on this group${withReview(c) ? ', and its review raised CONCERNS' : ''}. Their output (verbatim):`
     : c.source === 'disclosed'
-      ? 'An earlier worker of this group disclosed breaking a rule of its prompt, and Gary answered the gate 1 it raised. The Review log records (verbatim):'
+      ? 'An earlier worker of this group disclosed breaking a rule of its prompt, and the Owner answered the gate 1 it raised. The Review log records (verbatim):'
       : 'The review of this group raised (verbatim):'
   const before = (c.notes || []).slice(0, -1)
   const how = c.source === 'check'
@@ -298,7 +298,7 @@ function review(g, work, t = tier) {
   return agent(reviewPrompt(g, work, t), { label: `Review ${title(g, t)}`, phase: ph, schema: REVIEW, ...reader(t) })
 }
 // Every rule a worker disclosed breaking, from every attempt: each is gate 1 in both modes, and its group gets no retry.
-// The parent logs the group as CONCERNS (`worker disclosed: ...`), so the fix-up waits for Gary's answer.
+// The parent logs the group as CONCERNS (`worker disclosed: ...`), so the fix-up waits for the Owner's answer.
 const breaches = []
 function noted(g, w) { for (const b of (w && w.breaches) || []) breaches.push({ id: g.id, breach: b }); return w }
 const disclosed = id => breaches.some(b => b.id === id)
