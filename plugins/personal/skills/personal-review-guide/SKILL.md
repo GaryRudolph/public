@@ -36,7 +36,7 @@ drawn or rendered, never recalled.
 | Mode | When | Writes |
 | --- | --- | --- |
 | `plan` | A plan changes a contract, a flow, a schema, or a review surface | A "Shape of the change" section in the plan |
-| `walkthrough` | The work is done and you're about to ask to open a PR, or Gary asks for a walkthrough | The draft, shown as an Artifact page where the harness has one, plus the terminal summary |
+| `walkthrough` | The work is done and you're about to ask to open a PR, or the Owner asks for a walkthrough | The draft, shown as an Artifact page where the harness has one, plus the terminal summary |
 | `pr` | Opening a PR, or a push that changes a tagged area, the tier, or the evidence | The PR description, from the draft |
 
 Not every turn needs a walkthrough. The pre-PR one is the one that counts.
@@ -123,7 +123,7 @@ section stays last.
   has one (it renders Mermaid and can embed rendered images), and print the
   terminal summary (reference.md). Without Artifacts, print the summary and
   the draft's path.
-- `pr`: opening a PR waits for Gary's ask, as always. When he asks, the
+- `pr`: opening a PR waits for the Owner's ask, as always. When the Owner asks, the
   description is the draft, with the trailer paragraph last. On a runner,
   `git rm` the committed draft, commit and push, then open the PR with the
   draft's text as the body, so the file can't reach `main` if the PR

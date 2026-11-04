@@ -1,7 +1,7 @@
 ---
 name: personal-secrets
 description: >-
-  Run Gary's SOPS + age secrets repository (<estate>-secrets): set one up
+  Run a SOPS + age secrets repository (<estate>-secrets): set one up
   from a tested kit, add or edit a secret or signing file, grant or revoke
   a repo's access in access.map, mint, rotate, or retire a consumer's
   (repo, context) key, push SOPS_AGE_KEY to GitHub, wire a consumer repo's
@@ -26,11 +26,11 @@ implements the standard's Makefile contract.
   need to confirm a value, compare it (`cmp`, a hash) instead of displaying
   it. Refer to secrets by file and key name.
 - **Maintainer work stays local.** Anything that reads `src/` or
-  `keys/repos.env.sops` needs a maintainer age key on Gary's machine. Never
+  `keys/repos.env.sops` needs a maintainer age key on the Owner's machine. Never
   suggest putting a source key in CI.
 - **Ask before anything remote or irreversible.** `make set-keys`,
   `gh secret set` or `gh secret delete`, pushing the secrets repo, and
-  deleting keys all need Gary's explicit go-ahead for that step: a choice
+  deleting keys all need the Owner's explicit go-ahead for that step: a choice
   dialog where the harness has one (Claude Code's `AskUserQuestion`), its
   question naming the exact command, options `Run it` and `Not now`. A
   dismissed or declined dialog is a no.
@@ -54,10 +54,10 @@ It never prints values. Decide the next step from these facts.
 
 ### Set up a new secrets repo
 
-1. Agree the estate boundary and name (`<org>/<estate>-secrets`) with Gary.
+1. Agree the estate boundary and name (`<org>/<estate>-secrets`) with the Owner.
 2. Copy the kit into a new private repo:
    `cp -R <this skill>/templates/secrets-repo/. <new-repo>/`.
-3. Gary generates the break-glass key offline and keeps it offline. Only its
+3. The Owner generates the break-glass key offline and keeps it offline. Only its
    public key goes into `breakglass.pub` and `.sops.yaml`.
 4. Add maintainer public keys to `.sops.yaml`, and set `OWNER` in the
    Makefile.
@@ -69,7 +69,7 @@ It never prints values. Decide the next step from these facts.
 
 ### Add or edit a secret
 
-`make src-decrypt FILE=<f>`, then Gary edits the plaintext (or you do,
+`make src-decrypt FILE=<f>`, then the Owner edits the plaintext (or you do,
 without echoing values), then `make src-encrypt FILE=<f>`. For a new file,
 also add its line to `access.map`. Then `make build`, `make verify`, and
 commit. The pre-commit hook refuses the commit if `src/` and `dist/` don't
@@ -90,7 +90,7 @@ anyone can decrypt a file they aren't granted.
    Provision `actions` first; add other contexts only when a workflow there
    needs secrets. Give `agents` less than `actions` where possible.
 2. Grant the identity in `access.map`, `make build`, `make verify`, commit.
-3. With Gary's go-ahead: `CONFIRM_SET_KEYS=1 make set-keys REPO=<repo> CONTEXT=<ctx>`.
+3. With the Owner's go-ahead: `CONFIRM_SET_KEYS=1 make set-keys REPO=<repo> CONTEXT=<ctx>`.
 4. Wire the consumer (below).
 
 ### Wire a consumer repo's CI
@@ -109,13 +109,13 @@ its own `SOPS_AGE_KEY` in each store it uses.
 ### Rotate a consumer key
 
 `make rotate REPO= CONTEXT=`, `make build`, `make verify`, commit, then with
-Gary's go-ahead `CONFIRM_SET_KEYS=1 make set-keys REPO= CONTEXT=`. The old
+the Owner's go-ahead `CONFIRM_SET_KEYS=1 make set-keys REPO= CONTEXT=`. The old
 key stops working at HEAD once the rebuilt `dist/` is pushed.
 
 ### Remove a consumer
 
 Remove it from `access.map`, `make build`, then `make retire REPO= CONTEXT=`
-(it refuses while the identity is still granted), commit, and, with Gary's
+(it refuses while the identity is still granted), commit, and, with the Owner's
 go-ahead, `gh secret delete SOPS_AGE_KEY -R <owner>/<repo> --app <ctx>`.
 
 ### Add or remove a maintainer

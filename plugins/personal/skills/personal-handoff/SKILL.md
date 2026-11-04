@@ -1,7 +1,7 @@
 ---
 name: personal-handoff
 description: >-
-  Write Gary's handoff and plan files with the right name, place, and
+  Write handoff and plan files with the right name, place, and
   contents: session handoffs and saved agent plans in
   .scratch/{handoff|plan}-{topic}-{word}.md (specs/handoffs/ on a cloud or
   self-hosted runner), and milestone handoffs in
@@ -61,9 +61,9 @@ the one exception (the orchestrate skill's "Files a run keeps").
 `.scratch/` dies with the container. When the script prints
 `claude_code_remote: true`, or the harness says the session is remote,
 write the handoff and the plan to `specs/handoffs/` instead (create the
-folder if needed), along with any draft or research Gary asked for, commit
+folder if needed), along with any draft or research the Owner asked for, commit
 them with the work, and push. Commit and push before every turn that waits
-for Gary; that turn may be the last one the container runs. Remove or
+for the Owner; that turn may be the last one the container runs. Remove or
 promote them before the branch merges.
 The rules are in core.md under "Runner scratch rides the branch" and
 "Save before you wait".

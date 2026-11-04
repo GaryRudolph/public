@@ -1,11 +1,11 @@
 ---
 name: personal-new-project
 description: >-
-  Start a new project, repo, package, or service Gary's way: choose a boring
+  Start a new project, repo, package, or service to the personal standards: choose a boring
   stack, look up the current latest stable version of every language,
   runtime, framework, SDK, build tool, and library from its registry (never
   from training data), check end-of-life dates, record the version baseline,
-  and lay the project out per his architecture, testing, documentation,
+  and lay the project out per the architecture, testing, documentation,
   Makefile, and git standards, then apply the per-repo agent baseline
   (personal-repo-baseline). Use when asked to "start a new project",
   "scaffold", "bootstrap", "set up a new repo/service/package", or "create
@@ -35,9 +35,9 @@ upgrade cadence (`standards/versioning.md`); say so and ask how to proceed.
 Prefer boring, proven *stacks* (React, Django, FastAPI, Spring, Rails, Go's
 standard library, Postgres). "Boring" is about the choice, not the version.
 If the request doesn't name the stack, propose one with a sentence of
-reasoning each, and wait for Gary to confirm: a choice dialog where the
+reasoning each, and wait for the Owner to confirm: a choice dialog where the
 harness has one (Claude Code's `AskUserQuestion`), `Use this stack
-(Recommended)` plus an alternative where one is close, with Other for his
+(Recommended)` plus an alternative where one is close, with Other for their
 own pick.
 
 Then list every component that will get pinned: language and runtime,
@@ -144,5 +144,5 @@ until the repo exists on GitHub; it asks before changing them.
 
 Follow the core working agreements throughout: pause after each step,
 and commit per `core.md`. A brand-new repo starts on `main`, so commits
-wait until Gary asks; a task branch can follow once `main` has its first
+wait until the Owner asks; a task branch can follow once `main` has its first
 commit.
