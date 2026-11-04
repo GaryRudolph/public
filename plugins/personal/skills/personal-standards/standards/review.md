@@ -104,10 +104,10 @@ Review tier: [study], because `GET /v1/orders/{id}` gains a field.
 Blast radius: every orders client; the field is additive, a revert is safe.
 Review time: ~12 min
 
-1. [study] `api/orders.proto`: new `fulfillment` field
-2. [check] `orders/service.go`: fills it, new carrier timeout path
-3. [check] `orders/service_test.go`: two cases rewritten
-4. [skim] `docs/orders.md`
+1. [study] [`api/orders.proto`](https://github.com/acme/orders/pull/124/files#diff-<sha256>): new `fulfillment` field
+2. [check] [`orders/service.go`](https://github.com/acme/orders/pull/124/files#diff-<sha256>): fills it, new carrier timeout path
+3. [check] [`orders/service_test.go`](https://github.com/acme/orders/pull/124/files#diff-<sha256>): two cases rewritten
+4. [skim] [`docs/orders.md`](https://github.com/acme/orders/pull/124/files#diff-<sha256>)
 5. [skip] `gen/`, `go.sum` (buf, go mod tidy)
 
 ## Validation
@@ -147,7 +147,7 @@ Assisted-by: Claude Code
 ````
 
 - **Intent**: one paragraph on what changes and why, linking the issue, spec or plan. No heading.
-- **Review guide**: the `Review tier:` line with its reason, the blast radius, the review time, and the reading order as a numbered, tagged list. Contracts and the tests that define new behavior come first.
+- **Review guide**: the `Review tier:` line with its reason, the blast radius, the review time, and the reading order as a numbered, tagged list. Contracts and the tests that define new behavior come first. Each `[study]`, `[check]` and `[skim]` path links straight to its diff, `https://github.com/<owner>/<repo>/pull/<n>/files#diff-<sha256 of the path>`, the anchor GitHub gives each file in the PR's changed files; `[skip]` stays plain, since nobody reads generated files. An area that's a directory links its main file, or nothing. The PR number doesn't exist until the PR opens, so the draft links the compare view (`/compare/<base>...<branch>#diff-<sha256>`, same anchor) and the description switches to the PR's links once it's open, since the compare view dies with the branch.
 - **Validation** and **Rollback**: see [Evidence](#evidence). Rollback says how to undo it, including flags and migrations.
 - **Tier blocks**: inside each, whichever of these the tier's areas need: Contracts (a before/after table), Control flow (before/after diagrams), Data and schema, Error handling (new failure modes, retries, what's swallowed). Leave a blank line after `<summary>` or the Markdown inside won't render.
 - **Decisions**: alternatives ruled out and why, collapsed, last.
