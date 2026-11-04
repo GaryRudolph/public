@@ -1,6 +1,6 @@
 # Codebase Review
 
-How `main` gets reviewed after integration, beside the review of each change. [review.md](review.md) covers a change on its way in: its guide, its tiers, its fresh-context reviewer. This file covers what that can't see: drift across many changes, and across repos that coordinate. The `personal-codebase-review` skill runs it; `specs/codebase-review.md` in the public repo has the reasoning and sources.
+How `main` gets reviewed after integration, beside the review of each change. [review.md](review.md) covers a change on its way in: its guide, its tiers, its fresh-context reviewer. This file covers what that can't see: drift across many changes, and across repos that coordinate. The Owner is the person the agent works for, who owns the repos under review and makes the calls a review raises. The `personal-codebase-review` skill runs it; `specs/codebase-review.md` in the public repo has the reasoning and sources.
 
 Contents:
 
@@ -119,7 +119,7 @@ Drop a section with nothing to say.
 | Field | Values |
 | --- | --- |
 | Severity | `high` (wrong behavior, data loss, a security hole, a broken contract), `medium` (likely to cause one, or significant drift), `low` (cost or clarity), `info` (worth knowing, no action) |
-| Kind | `fix` (the answer is clear) or `decision` (more than one reasonable answer, and it's Gary's call) |
+| Kind | `fix` (the answer is clear) or `decision` (more than one reasonable answer, and it's the Owner's call) |
 | Status | `open`, `fixed`, `decided` (a decision was made; link it), `accepted` (won't change; reason required), `deferred` (later; reason and the trigger to revisit) |
 | Resolution | The PR, commit, issue comment or ADR that changed the status |
 
@@ -129,8 +129,8 @@ Drop a section with nothing to say.
 
 A review produces three things, in this order:
 
-1. **The review PR**, on a task branch off the default branch: the register, the summary, the log row, and the fix review's status updates to earlier registers. Its description is the summary, which carries the `## Review guide` heading and the `Review tier: [skim]` line the PR body guard needs (nothing in it changes behavior). Opening it waits for Gary, as any PR does. Nothing else rides in it: no fixes.
-2. **A tracking issue**, titled `r{N} {kind} review: <verdict>`, listing each decision and each fix as a checklist item with its ID and a link to the register. Its number goes in the log row. Opened with the PR, when Gary asks for the PR.
+1. **The review PR**, on a task branch off the default branch: the register, the summary, the log row, and the fix review's status updates to earlier registers. Its description is the summary, which carries the `## Review guide` heading and the `Review tier: [skim]` line the PR body guard needs (nothing in it changes behavior). Opening it waits for the Owner, as any PR does. Nothing else rides in it: no fixes.
+2. **A tracking issue**, titled `r{N} {kind} review: <verdict>`, listing each decision and each fix as a checklist item with its ID and a link to the register. Its number goes in the log row. Opened with the PR, when the Owner asks for the PR.
 3. **Remediation PRs**, ordinary changes with ordinary review guides, each citing the finding IDs it addresses (`Fixes r7.f2`) and checking off the issue. They don't edit `specs/reviews/`; the next review's fix review records the outcome.
 
 Low and info findings stay in the register and don't get checklist items.
@@ -143,9 +143,9 @@ An estate is several repos that coordinate: a product split across services, an 
 
 1. A workspace's `repos.mk` ([makefile.md](makefile.md)), when run from one.
 2. The member list in the previous estate review's register.
-3. A list or wildcard from Gary (`nowline*`), matched against the folders beside the home repo (inside it, for a workspace) and the owner's repos through `gh`. Where `gh` can't list them (a runner bound to its own repos), use the harness's repo listing, or ask. Show the resolved list and wait for a yes before reviewing.
+3. A list or wildcard from the Owner (`nowline*`), matched against the folders beside the home repo (inside it, for a workspace) and the GitHub owner's repos through `gh`. Where `gh` can't list them (a runner bound to its own repos), use the harness's repo listing, or ask. Show the resolved list and wait for a yes before reviewing.
 
-No workspace repo is required. **Home**: the workspace if there is one, else the repo Gary names, by default the one the session runs in. The home repo holds the register, the summary, an `estate` row in its log, and the tracking issue.
+No workspace repo is required. **Home**: the workspace if there is one, else the repo the Owner names, by default the one the session runs in. The home repo holds the register, the summary, an `estate` row in its log, and the tracking issue.
 
 **Every member logs it too**: an `estate` row in its own `specs/reviews/README.md`, with its own range, the findings that land in it, and a link to the home record. The row doesn't move the member's incremental anchor. Each member's row lands through a small PR in that repo (its body: the skill's member template), and a finding that needs work in a member gets its issue there, linked from the home issue. A workspace home's allowlist `.gitignore` needs `!/specs`.
 
@@ -165,4 +165,4 @@ A log that only accumulates findings changes nothing. Two habits keep it working
 
 ## Ownership
 
-The reviewers' findings are a sensor, not a verdict, and never count as a person's review. Decisions are Gary's: the summary recommends, and the decision is recorded (an issue comment, or an ADR when it's architectural) before its finding moves to `decided`. Whoever runs the review reads the summary before asking to open the PR: a confident, wrong review is worse than none.
+The reviewers' findings are a sensor, not a verdict, and never count as a person's review. Decisions are the Owner's: the summary recommends, and the decision is recorded (an issue comment, or an ADR when it's architectural) before its finding moves to `decided`. Whoever runs the review reads the summary before asking to open the PR: a confident, wrong review is worse than none.

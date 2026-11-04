@@ -75,7 +75,7 @@ generated and vendored paths left out), show them with their line counts,
 and wait for a yes (the standard's "Large ranges").
 
 For `estate`, settle members and home before anything else: `repos.mk`,
-else the last estate's members, else ask Gary for a list or wildcard (a
+else the last estate's members, else ask the Owner for a list or wildcard (a
 plain question, since the answer is open) and re-run the facts with
 `--members`. Show the resolved list (cloned, on GitHub only) and the home
 repo, and wait for a yes in the choice dialog. Members that aren't cloned
@@ -173,4 +173,4 @@ with the handoff files before the PR opens and never enters the log.
   cite the old ID when it did.
 - Don't let the reviewer that wrote the code review it, and don't count an
   agent's review as a person's.
-- Don't decide a `decision` finding. Recommend, and wait for Gary.
+- Don't decide a `decision` finding. Recommend, and wait for the Owner.

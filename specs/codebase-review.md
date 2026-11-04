@@ -35,7 +35,7 @@ Three layers, each with one job:
 An **estate** review runs across several repos that coordinate (nowline's
 OSS and commercial repos, say) and looks only at architecture across them
 and major duplicated code. It needs no workspace repo: members come from a
-`repos.mk`, the previous estate record, or a list or wildcard Gary gives.
+`repos.mk`, the previous estate record, or a list or wildcard the Owner gives.
 
 Each review produces two documents, the findings register first and a
 summary derived from it, lands them in a PR whose body is the summary, opens

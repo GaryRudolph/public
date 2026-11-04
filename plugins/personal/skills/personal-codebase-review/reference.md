@@ -8,7 +8,7 @@
 # Reviews
 
 Reviews of the default branch, oldest first. What each kind covers and how
-the log works: Gary's `codebase-review.md` standard. Remediation is tracked
+the log works: the `codebase-review.md` standard. Remediation is tracked
 in each review's issue.
 
 | Review | Date | Kind | Range | Findings | Issue | Outcome | Record |
@@ -248,5 +248,5 @@ The record, the log and the outputs are the same everywhere.
 A monthly scheduled task runs this skill in `status` mode on each repo (or
 `estate` status on the home repo) and, only when a review is due, runs it
 through step 6, pushes the task branch, and reports; opening the PR and
-the issue still waits for Gary. A due
+the issue still waits for the Owner. A due
 review that no one opens is the signal that the cadence is wrong.
