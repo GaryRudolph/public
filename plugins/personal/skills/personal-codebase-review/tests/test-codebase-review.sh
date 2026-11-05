@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
 # Tests for scripts/review_log_facts.py against fixture repos: a repo with a
 # log, registers and an accepted finding; a repo whose anchor was rewritten
-# away; a workspace with repos.mk; a plain folder matched by a glob; and
-# members read from a previous estate register. Needs bash, git, python3.
+# away; a workspace with repos.mk; a workspace whose members are cloned
+# beside it, as on a runner; a plain folder matched by a glob; and members
+# read from a previous estate register. Needs bash, git, python3.
 set -uo pipefail
 
 here=$(cd "$(dirname "$0")" && pwd)
@@ -241,6 +242,48 @@ expect_grep "workspace reported" "== repo ws"
 expect_grep "member reported" "== repo svc-b"
 expect_ok "--members from the workspace root" --members 'svc*' "$ws"
 expect_grep "members inside the workspace" "local ($ws): svc-a, svc-b"
+expect_grep "nothing beside" "local_beside ($work): none"
+
+echo "workspace whose members are siblings"
+side="$work/side"
+ws2="$side/side-workspace"
+mkdir -p "$ws2" && cd "$ws2" && git init -q -b main
+printf 'REPOS := side-a side-b side-c\n' > repos.mk
+printf 'include repos.mk\nall:\n' > Makefile
+commit ws2 >/dev/null
+for dir in "$ws2/side-a" "$side/side-a" "$side/side-b"; do
+  mkdir -p "$dir" && cd "$dir" && git init -q -b main && printf 'x\n' > a.go && commit a >/dev/null
+done
+expect_ok "runs" "$ws2"
+expect_grep "inside wins over beside" "side-a: cloned inside ($ws2/side-a)"
+expect_grep "member beside the workspace" "side-b: cloned beside ($side/side-b)"
+expect_grep "member in neither place" "side-c: not cloned"
+expect_grep "sibling member reported" "== repo side-b"
+expect_ok "--members from the workspace root" --members 'side*' "$ws2"
+expect_grep "matches inside" "local ($ws2): side-a"
+expect_grep "matches beside" "local_beside ($side): side-b"
+expect_nogrep "the workspace isn't beside itself" "side-b, side-workspace"
+expect_nogrep "inside match not repeated beside" "local_beside ($side): side-a"
+expect_grep "sibling reported" "== repo side-b"
+
+echo "workspace whose parent can't be listed"
+if [ "$(id -u)" = 0 ]; then
+  echo "  skip  root reads any folder"
+else
+  shut="$work/shut"
+  ws3="$shut/shut-workspace"
+  mkdir -p "$ws3" && cd "$ws3" && git init -q -b main
+  printf 'REPOS := shut-a\n' > repos.mk
+  printf 'include repos.mk\nall:\n' > Makefile
+  commit ws3 >/dev/null
+  mkdir -p "$shut/shut-a" && cd "$shut/shut-a" && git init -q -b main && printf 'x\n' > a.go && commit a >/dev/null
+  chmod u-r "$shut"
+  expect_ok "runs with --members" --members 'shut*' "$ws3"
+  expect_grep "unreadable, not none" "local_beside ($shut): unreadable"
+  expect_ok "repos.mk still finds a member by name" "$ws3"
+  expect_grep "member beside an unlistable parent" "shut-a: cloned beside ($shut/shut-a)"
+  chmod u+r "$shut"
+fi
 
 echo "submodules are candidates"
 sub="$work/sub"

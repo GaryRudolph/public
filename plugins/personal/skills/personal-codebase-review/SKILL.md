@@ -58,8 +58,11 @@ default branch, days and changed lines since it by bucket, hotspots, the
 open, accepted and oddly-statused findings in earlier registers, unmerged
 `review/r*` branches, the last estate's members, and the next `r{N}` (past
 any unmerged review). A `found=outside local history` anchor means the fetch
-couldn't deepen: fix that, don't fall back to a full review. From a workspace it reads `repos.mk`; with `--members`
-it matches names or a glob against the folders beside the repo and, with
+couldn't deepen: fix that, don't fall back to a full review. From a workspace it reads `repos.mk` and looks
+for each member inside the workspace, then beside it (how a runner clones
+repos), and says which matched; with `--members`
+it matches names or a glob against the folders beside the repo (for a
+workspace, inside it and then beside it) and, with
 `gh`, the owner's GitHub repos; a `github: error` line means `gh` couldn't
 list them (a runner bound to its own repos), so use the harness's repo
 listing (`list_repos`) or ask. It decides nothing.
