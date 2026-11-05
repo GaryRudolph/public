@@ -408,9 +408,13 @@ def main():
         cloned = [os.path.join(folder, d) for d in local]
         if layout == "workspace":
             parent = os.path.dirname(root)
-            beside = [d for d in local_matches(parse_patterns(args.members), parent)
-                      if d not in local and os.path.join(parent, d) != root]
-            print(f"  local_beside ({parent}): {', '.join(beside) or 'none'}")
+            try:
+                beside = [d for d in local_matches(parse_patterns(args.members), parent)
+                          if d not in local and os.path.join(parent, d) != root]
+                print(f"  local_beside ({parent}): {', '.join(beside) or 'none'}")
+            except OSError as e:
+                beside = []
+                print(f"  local_beside ({parent}): unreadable ({e.strerror or e})")
             local = local + beside
             cloned += [os.path.join(parent, d) for d in beside]
         print(f"  github: {problem or ', '.join(remote) or 'none matched'}")

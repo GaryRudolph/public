@@ -266,6 +266,25 @@ expect_nogrep "the workspace isn't beside itself" "side-b, side-workspace"
 expect_nogrep "inside match not repeated beside" "local_beside ($side): side-a"
 expect_grep "sibling reported" "== repo side-b"
 
+echo "workspace whose parent can't be listed"
+if [ "$(id -u)" = 0 ]; then
+  echo "  skip  root reads any folder"
+else
+  shut="$work/shut"
+  ws3="$shut/shut-workspace"
+  mkdir -p "$ws3" && cd "$ws3" && git init -q -b main
+  printf 'REPOS := shut-a\n' > repos.mk
+  printf 'include repos.mk\nall:\n' > Makefile
+  commit ws3 >/dev/null
+  mkdir -p "$shut/shut-a" && cd "$shut/shut-a" && git init -q -b main && printf 'x\n' > a.go && commit a >/dev/null
+  chmod u-r "$shut"
+  expect_ok "runs with --members" --members 'shut*' "$ws3"
+  expect_grep "unreadable, not none" "local_beside ($shut): unreadable"
+  expect_ok "repos.mk still finds a member by name" "$ws3"
+  expect_grep "member beside an unlistable parent" "shut-a: cloned beside ($shut/shut-a)"
+  chmod u+r "$shut"
+fi
+
 echo "submodules are candidates"
 sub="$work/sub"
 mkdir -p "$sub" && cd "$sub" && git init -q -b main
