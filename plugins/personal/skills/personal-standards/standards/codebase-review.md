@@ -143,7 +143,7 @@ An estate is several repos that coordinate: a product split across services, an 
 
 1. A workspace's `repos.mk` ([makefile.md](makefile.md)), when run from one.
 2. The member list in the previous estate review's register.
-3. A list or wildcard from the Owner (`nowline*`), matched against the folders beside the home repo (inside it, for a workspace) and the GitHub owner's repos through `gh`. Where `gh` can't list them (a runner bound to its own repos), use the harness's repo listing, or ask. Show the resolved list and wait for a yes before reviewing.
+3. A list or wildcard from the Owner (`nowline*`), matched against the folders beside the home repo (for a workspace, inside it and then beside it) and the GitHub owner's repos through `gh`. Where `gh` can't list them (a runner bound to its own repos), use the harness's repo listing, or ask. Show the resolved list and wait for a yes before reviewing.
 
 No workspace repo is required. **Home**: the workspace if there is one, else the repo the Owner names, by default the one the session runs in. The home repo holds the register, the summary, an `estate` row in its log, and the tracking issue.
 

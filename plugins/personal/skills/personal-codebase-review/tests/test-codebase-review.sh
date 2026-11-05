@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
 # Tests for scripts/review_log_facts.py against fixture repos: a repo with a
 # log, registers and an accepted finding; a repo whose anchor was rewritten
-# away; a workspace with repos.mk; a plain folder matched by a glob; and
-# members read from a previous estate register. Needs bash, git, python3.
+# away; a workspace with repos.mk; a workspace whose members are cloned
+# beside it, as on a runner; a plain folder matched by a glob; and members
+# read from a previous estate register. Needs bash, git, python3.
 set -uo pipefail
 
 here=$(cd "$(dirname "$0")" && pwd)
@@ -241,6 +242,29 @@ expect_grep "workspace reported" "== repo ws"
 expect_grep "member reported" "== repo svc-b"
 expect_ok "--members from the workspace root" --members 'svc*' "$ws"
 expect_grep "members inside the workspace" "local ($ws): svc-a, svc-b"
+expect_grep "nothing beside" "local_beside ($work): none"
+
+echo "workspace whose members are siblings"
+side="$work/side"
+ws2="$side/side-workspace"
+mkdir -p "$ws2" && cd "$ws2" && git init -q -b main
+printf 'REPOS := side-a side-b side-c\n' > repos.mk
+printf 'include repos.mk\nall:\n' > Makefile
+commit ws2 >/dev/null
+for dir in "$ws2/side-a" "$side/side-a" "$side/side-b"; do
+  mkdir -p "$dir" && cd "$dir" && git init -q -b main && printf 'x\n' > a.go && commit a >/dev/null
+done
+expect_ok "runs" "$ws2"
+expect_grep "inside wins over beside" "side-a: cloned inside ($ws2/side-a)"
+expect_grep "member beside the workspace" "side-b: cloned beside ($side/side-b)"
+expect_grep "member in neither place" "side-c: not cloned"
+expect_grep "sibling member reported" "== repo side-b"
+expect_ok "--members from the workspace root" --members 'side*' "$ws2"
+expect_grep "matches inside" "local ($ws2): side-a"
+expect_grep "matches beside" "local_beside ($side): side-b"
+expect_nogrep "the workspace isn't beside itself" "side-b, side-workspace"
+expect_nogrep "inside match not repeated beside" "local_beside ($side): side-a"
+expect_grep "sibling reported" "== repo side-b"
 
 echo "submodules are candidates"
 sub="$work/sub"

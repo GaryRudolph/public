@@ -17,8 +17,9 @@ Usage: review_log_facts.py [--members <list|glob>] [--owner <owner>]
                            [--hotspot-days N] [--no-fetch] [<repo>]
   <repo>          the home repo, or a workspace or plain folder (default .)
   --members       comma-separated repo names or a glob (nowline*): matched
-                  against the folders beside the home repo, and against the
-                  owner's GitHub repos through gh when gh is available
+                  against the folders beside the home repo (for a workspace,
+                  inside it and then beside it), and against the owner's
+                  GitHub repos through gh when gh is available
   --owner         GitHub owner for --members (default: from origin's URL)
   --hotspot-days  look-back for hotspots (default 180)
   --no-fetch      don't fetch the default branch before reading it
@@ -346,11 +347,30 @@ def github_repos(owner, cwd):
     return None, "error: " + "; ".join(errors) if errors else "none listed"
 
 
+def member_path(root, name):
+    """A workspace member's clone: inside the workspace, else beside it (how a runner clones)."""
+    inside = os.path.join(root, name)
+    if is_repo(inside):
+        return inside, "inside"
+    beside = os.path.join(os.path.dirname(root), name)
+    if beside != root and is_repo(beside):
+        return beside, "beside"
+    return None, None
+
+
+def parse_patterns(spec):
+    return [p.strip() for p in spec.split(",") if p.strip()]
+
+
+def local_matches(patterns, folder):
+    return sorted(d for d in os.listdir(folder) if is_repo(os.path.join(folder, d))
+                  and any(fnmatch.fnmatchcase(d, p) for p in patterns))
+
+
 def match_members(spec, folder, owner):
     """Local folders, then the owner's GitHub repos, matching a list or a glob."""
-    patterns = [p.strip() for p in spec.split(",") if p.strip()]
-    local = sorted(d for d in os.listdir(folder) if is_repo(os.path.join(folder, d))
-                   and any(fnmatch.fnmatchcase(d, p) for p in patterns))
+    patterns = parse_patterns(spec)
+    local = local_matches(patterns, folder)
     names, problem = github_repos(owner, folder)
     remote = sorted(n for n in (names or []) if any(fnmatch.fnmatchcase(n, p) for p in patterns))
     return local, remote, problem
@@ -385,16 +405,24 @@ def main():
         local, remote, problem = match_members(args.members, folder, owner)
         print(f"\n== members from --members '{args.members}' (owner: {owner or 'unknown'})")
         print(f"  local ({folder}): {', '.join(local) or 'none'}")
+        cloned = [os.path.join(folder, d) for d in local]
+        if layout == "workspace":
+            parent = os.path.dirname(root)
+            beside = [d for d in local_matches(parse_patterns(args.members), parent)
+                      if d not in local and os.path.join(parent, d) != root]
+            print(f"  local_beside ({parent}): {', '.join(beside) or 'none'}")
+            local = local + beside
+            cloned += [os.path.join(parent, d) for d in beside]
         print(f"  github: {problem or ', '.join(remote) or 'none matched'}")
         print(f"  github_not_cloned: {'unknown' if problem else ', '.join(n for n in remote if n not in local) or 'none'}")
-        repos += [os.path.join(folder, d) for d in local if os.path.join(folder, d) != root]
+        repos += [p for p in cloned if p != root]
     elif layout == "workspace":
         names = repos_mk_members(root)
         print(f"\n== members from repos.mk: {', '.join(names) or 'none'}")
         for n in names:
-            path = os.path.join(root, n)
-            print(f"  {n}: {'cloned' if is_repo(path) else 'not cloned'}")
-            if is_repo(path):
+            path, where = member_path(root, n)
+            print(f"  {n}: {f'cloned {where} ({path})' if path else 'not cloned'}")
+            if path:
                 repos.append(path)
     elif layout == "submodule_estate":
         paths = re.findall(r"^\s*path\s*=\s*(.+)$", open(os.path.join(root, ".gitmodules")).read(), re.M)
