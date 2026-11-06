@@ -298,9 +298,13 @@ After writing the Kickoff block and seeding todos, ask the user:
 
 Where the harness has a choice dialog (Claude Code's `AskUserQuestion`),
 ask it there: one question, options `New session (Recommended)` (its
-description names the first wave and its model) and `This session`.
-Elsewhere ask in text. Wait for the user's answer. Treat any non-affirmative reply (silence,
-dismissal, ambiguous answer, or failure to respond) as **new chat**.
+description names the first wave and its model) and `This session`. On a
+Claude Code cloud runner with `create_session`, the first splits in two:
+`Start a new session now (Recommended)` (repo, the first wave's model,
+the task branch) and `Queue a card`. Elsewhere ask in text. Wait for the
+user's answer. Treat any non-affirmative reply (silence, dismissal,
+ambiguous answer, or failure to respond) as **new chat**, and on such a
+runner as a card: nothing starts spending without a yes.
 
 This question is fail-closed: a missed or ambiguous answer defaults to
 new chat (the safer path) and never authorizes continuing execution in
@@ -316,14 +320,22 @@ and the only way to authorize multiple unattended steps is an explicit
   `## Token log` (see "Token tally on report-back" below). Print a short
   summary (the waves with their tiers, the Cost table, the Shape section
   for the Owner to trim, the plan path),
-  then hand over the Kickoff prompt: on Claude, where the
-  `mcp__ccd_session__spawn_task` tool is available, queue it as a
-  suggested-task card (`title` the Kickoff's `Suggested chat title`,
-  `prompt` the Kickoff prompt verbatim; the Owner asked for this, though the
-  tool's description says not to split off your own task), and always
-  print the prompt on its own, with the model to pick above it (standards
-  §"Printing a prompt in chat"). Halt. Do **not** begin executing any
-  step.
+  then hand over the Kickoff prompt as standards §"Handing work to
+  another session" says, behind its header and preflight:
+  - **Started now** (the answer picked it): `create_session` with the
+    plan's repo, `source_revision` and `outcome_branch` both the task
+    branch (pushed), `model` the first wave's tier from that section's
+    table, `permission_mode` this session's, and `title` the Kickoff's
+    `Suggested chat title`. Report the session's id. If the call fails,
+    queue a card instead.
+  - **A card** (otherwise, where `mcp__ccd_session__spawn_task` is
+    available): `title` the `Suggested chat title`, `prompt` the header
+    and the Kickoff prompt (the Owner asked for this, though the tool's
+    description says not to split off your own task).
+  - Always print the prompt on its own, with the model to pick above it
+    (standards §"Printing a prompt in chat").
+
+  Halt. Do **not** begin executing any step.
 - **Current chat.** Append this chat's `kickoff` token line, print the
   short summary, then begin executing the first group. When the first
   wave's model isn't the one this chat runs on, say which `/model` and
@@ -354,10 +366,13 @@ In whichever chat executes a group, **before halting at the STOP marker**:
 
 6. Hand over the next chat's prompt the way the kickoff does (step 7,
    "New chat"): the REVIEW prompt when `review:` is on, else the next
-   STOP prompt, queued as a card on Claude and printed on its own with
-   the model to pick above it. A question at the STOP whose answers are a
-   fixed set (commit, start the next wave) is a choice dialog where the
-   harness has one; a dismissed dialog is no answer.
+   STOP prompt, behind its header, started as a session on the task
+   branch when the STOP question's answer picked that (a runner with
+   `create_session`), else queued as a card on Claude, and printed on its
+   own with the model to pick above it. A question at the STOP whose
+   answers are a fixed set (commit, start the next wave now, queue a card)
+   is a choice dialog where the harness has one; a dismissed dialog is no
+   answer, and starts nothing.
 
 **Review beat (separate chat).** After a wave finishes, the human runs
 the REVIEW marker for that wave before starting the next wave. When

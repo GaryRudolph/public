@@ -1,8 +1,8 @@
 # Session queuing: task cards and create_session
 
-How a session that hands work to another session should do it: a suggested-task card the Owner clicks, or a session it starts itself with `mcp__claude-code-remote__create_session`. This is an evaluation with a probe behind it; the rule changes at the end are proposals, not yet in the standards.
+How a session that hands work to another session should do it: a suggested-task card the Owner clicks, or a session it starts itself with `mcp__claude-code-remote__create_session`. This is the evaluation and the probe behind the rules now in core.md "Queue sessions" and plan-execution.md "Handing work to another session".
 
-Status: proposed, 2026-11-06. Part 1 of the same work (a runner's assigned branch beats a branch a prompt names) is already in `git.md` "Task branches and shared branches".
+Status: implemented, 2026-11-06. Part 1 of the same work (a runner's assigned branch beats a branch a prompt names) is already in `git.md` "Task branches and shared branches".
 
 ## The problem
 
@@ -53,6 +53,8 @@ For a set where some sessions wait on others, three ways, priced at the [plan-ex
 
 Recommend (c) by default, and (a) when the Owner picks it in the dialog ("start the rest as their prerequisites merge"). Never (b).
 
+A dependent card still has to know when it may start, and it can't know its prerequisite's branch (a card's session gets a fresh `claude/…` one) or a PR that doesn't exist yet. So each set gets a name, every prompt has its PR description carry `Queue: <set> <n>`, and a dependent searches the repo's PRs for its prerequisite's line. Merged means go; anything else means hold: no work, one line asking the Owner to say ready, end of turn, no polling. A "ready" is the yes even when the search still finds nothing. Clicking a dependent card early then costs one short turn. For (a), the parent finds the prerequisite's PR the same way before it can subscribe to it.
+
 ## Model choice
 
 `create_session` takes a model id. From the [Model picker](../plugins/personal/skills/personal-standards/standards/plan-execution.md#model-picker), Claude Code row:
@@ -99,9 +101,9 @@ Cards are the easiest path and keep the Owner's click, so they stay the default 
 | Claude desktop or CLI on a workstation (`spawn_task`, no `create_session`) | Cards with the title tier, header and preflight; printed prompt as fallback. |
 | Cursor, Codex, Gemini, Muse, Grok | Printed prompt with the same header. |
 
-## Proposed rule changes (not implemented)
+## Rule changes (implemented)
 
-- **core.md "Number ordered task cards"**: rename to "Queue sessions" and say: a card when it can land right, else offer to start sessions on a runner (one dialog, fail closed to cards); set whatever repo, model, effort and branch fields the card tool offers; tier in the title; every handed-over prompt opens with the header and preflight; dependents stay numbered cards unless the Owner picks auto-start. Net growth about 500 characters.
+- **core.md "Number ordered task cards"**: renamed "Queue sessions"; it says: a card when it can land right, else offer to start sessions on a runner (one dialog, fail closed to cards); set whatever repo, model, effort and branch fields the card tool offers; tier in the title; every handed-over prompt opens with the header and preflight; dependents stay numbered cards unless the Owner picks auto-start, and find their prerequisite by its queue line.
 - **plan-execution.md**: a "Handing work to another session" section holding the header and preflight template, the relaunch and printed-prompt recovery, the tier-to-`model` table and the ordering choice; "Printing a prompt in chat" points to it; the ask-user rule (~740) uses it.
 - **personal-plan-model-tiers step 7 and STOP hand-off**: on a runner with `create_session`, offer to start the next wave with `source_revision` and `outcome_branch` the task branch and `model` the wave's tier (closes r1.f26); else a card with header and preflight.
 - **personal-plan-orchestrate `adapters/claude-code.md` "A new session"**: already uses `create_session`; add the push-first rule and pass `permission_mode` explicitly.

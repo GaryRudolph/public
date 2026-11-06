@@ -25,6 +25,7 @@ Contents:
   - [Review log](#review-log)
   - [Kickoff template](#kickoff-template)
   - [Printing a prompt in chat](#printing-a-prompt-in-chat)
+  - [Handing work to another session](#handing-work-to-another-session)
   - [Cost table](#cost-table)
 - [Who updates progress, and how](#who-updates-progress-and-how)
 - [Progress tracking](#progress-tracking)
@@ -187,7 +188,7 @@ The per-wave reviews and the consolidation step read the plan's own diff on its 
 It's a gate between milestones, not a plan step. The review dispatches its own fresh reviewers, records itself on its own branch and PR, and can change the next milestone's plan; a plan worker may do none of those, and a plan's files leave the branch before its PR merges ([git.md](git.md) "Merging"). So it sits where milestones already hand over:
 
 - **Milestones that land as separate PRs run as separate plans.** The durable milestone list is the spec (`### m{N}` headings); each milestone's plan lives on its own task branch and leaves with its PR; the [milestone handoff](documentation.md#handoffs-between-milestones) carries what's next.
-- **The session that finishes `m{N}`** writes the `m{N+1}` handoff with `Review: pending, after m{N}'s PR merges`. Where the harness can queue task cards, it queues `1: Review m{N} on main` and `2 after 1: Start m{N+1}` (core.md "Number ordered task cards"); otherwise the handoff tells the next session to run the review first.
+- **The session that finishes `m{N}`** writes the `m{N+1}` handoff with `Review: pending, after m{N}'s PR merges`. Where the harness can queue task cards, it queues `1 [deep]: Review m{N} on main` and `2 after 1 [deep]: Start m{N+1}` (core.md "Queue sessions"); otherwise the handoff tells the next session to run the review first.
 - **The session that starts `m{N+1}`** checks the handoff. If the review is pending and `m{N}` has merged, it runs `personal-codebase-review` in its own context before planning, and folds the summary's decisions and high findings into `m{N+1}`'s plan: a high finding in code the previous milestone wrote is a step, not a follow-up. If `m{N}` hasn't merged, it stops and says so.
 - **A plan that ships as one PR**, however many milestones it has, gets the review after that PR merges: its [Completion summary](#final-completion-all-groups-done) lists it under Follow-ups, and the session queues the review card if it can. Inside one PR `main` doesn't change, so there's nothing to review between its milestones.
 - **A complex change** (a `[study]`-tier PR, a plan with an `[xdeep]` step) gets the same follow-up and card when it merges, even mid-project.
@@ -737,7 +738,7 @@ Ask-user rule (after writing the Kickoff):
 
 > Continue execution in this chat, or hand off to a new chat for clean context? (default: new chat)
 
-Where the harness has a choice dialog (Claude Code's `AskUserQuestion`), ask it there, with two options: `New session (Recommended)` and `This session`. Treat any non-affirmative answer (silence, dismissal, a declined dialog, ambiguous reply) as **new chat**. On new chat, halt: where the harness can queue a session (Claude's suggested-task card, `spawn_task`; on a Claude Code cloud runner, `create_session` on the task branch, so the run keeps one branch), queue one whose prompt is the Kickoff prompt, and either way print the prompt on its own ([Printing a prompt in chat](#printing-a-prompt-in-chat)). On current chat, continue per the skill's procedure; nothing needs copying.
+Where the harness has a choice dialog (Claude Code's `AskUserQuestion`), ask it there, with two options: `New session (Recommended)` and `This session`. On a Claude Code cloud runner with `create_session`, the new-session option splits in two: `Start a new session now (Recommended)`, whose description names the repo, the first wave's model and the task branch, and `Queue a card`. Treat any non-affirmative answer (silence, dismissal, a declined dialog, ambiguous reply) as **new chat**, and on such a runner as a card: nothing starts spending without a yes. On new chat, halt and hand the Kickoff prompt over as [Handing work to another session](#handing-work-to-another-session) says: a session started on the task branch (`source_revision` and `outcome_branch` both the task branch, so the run keeps one branch), else a card, and either way print the prompt on its own ([Printing a prompt in chat](#printing-a-prompt-in-chat)). On current chat, continue per the skill's procedure; nothing needs copying.
 
 `personal-plan-orchestrate` folds this question into its **kickoff question**, asked once per plan run after the Kickoff, the Cost table and the counting header are written and saved. That one question proposes a mode (`Proposed mode: gated.` or `unattended.`), names the waves, the expected total, the gates the plan crosses and, on a workstation, the task branch it will cut. A workstation's answer is also the yes to cut the branch. Where the harness has a choice dialog, the question becomes one dialog with a mode question and a session question (this session or a new one); typed, new chat stays a workstation's default (`here` in the answer keeps this chat), and a runner goes on in the same session. The question's answer is read as [STOP gate semantics](#stop-gate-semantics-fail-closed) describes.
 
@@ -853,9 +854,61 @@ The Kickoff block and each STOP marker live in the plan, where the prompt is one
 - The chat title and the model to pick (`/model opus`, `/effort high`; Cursor's slug) go as prose above the fence.
 - The prompt never holds a ```` ``` ```` line, which would end the fence early and break the rendering.
 - Orchestrate prints its Kickoff prompt only once the prompt has its mode line (after the kickoff answer); an earlier copy confirms nothing and makes the next session ask again.
-- Where the harness can queue the session itself (Claude's suggested-task card), queue it with the same prompt, verbatim, and still print the prompt for when the card is dismissed.
+- Where the harness can queue or start the session itself (Claude's suggested-task card, or `create_session` on a Claude Code runner), hand it over as [Handing work to another session](#handing-work-to-another-session) says, with the same prompt behind the header, and still print it for when the card is dismissed or the session fails to start. The header goes inside the fence too, so a paste carries its preflight; orchestrate's Kickoff prompt is the exception (below).
 
 The plan's copy stays where it is: `plan_state.py` reads the orchestrate prompt from inside the Kickoff fence.
+
+### Handing work to another session
+
+Any session that hands work to a new one (a driver's Kickoff, STOP or REVIEW prompt, a milestone's review card, a codebase-review remediation, a follow-up) picks the way, opens the prompt with the header and preflight, and, for a set with waits, adds queue lines. core.md "Queue sessions" is the summary; this is the procedure. The evidence and the probe behind it are in the public repo's `specs/session-queuing.md`.
+
+**Pick the way.**
+
+1. **A card** (Claude's suggested-task card, `spawn_task`) when it can land right: the new session needs the same repos with the same primary, and the same model and effort, as this one, or the card tool has fields for whatever differs. Read the card tool's schema when you load it and set every field it offers for repos, model, effort or branch. Today it has none (`title`, `tldr`, `prompt`): a card's session takes this session's repo, and which model it gets is unverified, so the preflight checks both. When the tool grows those fields, this rule sets them with no change here.
+2. **Otherwise, on a Claude Code cloud runner with `create_session`**, ask once with `AskUserQuestion`: `Start N sessions now (Recommended)`, its description listing each session's repos, model, branch and title; when the set has waits, `Start N now, and the rest as their prerequisites merge`; and `Queue cards`. A yes covers only the sessions it listed. Anything else (declined, dismissed, timed out, typed words that aren't a yes) queues cards, which still wait for a click. A session in plan mode queues cards: a child in plan mode stalls at plan approval.
+3. **Neither tool** (a workstation without cards, Cursor, Codex, Gemini, Muse, Grok): print the prompt ([Printing a prompt in chat](#printing-a-prompt-in-chat)).
+
+Print every prompt as well, for when a card is dismissed or a session fails to start.
+
+**Starting a session.** One session per repo; a session that only reads another repo attaches it read-only with `add_repo`. Pass:
+
+- `source_url`: the repo, `https://github.com/<owner>/<repo>`.
+- `source_revision`: the branch to start from, pushed first (an unpushed branch fails at start with `ref_not_found`, and the session can't recover). Leave it out to start from the default branch.
+- `outcome_branch`: the branch the session is assigned, and opens its PR from. For `On branch X`, X (with `source_revision` X too), so the work stays on one branch. For new work and for `Base branch X`, leave it out and the harness assigns a `claude/…` branch.
+- `model`: from the table below. `permission_mode`: this session's (`get_session` with no id); left unset, the probe's child got `default`.
+- `title`: the card title it would have had. `prompt`: the header, then the prompt.
+
+The session starts checked out on `source_revision` (or the default branch), not on its assigned branch, so when the two differ the prompt says to `git switch -c <assigned branch> --no-track` before the first commit; the harness says so too, but don't rely on it. After starting them, `get_session` each and report their ids. The parent hears back only when a child's turn fails; otherwise it checks with `get_session` and `list_events`.
+
+| Tier | `model` | Effort in the header |
+|---|---|---|
+| `[xdeep]` | `claude-opus-5-5` | xhigh; `ultracode` as the prompt's first word when audit-shaped |
+| `[deep]` | `claude-opus-5-5` | high (medium for interactive planning) |
+| `[exec]` | `claude-sonnet-5-5` | high |
+| `[fast]` | `claude-haiku-5-5` | medium |
+
+These follow the [Model picker](#model-picker)'s Claude Code row; change both together. Neither a card nor `create_session` can set effort, so the header names it and the session asks for it.
+
+**The header and preflight.** Every handed-over prompt opens with these lines, the brackets filled in or dropped:
+
+    Repos: <owner>/<repo> (primary)[, <owner>/<repo>]
+    Model: <model id> (/model <alias>), effort <level> (/effort <level>)
+    Branch: work on your assigned branch (on a workstation, cut fix/<slug> off the default branch)
+    [Queue: <set> <n>[ after <m>[ (<owner>/<repo>)][, <k>]]. Put "Queue: <set> <n>" in your PR description.]
+    Preflight: before anything else, check that `git remote get-url origin` is the primary repo and that you run the model above (on a runner, get_session with no id; elsewhere, your system prompt). If either is wrong, do no work and recover as plan-execution.md "Handing work to another session" says. Say in your first line the effort this wants, in case you aren't at it. [Then check the queue prerequisites, same section.]
+
+The `Branch:` line is `Branch: Base branch X: open your PR against X` when the PR should land on X, and is dropped when the prompt carries its own `On branch` line (git.md "Task branches and shared branches" says how a runner reads both). Orchestrate's Kickoff prompt goes over verbatim, with no header: its hook matches a paste against the prompt in the plan, and its Claude Code adapter sets the model itself.
+
+**Recovering from a wrong repo or model.** The session does no work, then:
+
+- **Relaunches**, on a runner with `create_session`: it starts the right session (repos, branch, model) with the same prompt, reports the new session's id, and stops. It doesn't ask when the right model costs no more per token than its own ([Model price table](#model-price-table)), since the click on the card approved the work; when it costs more, it asks first, and anything but a yes falls back to printing.
+- **Or prints** the prompt in a `text` fence, with what to pick above it: the repos to select, in order, the first being primary; the `/model` and `/effort`; the branch. When only the model is wrong, it also offers the in-place fix: run `/model` and `/effort` here, then say go.
+
+Either way the wrong session spends one short turn.
+
+**Order.** Number a set with waits as core.md "Queue sessions" says, and name it `<topic>-<word>` (the handoff naming). Each prompt's header carries its queue line, so each PR description carries `Queue: <set> <n>`, above the trailer paragraph. After the preflight, a dependent checks each prerequisite by finding its PR: `gh api -X GET search/issues -f q='repo:<owner>/<repo> is:pr in:body "Queue: <set> <m>"'` (where `gh` can't reach the repo, the GitHub tools' PR list, reading bodies). A merged PR means go. Anything else (no PR, an open one, a closed one) means hold: do no work, say `Waiting on <m> (<title>): <no PR yet | PR #<n> open>. Say ready when it's merged, or give me its PR or branch.`, and end the turn, with no polling and no `sleep`. On a reply, check again. A "ready" counts as the yes even when the check still finds nothing: build on the PR or branch it names (merged onto your branch as git.md says), else on the freshly fetched default branch, and say the check couldn't confirm the prerequisite.
+
+The independent sessions start now, as cards or sessions. Dependents stay numbered cards, so the click is the wait. When the Owner picked `the rest as their prerequisites merge`, the parent starts each dependent itself instead: a `send_later` about every 55 minutes (inside the one-hour cache) searches for the prerequisite's queue line, `subscribe_pr_activity` once its PR exists, and `create_session` when it merges, never before. Each wake re-reads the parent's context: about $0.03 for 150k tokens of Opus inside the cache, $0.60-0.75 past it. Never start a dependent session early to wait: it spends a start, then sits until someone answers it.
 
 ### Cost table
 
