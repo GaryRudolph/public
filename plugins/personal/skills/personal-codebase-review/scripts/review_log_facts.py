@@ -5,7 +5,8 @@ Prints what the agent needs to decide on and scope a review of the default
 branch: the layout, the estate's members if asked, and per repo the default
 branch and its head, the review log's rows, the last anchor and whether it
 is still reachable, days and churn since it, hotspots, the open and accepted
-findings in earlier registers, and the next review number.
+findings in earlier registers, the fix claims not yet read, and the next
+review number.
 
 Emits no verdicts: whether a review is due, which kind, and what a finding
 means are the agent's call from standards/codebase-review.md. Churn buckets
@@ -42,6 +43,8 @@ LOG = "specs/reviews/README.md"
 ROW = re.compile(r"^\|\s*r(\d+)\s*\|")
 FINDING = re.compile(r"^###\s+(r\d+\.f\d+)\s+-\s+(.*)$")
 FIELD = re.compile(r"^-\s+(Severity|Kind|Status|Location|Reason|Resolution):\s*(.*)$")
+CLAIM_PATH = re.compile(r"^specs/reviews/r(\d+)/f(\d+)\.md$")
+CLAIM_FIELD = re.compile(r"^-?\s*(Finding|Claim):\s*(.*)$")
 RANGE = re.compile(r"^([0-9a-f]*)\.\.([0-9a-f]+)$")
 HOTSPOT_LIMIT = 15
 HOTSPOT_BUCKETS = ("source", "orchestration", "api", "schema")
@@ -173,6 +176,24 @@ def findings(repo, ref, path):
     return found
 
 
+def fix_claims(repo, ref):
+    """Claim files under specs/reviews/r{N}/, with their fields and the commit that added each."""
+    claims = []
+    for path in git(repo, "ls-tree", "-r", "--name-only", ref, "specs/reviews").splitlines():
+        m = CLAIM_PATH.match(path)
+        if not m:
+            continue
+        fields = {}
+        for line in (show(repo, ref, path) or "").splitlines():
+            f = CLAIM_FIELD.match(line.strip())
+            if f:
+                fields.setdefault(f.group(1).lower(), f.group(2).strip())
+        claims.append({"key": (int(m.group(1)), int(m.group(2))), "id": f"r{m.group(1)}.f{m.group(2)}",
+                       "path": path, "finding": fields.get("finding", "-"), "claim": fields.get("claim", "-"),
+                       "added": git(repo, "log", "--diff-filter=A", "-1", "--format=%h %s", ref, "--", path) or "?"})
+    return sorted(claims, key=lambda c: c["key"])
+
+
 def register_header(repo, ref, path, key):
     for line in (show(repo, ref, path) or "").splitlines():
         m = re.match(r"^-?\s*" + key + r":\s*(.*)$", line.strip())
@@ -299,9 +320,10 @@ def report_repo(repo, args):
         print(f"    {score} {commits} {lines} {path}")
 
     regs = registers(repo, ref)
-    open_, accepted, other = [], [], []
+    open_, accepted, other, by_id = [], [], [], {}
     for path in regs:
         for f in findings(repo, ref, path):
+            by_id[f["id"]] = f
             status = status_word(f.get("status"))
             if status in ("open", "deferred", ""):
                 open_.append(f)
@@ -320,6 +342,12 @@ def report_repo(repo, args):
     print(f"  other_status_findings ({len(other)}): id | status | title")
     for f in other:
         print(f"    {f['id']} | {f.get('status')} | {f['title']}")
+
+    claims = fix_claims(repo, ref)
+    print(f"  fix_claims ({len(claims)}): id_from_path | finding_line | claim | register_status | added_in | path")
+    for c in claims:
+        status = by_id[c["id"]].get("status", "?") if c["id"] in by_id else "(not in a register)"
+        print(f"    {c['id']} | {c['finding']} | {c['claim']} | {status} | {c['added']} | {c['path']}")
 
     estate_regs = [p for p in regs if p.endswith("-estate-findings.md")]
     if estate_regs:

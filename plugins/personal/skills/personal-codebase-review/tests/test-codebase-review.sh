@@ -106,6 +106,22 @@ expect_grep "accepted finding with reason" "r1.f2 | \`vendor/parse.go\` at $r1 |
 expect_grep "hotspot" "src/a.go"
 expect_nogrep "tests aren't hotspots" "tests/a_test.go"
 
+echo "fix claims"
+mkdir -p specs/reviews/r1 specs/reviews/r9
+printf 'Finding: r1.f3\nClaim: fixed\nChange: B now called from A\nEvidence: TestA\n' > specs/reviews/r1/f3.md
+printf 'Finding: r9.f1\nClaim: partial\n' > specs/reviews/r9/f1.md
+printf 'notes\n' > specs/reviews/r1/notes.md
+claim=$(commit "call B from A (#7)")
+expect_ok "runs" "$repo"
+expect_grep "claim count skips other files" "fix_claims (2):"
+expect_grep "claim joined to its register status" "r1.f3 | r1.f3 | fixed | open | $claim call B from A (#7) | specs/reviews/r1/f3.md"
+expect_grep "claim with no register" "r9.f1 | r9.f1 | partial | (not in a register) |"
+expect_nogrep "claim dir isn't a register" "registers: 2"
+git rm -rq specs/reviews/r1 specs/reviews/r9 && commit "read claims" >/dev/null
+expect_ok "runs" "$repo"
+expect_grep "deleted claims gone" "fix_claims (0):"
+head=$(git rev-parse HEAD)
+
 echo "reads the default branch, not the checked-out one"
 git switch -qc feature "$r2"
 printf 'func D() {}\n' >> src/a.go && commit d >/dev/null

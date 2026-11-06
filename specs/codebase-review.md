@@ -66,9 +66,14 @@ the next incremental knows where to start.
   links the home record. The row doesn't move the member's incremental
   anchor, since an estate review doesn't read lines.
 - **Remediation is separate.** The review PR records what was found; the
-  issue is the work queue; fixes are ordinary PRs that cite finding IDs. The
-  next review's fix review sets earlier findings' statuses from the issue
-  and PR state, so fix PRs never touch `specs/reviews/`.
+  issue is the work queue; fixes are ordinary PRs that cite finding IDs. A
+  fix PR adds one claim file per finding (`specs/reviews/r7/f2.md`), so
+  what's been addressed is visible in the repo without opening the issue,
+  and parallel fix PRs never touch the same file. A claim isn't a status:
+  the next review's fix review reads it with the issue and the code, sets
+  the status in the register, and deletes it. Fix PRs touch nothing else in
+  `specs/reviews/`, so the fixer never grades its own work and the log row
+  never conflicts.
 - **Accepted findings stay accepted.** A finding marked `accepted` with a
   reason is handed to the reviewers as known and listed at the bottom of
   the summary, not raised again unless the code under it changed.

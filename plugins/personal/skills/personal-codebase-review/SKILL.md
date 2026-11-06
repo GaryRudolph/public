@@ -55,7 +55,8 @@ hotspots are real) and reads the log and registers from it, not from the
 checked-out branch. It prints, per repo: the default branch and
 its head SHA, the log's rows, the last anchor and whether it's still on the
 default branch, days and changed lines since it by bucket, hotspots, the
-open, accepted and oddly-statused findings in earlier registers, unmerged
+open, accepted and oddly-statused findings in earlier registers, the fix
+claims not yet read, unmerged
 `review/r*` branches, the last estate's members, and the next `r{N}` (past
 any unmerged review). A `found=outside local history` anchor means the fetch
 couldn't deepen: fix that, don't fall back to a full review. From a workspace it reads `repos.mk` and looks
@@ -121,11 +122,13 @@ Then one verifier, also fresh, tries to disprove each finding (reference.md
 
 ### 5. Fix review
 
-For every open finding in the facts, read its issue and any PR citing its
-ID, and the code at its location at `<to>`. Set the new status per the
+For every open finding in the facts, read its fix claims (the facts'
+`fix_claims`, with the commit that added each), its issue and any PR citing
+its ID, and the code at its location at `<to>`. Set the new status per the
 standard and write it back in this review's PR: the `Status:` and
 `Resolution:` lines in the earlier register, and the Outcome cell of each
-earlier review touched. Report `other_status_findings` too, and normalize
+earlier review touched. `git rm` every claim you read, borne out or not; a
+claim the code doesn't bear out goes in the `Resolution:` line. Report `other_status_findings` too, and normalize
 their status while you're there.
 
 ### 6. Write the register, then the summary
@@ -164,9 +167,10 @@ session" says, each prompt behind its header (the repo the findings land
 in, the model for the fix's tier). Remediation PRs don't wait on each
 other, so none is numbered, and all can start at once. Each prompt names
 its finding IDs and the tracking issue, and says: cite both in the PR
-description (`Fixes r7.f1`, `Part of #<issue>`, no closing keyword); when
-the PR opens, tick those findings' boxes in the issue and append the PR
-link; don't edit `specs/reviews/`. A remediation prompt names no branch to cut: "work on your assigned branch (on a
+description (`Fixes r7.f1`, `Part of #<issue>`, no closing keyword); add a
+fix claim per finding at `specs/reviews/r{N}/f{K}.md` (reference.md "Fix
+claim"), and touch nothing else in `specs/reviews/`; when the PR opens,
+tick those findings' boxes in the issue and append the PR link. A remediation prompt names no branch to cut: "work on your assigned branch (on a
 workstation, cut `fix/<slug>` off the default branch)" (git.md "Task
 branches and shared branches").
 

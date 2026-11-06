@@ -7,7 +7,7 @@ Contents:
 - [Kinds](#kinds): incremental, full, estate, interim
 - [When](#when): milestone gates, complex changes, churn, an optional schedule
 - [Anchors](#anchors): commits on the default branch only
-- [The record](#the-record): `specs/reviews/`, the log, the register, the summary
+- [The record](#the-record): `specs/reviews/`, the log, the register, the summary, fix claims
 - [Findings](#findings): fields, statuses, accepted findings
 - [Outputs](#outputs): a review PR, a tracking issue, remediation PRs
 - [Estates](#estates): several repos, with or without a workspace
@@ -60,6 +60,7 @@ specs/reviews/
   README.md                              # the log, one row per review
   2026-11-03-r7-incremental.md           # the summary, for humans
   2026-11-03-r7-incremental-findings.md  # the register, the detail
+  r7/f2.md                               # a fix claim, until the next review reads it
 ```
 
 Reviews are numbered `r{N}` per repo and findings `r{N}.f{K}`, as milestones and steps are ([documentation.md](documentation.md) "Implementation Milestones"). Files are `{date}-r{N}-{kind}.md` and `{date}-r{N}-{kind}-findings.md`; the date first keeps them in order without padding. `specs/reviews/` isn't a scratch folder: everything in it lands on the default branch.
@@ -101,6 +102,23 @@ Written second, from the register, for a human who has about 2 minutes. It follo
 
 Drop a section with nothing to say.
 
+### Fix claims
+
+A remediation PR records what it claims to have fixed in one file per finding, `specs/reviews/r{N}/f{K}.md`, so `ls specs/reviews/r7/` shows what's been addressed since r7 and not yet verified. The path is the finding ID, so parallel fix PRs never touch the same file.
+
+```markdown
+Finding: r7.f2
+Claim: fixed
+Change: return the wrapped error after the last retry in `sync/upload.go`
+Evidence: `TestUploadFails` now asserts the returned error
+```
+
+- **Claim**: `fixed`, or `partial` with what's left in Change.
+- **Change** and **Evidence**: a line or two each. It's a pointer for the next reviewer, not the PR description.
+- No PR field: the PR doesn't exist when the file is written, and the squash commit that adds it carries the number.
+
+A claim is the fixer's word, not a status. The next review's fix review reads it with the issue and the code, sets the finding's status in the register, and deletes the claim. A fix that lands in another repo than the register's (an estate member) has no claim file; its PR and the issue checkbox carry it.
+
 ## Findings
 
 ```markdown
@@ -129,9 +147,9 @@ Drop a section with nothing to say.
 
 A review produces three things, in this order:
 
-1. **The review PR**, on a task branch off the default branch: the register, the summary, the log row, and the fix review's status updates to earlier registers. Its description is the summary, which carries the `## Review guide` heading and the `Review tier: [skim]` line the PR body guard needs (nothing in it changes behavior). Opening it waits for the Owner, as any PR does. Nothing else rides in it: no fixes.
+1. **The review PR**, on a task branch off the default branch: the register, the summary, the log row, the fix review's status updates to earlier registers, and the deletion of the fix claims it read. Its description is the summary, which carries the `## Review guide` heading and the `Review tier: [skim]` line the PR body guard needs (nothing in it changes behavior). Opening it waits for the Owner, as any PR does. Nothing else rides in it: no fixes.
 2. **A tracking issue**, titled `r{N} {kind} review: <verdict>`, listing each decision and each fix as a checklist item with its ID and a link to the register. Its number goes in the log row. Opened with the PR, when the Owner asks for the PR.
-3. **Remediation PRs**, ordinary changes with ordinary review guides, each citing the finding IDs it addresses (`Fixes r7.f2`) and the tracking issue (`Part of #123`, never a closing keyword, which would close the whole issue). When the PR opens, its author ticks each of those findings' boxes in the tracking issue and appends the PR link to the item. They don't edit `specs/reviews/`: a finding's status is the next review's call against the code, not the fixer's claim, and remediation PRs run in parallel, so each would conflict on the same log row. The next review's fix review records the outcome.
+3. **Remediation PRs**, ordinary changes with ordinary review guides, each citing the finding IDs it addresses (`Fixes r7.f2`) and the tracking issue (`Part of #123`, never a closing keyword, which would close the whole issue). Each adds a [fix claim](#fix-claims) per finding it addresses, and when the PR opens, its author ticks those findings' boxes in the tracking issue and appends the PR link to the item. Beyond its claims, a remediation PR doesn't edit `specs/reviews/`: a finding's status is the next review's call against the code, not the fixer's, and remediation PRs run in parallel, so register or log edits would conflict. The next review's fix review records the outcome.
 
 Low and info findings stay in the register and don't get checklist items.
 
@@ -160,7 +178,7 @@ No workspace repo is required. **Home**: the workspace if there is one, else the
 
 A log that only accumulates findings changes nothing. Two habits keep it working:
 
-- **Fix review**: every review starts by reading the previous reviews' open findings, sets each one's status from its issue, PRs and the code at `<to>`, and writes it back in the review PR: the `Status:` and `Resolution:` lines in the earlier register, and that review's Outcome cell in the log. The register is the only place later reviews read status from. A finding fixed in the code with no PR citing it is still `fixed`; one with a closed checkbox and unchanged code is still `open`.
+- **Fix review**: every review starts by reading the previous reviews' open findings, sets each one's status from its fix claims, issue, PRs and the code at `<to>`, and writes it back in the review PR: the `Status:` and `Resolution:` lines in the earlier register, and that review's Outcome cell in the log. It deletes every claim it read, whatever it concluded; a claim the code doesn't bear out goes in the finding's `Resolution:` line (`#130 claimed fixed; still swallows the error on timeout`). The register is the only place later reviews read status from. A finding fixed in the code with no PR citing it is still `fixed`; one with a claim or a closed checkbox and unchanged code is still `open`.
 - **Rules**: when a finding class shows up in two reviews, or three times in one, the answer is a rule, not another fix: a line in the repo's `AGENTS.md` or `REVIEW.md`, a lint rule, a CI check, or a proposal for these standards. The summary's "Rules changed" names it.
 
 ## Ownership

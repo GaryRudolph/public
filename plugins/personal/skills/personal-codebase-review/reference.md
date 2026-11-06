@@ -9,7 +9,8 @@
 
 Reviews of the default branch, oldest first. What each kind covers and how
 the log works: the `codebase-review.md` standard. Remediation is tracked
-in each review's issue.
+in each review's issue; `r{N}/` holds fix claims the next review hasn't
+read yet.
 
 | Review | Date | Kind | Range | Findings | Issue | Outcome | Record |
 | --- | --- | --- | --- | --- | --- | --- | --- |
@@ -151,13 +152,29 @@ Fixes
 - [ ] r7.f2 medium: ...
 
 Remediation PRs cite the finding ID (`Fixes r7.f1`) and this issue
-(`Part of #<this issue>`, never a closing keyword). When the PR opens, tick
-each finding it fixes here and append the PR link to the item. The next
-review's fix review records the outcome in the register, so don't edit
-`specs/reviews/` in a fix PR.
+(`Part of #<this issue>`, never a closing keyword), and add a fix claim per
+finding at `specs/reviews/r7/f1.md` (the standard's "Fix claims"). When the
+PR opens, tick each finding it fixes here and append the PR link to the
+item. The next review's fix review records the outcome in the register, so
+a fix PR touches nothing else in `specs/reviews/`.
 ```
 
 Low and info findings stay out of the issue.
+
+## Fix claim
+
+`specs/reviews/r7/f1.md`, one per finding, added by the remediation PR:
+
+```markdown
+Finding: r7.f1
+Claim: fixed
+Change: return the wrapped error after the last retry in `sync/upload.go`
+Evidence: `TestUploadFails` now asserts the returned error
+```
+
+`Claim` is `fixed` or `partial`. The facts script reads the `Finding` and
+`Claim` lines and the commit that added the file. In the PR's review guide
+it's `[skip] specs/reviews/r7/f1.md: fix claim`.
 
 ## Terminal summary
 
