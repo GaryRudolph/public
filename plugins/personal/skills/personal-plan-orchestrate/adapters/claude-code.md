@@ -95,11 +95,12 @@ save, start or queue it (load a deferred tool with ToolSearch):
   is `Orchestrate <plan name>`, and `prompt` is the Kickoff prompt
   verbatim. `outcome_branch` makes the harness assign the task branch
   instead of a fresh `claude/…` one, so the run stays on one branch and
-  path (b) has nothing to move. Leave `model` and `permission_mode` unset:
-  both inherit this session's. If this session isn't on Opus, pass the
-  Opus id. If its permission mode is `plan` (`get_session` with no id),
-  use the card below instead: a child in plan mode stalls at plan
-  approval. A plan spanning repos passes only the plan's repo; the new
+  path (b) has nothing to move. Push the task branch first: a
+  `source_revision` that isn't on the remote fails at start
+  (`ref_not_found`). Pass `model` `claude-opus-5-5` and `permission_mode`
+  this session's (`get_session` with no id): left unset, a probe's child
+  got `default`. If this session's mode is `plan`, use the card below
+  instead: a child in plan mode stalls at plan approval. A plan spanning repos passes only the plan's repo; the new
   session attaches the rest with `add_repo` and switches each to its task
   branch. The prompt arrives as `inbound_origin: mcp_create_session`, not
   a human message, so it is no paste: the new session asks the Owner to confirm

@@ -158,7 +158,14 @@ one PR per member, each with its log row, a body from reference.md "Member
 PR", and the member's own issue for findings that land there.
 
 Remediation isn't part of this run. Offer to start it, as separate PRs that
-cite finding IDs.
+cite finding IDs: one card or session per group of findings that land
+together, handed over as plan-execution.md "Handing work to another
+session" says, each prompt behind its header (the repo the findings land
+in, the model for the fix's tier). Remediation PRs don't wait on each
+other, so none is numbered, and all can start at once. A remediation
+prompt names no branch to cut: "work on your assigned branch (on a
+workstation, cut `fix/<slug>` off the default branch)" (git.md "Task
+branches and shared branches").
 
 ## Interim
 
