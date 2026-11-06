@@ -137,6 +137,26 @@ Findings that land here: #<member issue>, or none.
 Assisted-by: Claude Code
 ```
 
+## Workspace claim PR
+
+For estate findings fixed in a member when the home is a workspace: one PR
+in the workspace per fix PR, carrying only that fix's claims. Body:
+
+```markdown
+Fix claims for r2.f3, r2.f5 from <owner>/<member>#<fix PR>.
+
+## Review guide
+
+Review tier: [skip], fix claims only; the fix is in the member's PR.
+Review time: ~1 min
+
+1. [skip] `specs/reviews/r2/f3.md`, `specs/reviews/r2/f5.md`: fix claims
+
+Part of #<home issue>
+
+Assisted-by: Claude Code
+```
+
 ## Issue
 
 Title: `r7 incremental review: 1 high, 4 medium, 2 decisions`. Body:
@@ -153,7 +173,9 @@ Fixes
 
 Remediation PRs cite the finding ID (`Fixes r7.f1`) and this issue
 (`Part of #<this issue>`, never a closing keyword), and add a fix claim per
-finding at `specs/reviews/r7/f1.md` (the standard's "Fix claims"). When the
+finding at `specs/reviews/r7/f1.md` in the repo that holds this review's
+register (for an estate fix in a member, reference.md "Workspace claim PR"
+when the home is a workspace; the standard's "Fix claims"). When the
 PR opens, tick each finding it fixes here and append the PR link to the
 item. The next review's fix review records the outcome in the register, so
 a fix PR touches nothing else in `specs/reviews/`.

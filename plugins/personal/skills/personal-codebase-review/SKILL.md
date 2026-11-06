@@ -170,7 +170,11 @@ its finding IDs and the tracking issue, and says: cite both in the PR
 description (`Fixes r7.f1`, `Part of #<issue>`, no closing keyword); add a
 fix claim per finding at `specs/reviews/r{N}/f{K}.md` (reference.md "Fix
 claim"), and touch nothing else in `specs/reviews/`; when the PR opens,
-tick those findings' boxes in the issue and append the PR link. A remediation prompt names no branch to cut: "work on your assigned branch (on a
+tick those findings' boxes in the issue and append the PR link. For estate
+findings with a workspace home, the claims go in the workspace through
+reference.md "Workspace claim PR", so the card or session gets the
+workspace repo beside the member, and the prompt says so. A remediation
+prompt names no branch to cut: "work on your assigned branch (on a
 workstation, cut `fix/<slug>` off the default branch)" (git.md "Task
 branches and shared branches").
 

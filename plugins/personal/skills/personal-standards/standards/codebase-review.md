@@ -117,7 +117,7 @@ Evidence: `TestUploadFails` now asserts the returned error
 - **Change** and **Evidence**: a line or two each. It's a pointer for the next reviewer, not the PR description.
 - No PR field: the PR doesn't exist when the file is written, and the squash commit that adds it carries the number.
 
-A claim is the fixer's word, not a status. The next review's fix review reads it with the issue and the code, sets the finding's status in the register, and deletes the claim. A fix that lands in another repo than the register's (an estate member) has no claim file; its PR and the issue checkbox carry it.
+A claim is the fixer's word, not a status. The next review's fix review reads it with the issue and the code, sets the finding's status in the register, and deletes the claim. A claim lives beside its register. For an estate finding whose home is a workspace, the fix PR lands in the member and a second small PR adds the claims to the workspace, citing the fix PR; it doesn't wait for the fix to merge, since the next review checks the code anyway. Without a workspace, an estate fix that lands in a member other than the home has no claim file; its PR and the issue checkbox carry it.
 
 ## Findings
 
