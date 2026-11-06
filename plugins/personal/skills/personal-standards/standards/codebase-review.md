@@ -131,7 +131,7 @@ A review produces three things, in this order:
 
 1. **The review PR**, on a task branch off the default branch: the register, the summary, the log row, and the fix review's status updates to earlier registers. Its description is the summary, which carries the `## Review guide` heading and the `Review tier: [skim]` line the PR body guard needs (nothing in it changes behavior). Opening it waits for the Owner, as any PR does. Nothing else rides in it: no fixes.
 2. **A tracking issue**, titled `r{N} {kind} review: <verdict>`, listing each decision and each fix as a checklist item with its ID and a link to the register. Its number goes in the log row. Opened with the PR, when the Owner asks for the PR.
-3. **Remediation PRs**, ordinary changes with ordinary review guides, each citing the finding IDs it addresses (`Fixes r7.f2`) and checking off the issue. They don't edit `specs/reviews/`; the next review's fix review records the outcome.
+3. **Remediation PRs**, ordinary changes with ordinary review guides, each citing the finding IDs it addresses (`Fixes r7.f2`) and the tracking issue (`Part of #123`, never a closing keyword, which would close the whole issue). When the PR opens, its author ticks each of those findings' boxes in the tracking issue and appends the PR link to the item. They don't edit `specs/reviews/`: a finding's status is the next review's call against the code, not the fixer's claim, and remediation PRs run in parallel, so each would conflict on the same log row. The next review's fix review records the outcome.
 
 Low and info findings stay in the register and don't get checklist items.
 

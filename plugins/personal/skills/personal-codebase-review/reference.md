@@ -150,8 +150,11 @@ Fixes
 - [ ] r7.f1 high: retry loop in `sync/upload.go` swallows the final error
 - [ ] r7.f2 medium: ...
 
-Remediation PRs cite the finding ID (`Fixes r7.f1`). The next review's fix
-review records the outcome; don't edit `specs/reviews/` in a fix PR.
+Remediation PRs cite the finding ID (`Fixes r7.f1`) and this issue
+(`Part of #<this issue>`, never a closing keyword). When the PR opens, tick
+each finding it fixes here and append the PR link to the item. The next
+review's fix review records the outcome in the register, so don't edit
+`specs/reviews/` in a fix PR.
 ```
 
 Low and info findings stay out of the issue.
