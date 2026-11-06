@@ -189,8 +189,9 @@ include:
    todos), carries `On branch <name> (task branch): commit each finished
    step.` on a task branch (the Owner pasting it names the branch for that chat;
    leave it out until a task branch exists; a chat on another branch
-   follows the standards' fill-in rule: a runner keeps its assigned branch
-   and says so, a workstation proposes switching and waits), carries the
+   follows the standards' fill-in rule: a runner keeps its assigned branch,
+   merges `<name>` onto it and says so, a workstation proposes switching
+   and waits), carries the
    **token-line reminder** inline (append one line per model to `## Token
    log`, labeled `wave-<n> <group-id>`, with the format quoted, counted
    and priced per the log's counting header from step 5), and ends
