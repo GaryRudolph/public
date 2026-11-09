@@ -77,7 +77,7 @@ For personal data that has to be erasable from stores nobody edits: revisions ([
 
 - Never commit **plaintext** secrets to source repositories
 - Don't treat non-secret config as a secret: project ids, service account emails and public web config are committed, not hidden in CI settings ([architecture.md](architecture.md#ci-configuration))
-- Commit secrets only as SOPS + age ciphertext: in the repo's own `secrets/` folder, or in the estate's secrets repo once two repos share a value. Deployed services read them from the platform's secret store, never by decrypting ([Secrets Management](secrets/README.md))
+- Commit secrets only as SOPS + age ciphertext, and only to private repos: in a private repo's own `secrets/` folder, or in the estate's private secrets repo once two repos share a value or a public repo needs one. Deployed services read them from the platform's secret store, never by decrypting ([Secrets Management](secrets/README.md))
 - Validate required secrets at startup; never log secrets
 - Support multiple active keys during rotation (current + previous)
 

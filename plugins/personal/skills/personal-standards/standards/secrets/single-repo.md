@@ -3,8 +3,11 @@
 > Placeholders: `<org>`, `<repo>`, `<env>` (a named environment: `dev`,
 > `prod`), `<service>` (one deployable a repo ships).
 
-The default strategy. A repo's secrets live encrypted in its own `secrets/`
-folder with SOPS + age, and everything that reads them holds its own age key.
+The default strategy for a **private** repo. A repo's secrets live encrypted in
+its own `secrets/` folder with SOPS + age, and everything that reads them holds
+its own age key. A public repo never has a `secrets/` folder: it uses OIDC,
+estate grants or a plain GitHub secret instead
+([README.md](README.md#public-repos)).
 It needs nothing but GitHub and the platform the code deploys to. A value that
 more than one repo uses lives in the estate secrets repo instead
 ([estate.md](estate.md)), which reuses everything here and changes only how
@@ -301,6 +304,10 @@ runs need no secrets at all ([gcp.md](../gcp.md#firebase-emulator-guard)).
 - Break-glass is a recipient of every file.
 - Every key in a `secrets.list` exists in each environment folder, and every
   key in an environment folder appears in some list.
+
+One more check runs in CI only, because it needs the network: the repo is
+private (`gh api repos/{owner}/{repo} --jq .private` prints `true`). A public
+repo with a `secrets/` folder fails the build.
 
 ## Rotation and leaks
 

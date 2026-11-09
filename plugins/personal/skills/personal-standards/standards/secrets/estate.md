@@ -21,7 +21,8 @@ their per-service lists, and what rotation does and doesn't undo.
 | | Single repo | Estate |
 |---|---|---|
 | Where | `<repo>/secrets/` | A private `<org>/<estate>-secrets` repo |
-| Holds | Values only this repo uses | Values two or more member repos use |
+| Holds | Values only this repo uses | Values two or more member repos use, and any secret a public member needs |
+| Repo visibility | Private only | Any member; the secrets repo itself is private |
 | Who opens a file | The scope's creation rule in `.sops.yaml` | `access.map`, per file, across repos |
 | Encryption | One step: each file is encrypted straight to its readers | Two steps: `src/` is encrypted to maintainers only, and `make build` re-encrypts each file into `dist/` for its readers |
 | CI keys | Minted in the repo; the private half lives only in GitHub | Minted into `keys/repos.env.sops`; `make set-keys` pushes them |
