@@ -5,6 +5,10 @@
 # Replace the placeholders with public keys (`age-keygen -y key.txt`). The
 # break-glass entry must match breakglass.pub. After changing this list:
 #   sops updatekeys src/**/*.sops keys/repos.env.sops
+#
+# Minted (rotation is due 9 months later, 12 for break-glass):
+#   <maintainer>  YYYY-MM
+#   breakglass    YYYY-MM
 creation_rules:
   - path_regex: ^(src|keys)/.*
     age: >-

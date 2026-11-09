@@ -102,6 +102,38 @@ Prefer the narrowest form the toolchain allows:
 
 Target names for each tier: [makefile.md](makefile.md).
 
+## Rotation and break-glass
+
+age keys don't expire, so rotation is a schedule kept by people, not a date a
+key enforces. Both strategies keep the same one.
+
+| Key | Rotate | Also rotate when |
+|---|---|---|
+| Maintainer and developer keys, CI and environment keys | Every 9 months | Its holder leaves, or it may have leaked |
+| Break-glass | Every 12 months | A custodian changes, or it may have leaked |
+
+- **Never rotate both in one change.** The two schedules meet every 36 months.
+  When they do, finish the regular rotation first, then break-glass, so one key
+  you know works is always in place.
+- **Drill break-glass at every regular rotation**: decrypt one file per scope
+  with it. The drill is what catches a lost copy or a forgotten passphrase.
+  Rotating on a schedule doesn't.
+- **Break-glass is held offline in two copies, by two people.** A new one goes
+  into every rule beside the old one. The old one comes out only after a drill
+  with the new one passes, and the removal makes a new data key.
+- **Destroy every copy of a rotated key.** History still holds ciphertext the
+  old key opens, so a copy that survives undoes the rotation.
+- **Record the month each key was minted** in `.sops.yaml`: in the comment
+  beside each key for a single repo, and in the header for the estate's
+  maintainer and break-glass keys. That's how the next rotation's due date is
+  known.
+
+Rotating a key doesn't rotate the values it opened. Rotate a value at its
+provider when the key may have leaked, or when the provider's own credential
+expires: an Apple distribution certificate lasts a year.
+
+The steps are in the `personal-secrets` skill.
+
 ## Documentation map
 
 | File | Purpose |

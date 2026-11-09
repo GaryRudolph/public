@@ -282,6 +282,57 @@ Edit the `age:` list in `.sops.yaml`, then
    is exposed. Remove the maintainer, rotate every consumer key, and rotate
    the secret values.
 
+## Scheduled rotation (both strategies)
+
+The standard's "Rotation and break-glass" sets the schedule: regular keys every
+9 months, break-glass every 12, never in the same change. `.sops.yaml` records
+the month each key was minted; read it to see what's due. When a key is
+due, tell the Owner which one and wait for a go-ahead before touching GitHub.
+
+### Rotate the regular keys (every 9 months)
+
+1. **People:** each maintainer and developer runs `age-keygen`, sends you the
+   public half, and keeps the old key until step 4.
+2. **CI keys:** single repo, `make secrets-mint CONTEXT=<ctx> CONFIRM_MINT=1`
+   for each; estate, `make rotate REPO= CONTEXT=` for each consumer.
+3. Swap the public keys and their `minted` comments, then re-wrap with a new
+   data key: single repo, `make secrets-updatekeys ROTATE=1`; estate, the
+   maintainer list in `.sops.yaml`, `sops updatekeys` and `sops rotate -i` on
+   `src/**/*.sops` and `keys/repos.env.sops`, then `make build` and
+   `make verify`. Commit and push; for the estate, then
+   `CONFIRM_SET_KEYS=1 make set-keys`.
+4. Drill break-glass (below), then ask everyone to destroy their old keys.
+
+### Drill break-glass (at every regular rotation)
+
+The Owner, holding the offline key, decrypts one file per scope to
+`/dev/null`, so no value is shown:
+
+- Single repo: `SOPS_AGE_KEY_FILE=<break-glass file> make -s secrets-env FILE=<scope>/<file>.env >/dev/null`
+  for each scope.
+- Estate: `SOPS_AGE_KEY_FILE=<break-glass file> sops -d --input-type dotenv --output-type dotenv <file> >/dev/null`
+  on one `src/` and one `dist/` file per scope.
+
+Report each scope's pass or fail. A failure is a break-glass rotation now, not
+in a year.
+
+### Rotate break-glass (every 12 months)
+
+1. The Owner generates the new key offline and makes two copies for two
+   custodians.
+2. Add its public key beside the old one: single repo, as `&breakglass_next` in
+   the first rule and `*breakglass_next` in the rest, then
+   `make secrets-updatekeys`; estate, in `.sops.yaml`, then
+   `sops updatekeys` on `src/` and `keys/`. For the estate, also replace
+   `breakglass.pub` with it, then `make build`.
+3. Drill the new key (above). Don't go on until every scope passes.
+4. Remove the old key. Single repo: delete the old `&breakglass` entries,
+   rename `&breakglass_next` to `&breakglass` with its `minted` comment, and
+   run `make secrets-updatekeys ROTATE=1`. Estate: remove it from `.sops.yaml`,
+   then `sops updatekeys` and `sops rotate -i` on `src/` and `keys/`. Run the
+   checks, commit and push.
+5. The custodians destroy both copies of the old key.
+
 ## The kits
 
 `templates/single-repo/` implements the single-repo contract: `secrets.mk`
