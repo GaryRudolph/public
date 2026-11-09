@@ -73,9 +73,7 @@ the next incremental knows where to start.
   the next review's fix review reads it with the issue and the code, sets
   the status in the register, and deletes it. Fix PRs touch nothing else in
   `specs/reviews/`, so the fixer never grades its own work and the log row
-  never conflicts. An estate finding's claim goes beside its register too:
-  with a workspace home (nowline-workspace), a fix in a member gets a small
-  claim-only PR in the workspace; without one, the issue carries it.
+  never conflicts.
 - **Accepted findings stay accepted.** A finding marked `accepted` with a
   reason is handed to the reviewers as known and listed at the bottom of
   the summary, not raised again unless the code under it changed.

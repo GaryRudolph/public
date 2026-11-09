@@ -256,14 +256,6 @@ expect_grep "members from repos.mk" "== members from repos.mk: svc-a, svc-b, svc
 expect_grep "uncloned member" "svc-c: not cloned"
 expect_grep "workspace reported" "== repo ws"
 expect_grep "member reported" "== repo svc-b"
-cd "$ws" || exit 1
-mkdir -p specs/reviews/r1
-printf '# r1 estate review: findings\n\n- Kind: estate\n\n### r1.f1 - Client duplicated in svc-a and svc-b\n\n- Severity: medium\n- Status: open\n' \
-  > specs/reviews/2026-10-15-r1-estate-findings.md
-printf 'Finding: r1.f1\nClaim: fixed\n' > specs/reviews/r1/f1.md
-commit "estate claim" >/dev/null
-expect_ok "runs with an estate claim" "$ws"
-expect_grep "workspace holds the estate claim" "r1.f1 | r1.f1 | fixed | open |"
 expect_ok "--members from the workspace root" --members 'svc*' "$ws"
 expect_grep "members inside the workspace" "local ($ws): svc-a, svc-b"
 expect_grep "nothing beside" "local_beside ($work): none"
