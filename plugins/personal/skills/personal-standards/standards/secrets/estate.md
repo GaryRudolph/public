@@ -154,13 +154,12 @@ environment's key ([single-repo.md](single-repo.md#ci)).
   run: make -C _secrets dist-decrypt FILE=ci/AuthKey_BV7QPDLS45.p8
 ```
 
-**A service that reads a shared runtime value** still lists it in its own
-file, `secrets/<env>/<service>.env`, with the value `@estate`. The service's
-file stays the complete list of what it reads
-([single-repo.md](single-repo.md#each-service-gets-only-its-own-file)). The
-sync resolves each `@estate` key from the `_secrets/dist/<env>/` files the
-repo's key opens, and fails if the key is in none of them, or in two with
-different values.
+**A service that reads a shared runtime value** lists it with the value
+`@estate`, in its own `secrets/<env>/<service>.env` or in the scope's
+`shared.env` ([single-repo.md](single-repo.md#shared-values)). The sync
+resolves each `@estate` key from the `_secrets/dist/<env>/` files the repo's
+key opens, and fails if the key is in none of them, or in two with different
+values.
 
 Notes:
 

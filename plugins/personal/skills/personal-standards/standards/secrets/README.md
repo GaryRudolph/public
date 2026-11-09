@@ -68,8 +68,9 @@ Rules that apply only to public repos:
   that GitHub environment, opens `<name>/`. Every store names the secret
   `SOPS_AGE_KEY`, and a job sees one key.
 - **Files are named for their consumer** (`prod/api.env`, `ci/deskhound.env`),
-  and keys are the environment variable names, spelled the same in every repo
-  ([single-repo.md](single-repo.md#naming)). You edit a cleartext `api.env`;
+  with each scope's optional `shared.env` layered under every consumer's file
+  (last value wins), and keys are the environment variable names, spelled the
+  same in every repo ([single-repo.md](single-repo.md#naming)). You edit a cleartext `api.env`;
   `api.env.sops` is what's committed.
 - **Deployed services never decrypt.** The deploy job copies each service's
   own file into the platform's secret store, and the service reads them from

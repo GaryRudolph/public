@@ -62,9 +62,10 @@ a key holds without opening it.
 **Files are named for their consumer**: the service, app, resource or job that
 reads them, in lowercase kebab-case.
 
-- `<env>/<service>.env`: everything that service reads at runtime in that
-  environment (`prod/api.env`, `prod/mcp.env`, `prod/yjs.env`). The file is the
-  complete list of what the service gets.
+- `<env>/<service>.env`: what that service reads at runtime in that
+  environment (`prod/api.env`, `prod/mcp.env`, `prod/yjs.env`).
+- `<scope>/shared.env`: the one reserved name. Every consumer in the scope
+  reads it, layered under its own file ([Shared values](#shared-values)).
 - `ci/<consumer>.env`: what one CI consumer needs, such as an app's release
   (`ci/deskhound.env`) or the plan job (`ci/terraform-plan.env`).
 - `<job-env>/<consumer>.env`: what that privileged job needs
@@ -90,9 +91,20 @@ key in the file, the variable the code reads, and the platform store's secret.
   folder says the environment and the file says the consumer. So
   `RESEND_API_KEY` is spelled the same in every file, repo and environment, and
   `plan` and `apply` both read `CLOUDFLARE_API_TOKEN`, from different scopes.
-- One name means one value within a scope. When two services read the same
-  value, it appears in both files under the same name, and the deploy refuses
-  if the copies differ ([Deployed services](#deployed-services)).
+- A value several consumers in a scope read goes in `shared.env`, once.
+
+### Shared values
+
+sops has no include, so the layering is a convention the tooling applies: a
+consumer reads its scope's `shared.env` first, then its own
+`<consumer>.env`, and **the last value for a key wins**. A consumer overrides a
+shared value by setting the same key in its own file. `secrets-env` and the
+deploy both read a consumer this way; `shared.env` is optional, and the
+consumer's own file must exist even when it's empty.
+
+Every consumer in the scope gets every key in `shared.env`, so put a value there
+only when most of them need it. A value one or two services need goes in their
+own files instead.
 
 ## Layout
 
@@ -112,12 +124,14 @@ nowline-api/
    ├─ terraform-prod/
    │  └─ terraform.env.sops            CLOUDFLARE_API_TOKEN (write)
    ├─ dev/
+   │  ├─ shared.env.sops
    │  ├─ api.env.sops
    │  ├─ mcp.env.sops
    │  └─ yjs.env.sops
    └─ prod/
-      ├─ api.env.sops                  DATABASE_PASSWORD, RESEND_API_KEY
-      ├─ mcp.env.sops                  RESEND_API_KEY
+      ├─ shared.env.sops               RESEND_API_KEY (every service reads it)
+      ├─ api.env.sops                  DATABASE_PASSWORD
+      ├─ mcp.env.sops                  (empty: mcp reads only shared values)
       └─ yjs.env.sops                  YJS_AUTH_SECRET
 ```
 
@@ -282,25 +296,26 @@ plaintext environment variable, which is worse). Once that's true, decrypting
 in the service adds sops to every image, bakes ciphertext into images, and gives
 up the store's per-secret access control and audit log, for nothing in return.
 
-### Each service gets only its own file
+### Each service gets its own store secrets
 
-Deploying `api` to `prod` reads `secrets/prod/api.env.sops` and nothing else:
+Deploying `api` to `prod` reads `prod/shared.env.sops` and then
+`prod/api.env.sops`, with the last value winning, and nothing else:
 
-- **One store secret per key, named the key.** `RESEND_API_KEY` becomes the
-  store secret `RESEND_API_KEY` in the prod project or account. When `api` and
-  `mcp` both read it, they share that one store secret.
-- **The deploy writes only that file's keys.** It adds a store version for each
-  value that changed, and binds `api` to exactly those keys, pinned to the
-  versions just written.
-- **Shared copies must match.** Before writing, the deploy decrypts every file in
-  the scope (the job's key opens them all) and refuses if another file holds the
-  same key with a different value. Rotating a shared value means editing every
-  file that holds it, and the deploy catches a file you missed.
-- **Each service runs as its own identity**, with read access to exactly the
-  keys in its file, so `yjs` can't read the database password only `api` uses.
+- **One store secret per service and key**, named `<service>__<KEY>`
+  (`api__RESEND_API_KEY`), in the prod project or account. The service still
+  reads the variable `RESEND_API_KEY`; the deploy binds it to that secret.
+  Because each service has its own copy, one that overrides a shared value never
+  collides with one that doesn't.
+- **The deploy writes only that service's keys.** It adds a store version for
+  each value that changed, and binds the service to exactly those keys, pinned
+  to the versions just written.
+- **A shared value reaches a service at its next deploy.** Rotating a value in
+  `shared.env` means redeploying every service in the scope.
+- **Each service runs as its own identity**, with read access to exactly its own
+  store secrets, so `yjs` can't read the database password only `api` uses.
   Infrastructure code creates the store secrets (with no values, since IaC state
-  stores values in plaintext) and these grants, from the key names in each
-  service's file, which SOPS leaves in plaintext.
+  stores values in plaintext) and these grants, from the key names in
+  `shared.env.sops` and each service's file, which SOPS leaves in plaintext.
 
 ### Cloud credentials don't come from sops
 
@@ -337,7 +352,7 @@ secrets at all ([gcp.md](../gcp.md#firebase-emulator-guard)).
   `mac_only_encrypted` in `.sops.yaml`, and no plaintext value in a dotenv file.
 - Break-glass is a recipient of every scope.
 - File and key names follow [Naming](#naming), and every deploy environment
-  folder has the same files with the same keys.
+  folder has the same files with the same keys, `shared.env` included.
 
 One more check runs in CI only, because it needs the network: the repo is
 private. A public repo with a `secrets/` folder fails the build.

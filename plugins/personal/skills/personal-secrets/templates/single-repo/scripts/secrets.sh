@@ -6,14 +6,18 @@
 # usage: scripts/secrets.sh <command> [args]
 #   encrypt [FILE]              cleartext -> FILE.sops, then delete the cleartext
 #   decrypt [FILE]              FILE.sops -> cleartext, mode 0600 (CONFIRM=1 skips the .env prompt)
-#   env FILE [KEY]              dotenv, or one value, to stdout (FORMAT=dotenv prints KEY=value)
+#   env FILE [KEY]              dotenv, or one value, to stdout, shared.env layered under it
+#                               (FORMAT=dotenv prints KEY=value)
 #   check [--online]            keyless checks; --online also checks the repo is private
 #   clean                       delete cleartext that has a .sops sibling, then check
 #   updatekeys [SCOPE]          re-wrap a scope's files (ROTATE=1 also makes a new data key)
 #   mint CONTEXT                new CI key: private half to GitHub, public half printed
-#   sync ENVIRONMENT SERVICE    write <env>/<service>.env to Secret Manager; print --set-secrets bindings
+#   sync ENVIRONMENT SERVICE    write a service's layered dotenv to Secret Manager as
+#                               <service>__<KEY>; print --set-secrets bindings
 #
 # FILE is a path under secrets/ without .sops: prod/api.env, ci/AuthKey_X.p8.
+# A consumer's dotenv is read on top of its scope's shared.env, if there is
+# one: shared.env first, then <consumer>.env, and the last value for a key wins.
 # Written for bash 3.2 (macOS /bin/bash): no associative arrays, no mapfile.
 # Never prints a secret value except where `env` is asked for one.
 set -euo pipefail
@@ -179,19 +183,48 @@ cmd_decrypt() {
     done
 }
 
-cmd_env() {
-    local f k="${2:-}"
-    [ -n "${1:-}" ] || die "FILE is required, e.g. FILE=prod/api.env"
-    f=$(logical "$1")
+# Merge dotenv on stdin, keeping each key's first position and its last value.
+merge_last_wins() {
+    awk '
+        /^[[:space:]]*(#|$)/ { next }
+        {
+            k = substr($0, 1, index($0, "=") - 1)
+            if (!(k in v)) order[++n] = k
+            v[k] = substr($0, index($0, "=") + 1)
+        }
+        END { for (i = 1; i <= n; i++) print order[i] "=" v[order[i]] }
+    '
+}
+
+# A consumer's layered dotenv: <scope>/shared.env.sops, then <scope>/<x>.env.sops.
+# The consumer's own file must exist (it may be empty); shared.env is optional.
+layered() {
+    local f="$1" shared
+    case "$f" in */*) ;; *) die "$f isn't in a scope folder" ;; esac
     case "$f" in *.env) ;; *) die "$f isn't a .env file; use secrets-decrypt for binary files" ;; esac
     [ -f "$f.sops" ] || die "$SECRETS_DIR/$f.sops doesn't exist"
+    shared="${f%/*}/shared.env"
+    {
+        if [ "$f" != "$shared" ] && [ -f "$shared.sops" ]; then
+            decrypt_to_stdout "$shared.sops" || die "cannot decrypt $shared.sops"
+            echo
+        fi
+        decrypt_to_stdout "$f.sops" || die "cannot decrypt $f.sops"
+    } | merge_last_wins
+}
+
+cmd_env() {
+    local f k="${2:-}" merged v
+    [ -n "${1:-}" ] || die "FILE is required, e.g. FILE=prod/api.env"
+    f=$(logical "$1")
+    merged=$(layered "$f") || exit 1
     if [ -z "$k" ]; then
-        sops -d --input-type dotenv --output-type dotenv "$f.sops"
+        [ -z "$merged" ] || printf '%s\n' "$merged"
         return
     fi
     printf '%s' "$k" | grep -Eq '^[A-Z][A-Z0-9_]*$' || die "KEY '$k' isn't an UPPER_SNAKE name"
-    v=$(sops -d --input-type dotenv --output-type dotenv --extract "[\"$k\"]" "$f.sops") \
-        || die "cannot read $k from $f.sops"
+    printf '%s\n' "$merged" | grep -q "^$k=" || die "$k isn't in $f or its shared.env"
+    v=$(printf '%s\n' "$merged" | sed -n "s/^$k=//p" | tail -1)
     if [ "${FORMAT:-}" = dotenv ]; then printf '%s=%s\n' "$k" "$v"; else printf '%s\n' "$v"; fi
 }
 
@@ -317,20 +350,23 @@ cmd_mint() {
 }
 
 cmd_sync() {
-    local env="${1:-}" svc="${2:-}" project f line k v other ov hits vals name ver out=""
+    local env="${1:-}" svc="${2:-}" project prefix line k v other ov hits vals secret name ver out=""
     [ -n "$env" ] && [ -n "$svc" ] || die "usage: sync ENVIRONMENT SERVICE"
     deploy_scopes | grep -qx "$env" || die "$env/ isn't a deploy environment (needs a creation rule and $DEPLOY_DIR/$env.env)"
+    [ "$svc" != shared ] || die "shared.env isn't a service; it's layered under each one"
     project=${GOOGLE_CLOUD_PROJECT:-}
     [ -n "$project" ] || die "GOOGLE_CLOUD_PROJECT isn't set (load deploy/$env.env)"
-    f="$env/$svc.env.sops"
-    [ -f "$f" ] || die "$SECRETS_DIR/$f doesn't exist"
+    # Store secrets are per service, so a service that overrides a shared key
+    # never collides with one that doesn't. STORE_PREFIX= (empty) keeps bare
+    # names, for a Firebase Functions codebase that reads secrets by name.
+    prefix=${STORE_PREFIX-${svc}__}
     command -v gcloud >/dev/null 2>&1 || die "gcloud is required"
 
     tmp=$(mktemp -d "${RUNNER_TEMP:-${TMPDIR:-/tmp}}/secrets-sync.XXXXXX")
     trap 'rm -rf "$tmp"' EXIT
     mkdir "$tmp/v"
 
-    decrypt_to_stdout "$f" > "$tmp/mine" || die "cannot decrypt $f with this job's key"
+    layered "$env/$svc.env" > "$tmp/mine" || exit 1
     while IFS= read -r line; do
         case "$line" in ''|'#'*) continue ;; esac
         k=${line%%=*}; v=${line#*=}
@@ -348,33 +384,21 @@ cmd_sync() {
         printf '%s' "$v" > "$tmp/v/$k"
     done < "$tmp/mine"
 
-    # A key shared with another service's file must hold the same value.
-    for other in "$env"/*.env.sops; do
-        [ "$other" = "$f" ] && continue
-        decrypt_to_stdout "$other" > "$tmp/other" 2>/dev/null || die "cannot decrypt $other to compare shared keys"
-        while IFS= read -r line; do
-            case "$line" in ''|'#'*) continue ;; esac
-            k=${line%%=*}; ov=${line#*=}
-            [ -f "$tmp/v/$k" ] || continue
-            [ "$ov" = "@estate" ] && continue
-            [ "$ov" = "$(cat "$tmp/v/$k")" ] || die "$k differs between $f and $other; make the copies match"
-        done < "$tmp/other"
-    done
-
     for k in $(ls "$tmp/v" | sort); do
-        gcloud secrets describe "$k" --project="$project" >/dev/null 2>&1 \
-            || die "store secret $k doesn't exist in $project; create it in infrastructure code"
+        secret="$prefix$k"
+        gcloud secrets describe "$secret" --project="$project" >/dev/null 2>&1 \
+            || die "store secret $secret doesn't exist in $project; create it in infrastructure code"
         v=$(cat "$tmp/v/$k")
-        if [ "$(gcloud secrets versions access latest --secret="$k" --project="$project" 2>/dev/null || true)" = "$v" ]; then
-            name=$(gcloud secrets versions describe latest --secret="$k" --project="$project" --format='value(name)')
-            note "$k: unchanged (version ${name##*/})"
+        if [ "$(gcloud secrets versions access latest --secret="$secret" --project="$project" 2>/dev/null || true)" = "$v" ]; then
+            name=$(gcloud secrets versions describe latest --secret="$secret" --project="$project" --format='value(name)')
+            note "$secret: unchanged (version ${name##*/})"
         else
-            name=$(printf '%s' "$v" | gcloud secrets versions add "$k" --project="$project" --data-file=- --format='value(name)') \
-                || die "cannot add a version to $k"
-            note "$k: added version ${name##*/}"
+            name=$(printf '%s' "$v" | gcloud secrets versions add "$secret" --project="$project" --data-file=- --format='value(name)') \
+                || die "cannot add a version to $secret"
+            note "$secret: added version ${name##*/}"
         fi
         ver=${name##*/}
-        out="${out:+$out,}$k=$k:$ver"
+        out="${out:+$out,}$k=$secret:$ver"
     done
     printf '%s\n' "$out"
 }

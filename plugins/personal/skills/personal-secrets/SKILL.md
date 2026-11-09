@@ -94,7 +94,9 @@ Run from the repo root. `FILE=` is a path under `secrets/` without `.sops`.
 
 1. Existing file: `make secrets-decrypt FILE=prod/api.env CONFIRM=1`. New
    file: write `secrets/<scope>/<consumer>.env` (or the binary file) directly.
-   Name it for its consumer and its keys by the standard's "Naming".
+   Name it for its consumer and its keys by the standard's "Naming". A value
+   most consumers in the scope read goes in `<scope>/shared.env`; a consumer
+   that needs a different value sets the same key in its own file, which wins.
 2. The Owner edits the cleartext, or you do without echoing values. In a
    deploy environment, add a new key to the same file in every environment
    folder, or `secrets-check` fails.
@@ -151,27 +153,31 @@ step, never the job.
 
 ### Wire a service's deploy
 
-1. Infrastructure code creates one Secret Manager secret per key in the
-   service's file, named the key, with no value, and grants the service's own
-   service account read access to exactly those. The key names are plaintext
-   in `secrets/<env>/<service>.env.sops`.
+1. Infrastructure code creates one Secret Manager secret per key the service
+   reads, named `<service>__<KEY>`, with no value, and grants the service's own
+   service account read access to exactly those. The keys are the ones in
+   `secrets/<env>/shared.env.sops` plus `secrets/<env>/<service>.env.sops`;
+   their names are plaintext.
 2. The deploy service account gets `secretVersionAdder` and `secretAccessor`
    on those secrets.
 3. The deploy job declares `environment: <env>`, loads `deploy/<env>.env`
    (which sets `GOOGLE_CLOUD_PROJECT`), and runs
    `make -s secrets-sync ENVIRONMENT=<env> SERVICE=<service> CONFIRM_SYNC=1`.
-   It prints `KEY=KEY:<version>,...` for `gcloud run deploy --set-secrets`.
-4. A value the service shares with another repo is `@estate` in its file;
-   check out the estate's `dist/` to `_secrets/` before the sync.
+   It prints `KEY=<service>__KEY:<version>,...` for
+   `gcloud run deploy --set-secrets`. A Firebase Functions codebase reads
+   secrets by bare name: run its sync with `STORE_PREFIX=` set to empty.
+4. A value the service shares with another repo is `@estate` in its file or
+   in `shared.env`; check out the estate's `dist/` to `_secrets/` before the
+   sync.
 
-The sync refuses when two files in the scope hold a key with different
-values. Make the copies match; don't work around it.
+After changing `shared.env` in a deploy environment, redeploy every service in
+that scope: each one picks the new value up only at its own sync.
 
 ### Move a value to the estate
 
 When a second repo needs a value: add it to the estate's `src/<scope>/`,
 grant both repos in `access.map`, `make build`, and wire both repos' CI to the
-estate copy (`@estate` in a service file). Then delete it from this repo's
+estate copy (`@estate` in a service file or `shared.env`). Then delete it from this repo's
 `secrets/` in the same change set.
 
 ### Before making a private repo public

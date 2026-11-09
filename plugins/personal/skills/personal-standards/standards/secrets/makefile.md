@@ -21,7 +21,7 @@ itself ([single-repo.md](single-repo.md#layout)).
 
 | Target | Key it needs | Purpose | Arguments |
 |--------|--------------|---------|-----------|
-| `secrets-env` | A reader of the scope | Dotenv to stdout, or one raw value with `KEY=`; never writes to disk | `FILE=` (required), `KEY=`, `FORMAT=dotenv` |
+| `secrets-env` | A reader of the scope | Dotenv to stdout, or one raw value with `KEY=`, with the scope's `shared.env` layered under the file (last value wins); never writes to disk | `FILE=` (required), `KEY=`, `FORMAT=dotenv` |
 | `secrets-encrypt` | None: encrypting needs only public keys | Encrypt cleartext siblings to `*.sops` under their scope's rule, then delete the cleartext; refuses a file that's already SOPS output | `FILE=` (default: every cleartext file) |
 | `secrets-decrypt` | A reader of the scope | Write `*.sops` to cleartext siblings, mode `0600`, for editing or for a tool that needs a file; asks before writing a `.env` unless `CONFIRM=1`; no env output | `FILE=` (default: every file the key opens), `CONFIRM=1` |
 | `secrets-updatekeys` | A maintainer | Re-wrap every file in a scope after a recipient change; `ROTATE=1` also makes a new data key | `SCOPE=` (default all), `ROTATE=1` |
@@ -29,7 +29,7 @@ itself ([single-repo.md](single-repo.md#layout)).
 | `secrets-doctor` | None | Tools present and an age identity found; the repo's `doctor` depends on it | none |
 | `secrets-clean` | None | Delete every cleartext sibling under `secrets/`, then run `secrets-check` | none |
 | `secrets-mint` | None, plus `gh` | New keypair: private half to the context's GitHub store on stdin, public half printed for `.sops.yaml` | `CONTEXT=actions\|env-<env>\|agents\|codespaces\|dependabot` |
-| `secrets-sync` | The environment's key | Write the keys in `<env>/<service>.env` to the platform's secret store, resolving `@estate` values from the estate's `dist/`, adding a version only for a changed value, and refusing if another file in the scope holds a key with a different value; print `KEY=KEY:<version>,...` for the deploy | `ENVIRONMENT=` (a deploy environment), `SERVICE=` |
+| `secrets-sync` | The environment's key | Write a service's layered keys (`shared.env`, then `<service>.env`) to the platform's secret store as `<service>__<KEY>` (`STORE_PREFIX=` for bare names), resolving `@estate` values from the estate's `dist/`, adding a version only for a changed value; print `KEY=<service>__KEY:<version>,...` for the deploy | `ENVIRONMENT=` (a deploy environment), `SERVICE=` |
 
 `secrets-mint` and `secrets-sync` write outside the repo, so they sit under
 `##@ Danger` and refuse without `CONFIRM_MINT=1` or `CONFIRM_SYNC=1`
