@@ -16,7 +16,8 @@ The same as a single repo: [what goes in](single-repo.md#what-goes-in)
 (secrets only, every value encrypted), the `.sops` suffix, the scopes (`ci/`
 and `<env>/`), the identities and their `SOPS_AGE_KEY` stores, environment
 branch policies, [deployed services](single-repo.md#deployed-services) and
-their per-service lists, and what rotation does and doesn't undo.
+[naming](single-repo.md#naming), cleartext editing with the `.sops` suffix, and
+what rotation does and doesn't undo.
 
 | | Single repo | Estate |
 |---|---|---|
@@ -153,11 +154,13 @@ environment's key ([single-repo.md](single-repo.md#ci)).
   run: make -C _secrets dist-decrypt FILE=ci/AuthKey_BV7QPDLS45.p8
 ```
 
-A deploy job that syncs shared runtime secrets reads them from
-`_secrets/dist/<env>/` and its own `secrets/<env>/`, and syncs only the keys
-the service's `secrets.list` names
-([single-repo.md](single-repo.md#each-service-reads-only-what-it-lists)). A key
-name is unique across both sources, and the sync fails on a duplicate.
+**A service that reads a shared runtime value** still lists it in its own
+file, `secrets/<env>/<service>.env`, with the value `@estate`. The service's
+file stays the complete list of what it reads
+([single-repo.md](single-repo.md#each-service-gets-only-its-own-file)). The
+sync resolves each `@estate` key from the `_secrets/dist/<env>/` files the
+repo's key opens, and fails if the key is in none of them, or in two with
+different values.
 
 Notes:
 
@@ -190,14 +193,14 @@ Notes:
 ├─ dist-decrypt.sh                         CONSUMER entrypoint: files to disk
 ├─ src/                                    editable originals; only *.sops is tracked
 │  ├─ ci/
-│  │  ├─ apple.env.sops
+│  │  ├─ apple-team.env.sops
 │  │  ├─ sentry.env.sops
 │  │  ├─ AuthKey_BV7QPDLS45.p8.sops
 │  │  └─ apple-distribution.p12.sops
 │  ├─ dev/
-│  │  └─ email.env.sops
+│  │  └─ backend.env.sops
 │  └─ prod/
-│     └─ email.env.sops
+│     └─ backend.env.sops
 ├─ dist/                                   COMMITTED, re-encrypted per file to PUBLISH recipients (mirrors src/)
 ├─ keys/
 │  └─ repos.env.sops                       SOPS-encrypted to maintainers + break-glass:
@@ -233,7 +236,11 @@ never committed**: `build` computes them from `access.map` and
 
 ### Groups and the access matrix
 
-Files are the coarse unit of access, under scope folders. Access is granted to
+Files are the coarse unit of access, under scope folders. A single repo names
+a file for its one consumer. An estate file has several, so it's named for what
+they share: the resource or credential (`ci/apple-team.env`), or the group of
+consumers (`prod/backend.env`). Keys follow the
+[single-repo rules](single-repo.md#naming) unchanged. Access is granted to
 named **groups** of `repo__context` identities. A group is only a label for a
 set of identities: there is **no inheritance or implied access**. Every file
 lists exactly the groups (or single identities) allowed to decrypt it.
@@ -243,12 +250,12 @@ share an email provider.
 
 | file \ identity | example-ios `__actions` | example-mac `__actions` | example-api `__env-dev` | example-worker `__env-dev` | example-api `__env-prod` | example-worker `__env-prod` |
 |---|:---:|:---:|:---:|:---:|:---:|:---:|
-| `ci/apple.env` | yes | yes | | | | |
+| `ci/apple-team.env` | yes | yes | | | | |
 | `ci/AuthKey_BV7QPDLS45.p8` | yes | yes | | | | |
 | `ci/apple-distribution.p12` | yes | yes | | | | |
 | `ci/sentry.env` | yes | yes | | | yes | yes |
-| `dev/email.env` | | | yes | yes | | |
-| `prod/email.env` | | | | | yes | yes |
+| `dev/backend.env` | | | yes | yes | | |
+| `prod/backend.env` | | | | | yes | yes |
 
 Each row is exactly that file's access list:
 
@@ -256,7 +263,7 @@ Each row is exactly that file's access list:
 - `ci/sentry.env` lists `@apple-ci` and `@backend-prod`. That makes the
   backends' prod deploy jobs readers of a `ci/` file, because a job that
   declares `environment: prod` holds only its prod key.
-- `prod/email.env` lists only `@backend-prod`, and `dev/email.env` only
+- `prod/backend.env` lists only `@backend-prod`, and `dev/backend.env` only
   `@backend-dev`. A prod identity reads no dev file and a dev identity reads no
   prod file, because nothing is inherited.
 
@@ -272,12 +279,12 @@ groups (or single identities) may decrypt each file.
 @backend-prod = example-api__env-prod example-worker__env-prod
 
 # --- file : groups / identities allowed to DECRYPT it (no inheritance) ---
-ci/apple.env:                  @apple-ci
+ci/apple-team.env:             @apple-ci
 ci/AuthKey_BV7QPDLS45.p8:      @apple-ci
 ci/apple-distribution.p12:     @apple-ci
 ci/sentry.env:                 @apple-ci @backend-prod
-dev/email.env:                 @backend-dev
-prod/email.env:                @backend-prod
+dev/backend.env:               @backend-dev
+prod/backend.env:              @backend-prod
 ```
 
 At build time, `build.sh` expands each `@group`, resolves public keys from

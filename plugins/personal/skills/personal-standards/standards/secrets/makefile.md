@@ -15,19 +15,20 @@ Contents: [Single-repo targets](#single-repo-targets) · [Estate targets](#estat
 
 Under `##@ Secrets` in the repo's own Makefile, running sops from `secrets/`
 ([single-repo.md](single-repo.md)). `FILE=` is a logical path below
-`secrets/`, without `.sops` (`ci/apple.env`, `ci/AuthKey_BV7QPDLS45.p8`).
+`secrets/`, without `.sops` (`prod/api.env`, `ci/AuthKey_BV7QPDLS45.p8`). The
+encrypted file is that name plus `.sops`, and its cleartext sibling is the name
+itself ([single-repo.md](single-repo.md#layout)).
 
 | Target | Key it needs | Purpose | Arguments |
 |--------|--------------|---------|-----------|
 | `secrets-env` | A reader of the scope | Dotenv to stdout, or one raw value with `KEY=`; never writes to disk | `FILE=` (required), `KEY=`, `FORMAT=dotenv` |
-| `secrets-decrypt` | A reader of the scope | One file to its plaintext sibling, mode `0600`; no env output | `FILE=` (required) |
-| `secrets-edit` | A reader of the scope | `sops edit` in place; no plaintext is left behind | `FILE=` (required) |
-| `secrets-add` | None: encrypting needs only public keys | Encrypt a new plaintext sibling under its scope's rule, then delete the plaintext | `FILE=` (required) |
+| `secrets-encrypt` | None: encrypting needs only public keys | Encrypt cleartext siblings to `*.sops` under their scope's rule, then delete the cleartext; refuses a file that's already SOPS output | `FILE=` (default: every cleartext file) |
+| `secrets-decrypt` | A reader of the scope | Write `*.sops` to cleartext siblings, mode `0600`, for editing or for a tool that needs a file; asks before writing a `.env` unless `CONFIRM=1`; no env output | `FILE=` (default: every file the key opens), `CONFIRM=1` |
 | `secrets-updatekeys` | A maintainer | Re-wrap every file in a scope after a recipient change; `ROTATE=1` also makes a new data key | `SCOPE=` (default all), `ROTATE=1` |
 | `secrets-check` | None | The keyless checks in [single-repo.md](single-repo.md#checks) | none |
-| `secrets-clean` | None | Delete every plaintext sibling under `secrets/` | none |
+| `secrets-clean` | None | Delete every cleartext sibling under `secrets/`, then run `secrets-check` | none |
 | `secrets-mint` | None, plus `gh` | New keypair: private half to the context's GitHub store on stdin, public half printed for `.sops.yaml` | `CONTEXT=actions\|env-<env>\|agents\|codespaces\|dependabot` |
-| `secrets-sync` | The environment's key | Write the keys a service's `secrets.list` names to the platform's secret store, adding a version only for a changed value; print the versions | `ENVIRONMENT=`, `SERVICE=` |
+| `secrets-sync` | The environment's key | Write the keys in `<env>/<service>.env` to the platform's secret store, adding a version only for a changed value and refusing if another file in the scope holds a key with a different value; print the versions | `ENVIRONMENT=`, `SERVICE=` |
 
 `secrets-mint` and `secrets-sync` write outside the repo, so they sit under
 `##@ Danger` and refuse without `CONFIRM_MINT=1` or `CONFIRM_SYNC=1`
