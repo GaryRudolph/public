@@ -39,6 +39,9 @@ esac
 EOF
 chmod +x "$work/bin/gh"
 export PATH="$work/bin:$PATH" GH_LOG="$work/gh.log" HOME="$work/home" XDG_CONFIG_HOME="$work/home"
+# A parent make (make -C agents test) exports -w through MAKEFLAGS, which
+# would print "Entering directory" into captured output.
+unset MAKEFLAGS MAKELEVEL MFLAGS
 unset SOPS_AGE_KEY SOPS_AGE_KEY_CMD
 printf 'bash under test: %s\n' "$(bash -c 'echo $BASH_VERSION')"
 
