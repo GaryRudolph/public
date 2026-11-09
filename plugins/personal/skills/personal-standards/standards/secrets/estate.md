@@ -384,10 +384,10 @@ kit to start a new secrets repo.
 | `scripts/check.sh` | Keyless checks shared by the pre-commit hook and CI |
 | `scripts/verify.sh` | With each member key: granted identities decrypt, others don't, and `dist/` matches `src/` |
 
-**Not in the kit yet:** `env-<env>` contexts. `CONTEXTS` in `scripts/lib.sh`
-accepts only `actions`, `agents`, `codespaces` and `dependabot`, and
-`set-consumer-keys.sh` pushes only to `--app` stores. Until the kit adds them,
-an environment identity can't be minted or pushed with `make`.
+**Contexts** are the GitHub secret stores: `actions`, `agents`, `codespaces`
+and `dependabot` map to `gh secret set --app <context>`, and `env-<name>` maps
+to `gh secret set --env <name>`. An environment name can't contain `__`, the
+identity delimiter.
 
 Two constraints the implementation has to respect:
 

@@ -58,7 +58,7 @@ case "$op" in
 esac
 
 if [ "$op" = retire ]; then
-    printf 'next: commit, then delete the secret: gh secret delete SOPS_AGE_KEY -R <owner>/%s --app %s\n' "${id%__*}" "${id##*__}"
+    printf 'next: commit, then delete the secret: gh secret delete SOPS_AGE_KEY -R <owner>/%s %s\n' "${id%__*}" "$(store_flag "${id##*__}")"
 else
     printf 'next: grant it in %s if new, make build, commit, then CONFIRM_SET_KEYS=1 make set-keys REPO=%s CONTEXT=%s\n' \
         "$ACCESS_MAP" "${id%__*}" "${id##*__}"

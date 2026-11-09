@@ -178,7 +178,5 @@ sees the environment's.
 | `dependabot` | Dependabot | `gh secret set SOPS_AGE_KEY --app dependabot` |
 | `agents` | GitHub Agents (Copilot coding agent) | `gh secret set SOPS_AGE_KEY --app agents` |
 
-A single repo's `secrets-mint` covers every row. The estate kit's
-`make set-keys` maps `actions`, `codespaces`, `dependabot` and `agents` to their
-`--app` stores and doesn't handle `env-<env>` yet
-([estate.md](estate.md#reference-implementation)).
+A single repo's `secrets-mint` and the estate kit's `make mint` and
+`make set-keys` cover every row.

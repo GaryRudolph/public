@@ -227,9 +227,12 @@ anyone can decrypt a file they aren't granted.
 
 ### Add a consumer (repo, context)
 
-1. `make mint REPO=<repo> CONTEXT=<actions|agents|codespaces|dependabot>`.
+1. `make mint REPO=<repo> CONTEXT=<actions|env-<name>|agents|codespaces|dependabot>`.
    Provision `actions` first; add other contexts only when a workflow there
-   needs secrets. Give `agents` less than `actions` where possible.
+   needs secrets. `env-<name>` is the GitHub environment `<name>`, for a deploy
+   or a privileged job (`env-prod`, `env-terraform-prod`); check that the
+   environment has a branch policy before granting it anything. Give `agents`
+   less than `actions` where possible.
 2. Grant the identity in `access.map`, `make build`, `make verify`, commit.
 3. With the Owner's go-ahead: `CONFIRM_SET_KEYS=1 make set-keys REPO=<repo> CONTEXT=<ctx>`.
 4. Wire the consumer (below).
@@ -245,7 +248,9 @@ and keep only the narrowest decrypt step that works:
 3. Files on disk, only when a tool needs a file: `make -C _secrets dist-decrypt FILE=<f>`
 
 The repo needs `vars.SECRETS_APP_ID`, `secrets.SECRETS_APP_PRIVATE_KEY`, and
-its own `SOPS_AGE_KEY` in each store it uses.
+its own `SOPS_AGE_KEY` in each store it uses. A job that reads an
+`env-<name>` grant declares `environment: <name>`, which is what hands it that
+environment's key.
 
 ### Rotate a consumer key
 
@@ -257,7 +262,8 @@ key stops working at HEAD once the rebuilt `dist/` is pushed.
 
 Remove it from `access.map`, `make build`, then `make retire REPO= CONTEXT=`
 (it refuses while the identity is still granted), commit, and, with the Owner's
-go-ahead, `gh secret delete SOPS_AGE_KEY -R <owner>/<repo> --app <ctx>`.
+go-ahead, the `gh secret delete` that `retire` prints (`--app <ctx>`, or
+`--env <name>` for an `env-<name>` context).
 
 ### Add or remove a maintainer
 

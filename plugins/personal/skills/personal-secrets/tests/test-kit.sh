@@ -74,6 +74,10 @@ expect_eq   "hooksPath is .githooks"              "$(git config core.hooksPath)"
 expect_ok   "mint app__actions"                    make mint REPO=app CONTEXT=actions
 expect_ok   "mint app__agents"                     make mint REPO=app CONTEXT=agents
 expect_ok   "mint site__actions"                   make mint REPO=site CONTEXT=actions
+expect_ok   "mint app__env-prod"                   make mint REPO=app CONTEXT=env-prod
+expect_fail "mint refuses an empty environment"    make mint REPO=app CONTEXT=env-
+expect_fail "mint refuses __ in an environment"    make mint REPO=app CONTEXT=env-a__b
+expect_fail "mint refuses a bad environment name"  make mint REPO=app CONTEXT='env-a b'
 expect_fail "mint refuses an existing identity"    make mint REPO=app CONTEXT=actions
 expect_fail "mint refuses an unknown context"      make mint REPO=app CONTEXT=cron
 expect_fail "mint refuses a bad repo name"         make mint REPO='a b' CONTEXT=actions
@@ -82,12 +86,15 @@ expect_eq   "no plaintext registry on disk"        "$(ls keys)" "repos.env.sops"
 cat > access.map <<'EOF'
 @oss        = site__actions app__actions app__agents
 @commercial = app__actions
+@prod       = app__env-prod
 
 oss.env:         @oss
 commercial.env:  @commercial
 ios/AuthKey.p8:  app__actions
+prod/email.env:  @prod
 EOF
-mkdir -p src/ios
+mkdir -p src/ios src/prod
+printf 'RESEND_API_KEY=re_prod_test\n' > src/prod/email.env
 printf 'AUTH_TOKEN=token_oss_test\nSHARED=oss\n' > src/oss.env
 printf 'STRIPE_KEY=sk_live_x\nSHARED=commercial\n' > src/commercial.env
 head -c 512 /dev/urandom > src/ios/AuthKey.p8
@@ -102,6 +109,7 @@ expect_ok   "verify"                               make verify
 app=$(consumer_key app__actions)
 agents=$(consumer_key app__agents)
 site=$(consumer_key site__actions)
+envprod=$(consumer_key app__env-prod)
 
 printf '\nconsumers\n'
 expect_eq   "KEY lookup, raw value"               "$(as_consumer "$site" make -s dist-decrypt-env KEY=AUTH_TOKEN)" "token_oss_test"
@@ -114,6 +122,9 @@ expect_fail "agents can't read the signing key"   as_consumer "$agents" make -s 
 expect_ok   "app decrypts the signing key"         as_consumer "$app" make -s dist-decrypt FILE=ios/AuthKey.p8
 expect_ok   "binary round-trips"                   cmp dist/ios/AuthKey.p8 "$work/p8.orig"
 expect_eq   "decrypted file is owner-only"         "$(stat -c '%a' dist/ios/AuthKey.p8 2>/dev/null || stat -f '%Lp' dist/ios/AuthKey.p8)" "600"
+expect_eq   "env-prod key reads its file"          "$(as_consumer "$envprod" make -s dist-decrypt-env FILE=prod/email.env KEY=RESEND_API_KEY)" "re_prod_test"
+expect_fail "env-prod key can't read ci files"     as_consumer "$envprod" make -s dist-decrypt-env FILE=commercial.env
+expect_fail "actions key can't read prod/"         as_consumer "$app" make -s dist-decrypt-env FILE=prod/email.env
 expect_ok   "all-env export skips what it can't open" as_consumer "$site" make -s dist-decrypt-env
 expect_grep "  ...and emits only oss.env"          "AUTH_TOKEN="
 make -s clean >/dev/null
@@ -187,11 +198,22 @@ expect_eq   "key went over stdin"                  "$(sed -n 's/^STDIN //p' "$GH
 if grep '^ARGS' "$GH_LOG" | grep -q AGE-SECRET-KEY; then fail "private key appeared in gh's arguments"; else pass "private key never in argv"; fi
 : > "$GH_LOG"
 expect_ok   "set-keys for all"                     make set-keys CONFIRM_SET_KEYS=1 OWNER=acme
-expect_eq   "  ...three stores"                    "$(grep -c '^ARGS' "$GH_LOG")" "3"
+expect_eq   "  ...four stores"                     "$(grep -c '^ARGS' "$GH_LOG")" "4"
+expect_eq   "  ...env-prod goes to the environment" "$(grep -c '^ARGS secret set SOPS_AGE_KEY -R acme/app --env prod$' "$GH_LOG")" "1"
+: > "$GH_LOG"
+expect_ok   "set-keys for one environment context" make set-keys CONFIRM_SET_KEYS=1 OWNER=acme REPO=app CONTEXT=env-prod
+expect_eq   "  ...uses --env, once"                "$(grep '^ARGS' "$GH_LOG")" "ARGS secret set SOPS_AGE_KEY -R acme/app --env prod"
+expect_eq   "  ...key over stdin"                  "$(sed -n 's/^STDIN //p' "$GH_LOG")" "$envprod"
+expect_fail "set-keys refuses a bad context"       make set-keys CONFIRM_SET_KEYS=1 OWNER=acme CONTEXT=env-
 
 sed -i.bak 's/ app__agents//' access.map && rm access.map.bak
 make -s build >/dev/null
 expect_ok   "retire once ungranted"                make retire REPO=app CONTEXT=agents
+sed -i.bak -e '/^@prod /d' -e '/^prod\/email.env:/d' access.map && rm access.map.bak
+rm src/prod/email.env.sops
+make -s build >/dev/null
+expect_ok   "retire an environment context"        make retire REPO=app CONTEXT=env-prod
+expect_grep "  ...hints gh secret delete --env"    "gh secret delete SOPS_AGE_KEY -R <owner>/app --env prod"
 expect_ok   "verify at the end"                    make verify
 
 printf '\nfacts\n'
