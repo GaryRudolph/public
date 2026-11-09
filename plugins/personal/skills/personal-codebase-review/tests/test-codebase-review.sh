@@ -106,6 +106,22 @@ expect_grep "accepted finding with reason" "r1.f2 | \`vendor/parse.go\` at $r1 |
 expect_grep "hotspot" "src/a.go"
 expect_nogrep "tests aren't hotspots" "tests/a_test.go"
 
+echo "fix claims"
+mkdir -p specs/reviews/r1 specs/reviews/r9
+printf 'Finding: r1.f3\nClaim: fixed\nChange: B now called from A\nEvidence: TestA\n' > specs/reviews/r1/f3.md
+printf 'Finding: r9.f1\nClaim: partial\n' > specs/reviews/r9/f1.md
+printf 'notes\n' > specs/reviews/r1/notes.md
+claim=$(commit "call B from A (#7)")
+expect_ok "runs" "$repo"
+expect_grep "claim count skips other files" "fix_claims (2):"
+expect_grep "claim joined to its register status" "r1.f3 | r1.f3 | fixed | open | $claim call B from A (#7) | specs/reviews/r1/f3.md"
+expect_grep "claim with no register" "r9.f1 | r9.f1 | partial | (not in a register) |"
+expect_nogrep "claim dir isn't a register" "registers: 2"
+git rm -rq specs/reviews/r1 specs/reviews/r9 && commit "read claims" >/dev/null
+expect_ok "runs" "$repo"
+expect_grep "deleted claims gone" "fix_claims (0):"
+head=$(git rev-parse HEAD)
+
 echo "reads the default branch, not the checked-out one"
 git switch -qc feature "$r2"
 printf 'func D() {}\n' >> src/a.go && commit d >/dev/null
@@ -240,6 +256,28 @@ expect_grep "members from repos.mk" "== members from repos.mk: svc-a, svc-b, svc
 expect_grep "uncloned member" "svc-c: not cloned"
 expect_grep "workspace reported" "== repo ws"
 expect_grep "member reported" "== repo svc-b"
+
+echo "estate findings delegated to members"
+cd "$ws" || exit 1
+printf 'svc-*/\n' > .gitignore
+mkdir -p specs/reviews
+printf '# r1 estate review: findings\n\n- Kind: estate\n- Members: svc-a a..b, svc-b c..d\n\n### r1.f1 - Client written twice\n\n- Severity: medium\n- Status: open\n- Contained: svc-a r1.f1, svc-b r2.f1, svc-c r1.f1\n\n### r1.f2 - Home-only decision\n\n- Severity: medium\n- Status: open\n' \
+  > specs/reviews/2026-10-15-r1-estate-findings.md
+commit "home estate register" >/dev/null
+cd "$ws/svc-a" || exit 1
+mkdir -p specs/reviews
+printf '# r1 estate review: findings\n\n- Kind: estate\n- Home: ws r1\n\n### r1.f1 - Client written twice\n\n- Estate: ws r1.f1\n- Severity: medium\n- Status: fixed\n' \
+  > specs/reviews/2026-10-15-r1-estate-findings.md
+commit "member estate register" >/dev/null
+expect_ok "runs" "$ws"
+expect_grep "rollup header" "== estate rollup: home finding | home status | contained finding: status in its repo"
+expect_grep "rollup row" "ws r1.f1 | open | svc-a r1.f1: fixed; svc-b r2.f1: (not in its registers); svc-c r1.f1: (repo not read)"
+expect_nogrep "home-only finding not rolled up" "ws r1.f2 |"
+expect_grep "delegated finding in the member" "r1.f1 | fixed | ws r1.f1"
+expect_grep "home members still read" "last_estate_members: svc-a a..b, svc-b c..d"
+expect_ok "member alone" "$ws/svc-a"
+expect_nogrep "a member register isn't a members list" "last_estate_members"
+expect_nogrep "no rollup without a home" "== estate rollup"
 expect_ok "--members from the workspace root" --members 'svc*' "$ws"
 expect_grep "members inside the workspace" "local ($ws): svc-a, svc-b"
 expect_grep "nothing beside" "local_beside ($work): none"

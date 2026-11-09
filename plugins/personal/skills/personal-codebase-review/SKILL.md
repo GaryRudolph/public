@@ -37,7 +37,7 @@ puts its draft where drafts go.
 | `status` | Reports the last review, the anchor, days and churn since, and whether a review is due | Nothing |
 | `incremental` | Line-level review of `<anchor>..<head>`, drift pass, fix review | Register, summary, log row |
 | `full` | Architecture, contracts, boundaries, hotspots at `<head>`, fix review | Register, summary, log row |
-| `estate` | Architecture and duplication across member repos | Register and summary in the home repo, a log row in every member |
+| `estate` | Architecture and duplication across member repos | Register and summary in the home repo; in every member, a log row and the findings delegated to it |
 | `interim` | The branch's own review before its PR | A draft in `.scratch/` or `specs/handoffs/`, removed before the PR opens |
 
 With no mode, run `status` and propose one.
@@ -55,9 +55,11 @@ hotspots are real) and reads the log and registers from it, not from the
 checked-out branch. It prints, per repo: the default branch and
 its head SHA, the log's rows, the last anchor and whether it's still on the
 default branch, days and changed lines since it by bucket, hotspots, the
-open, accepted and oddly-statused findings in earlier registers, unmerged
+open, accepted and oddly-statused findings in earlier registers, the fix
+claims not yet read, the findings delegated from an estate, unmerged
 `review/r*` branches, the last estate's members, and the next `r{N}` (past
-any unmerged review). A `found=outside local history` anchor means the fetch
+any unmerged review). Across an estate it ends with the `estate rollup`:
+each home finding's `Contained:` names and their status in each member. A `found=outside local history` anchor means the fetch
 couldn't deepen: fix that, don't fall back to a full review. From a workspace it reads `repos.mk` and looks
 for each member inside the workspace, then beside it (how a runner clones
 repos), and says which matched; with `--members`
@@ -121,12 +123,19 @@ Then one verifier, also fresh, tries to disprove each finding (reference.md
 
 ### 5. Fix review
 
-For every open finding in the facts, read its issue and any PR citing its
-ID, and the code at its location at `<to>`. Set the new status per the
+For every open finding in the facts, read its fix claims (the facts'
+`fix_claims`, with the commit that added each), its issue and any PR citing
+its ID, and the code at its location at `<to>`. Set the new status per the
 standard and write it back in this review's PR: the `Status:` and
 `Resolution:` lines in the earlier register, and the Outcome cell of each
-earlier review touched. Report `other_status_findings` too, and normalize
+earlier review touched. `git rm` every claim you read, borne out or not; a
+claim the code doesn't bear out goes in the `Resolution:` line. Report `other_status_findings` too, and normalize
 their status while you're there.
+
+In an estate, set each home finding with a `Contained:` line from the
+facts' `estate rollup`: `fixed` once every finding it names is fixed in its
+member, else still `open` with what's left in `Resolution:`. Don't edit
+member registers from here; each member's own reviews set those.
 
 ### 6. Write the register, then the summary
 
@@ -137,7 +146,10 @@ decisions as before/after and a recommendation each, diagrams only where
 structure changed (before at `<from>`, after at `<to>`, review.md
 "Diagrams"), and "Previously accepted" last. Add the log row; create
 `specs/reviews/README.md` from reference.md "Log" if it's missing. In an
-estate, write each member's `estate` row too.
+estate, delegate each finding that needs work in a member: write it into
+that member's own register under the member's next `r{N}` (reference.md
+"Register"), add its `Contained:` line in the home, and write each member's
+`estate` row.
 
 Name findings that recur (twice across reviews, or three times in this one)
 and propose the rule in "Rules changed". Write rules only to the repo under
@@ -154,16 +166,22 @@ the review PR and the tracking issue. The PR body is the summary, with its
 number goes back into the log row in a follow-up commit. The PR body guard
 needs both the `## Review guide` heading and the `Review tier:` line; the
 summary template has them. In an estate, the home PR and issue first, then
-one PR per member, each with its log row, a body from reference.md "Member
-PR", and the member's own issue for findings that land there.
+one PR per member, each with its log row and delegated register, a body
+from reference.md "Member PR", and the member's own issue for its
+delegated findings. Delegated findings get their remediation in their
+member, like any finding there.
 
 Remediation isn't part of this run. Offer to start it, as separate PRs that
 cite finding IDs: one card or session per group of findings that land
 together, handed over as plan-execution.md "Handing work to another
 session" says, each prompt behind its header (the repo the findings land
 in, the model for the fix's tier). Remediation PRs don't wait on each
-other, so none is numbered, and all can start at once. A remediation
-prompt names no branch to cut: "work on your assigned branch (on a
+other, so none is numbered, and all can start at once. Each prompt names
+its finding IDs and the tracking issue, and says: cite both in the PR
+description (`Fixes r7.f1`, `Part of #<issue>`, no closing keyword); add a
+fix claim per finding at `specs/reviews/r{N}/f{K}.md` (reference.md "Fix
+claim"), and touch nothing else in `specs/reviews/`; when the PR opens,
+tick those findings' boxes in the issue and append the PR link. A remediation prompt names no branch to cut: "work on your assigned branch (on a
 workstation, cut `fix/<slug>` off the default branch)" (git.md "Task
 branches and shared branches").
 

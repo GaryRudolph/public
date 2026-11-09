@@ -9,7 +9,8 @@
 
 Reviews of the default branch, oldest first. What each kind covers and how
 the log works: the `codebase-review.md` standard. Remediation is tracked
-in each review's issue.
+in each review's issue; `r{N}/` holds fix claims the next review hasn't
+read yet.
 
 | Review | Date | Kind | Range | Findings | Issue | Outcome | Record |
 | --- | --- | --- | --- | --- | --- | --- | --- |
@@ -18,8 +19,9 @@ in each review's issue.
 
 The facts script reads rows that start `| r{N} |` and splits on `|`: keep
 eight cells, short SHAs in Range, and no `|` inside a cell. An `estate` row
-in a member repo has that member's own range and links the home record:
-`[nowline-workspace r2](https://github.com/<owner>/nowline-workspace/blob/main/specs/reviews/<file>)`.
+in a member repo has that member's own number and range, and its Record is
+its delegated register with the home review by name:
+`[findings](2026-11-20-r8-estate-findings.md) from nowline-workspace r2`.
 
 ## Register
 
@@ -52,9 +54,34 @@ in a member repo has that member's own range and links the home record:
 
 An estate register adds `- Members: <name> <from>..<to>, <name> <from>..<to>`
 and `- Home: <owner>/<repo>` to the header; the next estate review reads its
-members from there. Field lines keep the `- Name: value` shape; the facts
-script reads `Severity`, `Kind`, `Status`, `Location`, `Reason` and
-`Resolution`. `accepted` and `deferred` need a `- Reason:` line.
+members from there. A finding delegated to members adds
+`- Contained: nowline-core r8.f1, nowline-cloud r5.f2`, repo names as the
+folders are named.
+
+A member's delegated register, `{date}-r{N}-estate-findings.md` with the
+member's own `r{N}`, has no `Members:` line, which is how the facts tell it
+from a home register:
+
+```markdown
+# r8 estate review: findings delegated from nowline-workspace r2
+
+- Kind: estate
+- Range: <full from SHA>..<full to SHA>
+- Home: nowline-workspace r2
+
+### r8.f1 - Upload client duplicated with nowline-cloud
+
+- Estate: nowline-workspace r2.f3
+- Severity: medium
+- Kind: fix
+- Location: `client/upload.go:12` at 9d02f6a
+- Recommendation: <the part of the fix that lands in this repo>
+- Status: open
+```
+
+Field lines keep the `- Name: value` shape; the facts script reads
+`Severity`, `Kind`, `Status`, `Location`, `Reason`, `Resolution`, `Estate`
+and `Contained`. `accepted` and `deferred` need a `- Reason:` line.
 
 ## Summary
 
@@ -118,20 +145,23 @@ drawn from the code, beside the previous full review's when there is one.
 
 ## Member PR
 
-The body of an estate's PR in a member repo, which carries only its log row:
+The body of an estate's PR in a member repo, which carries its log row and,
+when findings land here, the register of them:
 
 ```markdown
-Logs the r2 estate review from <owner>/<home> in this repo's review log.
-Range here: 4be1c09..9d02f6a. Record: <link to the home summary>.
+Logs nowline-workspace r2, an estate review, as r8 in this repo's review
+log. Range here: 4be1c09..9d02f6a.
 
 ## Review guide
 
-Review tier: [skip], a log row only; the review is in the home repo.
-Review time: ~1 min
+Review tier: [skim], records only; the findings are the reading.
+Review time: ~2 min
 
-1. [skip] `specs/reviews/README.md`: one `estate` row
+1. [skim] `specs/reviews/2026-11-20-r8-estate-findings.md`: r8.f1 medium,
+   upload client duplicated with nowline-cloud (from r2.f3)
+2. [skip] `specs/reviews/README.md`: one `estate` row
 
-Findings that land here: #<member issue>, or none.
+Tracked in #<this repo's issue>, or no findings land here.
 
 Assisted-by: Claude Code
 ```
@@ -150,11 +180,40 @@ Fixes
 - [ ] r7.f1 high: retry loop in `sync/upload.go` swallows the final error
 - [ ] r7.f2 medium: ...
 
-Remediation PRs cite the finding ID (`Fixes r7.f1`). The next review's fix
-review records the outcome; don't edit `specs/reviews/` in a fix PR.
+Remediation PRs cite the finding ID (`Fixes r7.f1`) and this issue
+(`Part of #<this issue>`, never a closing keyword), and add a fix claim per
+finding at `specs/reviews/r7/f1.md` (the standard's "Fix claims"). When the
+PR opens, tick each finding it fixes here and append the PR link to the
+item. The next review's fix review records the outcome in the register, so
+a fix PR touches nothing else in `specs/reviews/`.
 ```
 
 Low and info findings stay out of the issue.
+
+In an estate, each member with delegated findings gets this issue for its
+own `r{N}`, titled `r8 estate review (nowline-workspace r2): 1 medium`. The
+home issue checks off only what's tracked in the home; a delegated finding
+is a plain line naming where it went, since the members' issues track it:
+
+```markdown
+Delegated
+- r2.f3 medium: upload client duplicated (nowline-core r8.f1, nowline-cloud r5.f2)
+```
+
+## Fix claim
+
+`specs/reviews/r7/f1.md`, one per finding, added by the remediation PR:
+
+```markdown
+Finding: r7.f1
+Claim: fixed
+Change: return the wrapped error after the last retry in `sync/upload.go`
+Evidence: `TestUploadFails` now asserts the returned error
+```
+
+`Claim` is `fixed` or `partial`. The facts script reads the `Finding` and
+`Claim` lines and the commit that added the file. In the PR's review guide
+it's `[skip] specs/reviews/r7/f1.md: fix claim`.
 
 ## Terminal summary
 

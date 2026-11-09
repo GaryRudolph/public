@@ -62,13 +62,24 @@ the next incremental knows where to start.
   periodic review's. The estate review asks which repo owns what, whether
   the contracts between them still make sense, and where the same code has
   been written twice.
-- **Each member repo logs the estate review too**, in an `estate` row that
-  links the home record. The row doesn't move the member's incremental
-  anchor, since an estate review doesn't read lines.
+- **Each member repo logs the estate review too**, in an `estate` row
+  numbered in its own sequence. The row doesn't move the member's
+  incremental anchor, since an estate review doesn't read lines.
+- **Estate findings are delegated by name, not linked.** A finding that
+  needs work in a member is copied into that member's register under the
+  member's own ID, with `Estate: nowline-workspace r2.f3`; the home finding
+  lists `Contained: nowline-core r8.f1, ...`. Each repo then tracks, fixes
+  and verifies its share on its own, with no PR crossing repos, and the
+  next estate review rolls the members' statuses up into the home.
 - **Remediation is separate.** The review PR records what was found; the
-  issue is the work queue; fixes are ordinary PRs that cite finding IDs. The
-  next review's fix review sets earlier findings' statuses from the issue
-  and PR state, so fix PRs never touch `specs/reviews/`.
+  issue is the work queue; fixes are ordinary PRs that cite finding IDs. A
+  fix PR adds one claim file per finding (`specs/reviews/r7/f2.md`), so
+  what's been addressed is visible in the repo without opening the issue,
+  and parallel fix PRs never touch the same file. A claim isn't a status:
+  the next review's fix review reads it with the issue and the code, sets
+  the status in the register, and deletes it. Fix PRs touch nothing else in
+  `specs/reviews/`, so the fixer never grades its own work and the log row
+  never conflicts.
 - **Accepted findings stay accepted.** A finding marked `accepted` with a
   reason is handed to the reviewers as known and listed at the bottom of
   the summary, not raised again unless the code under it changed.
