@@ -2,7 +2,7 @@
 
 How to meet the generic rules in [security.md](security.md) and [architecture.md](architecture.md) on Google Cloud and Firebase. Quotas, propagation times and launch stages change, so this file links Google's docs for the numbers instead of restating them.
 
-Contents: [Ops Plane on IAP](#ops-plane-on-iap) · [Access Groups in Terraform](#access-groups-in-terraform) · [Revocation](#revocation) · [Break-Glass](#break-glass) · [Identity Platform](#identity-platform) · [Firebase Emulator Guard](#firebase-emulator-guard) · [CI Identity](#ci-identity) · [Encryption and Erasure](#encryption-and-erasure) · [Resource History Stores](#resource-history-stores) · [Activity Log](#activity-log)
+Contents: [Ops Plane on IAP](#ops-plane-on-iap) · [Access Groups in Terraform](#access-groups-in-terraform) · [Revocation](#revocation) · [Break-Glass](#break-glass) · [Identity Platform](#identity-platform) · [Firebase Emulator Guard](#firebase-emulator-guard) · [CI Identity](#ci-identity) · [Runtime Secrets](#runtime-secrets) · [Encryption and Erasure](#encryption-and-erasure) · [Resource History Stores](#resource-history-stores) · [Activity Log](#activity-log)
 
 ## Ops Plane on IAP
 
@@ -54,7 +54,19 @@ Tenant users sign in through Identity Platform (Firebase Auth). Ops staff sign i
 What makes the committed CI values in [architecture.md](architecture.md#ci-configuration) safe to publish: the controls behind them, not their obscurity.
 
 - **Pin workload identity federation to ids, not names**: the provider's attribute condition and the service account's binding check `assertion.repository_owner_id` and `assertion.repository_id`, which GitHub never reuses. A deleted repo's or org's name can be registered again ([auth security considerations][wif-gh]). Then the provider path, project id and service account email are identifiers, and Google's own examples put them in the workflow
+- **Bind deploy access to the GitHub environment too**: the provider condition, or the binding for a prod deploy service account, also checks `assertion.environment == 'prod'`. The OIDC token carries the `environment` claim only for a job that declares one ([OIDC claims][gh-oidc]), so a job outside `prod`, which already can't decrypt `secrets/prod/`, can't reach the prod project either ([secrets/single-repo.md](secrets/single-repo.md#cloud-credentials-dont-come-from-sops))
 - **Restrict the Firebase web API key**: it's fine in a checked-in file only while it's limited to the Firebase APIs the app calls, never the Generative Language API, with Security Rules and App Check doing the access control ([Firebase API keys][fb-keys]). Expect a public-key warning from Google or a secret-scanning alert; check the restrictions and close it with that reason
+
+## Runtime Secrets
+
+How a service gets the runtime secrets that [secrets/single-repo.md](secrets/single-repo.md#deployed-services) describes: the deploy job copies values from sops into Secret Manager, and the service never sees sops.
+
+- **Terraform creates the secrets and grants, never the values**: one [`google_secret_manager_secret`][tf-sm-secret] per key, named the key (`RESEND_API_KEY`), in each environment's project. No `google_secret_manager_secret_version`: Terraform state would hold the value in plaintext. Terraform reads the keys from each service's `secrets.list`, so the lists stay the one record of which service reads what
+- **One service account per service**, with `roles/secretmanager.secretAccessor` on exactly the secrets its list names ([Secret Manager access control][sm-iam]). `mcp`'s service account has no grant on a secret only `api` lists
+- **The deploy service account adds versions**: `roles/secretmanager.secretVersionAdder` and `roles/secretmanager.secretAccessor` on those secrets, never at project level. Reading lets `secrets-sync` skip unchanged values, and costs nothing extra: the job already holds the plaintext through the environment's age key
+- **Pin versions at deploy**: `gcloud run deploy api --set-secrets=RESEND_API_KEY=RESEND_API_KEY:7,DATABASE_PASSWORD=DATABASE_PASSWORD:3`, with the versions `secrets-sync` printed. Cloud Run resolves an environment-variable secret when an instance starts, so with `latest`, instances of one revision can disagree after an update, and rolling back a revision wouldn't roll back its secrets ([Cloud Run secrets][run-secrets]). If Terraform also manages the service, the deploy job owns the secret bindings and Terraform ignores them
+- **Disable old versions**: after a deploy, `secrets-sync` disables versions older than the ones the last few revisions pin. Active versions are billed, and a disabled version can be re-enabled for a rollback
+- **Firebase Functions**: `defineSecret('RESEND_API_KEY')` reads the Secret Manager secret of that name ([Functions secrets][fn-secrets]), so the same names and sync apply. The deploy job adds versions; nobody runs `firebase functions:secrets:set` by hand
 
 ## Encryption and Erasure
 
@@ -116,3 +128,8 @@ The generic rules are in [architecture.md](architecture.md#activity-log).
 [tink]: https://developers.google.com/tink
 [wif-gh]: https://github.com/google-github-actions/auth/blob/main/docs/SECURITY_CONSIDERATIONS.md
 [ws-admins]: https://knowledge.workspace.google.com/admin/users/security-best-practices-for-administrator-accounts
+[fn-secrets]: https://firebase.google.com/docs/functions/config-env#secret-manager
+[gh-oidc]: https://docs.github.com/en/actions/reference/security/oidc
+[run-secrets]: https://docs.cloud.google.com/run/docs/configuring/services/secrets
+[sm-iam]: https://docs.cloud.google.com/secret-manager/docs/access-control
+[tf-sm-secret]: https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/secret_manager_secret

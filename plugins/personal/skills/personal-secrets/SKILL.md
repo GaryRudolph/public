@@ -19,6 +19,13 @@ read `README.md` there before first use. This skill is the procedure, plus a
 tested kit in [`templates/secrets-repo/`](templates/secrets-repo/) that
 implements the standard's Makefile contract.
 
+The standard has two strategies: a repo's own `secrets/` folder
+([`single-repo.md`](../personal-standards/standards/secrets/single-repo.md)),
+the default, and the estate repo
+([`estate.md`](../personal-standards/standards/secrets/estate.md)). The kit and
+the procedures below cover the estate repo. For a single repo, follow
+`single-repo.md` directly; there's no kit for it yet.
+
 ## Ground rules
 
 - **Never show a secret.** Don't print, echo, or paste secret values or

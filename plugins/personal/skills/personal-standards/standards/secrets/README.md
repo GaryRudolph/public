@@ -1,79 +1,68 @@
 # Secrets Management
 
-Standards for externalizing secrets out of application source repos. The default
-rule: **never commit plaintext secrets to a source repository.**
+Secrets are committed as SOPS + age ciphertext, and every reader holds its own
+age key. **Never commit a plaintext secret**, and keep config (ids, origins,
+public web keys) out of secret files: it's plaintext and committed
+([architecture.md](../architecture.md#ci-configuration)).
 
-## Where secrets live
+## Two strategies
 
-Secrets belong in one of:
+| | Use it for | Standard |
+|---|---|---|
+| **Single repo** (the default) | Values only one repo uses, encrypted in that repo's `secrets/` folder | [single-repo.md](single-repo.md) |
+| **Estate** | Values two or more repos in an estate use, in a private `<estate>-secrets` repo | [estate.md](estate.md), written as the differences from a single repo |
 
-- **Environment variables** at runtime (local `.env` gitignored, CI secrets)
-- **Managed secret stores** (cloud KMS, platform secret managers)
-- **A dedicated encrypted secrets repository** — a private repo holding SOPS +
-  age ciphertext, consumed by CI at deploy time
+A value lives in exactly one place. It starts in the repo that needs it and
+moves to the estate when a second repo needs it
+([estate.md](estate.md#when-a-value-moves-to-the-estate)). A repo can use both
+at once: its own `secrets/` and estate grants open with the same key.
 
-This section documents the third option as a **candidate reference architecture**
-for estate-wide secret management. It is not a universal default; adopt it when
-GitHub-only tooling and per-repo access control fit your estate.
+## What both share
 
-An **estate** is the operational scope served by one secrets repo: an org,
-product line, workspace, app family, or single project. Choose the boundary that
-matches today's access-control needs; split it if the estate grows.
+- **Every value is encrypted**, so a secret can't be committed in plaintext
+  because of its name. Files end in `.sops`, and a decrypted sibling can't be
+  staged.
+- **Scopes:** `ci/` holds what CI builds, signs and publishes with, signing
+  material included. `<env>/` holds each environment's runtime secrets.
+- **One key per reader:** people have their own keys. CI has one per
+  `(repo, context)`: `<repo>__actions` opens `ci/`, and `<repo>__env-<env>`, in
+  that GitHub environment, opens `<env>/`. Every store names the secret
+  `SOPS_AGE_KEY`, and a job sees one key.
+- **Deployed services never decrypt.** The deploy job copies each service's
+  listed keys into the platform's secret store, and the service reads them from
+  there. Cloud credentials come from OIDC, never from sops
+  ([single-repo.md](single-repo.md#deployed-services)).
 
-## When to use the secrets repository pattern
+## Where code runs
 
-Good fit:
+| Where | What it opens |
+|---|---|
+| GitHub Actions workflow jobs | `ci/`, with the `actions` key |
+| Deploy jobs | `<env>/`, with that environment's key, behind its branch policy |
+| GitHub Agents, Codespaces, Dependabot | `dev/` at most, with their own store keys |
+| Claude Code cloud environments | `dev/` at most, with that environment's key |
+| A developer's machine | `dev/`, with their own key; maintainers open everything |
+| Cloud Run, Firebase Functions, other deployed services | Only their listed keys, from the platform's secret store ([gcp.md](../gcp.md#runtime-secrets)) |
+| Apps and browsers | Nothing. A shipped binary can't keep a secret; CI does the signing |
 
-- Multiple repos share secrets with different access levels
-- You want version-controlled secret changes with review, without plaintext in git
-- CI needs secrets but you refuse an always-on key that can read editable source
-- Pure-frontend and server-backed projects share the same model
+## Least-privilege consumption
 
-Tradeoffs to accept:
+Prefer the narrowest form the toolchain allows:
 
-- **Git history is permanent** — committed ciphertext (and any leaked key) exposes
-  historical secret values; rotating a leaked value means revoking at the upstream
-  provider, not just `git revert`.
-- **Centralized key custody** — `keys/repos.env.sops` holds every consumer private
-  key, encrypted to maintainer source keys; a maintainer key compromise exposes all
-  consumer contexts.
-- **Operational overhead** — maintainers run local `make build` after every
-  source change; `dist/` must stay in sync with `src/`.
+1. **One value, one command:** the value goes inline to the command that needs
+   it, and nothing lands in the job environment.
+2. **Export to the job environment:** dotenv appended to `$GITHUB_ENV`, only
+   for the keys later steps use.
+3. **Decrypt files to disk:** only when the toolchain needs a file (a `.p8` or
+   `.p12`), mode `0600`, removed when the job ends.
 
-## Least-privilege consumption hierarchy
-
-Prefer the narrowest mechanism that satisfies the toolchain:
-
-1. **One key, one command** — `make dist-decrypt-env KEY=...` emits the raw value
-   for inline injection; nothing lands in the job environment.
-2. **Export to the job environment** — `make dist-decrypt-env KEY=... FORMAT=dotenv
-   >> "$GITHUB_ENV"` for one key, or `make dist-decrypt-env >> "$GITHUB_ENV"` for
-   all decryptable env files the context key can open.
-3. **Decrypt files to disk** — `make dist-decrypt FILE=...` (or all files) only
-   when the toolchain requires files on disk (binary certs, `.p8`, `.p12`, etc.).
-   `dist-decrypt` never emits environment assignments.
-
-See [makefile.md](makefile.md) for the full target contract and GitHub Actions
-examples.
-
-## Threat model (summary)
-
-- **`src/`** — readable only by maintainer personal keys + offline break-glass. No
-  CI key can decrypt source.
-- **`dist/`** — each file encrypted to its mapped consumer `(repo, context)` keys
-  + break-glass. The Secrets GitHub App only grants ciphertext download.
-- **Consumer key leak** — attacker decrypts only files that key is a recipient of,
-  including git history for those files. `make rotate` stops *future* access; rotate
-  the upstream secret values too if the private key may have leaked.
-- **Secrets App key leak** — attacker downloads ciphertext they still cannot decrypt.
-- **Break-glass key** — opens everything; offline only.
-
-Full detail: [repository.md](repository.md#threat-model).
+Target names for each tier: [makefile.md](makefile.md).
 
 ## Documentation map
 
 | File | Purpose |
 |------|---------|
-| [repository.md](repository.md) | Candidate reference architecture: repo layout, access matrix, scripts, runbook |
-| [makefile.md](makefile.md) | Makefile target contract for maintainers and consumers |
-| [`personal-secrets` skill](../../../personal-secrets/SKILL.md) | Procedures, plus the tested kit that implements this contract |
+| [single-repo.md](single-repo.md) | The full model: scopes, layout, identities, `.sops.yaml`, CI, deployed services, checks, rotation, threat model |
+| [estate.md](estate.md) | How the estate secrets repo differs: `access.map`, `src/` and `dist/`, the key registry, the Secrets App, the kit |
+| [makefile.md](makefile.md) | Makefile targets for both strategies |
+| [`personal-secrets` skill](../../../personal-secrets/SKILL.md) | Procedures, plus the tested kit for the estate repo |
