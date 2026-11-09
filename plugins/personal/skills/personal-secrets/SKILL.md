@@ -1,30 +1,36 @@
 ---
 name: personal-secrets
 description: >-
-  Run a SOPS + age secrets repository (<estate>-secrets): set one up
-  from a tested kit, add or edit a secret or signing file, grant or revoke
-  a repo's access in access.map, mint, rotate, or retire a consumer's
-  (repo, context) key, push SOPS_AGE_KEY to GitHub, wire a consumer repo's
-  CI to read secrets with least privilege, and respond to a leaked key or
-  value. Use for "set up a secrets repo", "add a secret", "give <repo>
-  access to <file>", "rotate the key", "wire secrets into CI", "SOPS",
-  "age key", or "SOPS_AGE_KEY".
+  Run SOPS + age secrets under the personal secrets standard, in either
+  strategy: a private repo's own secrets/ folder (set it up from a tested
+  kit, add or edit a secret in cleartext beside its ciphertext, add a person,
+  mint a CI or environment key, give a privileged job such as terraform
+  apply its own scope, sync a service's secrets to Secret Manager at deploy)
+  or the estate's <estate>-secrets repo (grant or revoke a repo in
+  access.map, mint, rotate or retire a (repo, context) key, push
+  SOPS_AGE_KEY, wire a member's CI), plus moving a value to the estate and
+  responding to a leaked key or value. Use for "set up secrets for this
+  repo", "add a secret", "encrypt this .env", "give <repo> access to
+  <file>", "rotate the key", "wire secrets into CI", "SOPS", "age key", or
+  "SOPS_AGE_KEY".
 ---
 
 # personal-secrets
 
-The architecture and threat model are in
+The rules, the threat model, and when to use which strategy are in the
+standard,
 [`../personal-standards/standards/secrets/`](../personal-standards/standards/secrets/README.md);
-read `README.md` there before first use. This skill is the procedure, plus a
-tested kit in [`templates/secrets-repo/`](templates/secrets-repo/) that
-implements the standard's Makefile contract.
+read `README.md` there before first use. This skill is the procedure, plus two
+tested kits that implement the standard's Makefile contracts:
 
-The standard has two strategies: a repo's own `secrets/` folder
-([`single-repo.md`](../personal-standards/standards/secrets/single-repo.md)),
-the default, and the estate repo
-([`estate.md`](../personal-standards/standards/secrets/estate.md)). The kit and
-the procedures below cover the estate repo. For a single repo, follow
-`single-repo.md` directly; there's no kit for it yet.
+- [`templates/single-repo/`](templates/single-repo/) for a private repo's own
+  `secrets/` folder ([`single-repo.md`](../personal-standards/standards/secrets/single-repo.md)),
+  the default.
+- [`templates/secrets-repo/`](templates/secrets-repo/) for the estate repo
+  ([`estate.md`](../personal-standards/standards/secrets/estate.md)).
+
+A public repo gets neither: it uses OIDC, estate grants, or a plain GitHub
+secret (the standard's "Public repos").
 
 ## Ground rules
 
@@ -32,11 +38,12 @@ the procedures below cover the estate repo. For a single repo, follow
   private keys into the conversation, a commit, a PR, or a log. When you
   need to confirm a value, compare it (`cmp`, a hash) instead of displaying
   it. Refer to secrets by file and key name.
-- **Maintainer work stays local.** Anything that reads `src/` or
-  `keys/repos.env.sops` needs a maintainer age key on the Owner's machine. Never
-  suggest putting a source key in CI.
+- **Maintainer work stays local.** Anything that reads a whole scope, the
+  estate's `src/`, or `keys/repos.env.sops` needs a maintainer age key on the
+  Owner's machine. Never suggest putting a maintainer key in CI.
 - **Ask before anything remote or irreversible.** `make set-keys`,
-  `gh secret set` or `gh secret delete`, pushing the secrets repo, and
+  `make secrets-mint`, `make secrets-sync` outside CI, `gh secret set` or
+  `gh secret delete`, pushing the secrets repo, and
   deleting keys all need the Owner's explicit go-ahead for that step: a choice
   dialog where the harness has one (Claude Code's `AskUserQuestion`), its
   question naming the exact command, options `Run it` and `Not now`. A
@@ -51,13 +58,140 @@ the procedures below cover the estate repo. For a single repo, follow
 bash scripts/secrets-facts.sh
 ```
 
-Run it in the target repo. It reports whether that's a secrets repo or a
-consumer, which tools and key sources exist (names only), the expanded
-`access.map`, `src/` and `dist/` inventory, plaintext on disk, registry
-identity names, keyless check results, and the consumer's workflow wiring.
-It never prints values. Decide the next step from these facts.
+Run it in the target repo. It reports whether that's an estate secrets repo,
+a single repo with a `secrets/` folder, or a consumer; which tools and key
+sources exist (names only); for a single repo, its scopes, key names,
+ciphertext, cleartext on disk and deploy environments; for the estate, the
+expanded `access.map`, `src/` and `dist/` inventory and registry identity
+names; keyless check results; and the workflow wiring, GitHub environments
+and secret names. It never prints values. Decide the next step from these
+facts.
 
-## Procedures
+## Single-repo procedures
+
+Run from the repo root. `FILE=` is a path under `secrets/` without `.sops`.
+
+### Set up `secrets/` in a private repo
+
+1. Confirm the repo is private (`gh repo view --json isPrivate`). If it's
+   public, stop: the standard's "Public repos" applies.
+2. Copy the kit: `scripts/secrets.sh` to `scripts/`, `secrets.mk` to the root,
+   `secrets/.sops.yaml` and `secrets/README.md` to `secrets/`, and append
+   `secrets.gitignore` to `.gitignore`. Add `include secrets.mk` to the
+   Makefile after `SHELL := bash`, make `doctor` depend on `secrets-doctor`,
+   and run `make secrets-check` in the pre-commit hook and in CI (with
+   `ONLINE=1` in CI).
+3. Agree the scopes with the Owner: `ci/`, one folder per deploy environment
+   (each with a `deploy/<env>.env`), and one per privileged job that needs
+   permissions other CI jobs mustn't have (below). Give each a creation rule
+   in `.sops.yaml`.
+4. Fill in public keys: the Owner's (anchor named for their GitHub login), the
+   break-glass key the Owner generates offline (`&breakglass`), and the CI
+   keys from `make secrets-mint` (next procedure). Fix the README's scope table.
+5. `make secrets-doctor`, then `make secrets-check`.
+
+### Add or edit a secret
+
+1. Existing file: `make secrets-decrypt FILE=prod/api.env CONFIRM=1`. New
+   file: write `secrets/<scope>/<consumer>.env` (or the binary file) directly.
+   Name it for its consumer and its keys by the standard's "Naming".
+2. The Owner edits the cleartext, or you do without echoing values. In a
+   deploy environment, add a new key to the same file in every environment
+   folder, or `secrets-check` fails.
+3. `make secrets-encrypt FILE=prod/api.env`, then `make secrets-clean`.
+4. Commit only `*.sops`; the gitignore refuses the cleartext.
+
+Encrypting needs only public keys, so anyone can add a value. Decrypting a
+file you only need in code is wrong: use `make -s secrets-env FILE= KEY=`.
+
+### Add or remove a person
+
+Add: their public key goes into the rules for the scopes they may open
+(developers get `dev/` only), then `make secrets-updatekeys SCOPE=<scope>` for
+each, run by a maintainer. Remove: delete the key from those rules, then
+`make secrets-updatekeys SCOPE=<scope> ROTATE=1`. If their key may have
+leaked, rotate the values it could open at their providers too.
+
+### Mint a CI or environment key
+
+1. With the Owner's go-ahead: `make secrets-mint CONTEXT=<ctx> CONFIRM_MINT=1`,
+   where `<ctx>` is `actions` (repo-level, opens `ci/`), `env-<env>` (the
+   GitHub environment `<env>`, opens the `<env>/` scope), or `agents`,
+   `codespaces`, `dependabot`. The private half goes straight to GitHub;
+   nothing is written to disk.
+2. Add the printed public key to its scope's rule as `&<ctx>` (dashes become
+   underscores), then `make secrets-updatekeys SCOPE=<scope>` and commit.
+3. For an `env-<env>` key, make sure the GitHub environment has a deployment
+   branch policy before anything sensitive goes into its scope.
+
+Rotating a CI key is the same: mint again (it overwrites the GitHub secret),
+swap the public key, and run updatekeys with `ROTATE=1`.
+
+### Give a privileged job its own scope
+
+When one CI job needs permissions the others mustn't have, such as
+`terraform apply` against `terraform plan`:
+
+1. Create a GitHub environment for it (`terraform-prod`) with a branch policy
+   (`main` only), and required reviewers where the plan allows.
+2. Add a scope with the same name to `.sops.yaml` and mint `env-terraform-prod`.
+3. Put the job's write credentials in `secrets/terraform-prod/<consumer>.env`;
+   the read-only ones the plan job uses stay in `ci/`.
+4. The job declares `environment: terraform-prod`. Its cloud access comes
+   from OIDC, bound to that environment's claim, not from sops.
+
+### Wire CI
+
+Start from [`templates/single-repo/ci-steps.yml`](templates/single-repo/ci-steps.yml)
+and keep the narrowest step that works: one value for one command
+(`make -s secrets-env FILE= KEY=`), then `FORMAT=dotenv >> "$GITHUB_ENV"`, then
+`make secrets-decrypt FILE=` for a tool that needs a file, with
+`make secrets-clean` in an `if: always()` step. `SOPS_AGE_KEY` goes on the
+step, never the job.
+
+### Wire a service's deploy
+
+1. Infrastructure code creates one Secret Manager secret per key in the
+   service's file, named the key, with no value, and grants the service's own
+   service account read access to exactly those. The key names are plaintext
+   in `secrets/<env>/<service>.env.sops`.
+2. The deploy service account gets `secretVersionAdder` and `secretAccessor`
+   on those secrets.
+3. The deploy job declares `environment: <env>`, loads `deploy/<env>.env`
+   (which sets `GOOGLE_CLOUD_PROJECT`), and runs
+   `make -s secrets-sync ENVIRONMENT=<env> SERVICE=<service> CONFIRM_SYNC=1`.
+   It prints `KEY=KEY:<version>,...` for `gcloud run deploy --set-secrets`.
+4. A value the service shares with another repo is `@estate` in its file;
+   check out the estate's `dist/` to `_secrets/` before the sync.
+
+The sync refuses when two files in the scope hold a key with different
+values. Make the copies match; don't work around it.
+
+### Move a value to the estate
+
+When a second repo needs a value: add it to the estate's `src/<scope>/`,
+grant both repos in `access.map`, `make build`, and wire both repos' CI to the
+estate copy (`@estate` in a service file). Then delete it from this repo's
+`secrets/` in the same change set.
+
+### Before making a private repo public
+
+Move every value in `secrets/` to the estate, rotate each one at its
+provider, then delete `secrets/`. The history goes public with the repo, so
+deleting the folder alone exposes every past value to anyone with a future
+key leak.
+
+### A key or value leaked (single repo)
+
+1. **A CI or environment key:** mint a replacement, remove the old public key,
+   updatekeys with `ROTATE=1`, and rotate every value that scope holds at its
+   provider, including signing certificates.
+2. **A value:** revoke and reissue it at the provider, replace it in every
+   file that holds it, encrypt, commit, and redeploy.
+3. **A person's key:** remove it (above) and rotate the values its scopes
+   held.
+
+## Estate procedures
 
 ### Set up a new secrets repo
 
@@ -142,12 +276,20 @@ Edit the `age:` list in `.sops.yaml`, then
    is exposed. Remove the maintainer, rotate every consumer key, and rotate
    the secret values.
 
-## The kit
+## The kits
 
-`templates/secrets-repo/` implements the standard's Makefile contract, and
-`tests/test-kit.sh` exercises every flow above in a sandbox (it needs `sops`
-and `age`). It meets the two constraints in the standard's "Reference
-implementation":
+`templates/single-repo/` implements the single-repo contract: `secrets.mk`
+wraps `scripts/secrets.sh`, which runs under macOS's bash 3.2, parses the
+kit's `.sops.yaml` layout (anchors named for identities), and checks
+recipients from SOPS's plaintext metadata, so `secrets-check` needs no key.
+`secrets-sync` targets Google Cloud Secret Manager; for AWS or Azure, adapt
+its store calls. `tests/test-single-repo.sh` exercises every single-repo
+flow above with stub `gh` and `gcloud`.
+
+`templates/secrets-repo/` implements the estate contract, and
+`tests/test-kit.sh` exercises every estate flow above in a sandbox. Both
+tests need `sops` and `age`, and skip without them. The estate kit meets the
+two constraints in the standard's "Reference implementation":
 
 - `build.sh` runs `sops --config /dev/null` for `dist/`. With the committed
   `.sops.yaml`, sops otherwise refuses stdin with "no matching creation

@@ -2,10 +2,10 @@
 
 Recommended Makefile contracts for both strategies in [README.md](README.md):
 the `secrets-*` targets a single repo adds to its own Makefile, then the
-targets of an `<estate>-secrets` repo. A tested implementation of the estate
-contract is the `personal-secrets` skill's
-[`templates/secrets-repo/`](../../../personal-secrets/templates/secrets-repo/Makefile);
-there's no kit for the single-repo targets yet.
+targets of an `<estate>-secrets` repo. The `personal-secrets` skill has a
+tested kit for each:
+[`templates/single-repo/`](../../../personal-secrets/templates/single-repo/secrets.mk)
+and [`templates/secrets-repo/`](../../../personal-secrets/templates/secrets-repo/Makefile).
 
 Placeholders: `<org>`, `<estate>`, `<repo>`, `<env>`, `<scope>`.
 
@@ -13,8 +13,8 @@ Contents: [Single-repo targets](#single-repo-targets) · [Estate targets](#estat
 
 ## Single-repo targets
 
-Under `##@ Secrets` in the repo's own Makefile, running sops from `secrets/`
-([single-repo.md](single-repo.md)). `FILE=` is a logical path below
+Under `##@ Secrets` in the repo's own Makefile (the kit's `secrets.mk` is
+included from it), running sops from `secrets/` ([single-repo.md](single-repo.md)). `FILE=` is a logical path below
 `secrets/`, without `.sops` (`prod/api.env`, `ci/AuthKey_BV7QPDLS45.p8`). The
 encrypted file is that name plus `.sops`, and its cleartext sibling is the name
 itself ([single-repo.md](single-repo.md#layout)).
@@ -25,20 +25,22 @@ itself ([single-repo.md](single-repo.md#layout)).
 | `secrets-encrypt` | None: encrypting needs only public keys | Encrypt cleartext siblings to `*.sops` under their scope's rule, then delete the cleartext; refuses a file that's already SOPS output | `FILE=` (default: every cleartext file) |
 | `secrets-decrypt` | A reader of the scope | Write `*.sops` to cleartext siblings, mode `0600`, for editing or for a tool that needs a file; asks before writing a `.env` unless `CONFIRM=1`; no env output | `FILE=` (default: every file the key opens), `CONFIRM=1` |
 | `secrets-updatekeys` | A maintainer | Re-wrap every file in a scope after a recipient change; `ROTATE=1` also makes a new data key | `SCOPE=` (default all), `ROTATE=1` |
-| `secrets-check` | None | The keyless checks in [single-repo.md](single-repo.md#checks) | none |
+| `secrets-check` | None | The keyless checks in [single-repo.md](single-repo.md#checks); `ONLINE=1` adds the private-repo check, for CI | `ONLINE=1` |
+| `secrets-doctor` | None | Tools present and an age identity found; the repo's `doctor` depends on it | none |
 | `secrets-clean` | None | Delete every cleartext sibling under `secrets/`, then run `secrets-check` | none |
 | `secrets-mint` | None, plus `gh` | New keypair: private half to the context's GitHub store on stdin, public half printed for `.sops.yaml` | `CONTEXT=actions\|env-<env>\|agents\|codespaces\|dependabot` |
-| `secrets-sync` | The environment's key | Write the keys in `<env>/<service>.env` to the platform's secret store, adding a version only for a changed value and refusing if another file in the scope holds a key with a different value; print the versions | `ENVIRONMENT=`, `SERVICE=` |
+| `secrets-sync` | The environment's key | Write the keys in `<env>/<service>.env` to the platform's secret store, resolving `@estate` values from the estate's `dist/`, adding a version only for a changed value, and refusing if another file in the scope holds a key with a different value; print `KEY=KEY:<version>,...` for the deploy | `ENVIRONMENT=` (a deploy environment), `SERVICE=` |
 
 `secrets-mint` and `secrets-sync` write outside the repo, so they sit under
 `##@ Danger` and refuse without `CONFIRM_MINT=1` or `CONFIRM_SYNC=1`
 ([makefile.md](../makefile.md#danger-guards)). A repo's `deploy` target calls
 `secrets-sync` for the service it deploys and binds the printed versions.
 
-`doctor` checks that `sops`, `age` and `gh` are present and that an identity is
-found: `SOPS_AGE_KEY`, `SOPS_AGE_KEY_FILE`, or `~/.config/sops/age/keys.txt`,
-which the Makefile exports as `SOPS_AGE_KEY_FILE` because sops on macOS looks in
-`~/Library/Application Support` instead.
+An identity is `SOPS_AGE_KEY`, `SOPS_AGE_KEY_FILE`, or
+`~/.config/sops/age/keys.txt`, which the tooling exports as `SOPS_AGE_KEY_FILE`
+because sops on macOS looks in `~/Library/Application Support` instead. The
+kit's `secrets-sync` writes to Google Cloud Secret Manager, in the project
+`GOOGLE_CLOUD_PROJECT` names (from `deploy/<env>.env`).
 
 ## Estate targets
 

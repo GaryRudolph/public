@@ -59,11 +59,13 @@ Rules that apply only to public repos:
 - **Every value is encrypted**, so a secret can't be committed in plaintext
   because of its name. Files end in `.sops`, and a decrypted sibling can't be
   staged.
-- **Scopes:** `ci/` holds what CI builds, signs and publishes with, signing
-  material included. `<env>/` holds each environment's runtime secrets.
+- **Scopes, one per set of permissions:** `ci/` holds what any CI job may read,
+  signing material included. Every other scope is a GitHub environment: a
+  deploy environment's runtime secrets (`prod/`), or what one privileged job
+  needs (`terraform-prod/` for `apply`, while `plan` reads `ci/`).
 - **One key per reader:** people have their own keys. CI has one per
-  `(repo, context)`: `<repo>__actions` opens `ci/`, and `<repo>__env-<env>`, in
-  that GitHub environment, opens `<env>/`. Every store names the secret
+  `(repo, context)`: `<repo>__actions` opens `ci/`, and `<repo>__env-<name>`, in
+  that GitHub environment, opens `<name>/`. Every store names the secret
   `SOPS_AGE_KEY`, and a job sees one key.
 - **Files are named for their consumer** (`prod/api.env`, `ci/deskhound.env`),
   and keys are the environment variable names, spelled the same in every repo
@@ -79,7 +81,7 @@ Rules that apply only to public repos:
 | Where | What it opens |
 |---|---|
 | GitHub Actions workflow jobs | `ci/`, with the `actions` key |
-| Deploy jobs | `<env>/`, with that environment's key, behind its branch policy |
+| Deploy jobs and privileged jobs | Their environment's scope, with that environment's key, behind its branch policy |
 | GitHub Agents, Codespaces, Dependabot | `dev/` at most, with their own store keys |
 | Claude Code cloud environments | `dev/` at most, with that environment's key |
 | A developer's machine | `dev/`, with their own key; maintainers open everything |
@@ -107,6 +109,6 @@ Target names for each tier: [makefile.md](makefile.md).
 | [single-repo.md](single-repo.md) | The full model: scopes, layout, identities, `.sops.yaml`, CI, deployed services, checks, rotation, threat model |
 | [estate.md](estate.md) | How the estate secrets repo differs: `access.map`, `src/` and `dist/`, the key registry, the Secrets App, the kit |
 | [makefile.md](makefile.md) | Makefile targets for both strategies |
-| [`personal-secrets` skill](../../../personal-secrets/SKILL.md) | Procedures, plus the tested kit for the estate repo |
+| [`personal-secrets` skill](../../../personal-secrets/SKILL.md) | Procedures for both strategies, plus a tested kit for each |
 
 [gh-envs]: https://docs.github.com/en/actions/reference/workflows-and-actions/deployments-and-environments

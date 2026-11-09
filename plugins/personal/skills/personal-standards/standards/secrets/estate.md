@@ -13,8 +13,8 @@ Contents: [How it differs from a single repo](#how-it-differs-from-a-single-repo
 ## How it differs from a single repo
 
 The same as a single repo: [what goes in](single-repo.md#what-goes-in)
-(secrets only, every value encrypted), the `.sops` suffix, the scopes (`ci/`
-and `<env>/`), the identities and their `SOPS_AGE_KEY` stores, environment
+(secrets only, every value encrypted), the `.sops` suffix, the
+[scopes](single-repo.md#scopes) (`ci/` and one per GitHub environment), the identities and their `SOPS_AGE_KEY` stores, environment
 branch policies, [deployed services](single-repo.md#deployed-services) and
 [naming](single-repo.md#naming), cleartext editing with the `.sops` suffix, and
 what rotation does and doesn't undo.

@@ -1,19 +1,22 @@
 # Secrets in a Single Repo
 
 > Placeholders: `<org>`, `<repo>`, `<env>` (a named environment: `dev`,
-> `prod`), `<consumer>` (the service, app or resource that reads a file).
+> `prod`), `<consumer>` (the service, app, resource or job that reads a file).
 
 The default strategy for a **private** repo. A repo's secrets live encrypted in
 its own `secrets/` folder with SOPS + age, and everything that reads them holds
 its own age key. A public repo never has a `secrets/` folder: it uses OIDC,
 estate grants or a plain GitHub secret instead
-([README.md](README.md#public-repos)).
-It needs nothing but GitHub and the platform the code deploys to. A value that
-more than one repo uses lives in the estate secrets repo instead
-([estate.md](estate.md)), which reuses everything here and changes only how
-files reach their readers.
+([README.md](README.md#public-repos)). A value that more than one repo uses
+lives in the estate secrets repo instead ([estate.md](estate.md)), which reuses
+everything here and changes only how files reach their readers.
 
-Contents: [What goes in](#what-goes-in) · [Scopes](#scopes) · [Naming](#naming) · [Layout](#layout) · [Editing](#editing) · [Identities and keys](#identities-and-keys) · [`.sops.yaml`](#sopsyaml) · [Minting a CI key](#minting-a-ci-key) · [CI](#ci) · [Deployed services](#deployed-services) · [Local development](#local-development) · [Checks](#checks) · [Rotation and leaks](#rotation-and-leaks) · [Threat model](#threat-model)
+This file holds the rules. The procedures (setting up, editing, minting keys,
+wiring CI and deploys, rotating) and a tested kit that implements them are in
+the `personal-secrets` skill ([SKILL.md](../../../personal-secrets/SKILL.md),
+[`templates/single-repo/`](../../../personal-secrets/templates/single-repo/)).
+
+Contents: [What goes in](#what-goes-in) · [Scopes](#scopes) · [Naming](#naming) · [Layout](#layout) · [Editing](#editing) · [Identities and keys](#identities-and-keys) · [`.sops.yaml`](#sopsyaml) · [CI](#ci) · [Deployed services](#deployed-services) · [Local development](#local-development) · [Checks](#checks) · [Rotation and leaks](#rotation-and-leaks) · [Threat model](#threat-model)
 
 ## What goes in
 
@@ -36,32 +39,38 @@ can't be loaded by make's `include`, and the config can't be read without a key.
 ## Scopes
 
 A scope is a folder under `secrets/` with one set of recipients: every file in
-it opens with the same keys.
+it opens with the same keys. **Make one scope per distinct set of
+permissions.** `ci/` opens with the repo's Actions key; every other scope is the
+GitHub environment of the same name, opened by that environment's key.
 
 | Scope | Holds | Read by |
 |---|---|---|
-| `ci/` | What CI needs to build, sign and publish: signing certificates and their passwords, store API keys (App Store Connect `.p8`, a Play service account), package-registry tokens, deploy tokens for targets without OIDC | Workflow jobs. Never deployed |
-| `<env>/` | Runtime secrets of the services deployed to that environment: the API keys they call with, database passwords, webhook signing secrets. One folder per named environment, matching `deploy/<env>.env` | That environment's deploy job, which hands them to the platform's secret store ([Deployed services](#deployed-services)); developers, for `dev/` |
+| `ci/` | What any CI job may read: signing certificates and their passwords, store API keys (App Store Connect `.p8`, a Play service account), package-registry tokens, read-only tokens such as the one `terraform plan` uses | Workflow jobs with no `environment:`. Never deployed |
+| `<env>/`, a deploy environment | Runtime secrets of the services deployed there: the API keys they call with, database passwords, webhook signing secrets. A scope is a deploy environment when `deploy/<env>.env` exists | That environment's deploy job, which hands them to the platform's secret store ([Deployed services](#deployed-services)); developers, for `dev/` |
+| `<job-env>/`, a privileged job | What one job needs that the other CI jobs mustn't have: `terraform apply`'s write token against `plan`'s read-only one (`terraform-prod/`) | The job that declares that environment, behind its branch policy |
 
 Signing material belongs in `ci/`, not `prod/`. CI signs every build and
 publishes it, and no deployed service reads it. A repo that deploys nothing (an
-app, a library) has only `ci/`.
+app, a library) may have only `ci/`. Each repo picks the scopes its jobs need:
+the rule is one scope per set of permissions, not a fixed list.
 
 ## Naming
 
 Names are the same in every repo, so a reader knows what a file is for and what
 a key holds without opening it.
 
-**Files are named for their consumer**: the service, app or resource that reads
-them, in lowercase kebab-case.
+**Files are named for their consumer**: the service, app, resource or job that
+reads them, in lowercase kebab-case.
 
 - `<env>/<service>.env`: everything that service reads at runtime in that
   environment (`prod/api.env`, `prod/mcp.env`, `prod/yjs.env`). The file is the
   complete list of what the service gets.
-- `ci/<app>.env`: what CI needs to build, sign and publish that app or package
-  (`ci/deskhound.env`). A repo that ships one thing has one file.
-- Every `<env>/` folder has the same files with the same keys. Only the values
-  differ.
+- `ci/<consumer>.env`: what one CI consumer needs, such as an app's release
+  (`ci/deskhound.env`) or the plan job (`ci/terraform-plan.env`).
+- `<job-env>/<consumer>.env`: what that privileged job needs
+  (`terraform-prod/terraform.env`).
+- Every deploy environment folder has the same files with the same keys. Only
+  the values differ.
 - Binary files keep the issuer's own file name (`AuthKey_BV7QPDLS45.p8`) or name
   the credential (`apple-distribution.p12`). A password for one goes in the
   consumer's env file.
@@ -70,7 +79,7 @@ them, in lowercase kebab-case.
 key in the file, the variable the code reads, and the platform store's secret.
 
 - Where a provider's SDK or CLI reads a documented variable, use exactly that
-  name (`RESEND_API_KEY`, `SENTRY_AUTH_TOKEN`).
+  name (`RESEND_API_KEY`, `SENTRY_AUTH_TOKEN`, `CLOUDFLARE_API_TOKEN`).
 - Otherwise use `<PROVIDER>_<PURPOSE>_<KIND>` for a third party
   (`STRIPE_WEBHOOK_SECRET`, `APPLE_DISTRIBUTION_P12_PASSWORD`), and
   `<SYSTEM>_<PURPOSE>_<KIND>` for your own, where the system is whatever checks
@@ -79,33 +88,52 @@ key in the file, the variable the code reads, and the platform store's secret.
   webhook secret), `_PASSWORD` or `_PRIVATE_KEY`.
 - A name never contains an environment (`_PROD`), a repo or a service: the
   folder says the environment and the file says the consumer. So
-  `RESEND_API_KEY` is spelled the same in every file, repo and environment.
+  `RESEND_API_KEY` is spelled the same in every file, repo and environment, and
+  `plan` and `apply` both read `CLOUDFLARE_API_TOKEN`, from different scopes.
 - One name means one value within a scope. When two services read the same
-  value, it appears in both files under the same name, and the sync refuses to
-  deploy if the copies differ ([Deployed services](#deployed-services)).
+  value, it appears in both files under the same name, and the deploy refuses
+  if the copies differ ([Deployed services](#deployed-services)).
 
 ## Layout
 
-A repo that deploys services, and an app repo:
+A repo that deploys services and manages infrastructure:
 
 ```text
-nowline-api/                           deskhound-mac/
-├─ deploy/                             ├─ deploy/
-│  ├─ dev.env      config, plaintext   │  └─ prod.env        config, plaintext
-│  └─ prod.env                         └─ secrets/
-└─ secrets/                               ├─ .sops.yaml
-   ├─ README.md                           ├─ README.md
-   ├─ .sops.yaml                          └─ ci/
-   ├─ ci/                                    ├─ deskhound.env.sops
-   │  └─ api.env.sops   SENTRY_AUTH_TOKEN    ├─ AuthKey_BV7QPDLS45.p8.sops
-   ├─ dev/                                   └─ apple-distribution.p12.sops
+nowline-api/
+├─ deploy/
+│  ├─ dev.env                          config, plaintext
+│  └─ prod.env
+└─ secrets/
+   ├─ README.md
+   ├─ .sops.yaml
+   ├─ ci/
+   │  ├─ api.env.sops                  SENTRY_AUTH_TOKEN
+   │  └─ terraform-plan.env.sops       CLOUDFLARE_API_TOKEN (read-only)
+   ├─ terraform-prod/
+   │  └─ terraform.env.sops            CLOUDFLARE_API_TOKEN (write)
+   ├─ dev/
    │  ├─ api.env.sops
    │  ├─ mcp.env.sops
    │  └─ yjs.env.sops
    └─ prod/
-      ├─ api.env.sops   DATABASE_PASSWORD, RESEND_API_KEY
-      ├─ mcp.env.sops   RESEND_API_KEY
-      └─ yjs.env.sops   YJS_AUTH_SECRET
+      ├─ api.env.sops                  DATABASE_PASSWORD, RESEND_API_KEY
+      ├─ mcp.env.sops                  RESEND_API_KEY
+      └─ yjs.env.sops                  YJS_AUTH_SECRET
+```
+
+An app repo, which deploys nothing:
+
+```text
+deskhound-mac/
+├─ deploy/
+│  └─ prod.env                         config, plaintext
+└─ secrets/
+   ├─ README.md
+   ├─ .sops.yaml
+   └─ ci/
+      ├─ deskhound.env.sops            APPLE_DISTRIBUTION_P12_PASSWORD
+      ├─ AuthKey_BV7QPDLS45.p8.sops
+      └─ apple-distribution.p12.sops
 ```
 
 **Cleartext next to ciphertext.** `api.env` is the cleartext you edit, and
@@ -130,26 +158,18 @@ Scripts go in `scripts/` or the Makefile, never inside a scope folder.
 
 ## Editing
 
-Edit cleartext, then encrypt it. The Makefile targets are in
-[makefile.md](makefile.md#single-repo-targets):
+Edit cleartext, then encrypt it, through the repo's Makefile
+([makefile.md](makefile.md#single-repo-targets)): `secrets-decrypt` writes the
+cleartext beside its ciphertext, `secrets-encrypt` seals it and deletes the
+cleartext, and `secrets-clean` removes anything left behind.
 
-```bash
-make secrets-decrypt FILE=prod/api.env      # writes prod/api.env (asks first)
-$EDITOR secrets/prod/api.env
-make secrets-encrypt FILE=prod/api.env      # rewrites prod/api.env.sops, deletes prod/api.env
-make secrets-clean                          # removes any cleartext left behind, runs the checks
-```
-
-- **A new file**: write the cleartext (`secrets/prod/worker.env`), then
-  `make secrets-encrypt FILE=prod/worker.env`. Encrypting needs only public
-  keys, so anyone can add a value they can't read back.
-- **`secrets-encrypt`** with no `FILE=` encrypts every cleartext file under
-  `secrets/`. It refuses a file that's already SOPS output, so nothing gets
+- Encrypting needs only public keys, so anyone can add a value they can't
+  read back.
+- Encrypting refuses a file that's already SOPS output, so nothing is
   encrypted twice.
-- **`secrets-decrypt`** asks before writing a cleartext `.env`, unless
-  `CONFIRM=1`. Binary files decrypt without asking, because CI needs them on
-  disk. Code reads values with `secrets-env`, which never writes cleartext to
-  disk.
+- Decrypting a `.env` asks first. Code never decrypts to disk: it reads
+  values with `secrets-env`, which writes only to stdout. Binary files decrypt
+  without asking, because CI needs them on disk.
 
 ## Identities and keys
 
@@ -161,7 +181,7 @@ may open. People never share a key with CI or with each other.
 | Maintainer | Their own machine | Every scope |
 | Developer | Their own machine | `dev/` |
 | `<repo>__actions` | Repo Actions secret `SOPS_AGE_KEY` | `ci/` |
-| `<repo>__env-<env>` | Actions secret `SOPS_AGE_KEY` in GitHub environment `<env>` | `<env>/` |
+| `<repo>__env-<name>` | Actions secret `SOPS_AGE_KEY` in GitHub environment `<name>` | The `<name>/` scope: a deploy environment or a privileged job |
 | `<repo>__agents`, `__codespaces`, `__dependabot` | That GitHub store's `SOPS_AGE_KEY` | `dev/` at most, and only once a job there needs it |
 | `claude__<environment>` | `SOPS_AGE_KEY` in a Claude Code cloud environment's settings | `dev/` at most |
 | Break-glass | Offline | Every scope |
@@ -176,28 +196,34 @@ environment sees the `actions` key. A job that needs two scopes becomes two
 jobs. Set `environment:` and `ENVIRONMENT` from the same value
 ([architecture.md](../architecture.md#ci-configuration)).
 
-**An environment key is only as safe as its environment.** Give `prod` a
-deployment branch policy (`main` and release tags). Without one, any branch can
-declare `environment: prod` and read the key. On private repos, GitHub Pro and
-Team have environments, environment secrets and branch policies. Required
-reviewers and wait timers on a private repo need Enterprise
-([deployments and environments][gh-envs]).
+**An environment key is only as safe as its environment.** Give every
+environment that holds a key a deployment branch policy (`main` and release
+tags). Without one, any branch can declare the environment and read the key. On
+private repos, GitHub Pro and Team have environments, environment secrets and
+branch policies. Required reviewers and wait timers on a private repo need
+Enterprise ([deployments and environments][gh-envs]).
 
 **The `actions` key reaches every branch.** That's accepted for `ci/`: CI signs
-and publishes from any build it runs. To keep signing material to `main`, move
-that key into an environment (say `release`) with a branch policy. Every signing
-job then declares it.
+and publishes from any build it runs. Anything a branch build mustn't reach goes
+in a privileged job's scope instead.
+
+**CI keys have no registry.** A CI or environment key is generated in memory, its
+private half goes straight to GitHub, and only the public half is kept, in
+`.sops.yaml`. A lost key is never recovered: mint a new one and swap it in. When
+the repo joins an estate, the estate mints its keys from then on
+([estate.md](estate.md#how-it-differs-from-a-single-repo)).
 
 **Personal keys** live in `~/.config/sops/age/keys.txt`. On macOS, sops looks in
-`~/Library/Application Support/sops/age/keys.txt` instead, so the Makefile
+`~/Library/Application Support/sops/age/keys.txt` instead, so the tooling
 exports `SOPS_AGE_KEY_FILE=~/.config/sops/age/keys.txt` when neither
 `SOPS_AGE_KEY` nor `SOPS_AGE_KEY_FILE` is set.
 
 ## `.sops.yaml`
 
-One creation rule per scope. Each key is written once as a YAML anchor named
-for its identity, so the file doubles as the list of who can open what. The
-Makefile runs sops from `secrets/`, so paths start at the scope.
+One creation rule per scope, under `key_groups`. Each key is written once as a
+YAML anchor named for its identity, so the file doubles as the list of who can
+open what. sops is run from `secrets/`, where it finds `.sops.yaml`, so paths
+start at the scope.
 
 ```yaml
 # secrets/.sops.yaml: one creation rule per scope; run sops from secrets/
@@ -208,13 +234,12 @@ creation_rules:
           - &garyrudolph    age1...   # maintainer
           - &breakglass     age1...   # offline
           - &actions        age1...   # nowline-api__actions
-  - path_regex: ^dev/.+\.sops$
+  - path_regex: ^terraform-prod/.+\.sops$
     key_groups:
       - age:
           - *garyrudolph
           - *breakglass
-          - &dana           age1...   # developer
-          - &env_dev        age1...   # nowline-api__env-dev
+          - &env_terraform_prod age1...   # nowline-api__env-terraform-prod
   - path_regex: ^prod/.+\.sops$
     key_groups:
       - age:
@@ -223,57 +248,11 @@ creation_rules:
           - &env_prod       age1...   # nowline-api__env-prod
 ```
 
-A creation rule applies when a file is encrypted. After changing a scope's
-recipients, run `make secrets-updatekeys SCOPE=<scope>` to re-wrap its files,
-and add `ROTATE=1` when a recipient was removed ([Rotation](#rotation-and-leaks)).
-
-## Minting a CI key
-
-A single repo keeps no key registry. A CI or environment key is generated in
-memory, its private half goes straight to GitHub, and only the public half is
-kept:
-
-```bash
-key="$(age-keygen 2>/dev/null)"
-printf '%s\n' "$key" | grep '^AGE-SECRET-KEY-' | gh secret set SOPS_AGE_KEY -R <org>/<repo> --env prod
-printf '%s\n' "$key" | age-keygen -y      # public half: add it to .sops.yaml
-```
-
-`make secrets-mint CONTEXT=env-prod` wraps this behind `CONFIRM_MINT=1`
-([makefile.md](makefile.md#single-repo-targets)). A lost key is never
-recovered: mint a new one and swap it in. When the repo joins an estate, the
-estate mints its keys from then on ([estate.md](estate.md#how-it-differs-from-a-single-repo)).
+A creation rule applies when a file is encrypted, so a change to a scope's keys
+re-wraps that scope's files (`sops updatekeys`), and removing a key also makes a
+new data key (`sops rotate`) ([Rotation](#rotation-and-leaks)).
 
 ## CI
-
-```yaml
-jobs:
-  release:                               # ci/ scope: repo-level key
-    runs-on: macos-26
-    steps:
-      - uses: actions/checkout@v7
-      - name: Import signing certificate
-        env:
-          SOPS_AGE_KEY: ${{ secrets.SOPS_AGE_KEY }}
-        run: |
-          make secrets-decrypt FILE=ci/apple-distribution.p12
-          APPLE_DISTRIBUTION_P12_PASSWORD="$(make -s secrets-env FILE=ci/deskhound.env KEY=APPLE_DISTRIBUTION_P12_PASSWORD)" make keychain-import
-      - name: Remove cleartext
-        if: always()
-        run: make secrets-clean
-
-  deploy:                                # prod/ scope: environment key
-    environment: prod
-    env:
-      ENVIRONMENT: prod
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v7
-      - name: Sync and deploy api
-        env:
-          SOPS_AGE_KEY: ${{ secrets.SOPS_AGE_KEY }}
-        run: make deploy SERVICE=api ENVIRONMENT=prod CONFIRM_SYNC=1
-```
 
 - Put `SOPS_AGE_KEY` on the steps that decrypt, never on the job.
 - Prefer one value for one command (`secrets-env KEY=`). Append dotenv to
@@ -281,6 +260,12 @@ jobs:
   doesn't use.
 - A decrypted file is mode `0600`, sits next to its ciphertext or under
   `$RUNNER_TEMP`, and is removed in an `if: always()` step.
+- A job that needs a privileged scope declares its environment, and gets its
+  cloud access through OIDC bound to that environment
+  ([Cloud credentials](#cloud-credentials-dont-come-from-sops)).
+
+Example jobs (release, plan and apply, deploy):
+[`ci-steps.yml`](../../../personal-secrets/templates/single-repo/ci-steps.yml).
 
 ## Deployed services
 
@@ -299,19 +284,18 @@ up the store's per-secret access control and audit log, for nothing in return.
 
 ### Each service gets only its own file
 
-`make deploy SERVICE=api ENVIRONMENT=prod` deploys from `secrets/prod/api.env.sops`
-and nothing else:
+Deploying `api` to `prod` reads `secrets/prod/api.env.sops` and nothing else:
 
 - **One store secret per key, named the key.** `RESEND_API_KEY` becomes the
   store secret `RESEND_API_KEY` in the prod project or account. When `api` and
   `mcp` both read it, they share that one store secret.
-- **The sync writes only that file's keys.** It adds a store version for each
-  value that changed, and the deploy binds `api` to exactly those keys, pinned
-  to the versions just written.
-- **Shared copies must match.** Before writing, the sync decrypts every file in
+- **The deploy writes only that file's keys.** It adds a store version for each
+  value that changed, and binds `api` to exactly those keys, pinned to the
+  versions just written.
+- **Shared copies must match.** Before writing, the deploy decrypts every file in
   the scope (the job's key opens them all) and refuses if another file holds the
   same key with a different value. Rotating a shared value means editing every
-  file that holds it, and the sync catches a file you missed.
+  file that holds it, and the deploy catches a file you missed.
 - **Each service runs as its own identity**, with read access to exactly the
   keys in its file, so `yjs` can't read the database password only `api` uses.
   Infrastructure code creates the store secrets (with no values, since IaC state
@@ -320,69 +304,65 @@ and nothing else:
 
 ### Cloud credentials don't come from sops
 
-The deploy job signs in to the cloud with GitHub's OIDC token: Workload
-Identity Federation on GCP, an IAM role assumed with web identity on AWS, a
-federated credential on Azure. No long-lived cloud key exists to store. Bind the
-cloud side to the GitHub environment as well as the repo: the provider's
-condition checks the `environment` claim on GCP
-([gcp.md](../gcp.md#ci-identity)), and the subject
-`repo:<org>/<repo>:environment:prod` on AWS and Azure. A job outside `prod` can
-then neither decrypt `prod/` nor reach the prod project: two separate gates.
+Every job signs in to the cloud with GitHub's OIDC token: Workload Identity
+Federation on GCP, an IAM role assumed with web identity on AWS, a federated
+credential on Azure. No long-lived cloud key exists to store. Bind the cloud
+side to the GitHub environment as well as the repo: the provider's condition
+checks the `environment` claim on GCP ([gcp.md](../gcp.md#ci-identity)), and
+the subject `repo:<org>/<repo>:environment:<name>` on AWS and Azure. A job
+outside `prod` can then neither decrypt `prod/` nor reach the prod project: two
+separate gates. The same split gives `terraform plan` a viewer and `apply`, in
+its own environment, an editor.
 
-Store a deploy credential in sops only for a target with no OIDC support, in
-the scope that uses it: `<env>/` for an environment's deploy, `ci/` for
-publishing.
+Store a credential in sops only for a target with no OIDC support (a DNS or
+CDN provider's API token, say), in the scope of the job that uses it.
 
 ## Local development
 
-Developers open `dev/` with their own keys and load it into a shell or dev
-server with `make secrets-env FILE=dev/<service>.env`. Nobody but maintainers
-and break-glass opens `prod/`. Where an emulator or `demo-` project works, local
-runs need no secrets at all ([gcp.md](../gcp.md#firebase-emulator-guard)).
+Developers open `dev/` with their own keys and read it with
+`secrets-env FILE=dev/<service>.env`. Nobody but maintainers and break-glass
+opens `prod/`. Where an emulator or `demo-` project works, local runs need no
+secrets at all ([gcp.md](../gcp.md#firebase-emulator-guard)).
 
 ## Checks
 
-`make secrets-check` needs no key, and runs in the pre-commit hook and in CI:
+`secrets-check` needs no key, and runs in the pre-commit hook and in CI:
 
 - Nothing but `*.sops` is tracked under a scope folder, and every `*.sops` file
   sits in a scope that has a creation rule.
 - Every file's recipients, which SOPS stores in plaintext metadata, equal its
   scope's rule. This catches a file left behind by a recipient change, and a
   file shared more widely than its scope.
-- Every value is encrypted: no `encrypted_regex` in `.sops.yaml`, and no
-  plaintext value in a dotenv file.
-- Break-glass is a recipient of every file.
-- File and key names follow [Naming](#naming), and every `<env>/` folder has the
-  same files with the same keys.
+- Every value is encrypted: no `encrypted_regex`, `*_suffix` or
+  `mac_only_encrypted` in `.sops.yaml`, and no plaintext value in a dotenv file.
+- Break-glass is a recipient of every scope.
+- File and key names follow [Naming](#naming), and every deploy environment
+  folder has the same files with the same keys.
 
 One more check runs in CI only, because it needs the network: the repo is
-private (`gh api repos/{owner}/{repo} --jq .private` prints `true`). A public
-repo with a `secrets/` folder fails the build.
+private. A public repo with a `secrets/` folder fails the build.
 
 ## Rotation and leaks
 
-- **Add a reader**: add its public key to the scope's rule, then
-  `make secrets-updatekeys SCOPE=<scope>`.
-- **Remove a reader**: remove its key, then `make secrets-updatekeys
-  SCOPE=<scope> ROTATE=1`. `updatekeys` re-wraps the existing data key and
-  `rotate` makes a new one, so a key that read the old data key can't open
-  later edits. Git history still holds every past version, which the removed key
-  still opens. If its private key may have leaked, rotate the values too.
-- **Rotate a CI or environment key**: mint a new one (which overwrites the
-  GitHub secret), swap the public key in `.sops.yaml`, then updatekeys with
-  `ROTATE=1`.
-- **A leaked value**: revoke it with the provider, replace it in every file that
-  holds it, commit, then redeploy so the store gets a new version. `git revert`
-  fixes nothing: history keeps the old ciphertext.
+- **Adding a reader** re-wraps its scope's files to the new key set.
+- **Removing a reader** re-wraps and makes a new data key, so a key that read
+  the old data key can't open later edits. Git history still holds every past
+  version, which the removed key still opens. If its private key may have
+  leaked, rotate the values too.
+- **A leaked value** is revoked with the provider, replaced in every file that
+  holds it, and redeployed so the store gets a new version. `git revert` fixes
+  nothing: history keeps the old ciphertext.
+
+The steps for each are in the skill.
 
 ## Threat model
 
 - **Read access to the repo** yields ciphertext only.
 - **The `actions` key** opens `ci/`, history included, and is readable by any
   workflow on any branch. If it leaks, revoke the signing certificates and
-  store keys it opened, not just the age key.
-- **An environment key** opens that environment's runtime secrets, history
-  included. Its branch policy decides which code can read it.
+  tokens it opened, not just the age key.
+- **An environment key** opens its scope, history included. Its branch policy
+  decides which code can read it.
 - **A maintainer key** opens every scope. Break-glass does too, and stays
   offline.
 - **The platform store** is the only place a running service reads secrets
