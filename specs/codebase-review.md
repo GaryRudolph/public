@@ -62,9 +62,15 @@ the next incremental knows where to start.
   periodic review's. The estate review asks which repo owns what, whether
   the contracts between them still make sense, and where the same code has
   been written twice.
-- **Each member repo logs the estate review too**, in an `estate` row that
-  links the home record. The row doesn't move the member's incremental
-  anchor, since an estate review doesn't read lines.
+- **Each member repo logs the estate review too**, in an `estate` row
+  numbered in its own sequence. The row doesn't move the member's
+  incremental anchor, since an estate review doesn't read lines.
+- **Estate findings are delegated by name, not linked.** A finding that
+  needs work in a member is copied into that member's register under the
+  member's own ID, with `Estate: nowline-workspace r2.f3`; the home finding
+  lists `Contained: nowline-core r8.f1, ...`. Each repo then tracks, fixes
+  and verifies its share on its own, with no PR crossing repos, and the
+  next estate review rolls the members' statuses up into the home.
 - **Remediation is separate.** The review PR records what was found; the
   issue is the work queue; fixes are ordinary PRs that cite finding IDs. A
   fix PR adds one claim file per finding (`specs/reviews/r7/f2.md`), so

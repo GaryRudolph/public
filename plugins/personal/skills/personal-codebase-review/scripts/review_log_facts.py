@@ -6,7 +6,9 @@ branch: the layout, the estate's members if asked, and per repo the default
 branch and its head, the review log's rows, the last anchor and whether it
 is still reachable, days and churn since it, hotspots, the open and accepted
 findings in earlier registers, the fix claims not yet read, and the next
-review number.
+review number. Across several repos, it also matches each estate finding's
+`Contained:` names to the status of those findings in the members' own
+registers.
 
 Emits no verdicts: whether a review is due, which kind, and what a finding
 means are the agent's call from standards/codebase-review.md. Churn buckets
@@ -42,7 +44,8 @@ REVIEW_FACTS = os.path.join(HERE, "..", "..", "personal-review-guide", "scripts"
 LOG = "specs/reviews/README.md"
 ROW = re.compile(r"^\|\s*r(\d+)\s*\|")
 FINDING = re.compile(r"^###\s+(r\d+\.f\d+)\s+-\s+(.*)$")
-FIELD = re.compile(r"^-\s+(Severity|Kind|Status|Location|Reason|Resolution):\s*(.*)$")
+FIELD = re.compile(r"^-\s+(Severity|Kind|Status|Location|Reason|Resolution|Estate|Contained):\s*(.*)$")
+CONTAINED = re.compile(r"([A-Za-z0-9._-]+)\s+(r\d+\.f\d+)")
 CLAIM_PATH = re.compile(r"^specs/reviews/r(\d+)/f(\d+)\.md$")
 CLAIM_FIELD = re.compile(r"^-?\s*(Finding|Claim):\s*(.*)$")
 RANGE = re.compile(r"^([0-9a-f]*)\.\.([0-9a-f]+)$")
@@ -258,7 +261,7 @@ def report_repo(repo, args):
     name, ref, fetched = default_branch(repo, not args.no_fetch)
     if not ref:
         print("  default_branch: none found")
-        return
+        return {}
     head = git(repo, "rev-parse", ref)
     print(f"  default_branch: {name} ({ref}, {fetched})")
     print(f"  head: {head}")
@@ -349,10 +352,37 @@ def report_repo(repo, args):
         status = by_id[c["id"]].get("status", "?") if c["id"] in by_id else "(not in a register)"
         print(f"    {c['id']} | {c['finding']} | {c['claim']} | {status} | {c['added']} | {c['path']}")
 
-    estate_regs = [p for p in regs if p.endswith("-estate-findings.md")]
-    if estate_regs:
-        print(f"  last_estate_members: {register_header(repo, ref, estate_regs[-1], 'Members') or '(none recorded)'}"
-              f" ({os.path.basename(estate_regs[-1])})")
+    # A member's estate register holds only its delegated findings and has no Members line.
+    homes = [p for p in regs if p.endswith("-estate-findings.md") and register_header(repo, ref, p, "Members")]
+    if homes:
+        print(f"  last_estate_members: {register_header(repo, ref, homes[-1], 'Members')}"
+              f" ({os.path.basename(homes[-1])})")
+    delegated = [f for f in by_id.values() if f.get("estate")]
+    if delegated:
+        print(f"  delegated_findings ({len(delegated)}): id | status | estate")
+        for f in delegated:
+            print(f"    {f['id']} | {f.get('status', '?')} | {f['estate']}")
+    return by_id
+
+
+def report_rollup(statuses):
+    """Each estate finding's Contained names, with each one's status in that member's register."""
+    rows = []
+    for repo, by_id in statuses.items():
+        for f in by_id.values():
+            if f.get("contained"):
+                rows.append((repo, f))
+    if not rows:
+        return
+    print("\n== estate rollup: home finding | home status | contained finding: status in its repo")
+    for repo, f in rows:
+        parts = []
+        for name, fid in CONTAINED.findall(f["contained"]):
+            member = statuses.get(name)
+            status = "(repo not read)" if member is None else \
+                member[fid].get("status", "?") if fid in member else "(not in its registers)"
+            parts.append(f"{name} {fid}: {status}")
+        print(f"  {repo} {f['id']} | {f.get('status', '?')} | {'; '.join(parts) or '(none parsed)'}")
 
 
 def github_repos(owner, cwd):
@@ -467,8 +497,10 @@ def main():
     if not repos:
         print("no git repository found", file=sys.stderr)
         return 1
+    statuses = {}
     for repo in repos:
-        report_repo(repo, args)
+        statuses[os.path.basename(repo)] = report_repo(repo, args)
+    report_rollup(statuses)
     return 0
 
 

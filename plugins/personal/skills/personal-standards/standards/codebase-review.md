@@ -74,13 +74,13 @@ Reviews are numbered `r{N}` per repo and findings `r{N}.f{K}`, as milestones and
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | r6 | 2026-09-28 | full | ..4be1c09 | 2 high, 6 medium, 3 low | #88 | 9 fixed, 2 accepted | [summary](2026-09-28-r6-full.md) |
 | r7 | 2026-11-03 | incremental | 4be1c09..9d02f6a | 1 high, 4 medium | #123 | open | [summary](2026-11-03-r7-incremental.md) |
-| r8 | 2026-11-20 | estate | 9d02f6a..c41e0b7 | 1 medium here | #131 | open | [nowline-workspace r2](https://github.com/<owner>/nowline-workspace/blob/main/specs/reviews/2026-11-20-r2-estate.md) |
+| r8 | 2026-11-20 | estate | 9d02f6a..c41e0b7 | 1 medium | #131 | open | [findings](2026-11-20-r8-estate-findings.md) from nowline-workspace r2 |
 ```
 
 - **Range**: short SHAs in the table; the summary carries the full ones. A full review's range is `..<to>`.
 - **Findings**: counts by severity, `none` when there were none.
 - **Outcome**: `open` until a later review's fix review sets it, then the counts by status.
-- **Record**: the summary, or for an estate row in a member repo, the home repo's record.
+- **Record**: the summary, or for an estate row in a member repo, the register of findings delegated to it and the home review by name.
 
 ### The register
 
@@ -117,7 +117,7 @@ Evidence: `TestUploadFails` now asserts the returned error
 - **Change** and **Evidence**: a line or two each. It's a pointer for the next reviewer, not the PR description.
 - No PR field: the PR doesn't exist when the file is written, and the squash commit that adds it carries the number.
 
-A claim is the fixer's word, not a status. The next review's fix review reads it with the issue and the code, sets the finding's status in the register, and deletes the claim. A fix that lands in another repo than the register's (an estate member) has no claim file; its PR and the issue checkbox carry it.
+A claim is the fixer's word, not a status. The next review's fix review reads it with the issue and the code, sets the finding's status in the register, and deletes the claim. An estate finding's fix lands in a member against the member's own delegated finding ([Estates](#estates)), so its claim is an ordinary one in that member.
 
 ## Findings
 
@@ -140,6 +140,8 @@ A claim is the fixer's word, not a status. The next review's fix review reads it
 | Kind | `fix` (the answer is clear) or `decision` (more than one reasonable answer, and it's the Owner's call) |
 | Status | `open`, `fixed`, `decided` (a decision was made; link it), `accepted` (won't change; reason required), `deferred` (later; reason and the trigger to revisit) |
 | Resolution | The PR, commit, issue comment or ADR that changed the status |
+| Estate | In a member's register only: the home finding this was delegated from, by name (`nowline-workspace r2.f3`) |
+| Contained | In the home's register only: the member findings this was delegated to, by name (`nowline-core r8.f1, nowline-cloud r5.f2`) |
 
 **Accepted findings** are a decision not to change something. They're handed to every later reviewer as known, with their reason, and listed under "Previously accepted" instead of raised again, unless the code at their location materially changed since, in which case the new finding cites the old ID. The registers are the only list; the skill's facts script collects them.
 
@@ -165,7 +167,11 @@ An estate is several repos that coordinate: a product split across services, an 
 
 No workspace repo is required. **Home**: the workspace if there is one, else the repo the Owner names, by default the one the session runs in. The home repo holds the register, the summary, an `estate` row in its log, and the tracking issue.
 
-**Every member logs it too**: an `estate` row in its own `specs/reviews/README.md`, with its own range, the findings that land in it, and a link to the home record. The row doesn't move the member's incremental anchor. Each member's row lands through a small PR in that repo (its body: the skill's member template), and a finding that needs work in a member gets its issue there, linked from the home issue. A workspace home's allowlist `.gitignore` needs `!/specs`.
+**Every member logs it too**: an `estate` row in its own `specs/reviews/README.md`, numbered in the member's own sequence, with its own range. The row doesn't move the member's incremental anchor. It lands through a small PR in that repo (its body: the skill's member template). A workspace home's allowlist `.gitignore` needs `!/specs`.
+
+**Findings are delegated, by name.** A finding that needs work in a member is written into that member too, under the member's own IDs: the member's estate row is `r8`, so its share of the home's `r2.f3` is `r8.f1`, in `{date}-r8-estate-findings.md` beside the row. That register holds only the findings delegated there, each with `- Estate: nowline-workspace r2.f3` and the part that lands in that repo (its location, its recommendation). The home finding lists where it went: `- Contained: nowline-core r8.f1, nowline-cloud r5.f2`. Names, never links: each repo stays readable on its own.
+
+From then on a delegated finding is the member's own: the member's issue, its remediation PRs and fix claims, and its next incremental's fix review, like any other finding there. The home doesn't write to member registers. The next estate review reads them (the facts print the rollup) and sets each home finding with a `Contained:` line to `fixed` once every finding it contains is fixed, or names what's still open in its `Resolution:` line. A home finding that needs no work in any one member (a decision across repos, or a change to the home's own files) stays only in the home and is tracked there like any other.
 
 ## Reviewers
 
