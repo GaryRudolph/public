@@ -159,7 +159,12 @@ step, never the job.
    `secrets/<env>/shared.env.sops` plus `secrets/<env>/<service>.env.sops`;
    their names are plaintext.
 2. The deploy service account gets `secretVersionAdder` and `secretAccessor`
-   on those secrets.
+   on those secrets, and is the only principal with `serviceAccountUser` on
+   the service's runtime account. The service never runs as the default
+   compute account, and no runtime account holds a Secret Manager role on the
+   project. Add the Policy Troubleshooter check from `gcp.md` "Runtime Secrets"
+   to the infrastructure job, and turn on Secret Manager's Data Access audit
+   logs.
 3. The deploy job declares `environment: <env>`, loads `deploy/<env>.env`
    (which sets `GOOGLE_CLOUD_PROJECT`), and runs
    `make -s secrets-sync ENVIRONMENT=<env> SERVICE=<service> CONFIRM_SYNC=1`.
