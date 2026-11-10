@@ -184,7 +184,7 @@ rm secrets/ci/Bad_Name.env.sops
 printf 'X_TOKEN=1\n' > secrets/ci/bad--name.env
 make -s secrets-encrypt >/dev/null 2>&1
 expect_fail "check: a file name with --"                         make secrets-check
-expect_grep "  ...says so" "single hyphens"
+expect_grep "  ...says so" "lowercase kebab-case"
 rm secrets/ci/bad--name.env.sops
 cp secrets/.sops.yaml "$work/sops.bak"
 printf '    encrypted_regex: ^x$\n' >> secrets/.sops.yaml
@@ -219,7 +219,7 @@ expect_eq   "  ...--app actions"                                 "$(grep -c -- '
 expect_fail "mint refuses an unknown context"                    make secrets-mint CONTEXT=cron CONFIRM_MINT=1
 
 printf '\nsync\n'
-for k in api--RESEND_API_KEY api--DATABASE_PASSWORD mcp--RESEND_API_KEY mcp--MCP_SIGNING_SECRET RESEND_API_KEY MCP_SIGNING_SECRET; do
+for k in api-RESEND_API_KEY api-DATABASE_PASSWORD mcp-RESEND_API_KEY mcp-MCP_SIGNING_SECRET RESEND_API_KEY MCP_SIGNING_SECRET; do
     mkdir -p "$GCLOUD_STORE/demo-prod/$k"
 done
 sync_svc() { as envprod env GOOGLE_CLOUD_PROJECT=demo-prod make -s secrets-sync ENVIRONMENT=prod SERVICE="$1" CONFIRM_SYNC=1; }
@@ -229,13 +229,13 @@ reseal() {  # reseal FILE: replace a dotenv's contents with stdin
     rm "secrets/$1.sops" && make -s secrets-encrypt FILE="$1" >/dev/null 2>&1
 }
 expect_fail "sync needs CONFIRM_SYNC"                            as envprod env GOOGLE_CLOUD_PROJECT=demo-prod make -s secrets-sync ENVIRONMENT=prod SERVICE=api
-expect_eq   "sync layers shared.env, per-service store names"   "$(sync_svc api 2>/dev/null)" "DATABASE_PASSWORD=api--DATABASE_PASSWORD:1,RESEND_API_KEY=api--RESEND_API_KEY:1"
-expect_eq   "  ...stores the shared value"                       "$(cat "$GCLOUD_STORE/demo-prod/api--RESEND_API_KEY/1")" "re_prod"
-expect_eq   "a second sync adds nothing"                         "$(sync_svc api 2>/dev/null)" "DATABASE_PASSWORD=api--DATABASE_PASSWORD:1,RESEND_API_KEY=api--RESEND_API_KEY:1"
+expect_eq   "sync layers shared.env, per-service store names"   "$(sync_svc api 2>/dev/null)" "DATABASE_PASSWORD=api-DATABASE_PASSWORD:1,RESEND_API_KEY=api-RESEND_API_KEY:1"
+expect_eq   "  ...stores the shared value"                       "$(cat "$GCLOUD_STORE/demo-prod/api-RESEND_API_KEY/1")" "re_prod"
+expect_eq   "a second sync adds nothing"                         "$(sync_svc api 2>/dev/null)" "DATABASE_PASSWORD=api-DATABASE_PASSWORD:1,RESEND_API_KEY=api-RESEND_API_KEY:1"
 printf 'MCP_SIGNING_SECRET=mcp_prod\nRESEND_API_KEY=re_mcp\n' | reseal prod/mcp.env
-expect_eq   "a service's own value overrides shared.env"         "$(sync_svc mcp 2>/dev/null)" "MCP_SIGNING_SECRET=mcp--MCP_SIGNING_SECRET:1,RESEND_API_KEY=mcp--RESEND_API_KEY:1"
-expect_eq   "  ...its copy holds the override"                   "$(cat "$GCLOUD_STORE/demo-prod/mcp--RESEND_API_KEY/1")" "re_mcp"
-expect_eq   "  ...api's copy is untouched"                       "$(ls "$GCLOUD_STORE/demo-prod/api--RESEND_API_KEY" | wc -l | tr -d ' ')" "1"
+expect_eq   "a service's own value overrides shared.env"         "$(sync_svc mcp 2>/dev/null)" "MCP_SIGNING_SECRET=mcp-MCP_SIGNING_SECRET:1,RESEND_API_KEY=mcp-RESEND_API_KEY:1"
+expect_eq   "  ...its copy holds the override"                   "$(cat "$GCLOUD_STORE/demo-prod/mcp-RESEND_API_KEY/1")" "re_mcp"
+expect_eq   "  ...api's copy is untouched"                       "$(ls "$GCLOUD_STORE/demo-prod/api-RESEND_API_KEY" | wc -l | tr -d ' ')" "1"
 expect_eq   "  ...secrets-env layers the same way"               "$(as envprod make -s secrets-env FILE=prod/mcp.env KEY=RESEND_API_KEY)" "re_mcp"
 expect_fail "sync refuses SERVICE=shared"                        sync_svc shared
 expect_eq   "STORE_PREFIX= keeps bare store names"              "$(as envprod env STORE_PREFIX= GOOGLE_CLOUD_PROJECT=demo-prod make -s secrets-sync ENVIRONMENT=prod SERVICE=mcp CONFIRM_SYNC=1 2>/dev/null)" "MCP_SIGNING_SECRET=MCP_SIGNING_SECRET:1,RESEND_API_KEY=RESEND_API_KEY:1"
@@ -245,7 +245,7 @@ printf 'RESEND_API_KEY=re_estate\n' > "$work/estate/prod/backend.env"
 sops -e --config /dev/null --age "$(pub envprod)" --input-type dotenv --output-type dotenv "$work/estate/prod/backend.env" > "$work/estate/prod/backend.env.sops"
 rm "$work/estate/prod/backend.env"
 expect_ok   "sync resolves @estate in shared.env"                as envprod env GOOGLE_CLOUD_PROJECT=demo-prod ESTATE_DIST="$work/estate" make -s secrets-sync ENVIRONMENT=prod SERVICE=api CONFIRM_SYNC=1
-expect_eq   "  ...writes the estate value"                       "$(cat "$GCLOUD_STORE/demo-prod/api--RESEND_API_KEY/2")" "re_estate"
+expect_eq   "  ...writes the estate value"                       "$(cat "$GCLOUD_STORE/demo-prod/api-RESEND_API_KEY/2")" "re_estate"
 expect_fail "@estate with no estate checkout fails"              sync_svc api
 expect_fail "sync refuses a missing store secret"                as envdev env GOOGLE_CLOUD_PROJECT=demo-dev make -s secrets-sync ENVIRONMENT=dev SERVICE=api CONFIRM_SYNC=1
 expect_fail "sync refuses a scope that isn't a deploy environment" as tfprod env GOOGLE_CLOUD_PROJECT=demo-prod make -s secrets-sync ENVIRONMENT=terraform-prod SERVICE=terraform CONFIRM_SYNC=1
