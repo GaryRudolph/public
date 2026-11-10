@@ -408,7 +408,7 @@ Two constraints the implementation has to respect:
 1. **Local pre-commit hook**: refuse non-`.sops` under `src/`, `dist/`, `keys/`;
    require every changed `src/<file>.sops` to ship with a matching
    `dist/<file>.sops`, and an `access.map` change to ship with a rebuilt `dist/`.
-2. **Keyless CI check** (`freshness.yml`): the same rules over the pushed range.
+2. **Keyless CI check** (`freshness.yml`): the same rules over the pushed range, the PR, or a merge queue's group.
 
 A maintainer's `make verify` goes further. It decrypts every `dist/` file with
 every member key, so it catches a stale `dist/` and any over-sharing the keyless

@@ -1,12 +1,17 @@
-# Keyless freshness check: no age key and no secrets. Fails a push or PR
-# that changes src/ without matching dist/, commits plaintext, or leaves
-# access.map and dist/ out of step.
+# Keyless freshness check: no age key and no secrets. Fails a push, PR or
+# merge-queue run that changes src/ without matching dist/, commits
+# plaintext, or leaves access.map and dist/ out of step.
+#
+# It also runs on merge_group, because a required check that never reports
+# there stalls the merge queue. In the queue it checks base_sha..sha, what the
+# queue is about to land; without a range `make ci` skips the pairing check.
 name: freshness
 
 on:
   push:
     branches: [main]
   pull_request:
+  merge_group:
 
 permissions:
   contents: read
@@ -22,6 +27,8 @@ jobs:
         run: |
           if [ "${{ github.event_name }}" = pull_request ]; then
             range="origin/${{ github.base_ref }}...HEAD"
+          elif [ "${{ github.event_name }}" = merge_group ]; then
+            range="${{ github.event.merge_group.base_sha }}..${{ github.sha }}"
           else
             range="${{ github.event.before }}..${{ github.sha }}"
           fi
