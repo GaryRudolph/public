@@ -77,7 +77,8 @@ reads them, in lowercase kebab-case.
   consumer's env file.
 
 **Keys are environment variable names**, in UPPER_SNAKE. The same name is the
-key in the file, the variable the code reads, and the platform store's secret.
+key in the file and the variable the code reads; the platform store adds the
+service in front ([Deployed services](#deployed-services)).
 
 - Where a provider's SDK or CLI reads a documented variable, use exactly that
   name (`RESEND_API_KEY`, `SENTRY_AUTH_TOKEN`, `CLOUDFLARE_API_TOKEN`).

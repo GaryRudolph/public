@@ -73,8 +73,9 @@ Rules that apply only to public repos:
   same in every repo ([single-repo.md](single-repo.md#naming)). You edit a cleartext `api.env`;
   `api.env.sops` is what's committed.
 - **Deployed services never decrypt.** The deploy job copies each service's
-  own file into the platform's secret store, and the service reads them from
-  there. Cloud credentials come from OIDC, never from sops
+  keys (`shared.env`, then its own file) into that service's own secrets in the
+  platform's store (`api--RESEND_API_KEY`), and the service reads them from
+  there under the bare name. Cloud credentials come from OIDC, never from sops
   ([single-repo.md](single-repo.md#deployed-services)).
 
 ## Where code runs
@@ -86,7 +87,7 @@ Rules that apply only to public repos:
 | GitHub Agents, Codespaces, Dependabot | `dev/` at most, with their own store keys |
 | Claude Code cloud environments | `dev/` at most, with that environment's key |
 | A developer's machine | `dev/`, with their own key; maintainers open everything |
-| Cloud Run, Firebase Functions, other deployed services | Only the keys in their own file, from the platform's secret store ([gcp.md](../gcp.md#runtime-secrets)) |
+| Cloud Run, Firebase Functions, other deployed services | Only their own secrets (`shared.env` plus their file), from the platform's secret store ([gcp.md](../gcp.md#runtime-secrets)) |
 | Apps and browsers | Nothing. A shipped binary can't keep a secret; CI does the signing |
 | A public repo's CI | Its estate grants, or a plain GitHub secret; never a `secrets/` folder ([Public repos](#public-repos)) |
 
