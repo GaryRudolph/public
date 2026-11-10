@@ -440,6 +440,7 @@ test-allowlists:
 # Needs sops and age; prints SKIP and passes when they're missing.
 test-secrets:
 	@bash "$(PLUGINS_DIR)/personal/skills/personal-secrets/tests/test-kit.sh"
+	@bash "$(PLUGINS_DIR)/personal/skills/personal-secrets/tests/test-single-repo.sh"
 
 test-release:
 	@bash "$(PLUGINS_DIR)/personal/skills/personal-release/tests/test-release.sh"

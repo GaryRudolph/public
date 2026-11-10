@@ -52,7 +52,7 @@ plugins/
         standards/                  <- full standards (repo-root standards/ -> here)
       personal-handoff/             <- handoff and saved-plan files
       personal-new-project/         <- new repos on current stable versions
-      personal-secrets/             <- SOPS + age secrets repo: procedures + tested kit
+      personal-secrets/             <- SOPS + age secrets, single repo and estate: procedures + tested kits
       personal-release/             <- cut releases and hotfixes; bump script + workflow
       personal-repo-baseline/       <- per-repo settings the plugin can't carry; facts + merge scripts
       personal-codebase-review/     <- reviews of main: full, incremental, estate; log facts script + tests
@@ -153,7 +153,7 @@ cleaned up, then push.
 | `personal` | `personal-standards` | Index of the personal standards; loads core rules and topic standards on demand |
 | `personal` | `personal-handoff` | Write session handoffs and saved plans to `.scratch/` (`specs/handoffs/` on a runner), and milestone handoffs to `specs/handoffs/`, with the right names and contents |
 | `personal` | `personal-new-project` | Start a new project on a boring stack at current stable versions (looked up from each registry, with EOL dates), laid out to the standards |
-| `personal` | `personal-secrets` | Run a SOPS + age secrets repo: set up from a tested kit, add secrets, grant access, mint and rotate consumer keys, wire consumer CI with least privilege |
+| `personal` | `personal-secrets` | Run SOPS + age secrets in a private repo's own `secrets/` folder or the estate's secrets repo: set up from tested kits, edit secrets in cleartext beside ciphertext, mint and rotate CI and environment keys, grant estate access, wire CI and deploy syncs with least privilege |
 | `personal` | `personal-release` | Cut SemVer releases and hotfixes: propose the level from what changed, bump every version in lock-step, move the changelog, tag; set up version.txt and a Release workflow |
 | `personal` | `personal-repo-baseline` | Audit and apply the per-repo settings the plugin can't carry: `.claude/settings.json` attribution (`Assisted-by: Claude Code`) and GitHub squash-only merge settings. Dry-run first; re-run to bring a repo up to the current baseline |
 | `personal` | `personal-review-guide` | Write the review guide for a change: tag areas `[study]` / `[check]` / `[skim]` / `[skip]`, read base and head, draw before/after only where structure changed, run the repo's review surfaces, and write the PR description collapsible by tier. Modes: plan, walkthrough, pr |

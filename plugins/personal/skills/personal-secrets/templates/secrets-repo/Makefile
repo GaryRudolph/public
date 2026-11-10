@@ -77,7 +77,7 @@ src-decrypt: ## Decrypt src/ for editing (source key). FILE=<logical path> for o
 src-encrypt: ## Encrypt edited src/ plaintext back to .sops and delete it. FILE= for one
 	@bash scripts/crypt.sh encrypt "$(FILE)"
 
-mint: ## New consumer keypair (source key). REPO= CONTEXT=actions|agents|codespaces|dependabot
+mint: ## New consumer keypair (source key). REPO= CONTEXT=actions|env-<name>|agents|codespaces|dependabot
 	@bash scripts/keys.sh mint "$(REPO)" "$(CONTEXT)"
 
 rotate: ## Replace a consumer keypair (source key). REPO= CONTEXT=

@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Push each consumer's private key to GitHub as SOPS_AGE_KEY in the store for
-# its context. Maintainer-local, and remote-mutating: the Makefile guards it
+# its context: --app for actions/agents/codespaces/dependabot, --env <name>
+# for env-<name>. Maintainer-local, and remote-mutating: the Makefile guards it
 # behind CONFIRM_SET_KEYS=1.
 # usage: OWNER=<org> set-consumer-keys.sh [REPO] [CONTEXT]
 #
@@ -30,7 +31,9 @@ while IFS='=' read -r k v; do
     [ -z "$want_repo" ] || [ "$repo" = "$want_repo" ] || continue
     [ -z "$want_ctx" ] || [ "$ctx" = "$want_ctx" ] || continue
     is_context "$ctx" || die "unknown context '$ctx' for $repo; set it by hand"
-    printf '%s' "$v" | gh secret set SOPS_AGE_KEY -R "$owner/$repo" --app "$ctx"
+    # store_flag is two words (--app actions, --env prod), split on purpose.
+    # shellcheck disable=SC2046
+    printf '%s' "$v" | gh secret set SOPS_AGE_KEY -R "$owner/$repo" $(store_flag "$ctx")
     printf 'set SOPS_AGE_KEY  %s/%s  (%s)\n' "$owner" "$repo" "$ctx"
     sent=$((sent + 1))
 done <<< "$reg"

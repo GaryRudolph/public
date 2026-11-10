@@ -1,0 +1,75 @@
+# Workflow jobs that read single-repo secrets. Copy the jobs you need into a
+# workflow and keep the narrowest step that works. Every job sees exactly one
+# SOPS_AGE_KEY: the repo's Actions key with no `environment:`, or that
+# environment's key with one. Put SOPS_AGE_KEY on the steps that decrypt,
+# never on the job. Pins: match the repo's other workflows.
+
+jobs:
+  # ci/ scope, repo-level key: build, sign and publish an app.
+  release:
+    runs-on: macos-26
+    steps:
+      - uses: actions/checkout@v7
+      - name: Install sops and age
+        run: brew install sops age
+      - name: Import signing certificate
+        env:
+          SOPS_AGE_KEY: ${{ secrets.SOPS_AGE_KEY }}
+        run: |
+          make secrets-decrypt FILE=ci/apple-distribution.p12
+          APPLE_DISTRIBUTION_P12_PASSWORD="$(make -s secrets-env FILE=ci/deskhound.env KEY=APPLE_DISTRIBUTION_P12_PASSWORD)" \
+            make keychain-import
+      - name: Remove cleartext
+        if: always()
+        run: make secrets-clean
+
+  # ci/ scope: terraform plan runs on any branch with a read-only token.
+  plan:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write                # OIDC to the cloud, as a viewer
+    steps:
+      - uses: actions/checkout@v7
+      - name: Plan
+        env:
+          SOPS_AGE_KEY: ${{ secrets.SOPS_AGE_KEY }}
+        run: CLOUDFLARE_API_TOKEN="$(make -s secrets-env FILE=ci/terraform-plan.env KEY=CLOUDFLARE_API_TOKEN)" make plan
+
+  # terraform-prod/ scope: apply runs only where the environment's branch
+  # policy allows, with a write token the plan job can't read.
+  apply:
+    needs: plan
+    environment: terraform-prod
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write                # OIDC to the cloud, as an editor bound to this environment
+    steps:
+      - uses: actions/checkout@v7
+      - name: Apply
+        env:
+          SOPS_AGE_KEY: ${{ secrets.SOPS_AGE_KEY }}
+        run: CLOUDFLARE_API_TOKEN="$(make -s secrets-env FILE=terraform-prod/terraform.env KEY=CLOUDFLARE_API_TOKEN)" make apply
+
+  # prod/ scope, a deploy environment: sync one service's file to Secret
+  # Manager and deploy it pinned to the versions just written.
+  deploy-api:
+    environment: prod
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      ENVIRONMENT: prod
+    steps:
+      - uses: actions/checkout@v7
+      - name: Load config
+        run: make -s deploy-env ENVIRONMENT=prod >> "$GITHUB_ENV"
+      # (authenticate to Google Cloud with workload identity federation here)
+      - name: Sync secrets and deploy
+        env:
+          SOPS_AGE_KEY: ${{ secrets.SOPS_AGE_KEY }}
+        run: |
+          bindings="$(make -s secrets-sync ENVIRONMENT=prod SERVICE=api CONFIRM_SYNC=1)"
+          gcloud run deploy api --region "$REGION" --image "$IMAGE" --set-secrets "$bindings"

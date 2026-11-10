@@ -8,7 +8,7 @@
 ACCESS_MAP=${ACCESS_MAP:-access.map}
 REGISTRY=${REGISTRY:-keys/repos.env.sops}
 BREAKGLASS=${BREAKGLASS:-breakglass.pub}
-CONTEXTS="actions agents codespaces dependabot"
+CONTEXTS="actions agents codespaces dependabot env-<name>"
 
 die() {
     printf 'error: %s\n' "$*" >&2
@@ -23,10 +23,22 @@ file_type() {
     esac
 }
 
+# A context names one GitHub secret store: an --app store, or env-<name> for
+# the Actions secrets of GitHub environment <name>.
 is_context() {
-    case " $CONTEXTS " in
-        *" $1 "*) return 0 ;;
-        *)        return 1 ;;
+    case "$1" in
+        actions|agents|codespaces|dependabot) return 0 ;;
+        env-*__*) return 1 ;;
+        env-?*) printf '%s' "${1#env-}" | grep -Eq '^[A-Za-z0-9._-]+$' ;;
+        *) return 1 ;;
+    esac
+}
+
+# The gh flag and value that select a context's store, on one line.
+store_flag() {
+    case "$1" in
+        env-*) printf -- '--env %s' "${1#env-}" ;;
+        *)     printf -- '--app %s' "$1" ;;
     esac
 }
 

@@ -54,7 +54,7 @@ this skill's directory instead; the files are identical.
 | Versions, releases | `standards/versioning.md`, and the `personal-release` skill for cutting releases and hotfixes |
 | Auth, authorization, cookies, crypto, erasure, input validation | `standards/security.md` |
 | GCP, Firebase, IAP, Terraform access groups, Identity Platform, Cloud KMS, Cloud Logging sinks | `standards/gcp.md` |
-| Secrets repos and Makefiles | `standards/secrets/README.md`, and the `personal-secrets` skill for procedures |
+| Secrets (single repo and estate) and their Makefiles | `standards/secrets/README.md`, and the `personal-secrets` skill for procedures |
 | Makefiles | `standards/makefile.md` |
 | Python / Swift / Kotlin / Go | `standards/<language>/` (code-style, architecture, testing, documentation, security) |
 

@@ -77,10 +77,9 @@ For personal data that has to be erasable from stores nobody edits: revisions ([
 
 - Never commit **plaintext** secrets to source repositories
 - Don't treat non-secret config as a secret: project ids, service account emails and public web config are committed, not hidden in CI settings ([architecture.md](architecture.md#ci-configuration))
-- Externalize secrets to environment variables, managed secret stores, or a dedicated encrypted secrets repository — not into application source trees
+- Commit secrets only as SOPS + age ciphertext, and only to private repos: in a private repo's own `secrets/` folder, or in the estate's private secrets repo once two repos share a value or a public repo needs one. Deployed services read them from the platform's secret store, never by decrypting ([Secrets Management](secrets/README.md))
 - Validate required secrets at startup; never log secrets
 - Support multiple active keys during rotation (current + previous)
-- For a candidate estate-wide approach (SOPS + age in a private GitHub repo, per-consumer access control), see **[Secrets Management](secrets/README.md)**
 
 ## Logging
 
@@ -107,7 +106,7 @@ For personal data that has to be erasable from stores nobody edits: revisions ([
 
 ## Security Checklist — Before Deployment
 
-- [ ] Secrets externalized (env vars, secret store, or encrypted secrets repo — not plaintext in source)
+- [ ] Secrets committed only as SOPS + age ciphertext ([secrets/README.md](secrets/README.md)); services read them from the platform's secret store
 - [ ] HTTPS enforced
 - [ ] Security headers configured; JSON API routes send `default-src 'none'; frame-ancestors 'none'`
 - [ ] API responses default to `no-store`; cacheable URLs that accept credentials `Vary` on them, tested through the CDN

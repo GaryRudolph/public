@@ -2,7 +2,7 @@
 
 How to meet the generic rules in [security.md](security.md) and [architecture.md](architecture.md) on Google Cloud and Firebase. Quotas, propagation times and launch stages change, so this file links Google's docs for the numbers instead of restating them.
 
-Contents: [Ops Plane on IAP](#ops-plane-on-iap) · [Access Groups in Terraform](#access-groups-in-terraform) · [Revocation](#revocation) · [Break-Glass](#break-glass) · [Identity Platform](#identity-platform) · [Firebase Emulator Guard](#firebase-emulator-guard) · [CI Identity](#ci-identity) · [Encryption and Erasure](#encryption-and-erasure) · [Resource History Stores](#resource-history-stores) · [Activity Log](#activity-log)
+Contents: [Ops Plane on IAP](#ops-plane-on-iap) · [Access Groups in Terraform](#access-groups-in-terraform) · [Revocation](#revocation) · [Break-Glass](#break-glass) · [Identity Platform](#identity-platform) · [Firebase Emulator Guard](#firebase-emulator-guard) · [CI Identity](#ci-identity) · [Runtime Secrets](#runtime-secrets) · [Encryption and Erasure](#encryption-and-erasure) · [Resource History Stores](#resource-history-stores) · [Activity Log](#activity-log)
 
 ## Ops Plane on IAP
 
@@ -54,7 +54,27 @@ Tenant users sign in through Identity Platform (Firebase Auth). Ops staff sign i
 What makes the committed CI values in [architecture.md](architecture.md#ci-configuration) safe to publish: the controls behind them, not their obscurity.
 
 - **Pin workload identity federation to ids, not names**: the provider's attribute condition and the service account's binding check `assertion.repository_owner_id` and `assertion.repository_id`, which GitHub never reuses. A deleted repo's or org's name can be registered again ([auth security considerations][wif-gh]). Then the provider path, project id and service account email are identifiers, and Google's own examples put them in the workflow
+- **Bind deploy access to the GitHub environment too**: the provider condition, or the binding for a prod deploy service account, also checks `assertion.environment == 'prod'`. The OIDC token carries the `environment` claim only for a job that declares one ([OIDC claims][gh-oidc]), so a job outside `prod`, which already can't decrypt `secrets/prod/`, can't reach the prod project either ([secrets/single-repo.md](secrets/single-repo.md#cloud-credentials-dont-come-from-sops))
 - **Restrict the Firebase web API key**: it's fine in a checked-in file only while it's limited to the Firebase APIs the app calls, never the Generative Language API, with Security Rules and App Check doing the access control ([Firebase API keys][fb-keys]). Expect a public-key warning from Google or a secret-scanning alert; check the restrictions and close it with that reason
+
+## Runtime Secrets
+
+How a service gets the runtime secrets that [secrets/single-repo.md](secrets/single-repo.md#deployed-services) describes: the deploy job copies values from sops into Secret Manager, and the service never sees sops.
+
+Secret Manager is one flat namespace per project, and IAM is the only thing between one service and another's secrets. What Cloud Run mounts isn't a boundary: code in `api` can take its service account's token from the metadata server and call the Secret Manager API for any secret that account may read, mounted or not.
+
+- **One project per environment**: dev and prod secrets never share a project, so a bad grant in dev can't reach prod. A service gets its own project only when it's a separate trust boundary for more than its secrets (payments, customer keys); its secrets drop the prefix there
+
+- **Terraform creates the secrets and grants, never the values**: one [`google_secret_manager_secret`][tf-sm-secret] per service and key, named `<service>--<KEY>` (`api--RESEND_API_KEY`), in each environment's project. No `google_secret_manager_secret_version`: Terraform state would hold the value in plaintext. Terraform reads the key names from `secrets/<env>/shared.env.sops` and each service's `secrets/<env>/<service>.env.sops`, where SOPS leaves them in plaintext
+- **One runtime service account per service, never the default compute account**: the default is shared by every service in the project and often holds broad project roles ([service identity][run-sa])
+- **Grants on single secrets, never the project**: each runtime account gets `roles/secretmanager.secretAccessor` on exactly its own secrets, one grant per secret, which Terraform builds from the same key lists ([Secret Manager access control][sm-iam]). `yjs`'s account has no grant on `api`'s. No runtime account holds any Secret Manager role at project level, where one grant reads every secret. A project-level grant with an [IAM condition][iam-conditions] on the name prefix (`resource.name.startsWith("projects/<number>/secrets/api--")`) is equivalent, since service names use single hyphens; per-secret grants are easier to read in a review
+- **Only the deploy account can act as a runtime account**: `roles/iam.serviceAccountUser` (`iam.serviceAccounts.actAs`) on each runtime account goes to the deploy account and nobody else. Anyone with it can deploy code that runs as `mcp` and reads `mcp`'s secrets ([service account permissions][sa-actas])
+- **Prove it after every apply**: the infrastructure job asks [Policy Troubleshooter][iam-troubleshoot] whether each runtime account has `secretmanager.versions.access` on another service's secret (`gcloud policy-intelligence troubleshoot-policy iam <secret> --principal-email=<account> --permission=secretmanager.versions.access`), and fails unless every answer is no. It also fails if the project's IAM policy gives a runtime account any Secret Manager role. Don't grant the job `roles/iam.serviceAccountTokenCreator` on runtime accounts to test by impersonation: that is the access you're checking for
+- **Turn on Data Access audit logs for Secret Manager**: they're off by default, and with `DATA_READ` on, every `AccessSecretVersion` records which account read which version ([Secret Manager audit logging][sm-audit])
+- **The deploy service account adds versions**: `roles/secretmanager.secretVersionAdder` and `roles/secretmanager.secretAccessor` on those secrets, never at project level. Reading lets `secrets-sync` skip unchanged values, and costs nothing extra: the job already holds the plaintext through the environment's age key
+- **Pin versions at deploy**: `gcloud run deploy api --set-secrets=RESEND_API_KEY=api--RESEND_API_KEY:7,DATABASE_PASSWORD=api--DATABASE_PASSWORD:3`, with the versions `secrets-sync` printed. Cloud Run resolves an environment-variable secret when an instance starts, so with `latest`, instances of one revision can disagree after an update, and rolling back a revision wouldn't roll back its secrets ([Cloud Run secrets][run-secrets]). If Terraform also manages the service, the deploy job owns the secret bindings and Terraform ignores them
+- **Disable old versions**: on a schedule, disable versions older than the ones the last few revisions pin. Active versions are billed, and a disabled version can be re-enabled for a rollback. The kit's `secrets-sync` only adds versions
+- **Firebase Functions**: `defineSecret('RESEND_API_KEY')` reads the Secret Manager secret of that name and exposes it under the same name ([Functions secrets][fn-secrets]), so a Functions codebase uses bare names: its sync runs with `STORE_PREFIX=` (empty), and it's the only consumer in its project that does. The deploy job adds versions; nobody runs `firebase functions:secrets:set` by hand
 
 ## Encryption and Erasure
 
@@ -116,3 +136,13 @@ The generic rules are in [architecture.md](architecture.md#activity-log).
 [tink]: https://developers.google.com/tink
 [wif-gh]: https://github.com/google-github-actions/auth/blob/main/docs/SECURITY_CONSIDERATIONS.md
 [ws-admins]: https://knowledge.workspace.google.com/admin/users/security-best-practices-for-administrator-accounts
+[fn-secrets]: https://firebase.google.com/docs/functions/config-env#secret-manager
+[gh-oidc]: https://docs.github.com/en/actions/reference/security/oidc
+[run-secrets]: https://docs.cloud.google.com/run/docs/configuring/services/secrets
+[sm-iam]: https://docs.cloud.google.com/secret-manager/docs/access-control
+[tf-sm-secret]: https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/secret_manager_secret
+[iam-conditions]: https://docs.cloud.google.com/iam/docs/conditions-overview
+[iam-troubleshoot]: https://docs.cloud.google.com/policy-intelligence/docs/troubleshoot-access
+[run-sa]: https://docs.cloud.google.com/run/docs/securing/service-identity
+[sa-actas]: https://docs.cloud.google.com/iam/docs/service-account-permissions
+[sm-audit]: https://docs.cloud.google.com/secret-manager/docs/audit-logging

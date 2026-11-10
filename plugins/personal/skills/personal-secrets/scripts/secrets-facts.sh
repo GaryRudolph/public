@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
-# Facts for the personal-secrets skill. Run from a secrets repo or a consumer
-# repo. Prints names, paths, and check results; never a secret value or a
-# private key. Makes no recommendations: the agent decides what to do.
+# Facts for the personal-secrets skill. Run from an estate secrets repo, a
+# single repo with a secrets/ folder, or a consumer repo. Prints names,
+# paths, and check results; never a secret value or a private key. Makes
+# no recommendations: the agent decides what to do.
 set -uo pipefail
 
 root=$(git rev-parse --show-toplevel 2>/dev/null || pwd)
@@ -79,7 +80,35 @@ if [ -f access.map ] && [ -f .sops.yaml ]; then
     section "recent commits touching src/ dist/ access.map"
     git log --oneline -5 -- src dist access.map 2>/dev/null | sed 's/^/  /'
 else
-    printf '  kind: consumer or other repo\n'
+    if [ -f secrets/.sops.yaml ]; then
+        printf '  kind: single repo (secrets/ folder)\n'
+
+        section "single-repo secrets"
+        printf '  scopes and key names in secrets/.sops.yaml:\n'
+        awk '
+            { sub(/#.*/, "") }
+            /path_regex:/ { if (match($0, /\^[a-z0-9][a-z0-9-]*\//)) scope = substr($0, RSTART + 1, RLENGTH - 2); printf "\n    %s/:", scope; next }
+            /[&*][A-Za-z0-9_-]+/ { match($0, /[&*][A-Za-z0-9_-]+/); printf " %s", substr($0, RSTART + 1, RLENGTH - 1); next }
+            /age1[0-9a-z]+/ { printf " (unnamed key)" }
+            END { print "" }
+        ' secrets/.sops.yaml | sed '/^$/d'
+        grep -q '<[a-z-]*-age-public-key>' secrets/.sops.yaml && echo "  .sops.yaml still has placeholder keys"
+        printf '  deploy environments (deploy/<env>.env): %s\n' "$(ls deploy/*.env 2>/dev/null | sed 's|deploy/||; s|\.env$||' | tr '\n' ' ')"
+        printf '  ciphertext: %s\n' "$(find secrets -mindepth 2 -type f -name '*.sops' 2>/dev/null | sed 's|^secrets/||' | sort | tr '\n' ' ')"
+        clear=$(find secrets -mindepth 2 -type f ! -name '*.sops' 2>/dev/null | sed 's|^secrets/||' | sort | tr '\n' ' ')
+        printf '  cleartext on disk: %s\n' "${clear:-none}"
+        if git check-ignore -q secrets/x/y.env 2>/dev/null; then echo "  cleartext under secrets/<scope>/ is gitignored"; else echo "  cleartext under secrets/<scope>/ is NOT gitignored"; fi
+        [ -f secrets.mk ] && echo "  secrets.mk present" || echo "  secrets.mk missing"
+
+        section "keyless check"
+        if [ -f scripts/secrets.sh ]; then
+            bash scripts/secrets.sh check 2>&1 | sed 's/^/  /'
+        else
+            echo "  scripts/secrets.sh missing (repo predates the kit)"
+        fi
+    else
+        printf '  kind: consumer or other repo\n'
+    fi
 
     section "consumer wiring"
     name=$(basename "$(git remote get-url origin 2>/dev/null || echo "$root")" .git)
@@ -100,6 +129,12 @@ else
         for app in actions agents codespaces dependabot; do
             names=$(gh secret list --app "$app" </dev/null 2>/dev/null | awk '{print $1}' | tr '\n' ' ')
             printf '  gh secrets (%s): %s\n' "$app" "${names:-none or no access}"
+        done
+        envs=$(gh api "repos/{owner}/{repo}/environments" --jq '.environments[].name' </dev/null 2>/dev/null | tr '\n' ' ')
+        printf '  GitHub environments: %s\n' "${envs:-none or no access}"
+        for e in $envs; do
+            names=$(gh secret list --env "$e" </dev/null 2>/dev/null | awk '{print $1}' | tr '\n' ' ')
+            printf '  gh secrets (env %s): %s\n' "$e" "${names:-none or no access}"
         done
     fi
 fi

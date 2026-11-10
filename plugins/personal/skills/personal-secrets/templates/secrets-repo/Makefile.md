@@ -30,7 +30,10 @@ for it to `access.map` before `make build`.
 
 **Add a consumer.** `make mint REPO=app CONTEXT=actions`, grant `app__actions`
 in `access.map`, `make build`, commit, then
-`CONFIRM_SET_KEYS=1 make set-keys REPO=app CONTEXT=actions`.
+`CONFIRM_SET_KEYS=1 make set-keys REPO=app CONTEXT=actions`. A context is one
+GitHub secret store: `actions`, `agents`, `codespaces` and `dependabot` are the
+`--app` stores, and `env-<name>` is GitHub environment `<name>`
+(`CONTEXT=env-prod` sets `SOPS_AGE_KEY` with `gh secret set --env prod`).
 
 **Change access.** Edit `access.map`, `make build`, `make verify`, commit.
 Revoking stops future reads at HEAD; old ciphertext stays readable in git
@@ -41,7 +44,8 @@ commit, `CONFIRM_SET_KEYS=1 make set-keys REPO=app CONTEXT=actions`.
 
 **Remove a consumer.** Remove it from `access.map`, `make build`,
 `make retire REPO=app CONTEXT=actions`, commit, then
-`gh secret delete SOPS_AGE_KEY -R <owner>/app --app actions`.
+`gh secret delete SOPS_AGE_KEY -R <owner>/app --app actions` (`--env <name>`
+for an `env-<name>` context; `retire` prints the right one).
 
 ## Guards
 
