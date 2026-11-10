@@ -1,0 +1,90 @@
+# CI: what AGENTS.md asks for after any change under plugins/ or agents/.
+#
+# Runs `make -C agents validate test` on Ubuntu and macOS. macOS is the
+# point of the matrix: its /bin/bash is 3.2 and its sed, awk and find are BSD,
+# which the secrets kits and the other scripts must support. The repo is
+# public, so macOS minutes are free.
+#
+# sops and age are installed on both so test-kit.sh and test-single-repo.sh
+# run; without them they print "SKIP: ... not installed" and exit 0, which is
+# why the last step fails the job on a SKIP.
+#
+# `validate` prints plugin manifest warnings (no version, no LICENSE, no
+# icon). They are known, and `claude plugin validate` exits 0 on them, so the
+# job passes with them.
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: test (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0              # the codebase-review tests read history
+
+      # `make validate` runs `claude plugin validate`, which needs no login.
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+
+      - name: Install claude
+        run: npm install --global @anthropic-ai/claude-code@2.1.322
+
+      # sops 3.13.3 is the version the secrets kit tests were written against.
+      - name: Install sops and age (Ubuntu)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes age
+
+      - uses: nhedger/setup-sops@v3
+        if: runner.os == 'Linux'
+        with:
+          version: "3.13.3"
+
+      - name: Install sops and age (macOS)
+        if: runner.os == 'macOS'
+        run: brew install sops age
+
+      - name: Tool versions
+        run: |
+          echo "/bin/bash: $(/bin/bash --version | head -1)"
+          echo "bash on PATH: $(command -v bash) $(bash --version | head -1)"
+          make --version | head -1
+          python3 --version
+          jq --version
+          node --version
+          claude --version
+          sops --version
+          age --version
+
+      - name: Validate and test
+        run: make -C agents validate test 2>&1 | tee "$RUNNER_TEMP/ci.log"
+
+      - name: Fail if a test skipped for a missing tool
+        run: |
+          if grep -n '^SKIP:' "$RUNNER_TEMP/ci.log"; then
+            echo "::error::A test skipped for a missing tool, so it proved nothing."
+            exit 1
+          fi

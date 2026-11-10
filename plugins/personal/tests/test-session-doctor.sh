@@ -8,7 +8,8 @@ here=$(cd "$(dirname "$0")" && pwd)
 doctor="$here/../scripts/session-doctor.py"
 python=$(command -v python3)
 git_bin=$(command -v git)
-work=$(mktemp -d)
+# Physical path: the doctor resolves its cwd, and on macOS /var is a symlink to /private/var.
+work=$(cd "$(mktemp -d)" && pwd -P)
 trap 'rm -rf "$work"' EXIT
 failures=0
 pass() { printf '  ok    %s\n' "$1"; }
