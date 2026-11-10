@@ -8,7 +8,7 @@ set -uo pipefail
 
 here=$(cd "$(dirname "$0")" && pwd)
 facts="$here/../scripts/review_log_facts.py"
-work=$(mktemp -d)
+work=$(cd "$(mktemp -d)" && pwd -P)  # resolved: on macOS /var is /private/var
 trap 'rm -rf "$work"' EXIT
 failures=0
 pass() { printf '  ok    %s\n' "$1"; }
