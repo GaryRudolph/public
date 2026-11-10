@@ -478,6 +478,7 @@ PACKAGE_DIR  ?= $(AGENTS_DIR)/build/plugins
 test-manifests:
 	@ORG="$(ORG)" python3 "$(AGENTS_DIR)/lib/manifests-check.py"
 	@ORG="$(ORG)" python3 "$(AGENTS_DIR)/lib/cursor-core-rule.py" --check
+	@python3 "$(AGENTS_DIR)/lib/actions-check.py"
 
 cursor-core-rule:
 	@ORG="$(ORG)" python3 "$(AGENTS_DIR)/lib/cursor-core-rule.py"
