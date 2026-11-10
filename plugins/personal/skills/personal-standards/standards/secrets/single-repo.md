@@ -301,11 +301,23 @@ up the store's per-secret access control and audit log, for nothing in return.
 Deploying `api` to `prod` reads `prod/shared.env.sops` and then
 `prod/api.env.sops`, with the last value winning, and nothing else:
 
-- **One store secret per service and key**, named `<service>__<KEY>`
-  (`api__RESEND_API_KEY`), in the prod project or account. The service still
+- **One store secret per service and key**, named `<service>--<KEY>`
+  (`api--RESEND_API_KEY`), in the prod project or account. The service still
   reads the variable `RESEND_API_KEY`; the deploy binds it to that secret.
   Because each service has its own copy, one that overrides a shared value never
   collides with one that doesn't.
+- **Code reads the unprefixed name.** The prefix exists only in the store; the
+  binding maps the variable to its secret. No service, library or helper
+  translates names (`API_RESEND_API_KEY`), so provider SDKs find their
+  documented variable, shared code reads one name in every service, and local
+  runs use the same names as deploys.
+- **The delimiter is `--`**, chosen to stand out. Secret Manager allows only
+  letters, digits, `_` and `-` in a name, so `:` and `::` aren't possible. The
+  split is unambiguous: service names are kebab-case with single hyphens, and
+  keys have no hyphens. Azure Key Vault uses the same `--`, with the key's
+  underscores turned into hyphens (`api--RESEND-API-KEY`), since it allows
+  only letters, digits and hyphens. AWS Secrets Manager names allow `/`
+  (`api/RESEND_API_KEY`).
 - **The deploy writes only that service's keys.** It adds a store version for
   each value that changed, and binds the service to exactly those keys, pinned
   to the versions just written.
@@ -351,7 +363,8 @@ secrets at all ([gcp.md](../gcp.md#firebase-emulator-guard)).
 - Every value is encrypted: no `encrypted_regex`, `*_suffix` or
   `mac_only_encrypted` in `.sops.yaml`, and no plaintext value in a dotenv file.
 - Break-glass is a recipient of every scope.
-- File and key names follow [Naming](#naming), and every deploy environment
+- File and key names follow [Naming](#naming), with single hyphens in a file
+  name so `--` stays the store delimiter, and every deploy environment
   folder has the same files with the same keys, `shared.env` included.
 
 One more check runs in CI only, because it needs the network: the repo is
