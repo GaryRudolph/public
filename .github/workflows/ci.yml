@@ -80,7 +80,7 @@ jobs:
           age --version
 
       - name: Validate and test
-        run: make -C agents validate test 2>&1 | tee "$RUNNER_TEMP/ci.log"
+        run: make -k -C agents validate test 2>&1 | tee "$RUNNER_TEMP/ci.log"
 
       - name: Fail if a test skipped for a missing tool
         run: |
