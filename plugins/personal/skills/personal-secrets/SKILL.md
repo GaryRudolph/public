@@ -154,7 +154,7 @@ step, never the job.
 ### Wire a service's deploy
 
 1. Infrastructure code creates one Secret Manager secret per key the service
-   reads, named `<service>-<KEY>`, with no value, and grants the service's own
+   reads, named `<service>--<KEY>`, with no value, and grants the service's own
    service account read access to exactly those. The keys are the ones in
    `secrets/<env>/shared.env.sops` plus `secrets/<env>/<service>.env.sops`;
    their names are plaintext.
@@ -168,7 +168,7 @@ step, never the job.
 3. The deploy job declares `environment: <env>`, loads `deploy/<env>.env`
    (which sets `GOOGLE_CLOUD_PROJECT`), and runs
    `make -s secrets-sync ENVIRONMENT=<env> SERVICE=<service> CONFIRM_SYNC=1`.
-   It prints `KEY=<service>-KEY:<version>,...` for
+   It prints `KEY=<service>--KEY:<version>,...` for
    `gcloud run deploy --set-secrets`. A Firebase Functions codebase reads
    secrets by bare name: run its sync with `STORE_PREFIX=` set to empty.
 4. A value the service shares with another repo is `@estate` in its file or

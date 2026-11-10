@@ -13,7 +13,7 @@
 #   updatekeys [SCOPE]          re-wrap a scope's files (ROTATE=1 also makes a new data key)
 #   mint CONTEXT                new CI key: private half to GitHub, public half printed
 #   sync ENVIRONMENT SERVICE    write a service's layered dotenv to Secret Manager as
-#                               <service>-<KEY>; print --set-secrets bindings
+#                               <service>--<KEY>; print --set-secrets bindings
 #
 # FILE is a path under secrets/ without .sops: prod/api.env, ci/AuthKey_X.p8.
 # A consumer's dotenv is read on top of its scope's shared.env, if there is
@@ -258,7 +258,7 @@ cmd_check() {
         case "$f" in
             *.env.sops)
                 printf '%s' "${f##*/}" | grep -Eq '^[a-z0-9]+(-[a-z0-9]+)*\.env\.sops$' \
-                    || err "$f: name it for its consumer, in lowercase kebab-case (api.env)"
+                    || err "$f: name it for its consumer, in lowercase kebab-case with single hyphens (api.env)"
                 while IFS= read -r line; do
                     case "$line" in ''|'#'*|sops_*) continue ;; esac
                     k=${line%%=*}
@@ -359,7 +359,7 @@ cmd_sync() {
     # Store secrets are per service, so a service that overrides a shared key
     # never collides with one that doesn't. STORE_PREFIX= (empty) keeps bare
     # names, for a Firebase Functions codebase that reads secrets by name.
-    prefix=${STORE_PREFIX-${svc}-}
+    prefix=${STORE_PREFIX-${svc}--}
     command -v gcloud >/dev/null 2>&1 || die "gcloud is required"
 
     tmp=$(mktemp -d "${RUNNER_TEMP:-${TMPDIR:-/tmp}}/secrets-sync.XXXXXX")

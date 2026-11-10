@@ -302,7 +302,7 @@ Deploying `api` to `prod` reads `prod/shared.env.sops` and then
 `prod/api.env.sops`, with the last value winning, and nothing else:
 
 - **One store secret per service and key**, named for both with the store's
-  delimiter (`api-RESEND_API_KEY` on GCP, below), in the prod project or
+  delimiter (`api--RESEND_API_KEY` on GCP, below), in the prod project or
   account. The service still reads the variable `RESEND_API_KEY`; the deploy
   binds it to that secret.
   Because each service has its own copy, one that overrides a shared value never
@@ -312,13 +312,17 @@ Deploying `api` to `prod` reads `prod/shared.env.sops` and then
   translates names (`API_RESEND_API_KEY`), so provider SDKs find their
   documented variable, shared code reads one name in every service, and local
   runs use the same names as deploys.
-- **The delimiter follows the store's own convention.**
+- **The delimiter is `/` on AWS and `--` everywhere else**, so there are only
+  two forms to know.
 
   | Store | Name | Why |
   | --- | --- | --- |
   | AWS Secrets Manager | `api/RESEND_API_KEY` | `/` is its path hierarchy; IAM grants `api/*` |
-  | Azure Key Vault | `api--RESEND-API-KEY` | `--` is the separator its .NET configuration provider maps to `:`; names allow only letters, digits and hyphens, so the key's underscores become hyphens |
-  | GCP Secret Manager | `api-RESEND_API_KEY` | No convention, and names allow only letters, digits, `_` and `-`. The switch from the lowercase service to the uppercase key marks the split |
+  | Azure Key Vault | `api--RESEND-API-KEY` | `--` is the separator its .NET configuration provider maps to `:`. Names allow only letters, digits and hyphens, so the key's underscores become hyphens |
+  | GCP Secret Manager | `api--RESEND_API_KEY` | No convention of its own, and names allow only letters, digits, `_` and `-`, so it follows Azure |
+
+  `--` splits unambiguously because service names use single hyphens, which
+  `secrets-check` enforces.
 
 - **The deploy writes only that service's keys.** It adds a store version for
   each value that changed, and binds the service to exactly those keys, pinned
@@ -365,7 +369,8 @@ secrets at all ([gcp.md](../gcp.md#firebase-emulator-guard)).
 - Every value is encrypted: no `encrypted_regex`, `*_suffix` or
   `mac_only_encrypted` in `.sops.yaml`, and no plaintext value in a dotenv file.
 - Break-glass is a recipient of every scope.
-- File and key names follow [Naming](#naming), and every deploy environment
+- File and key names follow [Naming](#naming), with single hyphens in a file
+  name so `--` stays the store delimiter, and every deploy environment
   folder has the same files with the same keys, `shared.env` included.
 
 One more check runs in CI only, because it needs the network: the repo is

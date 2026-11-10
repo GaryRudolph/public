@@ -29,7 +29,7 @@ itself ([single-repo.md](single-repo.md#layout)).
 | `secrets-doctor` | None | Tools present and an age identity found; the repo's `doctor` depends on it | none |
 | `secrets-clean` | None | Delete every cleartext sibling under `secrets/`, then run `secrets-check` | none |
 | `secrets-mint` | None, plus `gh` | New keypair: private half to the context's GitHub store on stdin, public half printed for `.sops.yaml` | `CONTEXT=actions\|env-<env>\|agents\|codespaces\|dependabot` |
-| `secrets-sync` | The environment's key | Write a service's layered keys (`shared.env`, then `<service>.env`) to the platform's secret store as `<service>-<KEY>` (`STORE_PREFIX=` for bare names), resolving `@estate` values from the estate's `dist/`, adding a version only for a changed value; print `KEY=<service>-KEY:<version>,...` for the deploy | `ENVIRONMENT=` (a deploy environment), `SERVICE=` |
+| `secrets-sync` | The environment's key | Write a service's layered keys (`shared.env`, then `<service>.env`) to the platform's secret store as `<service>--<KEY>` (`STORE_PREFIX=` for bare names), resolving `@estate` values from the estate's `dist/`, adding a version only for a changed value; print `KEY=<service>--KEY:<version>,...` for the deploy | `ENVIRONMENT=` (a deploy environment), `SERVICE=` |
 
 `secrets-mint` and `secrets-sync` write outside the repo, so they sit under
 `##@ Danger` and refuse without `CONFIRM_MINT=1` or `CONFIRM_SYNC=1`
