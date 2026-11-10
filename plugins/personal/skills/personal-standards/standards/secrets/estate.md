@@ -112,16 +112,16 @@ environment's key ([single-repo.md](single-repo.md#ci)).
 **Checkout (all members):**
 
 ```yaml
-- uses: actions/create-github-app-token@v1
+- uses: actions/create-github-app-token@v3
   id: tok
   with:
-    app-id: ${{ vars.SECRETS_APP_ID }}
+    client-id: ${{ vars.SECRETS_APP_CLIENT_ID }}
     private-key: ${{ secrets.SECRETS_APP_PRIVATE_KEY }}
     owner: <org>
     repositories: <estate>-secrets
     permission-contents: read
 
-- uses: actions/checkout@v4
+- uses: actions/checkout@v7
   with:
     repository: <org>/<estate>-secrets
     token: ${{ steps.tok.outputs.token }}
@@ -129,7 +129,7 @@ environment's key ([single-repo.md](single-repo.md#ci)).
     path: _secrets
     fetch-depth: 1
 
-- uses: nhedger/setup-sops@v2   # installs the sops binary; age support is built in
+- uses: nhedger/setup-sops@v3   # installs the sops binary; age support is built in
 ```
 
 **Decrypt (pick the narrowest target):**
@@ -426,7 +426,7 @@ One time per estate:
    and `.sops.yaml`.
 3. Add maintainer public keys to `.sops.yaml`.
 4. Register a read-only Secrets GitHub App (`contents: read`); install it on the
-   secrets repo and the members. Distribute `SECRETS_APP_ID` and
+   secrets repo and the members. Distribute `SECRETS_APP_CLIENT_ID` (the App's Client ID, not its numeric App ID) and
    `SECRETS_APP_PRIVATE_KEY`.
 5. Copy the kit, then run `make init` locally.
 6. `make mint REPO=<repo> CONTEXT=actions` (and other contexts as needed); edit

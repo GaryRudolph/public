@@ -106,7 +106,7 @@ export function buildCode(): number {
 
 ```yaml
 # GitHub Actions
-- uses: actions/checkout@v4
+- uses: actions/checkout@v7
   with:
     fetch-depth: 0          # required for git rev-list --count
 ```

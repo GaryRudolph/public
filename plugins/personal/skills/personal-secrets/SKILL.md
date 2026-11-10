@@ -258,7 +258,7 @@ and keep only the narrowest decrypt step that works:
    (or all env files the key can open)
 3. Files on disk, only when a tool needs a file: `make -C _secrets dist-decrypt FILE=<f>`
 
-The repo needs `vars.SECRETS_APP_ID`, `secrets.SECRETS_APP_PRIVATE_KEY`, and
+The repo needs `vars.SECRETS_APP_CLIENT_ID`, `secrets.SECRETS_APP_PRIVATE_KEY`, and
 its own `SOPS_AGE_KEY` in each store it uses. A job that reads an
 `env-<name>` grant declares `environment: <name>`, which is what hands it that
 environment's key.
