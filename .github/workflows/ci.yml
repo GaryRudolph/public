@@ -14,8 +14,11 @@
 # job passes with them.
 name: CI
 
+# merge_group: no merge queue is on, but a required check that never reports
+# stalls one the day it is turned on (standards/git.md "Hot files").
 on:
   pull_request:
+  merge_group:
   push:
     branches: [main]
 
