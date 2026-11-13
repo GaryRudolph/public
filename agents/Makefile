@@ -1,6 +1,13 @@
 SHELL := /bin/bash
 .DEFAULT_GOAL := help
 
+# A `claude` started from a Claude Code cloud or self-hosted runner session
+# (`claude plugin validate`, the local marketplace's `claude plugin ...`) sets up
+# its own git proxy relay, rewrites the session's git config to its port, and
+# closes it on exit, so the session's git breaks until it ends
+# (anthropics/claude-code#96856). Without this variable it leaves them alone.
+unexport CCR_AGENT_PROXY_ENABLED
+
 # ---------------------------------------------------------------------------
 # Identity
 # ---------------------------------------------------------------------------
