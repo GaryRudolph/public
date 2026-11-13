@@ -14,6 +14,9 @@ sys.path.insert(0, str(scripts))
 from plan_state import state  # noqa: E402
 
 tmp = Path(tempfile.mkdtemp())
+# Fixture repos read only their own config: the host's hooks, signing and includes
+# (a runner sets core.hooksPath) would change the commits under test.
+os.environ.update(GIT_CONFIG_GLOBAL=os.devnull, GIT_CONFIG_NOSYSTEM="1")
 # The plan sits in a task-branch clone's specs/handoffs/, with a bare origin, so rule 9 can check commits and pushes.
 repo, origin = tmp / "repo", tmp / "origin.git"
 
@@ -24,7 +27,7 @@ def git(*a, cwd=None):
 
 subprocess.run(["git", "init", "-q", "--bare", "-b", "main", str(origin)], check=True)
 subprocess.run(["git", "init", "-q", "-b", "main", str(repo)], check=True)
-for k, v in (("user.email", "t@example.com"), ("user.name", "t"), ("commit.gpgsign", "false")):
+for k, v in (("user.email", "t@example.com"), ("user.name", "t")):
     git("config", k, v)
 git("remote", "add", "origin", str(origin))
 (repo / "README.md").write_text("x\n")
@@ -507,7 +510,7 @@ def unattended_needs_the_handoff_file_and_the_specs_handoffs_folder():
 def init_repo(d, remote=None, branch="feature/x"):
     """A clone on branch; with remote, a bare origin to push to, and none without."""
     subprocess.run(["git", "init", "-q", "-b", branch, str(d)], check=True)
-    for k, v in (("user.email", "t@example.com"), ("user.name", "t"), ("commit.gpgsign", "false")):
+    for k, v in (("user.email", "t@example.com"), ("user.name", "t")):
         git("config", k, v, cwd=d)
     if remote:
         subprocess.run(["git", "init", "-q", "--bare", str(remote)], check=True)
@@ -543,7 +546,7 @@ def every_task_branch_workdir_of_the_last_run_is_pushed_in_both_modes():
     rb, ob = tmp / "repo-b", tmp / "origin-b.git"
     subprocess.run(["git", "init", "-q", "--bare", str(ob)], check=True)
     subprocess.run(["git", "init", "-q", "-b", "feature/x", str(rb)], check=True)
-    for k, v in (("user.email", "t@example.com"), ("user.name", "t"), ("commit.gpgsign", "false")):
+    for k, v in (("user.email", "t@example.com"), ("user.name", "t")):
         git("config", k, v, cwd=rb)
     git("remote", "add", "origin", str(ob), cwd=rb)
     (rb / "b.txt").write_text("b\n")

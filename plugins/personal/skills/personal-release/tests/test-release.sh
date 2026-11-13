@@ -10,6 +10,9 @@ facts="$here/../scripts/release_facts.py"
 changelog="$here/../templates/changelog.py"
 work=$(mktemp -d)
 trap 'rm -rf "$work"' EXIT
+# Fixture repos read only their own config: the host's hooks, signing and
+# includes (a runner sets core.hooksPath) would change the commits under test.
+export GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_NOSYSTEM=1
 failures=0
 pass() { printf '  ok    %s\n' "$1"; }
 fail() { printf '  FAIL  %s\n' "$1" >&2; failures=$((failures + 1)); }
@@ -24,8 +27,6 @@ fixture() {
     mkdir -p "$repo/packages/a" "$repo/node_modules/dep"
     cd "$repo" || exit 1
     git init -q && git config user.email t@example.com && git config user.name test
-    # The runner's global config may force signing; fixtures need plain tags.
-    git config commit.gpgsign false && git config tag.gpgsign false
     printf '2.4.0\n' > version.txt
     cat > package.json <<'EOF'
 {
