@@ -87,11 +87,9 @@ Cards are the easiest path and keep the Owner's click, so they stay the default 
        Branch: work on your assigned branch (on a workstation, cut `fix/<slug>` off the default branch)
        Preflight: before anything else, check `git remote get-url origin` against the primary repo and your model (a runner: `get_session`; elsewhere, your system prompt) against the model above. If either is wrong, do no work and recover as the standards say.
 
-   On a mismatch the session does no work and recovers one of two ways:
-   - **Relaunch**, on a runner with `create_session`: start the right session (repos, branch, model) with the same prompt, report its id, and stop. Without asking when the target model costs the same or less than its own (the click already approved the work); with an `AskUserQuestion` first when it costs more (the probe shows it can), failing closed to the printed prompt.
-   - **Printed prompt**, everywhere else or when relaunch is declined or fails: the prompt in a `text` fence (plan-execution.md "Printing a prompt in chat"), with the repos to select in order (first is primary), the `/model` and `/effort` to pick, and the branch, above it. When only the model is wrong, it also offers the in-place fix: run `/model` and `/effort`, then say go.
+   On a mismatch the session does no work and prints: one line naming what's wrong, the prompt in a `text` fence (plan-execution.md "Printing a prompt in chat"), then the repos as a bulleted list with the primary first and marked `(primary)`, the `/model` and the `/effort`. When only the model or effort is wrong, it also offers the in-place fix: run `/model` and `/effort`, then say go. The wrong session spends one short turn.
 
-   Either way the wrong session spends one short turn.
+   It used to relaunch itself with `create_session` when the right model cost no more. Dropped 2026-11-13: the wrong session stayed up until the runner's idle release, holding a self-hosted runner's container and its one slot while the relaunched session queued behind it.
 
 ## Recommendation by surface
 
@@ -108,3 +106,4 @@ Cards are the easiest path and keep the Owner's click, so they stay the default 
 - **personal-plan-model-tiers step 7 and STOP hand-off**: on a runner with `create_session`, offer to start the next wave with `source_revision` and `outcome_branch` the task branch and `model` the wave's tier (closes r1.f26); else a card with header and preflight.
 - **personal-plan-orchestrate `adapters/claude-code.md` "A new session"**: already uses `create_session`; add the push-first rule and pass `permission_mode` explicitly.
 - **personal-codebase-review remediation offer**: one session or card per finding group with the header; remediation PRs are independent, so all can start at once.
+- **Wrong-model recovery** (2026-11-13): print only, never relaunch; the repos, `/model` and `/effort` follow the fenced prompt.
