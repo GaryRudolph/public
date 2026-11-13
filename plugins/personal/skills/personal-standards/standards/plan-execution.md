@@ -899,12 +899,21 @@ These follow the [Model picker](#model-picker)'s Claude Code row; change both to
 
 The `Branch:` line is `Branch: Base branch X: open your PR against X` when the PR should land on X, and is dropped when the prompt carries its own `On branch` line (git.md "Task branches and shared branches" says how a runner reads both). Orchestrate's Kickoff prompt goes over verbatim, with no header: its hook matches a paste against the prompt in the plan, and its Claude Code adapter sets the model itself.
 
-**Recovering from a wrong repo or model.** The session does no work, then:
+**Recovering from a wrong repo or model.** The session does no work and never starts another session: a relaunch would leave this one holding its runner until idle release. Its whole reply is, in order:
 
-- **Relaunches**, on a runner with `create_session`: it starts the right session (repos, branch, model) with the same prompt, reports the new session's id, and stops. It doesn't ask when the right model costs no more per token than its own ([Model price table](#model-price-table)), since the click on the card approved the work; when it costs more, it asks first, and anything but a yes falls back to printing.
-- **Or prints** the prompt in a `text` fence, with what to pick above it: the repos to select, in order, the first being primary; the `/model` and `/effort`; the branch. When only the model is wrong, it also offers the in-place fix: run `/model` and `/effort` here, then say go.
+1. One line naming what's wrong: `Wrong model: this wants claude-sonnet-5-5 at high effort; this session runs claude-opus-5-5.` (for a wrong repo, origin's URL and the primary it wants).
+2. The prompt, header included, in a `text` fence ([Printing a prompt in chat](#printing-a-prompt-in-chat)).
+3. What to set for the new session, all three every time, whatever was wrong, below the fence so they're the last thing on screen:
 
-Either way the wrong session spends one short turn.
+       Repos:
+       - <owner>/<repo> (primary)
+       - <owner>/<repo>
+       /model <alias>
+       /effort <level>
+
+   One bullet per repo, from the header's `Repos:` line, the primary first with ` (primary)` after it. When only the model or effort was wrong, add one line: or run those two here and say go.
+
+Then it ends the turn. The wrong session spends one short turn.
 
 **Order.** Number a set with waits as core.md "Queue sessions" says, and name it `<topic>-<word>` (the handoff naming). Each prompt's header carries its queue line, so each PR description carries `Queue: <set> <n>`, above the trailer paragraph. After the preflight, a dependent checks each prerequisite by finding its PR: `gh api -X GET search/issues -f q='repo:<owner>/<repo> is:pr in:body "Queue: <set> <m>"'` (where `gh` can't reach the repo, the GitHub tools' PR list, reading bodies). A merged PR means go. Anything else (no PR, an open one, a closed one) means hold: do no work, say `Waiting on <m> (<title>): <no PR yet | PR #<n> open>. Say ready when it's merged, or give me its PR or branch.`, and end the turn, with no polling and no `sleep`. On a reply, check again. A "ready" counts as the yes even when the check still finds nothing: build on the PR or branch it names (merged onto your branch as git.md says), else on the freshly fetched default branch, and say the check couldn't confirm the prerequisite.
 
