@@ -61,6 +61,9 @@ esac
 EOF
 chmod +x "$work/bin/gh" "$work/bin/gcloud"
 export PATH="$work/bin:$PATH" GH_LOG="$work/gh.log" GCLOUD_STORE="$work/store" HOME="$work/home" XDG_CONFIG_HOME="$work/home"
+# Fixture repos read only their own config: the host's hooks, signing and
+# includes (a runner sets core.hooksPath) would change the commits under test.
+export GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_NOSYSTEM=1
 # A parent make (make -C agents test) exports -w through MAKEFLAGS, which
 # would print "Entering directory" into captured output.
 unset MAKEFLAGS MAKELEVEL MFLAGS
