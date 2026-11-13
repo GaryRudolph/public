@@ -42,7 +42,9 @@ Behavior, and Merging) for the rules these settings serve.
   repositories reads only `enabledPlugins` and `extraKnownMarketplaces` from
   each repo's file (Claude Code settings docs, "Settings in cloud sessions"),
   and the plugins those name don't load in the cloud either. `core.md`'s
-  attribution rule still holds there.
+  attribution rule still holds there: the harness writes its default
+  `Generated with Claude Code` line into a new PR's description, and the
+  description edit right after opening removes it (git.md, PR Body).
 - **A PR template that exists stays the repo's** — when it has no `## Review
   guide`, propose a hand edit that adds the Review guide, Validation and
   Rollback sections after its summary and the per-tier `<details>` after

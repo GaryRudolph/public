@@ -133,8 +133,9 @@ section stays last.
   it's open, update the description with the GitHub MCP tool
   (`update_pull_request`; `gh api` on Claude Code's cloud proxy moves the
   harness footer below the trailers again), so the diff links point at
-  `/pull/<n>/files` instead of the compare view and `Assisted-by:` is the
-  last line, and read it back to check (git.md "PR Body"). On later
+  `/pull/<n>/files` instead of the compare view, a multi-repo session's
+  default `Generated with Claude Code` line is gone, and `Assisted-by:`
+  is the last line, and read it back to check (git.md "PR Body"). On later
   pushes to a PR this session opened or drives, regenerate the draft and
   update the description when a tagged area, the tier, or the evidence
   changed, and say in the report what changed in the guide. On Claude
