@@ -130,15 +130,17 @@ section stays last.
   `git rm` the committed draft, commit and push, then open the PR with the
   draft's text as the body, so the file can't reach `main` if the PR
   merges before a cleanup commit; restore it if the PR doesn't open. Once
-  it's open, update the description so the diff links point at
-  `/pull/<n>/files` instead of the compare view, and so a footer the
-  harness appended sits above the session link and trailers (git.md
-  "PR Body"). On later
+  it's open, update the description with the GitHub MCP tool
+  (`update_pull_request`; `gh api` on Claude Code's cloud proxy moves the
+  harness footer below the trailers again), so the diff links point at
+  `/pull/<n>/files` instead of the compare view and `Assisted-by:` is the
+  last line, and read it back to check (git.md "PR Body"). On later
   pushes to a PR this session opened or drives, regenerate the draft and
   update the description when a tagged area, the tier, or the evidence
   changed, and say in the report what changed in the guide. On Claude
-  Code's cloud proxy use REST (`gh api` or the GitHub MCP tools), not
-  `gh pr create`, which goes through GraphQL.
+  Code's cloud proxy, open the PR over REST (`gh api` or the GitHub MCP
+  tools), not `gh pr create`, which goes through GraphQL, and edit its
+  description with the GitHub MCP tools only.
 
 The personal plugin's PreToolUse hook denies creating a PR whose body has
 no `## Review guide` heading or `Review tier:` line. A repo or machine that
