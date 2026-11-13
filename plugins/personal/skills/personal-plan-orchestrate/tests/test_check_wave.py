@@ -2,6 +2,7 @@
 """Tests for check_wave.py against throwaway git repos. Usage: test_check_wave.py <scripts-dir>"""
 
 import json
+import os
 import subprocess
 import sys
 import tempfile
@@ -9,6 +10,9 @@ from pathlib import Path
 
 tool = Path(sys.argv[1]).resolve() / "check_wave.py"
 tmp = Path(tempfile.mkdtemp())
+# Fixture repos read only their own config: the host's hooks, signing and includes
+# (a runner sets core.hooksPath) would change the commits under test.
+os.environ.update(GIT_CONFIG_GLOBAL=os.devnull, GIT_CONFIG_NOSYSTEM="1")
 
 
 def sh(d, *a):

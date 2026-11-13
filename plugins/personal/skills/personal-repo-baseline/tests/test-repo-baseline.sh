@@ -11,6 +11,9 @@ gh_tmpl="$here/../templates/github-merge-settings.json"
 bash_bin=$(command -v bash)
 work=$(mktemp -d)
 trap 'rm -rf "$work"' EXIT
+# Fixture repos read only their own config: the host's hooks, signing and
+# includes (a runner sets core.hooksPath) would change the commits under test.
+export GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_NOSYSTEM=1
 failures=0
 pass() { printf '  ok    %s\n' "$1"; }
 fail() { printf '  FAIL  %s\n' "$1" >&2; failures=$((failures + 1)); }
@@ -166,7 +169,6 @@ mkdir -p "$repo/.claude"
 git -C "$repo" init -q
 git -C "$repo" config user.email t@example.com
 git -C "$repo" config user.name test
-git -C "$repo" config commit.gpgsign false
 git -C "$repo" remote add origin https://github.com/acme/widget.git
 printf '{\n  "permissions": {"allow": []}\n}\n' > "$repo/.claude/settings.json"
 printf '{"attribution": {"commit": ""}, "env": {"TOKEN": "s3cr3t-value"}}\n' > "$repo/.claude/settings.local.json"
@@ -322,7 +324,6 @@ loose="$work/loose"
 git init -q "$loose"
 git -C "$loose" config user.email t@example.com
 git -C "$loose" config user.name test
-git -C "$loose" config commit.gpgsign false
 printf 'x\n' > "$loose/README.md"
 git -C "$loose" add README.md && git -C "$loose" commit -qm init
 mkdir -p "$loose/.claude"
@@ -336,7 +337,6 @@ linked="$work/linked"
 git init -q "$linked"
 git -C "$linked" config user.email t@example.com
 git -C "$linked" config user.name test
-git -C "$linked" config commit.gpgsign false
 mkdir -p "$linked/.claude" "$linked/shared"
 printf '{}\n' > "$linked/shared/settings.json"
 ln -s ../shared/settings.json "$linked/.claude/settings.json"

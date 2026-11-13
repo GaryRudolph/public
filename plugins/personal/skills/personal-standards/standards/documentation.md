@@ -100,6 +100,20 @@ Keep the `set` lines and the commands that use them in one fenced block, so copy
 
 This covers what I run by hand. Scripts with a shebang, Makefiles, CI steps, and git hooks stay POSIX `sh` or bash, and an agent's own tool calls use whatever shell the harness gives it. In a repo whose README or runbooks are written for a team in another shell, follow the repo.
 
+### Handing me a workflow dispatch
+
+When a step is "dispatch workflow X" and it's mine to do (the agent has no way to run it, or a repo rule reserves it to me, such as an apply or drift job only the repo owner may start), the handoff is the command, not the instruction. "Dispatch `drift.yml` on the repos stack" makes me open the Actions tab and find the input names; the command doesn't. Give a fish block with the dispatch, then the watch:
+
+```fish
+gh workflow run drift.yml --repo lolay/infrastructure --ref main -f stack=stacks/github/repos -f mode=drift
+gh run watch --repo lolay/infrastructure (gh run list --repo lolay/infrastructure --workflow drift.yml --limit 1 --json databaseId --jq '.[0].databaseId')
+```
+
+- `--repo <owner>/<repo>` always, so it runs from any directory without the right clone. `--ref` is the branch the workflow file runs from (the "Use workflow from" box): name it even when it's `main`, and use the line branch for a hotfix release.
+- Fill in every input. Read the file's `on.workflow_dispatch.inputs` and take the required ones from the conversation or the repo; don't guess a value, and say so if one is missing instead of leaving a `<placeholder>`.
+- After the block, one or two sentences on what to read when it finishes (a run summary, an artifact, a plan section) and anything the result line will mislead about. Not a recap of why the workflow exists.
+- If the agent may dispatch it (`mcp__github__actions_run_trigger` or `gh workflow run` works from its session and no rule reserves it to me), it does that itself and reports the run link; the block is for the case it can't.
+
 ## Implementation Milestones
 
 Large projects are broken into ordered milestones, each producing a user- or developer-visible deliverable before the next starts.
