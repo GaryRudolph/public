@@ -138,7 +138,10 @@ section stays last.
   is the last line, and read it back to check (git.md "PR Body"). On later
   pushes to a PR this session opened or drives, regenerate the draft and
   update the description when a tagged area, the tier, or the evidence
-  changed, and say in the report what changed in the guide. On Claude
+  changed, and say in the report what changed in the guide. After it
+  opens or goes ready, wait for the reviews the repo requests and work
+  them (review.md "Agent reviews on a PR") before calling it ready to
+  merge. On Claude
   Code's cloud proxy, open the PR over REST (`gh api` or the GitHub MCP
   tools), not `gh pr create`, which goes through GraphQL, and edit its
   description with the GitHub MCP tools only.
