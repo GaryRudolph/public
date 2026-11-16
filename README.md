@@ -12,3 +12,4 @@ machines.
 7. [New iPhone Setup](setup/iphone/README.md) for what to do after the standard Apple setup
 8. [Claude Cloud Environments](setup/claude-cloud/README.md) setup scripts for Claude Code cloud sessions
 9. [User Manual](user-manual/README.md) Working with Gary Rudolph
+10. [How-tos](howtos/README.md) Guides for non-engineers that Claude Code can follow, such as [two Claude accounts on a Mac](howtos/mac-two-claude-accounts.md)
