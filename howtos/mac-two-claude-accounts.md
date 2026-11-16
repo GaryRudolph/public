@@ -12,6 +12,8 @@ You name the secondary account. Everywhere below, `<secondary>` stands for that 
 > 1. **The Dock will always show two plain Claude icons.** Whatever badge you put on the `Claude <Secondary>` launcher, once both apps are running macOS shows the stock Claude icon and the name "Claude" for each, in the Dock, Cmd-Tab, and the menu bar. The badge only shows on the launcher you click. Tell them apart by the account name inside the window.
 > 2. **Have only one Claude running when you connect a connector.** Connecting Google Drive, Slack, GitHub, or any other connector ends with a link back into the Claude app, and with two running, macOS can't tell which one should get it, so the connection fails or lands in the wrong account. Quit the other one (Cmd-Q) first, connect, then reopen it. Same for signing in.
 
+## Quick start with Claude
+
 > [!CAUTION]
 > **You only live once: just let Claude do it.**
 >
