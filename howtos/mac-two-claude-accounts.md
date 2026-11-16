@@ -6,7 +6,7 @@ You name the secondary account. Everywhere below, `<secondary>` stands for that 
 
 ![Primary runs from the normal folders; secondary runs the same apps pointed at a second set of folders](assets/mac-two-claude-accounts.svg)
 
-> [!WARNING]
+> [!NOTE]
 > **Two things to know before you start**
 >
 > 1. **The Dock will always show two plain Claude icons.** Whatever badge you put on the `Claude <Secondary>` launcher, once both apps are running macOS shows the stock Claude icon and the name "Claude" for each, in the Dock, Cmd-Tab, and the menu bar. The badge only shows on the launcher you click. Tell them apart by the account name inside the window.
@@ -57,7 +57,7 @@ Claude will ask you these before it changes anything.
 
 Either way, nothing extra gets installed: no Xcode tools, no Homebrew, no ImageMagick.
 
-Either way, the running apps look identical in the Dock (see the warning at the top). The account name inside the window, bottom left of the sidebar, is how you tell them apart.
+Either way, the running apps look identical in the Dock (see the note at the top). The account name inside the window, bottom left of the sidebar, is how you tell them apart.
 
 ## How it works
 
@@ -120,7 +120,7 @@ If you were running in the Code tab, tell them to reopen this session from the p
 
 Then for B and C: open a new Terminal window, run `claude-<secondary>`, and sign in with the secondary account.
 
-**Check it.** Both apps open at the same time, on different accounts. `claude-<secondary>` then `/status` shows the secondary account; plain `claude` shows the primary. Suggest they drag `Claude <Secondary>` from `~/Applications` to the Dock. Finish with a short plain-language summary: what they have, how to open each, where the README is, and the two warnings at the top of this how-to (identical Dock icons, one Claude running when connecting a connector).
+**Check it.** Both apps open at the same time, on different accounts. `claude-<secondary>` then `/status` shows the secondary account; plain `claude` shows the primary. Suggest they drag `Claude <Secondary>` from `~/Applications` to the Dock. Finish with a short plain-language summary: what they have, how to open each, where the README is, and the two points in the note at the top of this how-to (identical Dock icons, one Claude running when connecting a connector).
 
 ## Gotchas
 
