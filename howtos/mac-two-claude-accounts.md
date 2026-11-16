@@ -4,6 +4,14 @@ Run two Claude accounts on one Mac at the same time. Your **primary** account is
 
 You name the secondary account. Everywhere below, `<secondary>` stands for that name: `work`, your company's name (`acme`), or `personal` if your primary is your work account.
 
+![Primary runs from the normal folders; secondary runs the same apps pointed at a second set of folders](assets/mac-two-claude-accounts.svg)
+
+> [!WARNING]
+> **Two things to know before you start**
+>
+> 1. **The Dock will always show two plain Claude icons.** Whatever badge you put on the `Claude <Secondary>` launcher, once both apps are running macOS shows the stock Claude icon and the name "Claude" for each, in the Dock, Cmd-Tab, and the menu bar. The badge only shows on the launcher you click. Tell them apart by the account name inside the window.
+> 2. **Have only one Claude running when you connect a connector.** Connecting Google Drive, Slack, GitHub, or any other connector ends with a link back into the Claude app, and with two running, macOS can't tell which one should get it, so the connection fails or lands in the wrong account. Quit the other one (Cmd-Q) first, connect, then reopen it. Same for signing in.
+
 > [!CAUTION]
 > **You only live once: just let Claude do it.**
 >
@@ -24,8 +32,6 @@ You name the secondary account. Everywhere below, `<secondary>` stands for that 
 > ```
 >
 > **What it will touch:** `~/Applications/Claude <Secondary>.app`, `~/.claude-<secondary>/`, `~/Library/Application Support/Claude-<secondary>/`, two lines in `~/.zshrc` (a hidden settings file for Terminal), and `~/Projects/claude-accounts/`, where it leaves a `README.md` saying what it did, why, and how to undo it. It restarts the Dock once, and for the first secondary sign-in it walks you through switching your default browser to Safari and back. Your primary setup isn't changed.
-
-![Primary runs from the normal folders; secondary runs the same apps pointed at a second set of folders](assets/mac-two-claude-accounts.svg)
 
 ## Choices
 
@@ -51,7 +57,7 @@ Claude will ask you these before it changes anything.
 
 Either way, nothing extra gets installed: no Xcode tools, no Homebrew, no ImageMagick.
 
-**The catch with both:** the badge is only on the launcher you click. Once the app is running, both copies show the plain Claude icon and the name "Claude" in the Dock, Cmd-Tab, and the menu bar, and macOS has no way to change that. Tell them apart by the account name inside the window (bottom left of the sidebar).
+Either way, the running apps look identical in the Dock (see the warning at the top). The account name inside the window, bottom left of the sidebar, is how you tell them apart.
 
 ## How it works
 
@@ -114,12 +120,13 @@ If you were running in the Code tab, tell them to reopen this session from the p
 
 Then for B and C: open a new Terminal window, run `claude-<secondary>`, and sign in with the secondary account.
 
-**Check it.** Both apps open at the same time, on different accounts. `claude-<secondary>` then `/status` shows the secondary account; plain `claude` shows the primary. Suggest they drag `Claude <Secondary>` from `~/Applications` to the Dock. Finish with a short plain-language summary: what they have, how to open each, and where the README is.
+**Check it.** Both apps open at the same time, on different accounts. `claude-<secondary>` then `/status` shows the secondary account; plain `claude` shows the primary. Suggest they drag `Claude <Secondary>` from `~/Applications` to the Dock. Finish with a short plain-language summary: what they have, how to open each, where the README is, and the two warnings at the top of this how-to (identical Dock icons, one Claude running when connecting a connector).
 
 ## Gotchas
 
 - **Sign-in goes nowhere.** That's the `claude://` link going to the wrong copy. Quit every Claude window, open only `Claude <Secondary>`, and sign in through Safari (steps above). It only matters the first time.
 - **Running icons look the same.** Expected. Look at the account name in the window.
+- **A connector won't connect, or shows up in the wrong account.** Both copies were running when its sign-in link came back. Quit the one you're not connecting, then connect again.
 - **Quitting `Claude <Secondary>` from the Dock doesn't close it.** The launcher only starts the app and exits. Click a secondary window, then Cmd-Q.
 - **Secondary app shows primary Code history.** In the secondary copy, open Settings and look under environment variables for one named `CLAUDE_CONFIG_DIR`. If it's there, it overrides the launcher. Remove it and restart the secondary app.
 - **A change didn't take.** The app reads its settings when it starts. Quit it with Cmd-Q and open it again from the launcher.
