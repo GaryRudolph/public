@@ -1,6 +1,6 @@
 # macos-launchers
 
-> Not an engineer, or just want a Personal and a Work Claude account? Use the [Mac how-to](../howtos/mac-two-claude-accounts.md) instead: you paste one prompt and Claude Code sets it up.
+> Not an engineer, or just want a second Claude account next to your first? Use the [Mac how-to](../howtos/mac-two-claude-accounts.md) instead: you paste one prompt and Claude Code sets it up.
 
 Some apps (Cursor, Claude Desktop, VS Code) tie a single login to a single license, but you may need to run them under more than one account — personal and work, for example. The fix is to launch the same app twice with different `--user-data-dir` paths so each instance keeps its own login, settings, and data; this directory builds branded `.app` wrappers that do exactly that, with a small badge composited onto the icon so you can tell the instances apart in the Dock and Spotlight.
 
