@@ -38,7 +38,8 @@ You name the secondary account. Everywhere below, `<secondary>` stands for that 
 > Before changing anything, ask me the questions in its "Choices" section
 > and explain the tradeoffs.
 >
-> Then do the work yourself. Stop whenever I need to sign in or click something.
+> Then do the work yourself. Stop whenever I need to sign in or click something,
+> and explain why.
 > ```
 >
 > **What it will touch:** `~/Applications/Claude <Secondary>.app`, `~/.claude-<secondary>/`, `~/Library/Application Support/Claude-<secondary>/`, two lines in `~/.zshrc` (a hidden settings file for Terminal), and `~/Projects/claude-accounts/`, where it leaves a `README.md` saying what it did, why, and how to undo it. It restarts the Dock once, and for the first secondary sign-in it walks you through switching your default browser to Safari and back. Your primary setup isn't changed.
