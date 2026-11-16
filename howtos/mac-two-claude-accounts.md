@@ -15,7 +15,7 @@ You name the secondary account. Everywhere below, `<secondary>` stands for that 
 ## Quick start with Claude
 
 > [!CAUTION]
-> **You only live once: just let Claude do it.**
+> **Live dangerously: just let Claude do it.**
 >
 > This hands your Mac to Claude Code with permission checks turned off. It will download files, write scripts, run them, and edit `~/.zshrc` without asking first. It's all in your home folder and all undoable, but read what it says as it goes.
 >
