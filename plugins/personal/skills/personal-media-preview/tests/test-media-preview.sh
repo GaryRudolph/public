@@ -17,7 +17,7 @@ expect_le() { if [ "$2" -le "$3" ]; then pass "$1"; else fail "$1: $2 is over $3
 field() { python3 -c 'import json,sys; v=json.loads(sys.argv[1]).get(sys.argv[2]); print(str(v).lower() if isinstance(v,bool) else v)' "$1" "$2"; }
 
 if ! command -v ffmpeg >/dev/null || ! command -v ffprobe >/dev/null; then
-    echo "SKIP  media-preview tests: ffmpeg or ffprobe not on PATH"
+    echo "SKIP: media-preview tests: ffmpeg or ffprobe not on PATH"
     exit 0
 fi
 
