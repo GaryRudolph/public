@@ -20,7 +20,7 @@ The essentials:
 
 - **Chat gets a preview, never an original.** Originals go to object storage
   and chat gets a link.
-- **Video:** H.264, `yuv420p`, `+faststart`, 720 on the long edge, no audio.
+- **Video:** H.264, `yuv420p`, `+faststart`, 720p (1280×720, or 720×1280 portrait), no audio.
   A clip is 10 seconds and 8 MB or less; a flyover, the labelled exception for
   a camera path that needs the time, is 60 seconds and 15 MB or less.
 - **Stills:** 2048 px or less on the long edge, JPEG. A contact sheet for

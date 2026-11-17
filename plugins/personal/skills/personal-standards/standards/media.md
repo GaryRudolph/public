@@ -29,7 +29,7 @@ Contents: [Previews and originals](#previews-and-originals) · [Video](#video) �
 | --- | --- | --- |
 | Length | 10 seconds or less | 60 seconds or less |
 | Size | 8 MB or less | 15 MB or less |
-| Resolution | 720 on the long edge | 720 on the long edge |
+| Resolution | 720p: 1280×720, or 720×1280 portrait | 720p: 1280×720, or 720×1280 portrait |
 
 - **H.264, `yuv420p`, `+faststart`.** That plays inline on every phone and in
   every browser, and `faststart` puts the index first so playback starts before

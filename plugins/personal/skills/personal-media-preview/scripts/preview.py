@@ -25,7 +25,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 MB = 1_000_000
-LONG_EDGE_VIDEO = 720
+VIDEO_BOX = (1280, 720)  # 720p: long edge 1280, short edge 720, either orientation
 LONG_EDGE_STILL = 2048
 MAX_FPS = 30
 JPEG_QUALITY = 3  # ffmpeg mjpeg scale, 2 (best) to 31; 3 is about quality 85
@@ -80,7 +80,7 @@ def make_video(src: Path, out: Path, limits: VideoLimits, encoder: str) -> dict:
     source = probe(src)
     duration = source.get("durationSeconds") or 0.0
     speed = max(1.0, duration / limits.max_seconds) if duration else 1.0
-    filters = [f"setpts=PTS/{speed:.6f}", _scale_filter(LONG_EDGE_VIDEO), f"fps={MAX_FPS}"]
+    filters = [f"setpts=PTS/{speed:.6f}", _video_scale_filter(*VIDEO_BOX), f"fps={MAX_FPS}"]
     out.parent.mkdir(parents=True, exist_ok=True)
     facts: dict = {}
     for quality in H264_QUALITY_STEPS:
@@ -201,6 +201,17 @@ def _scale_filter(long_edge: int) -> str:
     return (
         f"scale=w='if(gt(iw,ih),min({long_edge},iw),-2)'"
         f":h='if(gt(iw,ih),-2,min({long_edge},ih))'"
+    )
+
+
+def _video_scale_filter(long_edge: int, short_edge: int) -> str:
+    # Fit inside a long_edge x short_edge box turned to match the source, so
+    # landscape lands at 1280x720 and portrait at 720x1280. Never upscale;
+    # keep both sides even for yuv420p.
+    return (
+        f"scale=w='if(gte(iw,ih),min({long_edge},iw),min({short_edge},iw))'"
+        f":h='if(gte(iw,ih),min({short_edge},ih),min({long_edge},ih))'"
+        ":force_original_aspect_ratio=decrease:force_divisible_by=2"
     )
 
 

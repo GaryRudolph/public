@@ -37,8 +37,8 @@ expect_eq "clip exits 0" "$?" "0"
 expect_eq "clip kind" "$(field "$out" kind)" "clip"
 expect_eq "clip is H.264" "$(field "$out" codec)" "h264"
 expect_eq "clip is yuv420p" "$(field "$out" pixFmt)" "yuv420p"
-expect_eq "clip long edge 720" "$(field "$out" width)" "720"
-expect_eq "clip keeps aspect, even height" "$(field "$out" height)" "406"
+expect_eq "clip width 1280" "$(field "$out" width)" "1280"
+expect_eq "clip height 720" "$(field "$out" height)" "720"
 expect_eq "clip sped up to 10 s" "$(field "$out" durationSeconds)" "10.0"
 expect_eq "clip speed factor" "$(field "$out" speedFactor)" "3.0"
 expect_eq "clip caps fps at 30" "$(field "$out" fps)" "30.0"
@@ -48,8 +48,8 @@ expect_eq "clip has no audio" "$(ffprobe -v error -select_streams a -show_entrie
 
 echo "portrait and short sources"
 out=$(python3 "$preview" clip portrait.mp4 -o portrait-clip.mp4)
-expect_eq "portrait long edge 720" "$(field "$out" height)" "720"
-expect_eq "portrait width" "$(field "$out" width)" "406"
+expect_eq "portrait height 1280" "$(field "$out" height)" "1280"
+expect_eq "portrait width 720" "$(field "$out" width)" "720"
 expect_eq "short source not slowed" "$(field "$out" speedFactor)" "1.0"
 expect_eq "short source keeps its length" "$(field "$out" durationSeconds)" "4.0"
 
