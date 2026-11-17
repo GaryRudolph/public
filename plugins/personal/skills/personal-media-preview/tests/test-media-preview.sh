@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
-# Tests for scripts/preview.py against synthetic ffmpeg sources. Needs ffmpeg,
-# ffprobe and python3; prints SKIP and passes when ffmpeg is missing. The glb
-# mode needs gltfpack and is only checked for its missing-tool error.
+# Tests for scripts/preview.py against synthetic sources: ffmpeg test patterns,
+# temporal noise that H.264 can't compress, and a generated sphere mesh
+# (make-mesh.py). Needs ffmpeg, ffprobe and python3, and gltfpack for the glb
+# tests; prints SKIP: and passes when one is missing, which CI fails on.
 set -uo pipefail
 
 here=$(cd "$(dirname "$0")" && pwd)
@@ -22,9 +23,10 @@ if ! command -v ffmpeg >/dev/null || ! command -v ffprobe >/dev/null; then
 fi
 
 cd "$work" || exit 1
-# A 30-second 1080p landscape source and a 4-second portrait one, encoded
-# fast; the preview's own encode is what's under test.
-ffmpeg -v error -f lavfi -i testsrc2=size=1920x1080:rate=60:duration=30 \
+# A 30-second landscape source above 720p and a 4-second portrait one, encoded
+# fast; the preview's own encode is what's under test. 15 fps keeps the frame
+# count low while 3x speed-up still takes it past the 30 fps cap.
+ffmpeg -v error -f lavfi -i testsrc2=size=1600x900:rate=15:duration=30 \
     -c:v libx264 -preset ultrafast -pix_fmt yuv420p landscape.mp4
 ffmpeg -v error -f lavfi -i testsrc2=size=1080x1920:rate=30:duration=4 \
     -c:v libx264 -preset ultrafast -pix_fmt yuv420p portrait.mp4
@@ -59,8 +61,28 @@ expect_eq "flyover kind" "$(field "$out" kind)" "flyover"
 expect_eq "flyover is labelled in the name" "$(field "$out" path)" "tour-flyover.mp4"
 expect_eq "flyover keeps 30 s under the 60 s cap" "$(field "$out" durationSeconds)" "30.0"
 expect_le "flyover within 15 MB" "$(field "$out" sizeBytes)" 15000000
-out=$(python3 "$preview" flyover landscape.mp4)
-expect_eq "flyover default name" "$(field "$out" path)" "landscape-flyover.mp4"
+out=$(python3 "$preview" flyover portrait.mp4)
+expect_eq "flyover default name" "$(field "$out" path)" "portrait-flyover.mp4"
+
+echo "size cap"
+# Full-frame temporal noise defeats motion prediction, so every frame costs
+# nearly its raw size: the worst case for the size cap. Small and short keeps
+# the test fast; --max-mb shrinks the cap to match. The bitrate ceiling has to
+# hold even full-strength noise under the cap, in one encode or a retry.
+ffmpeg -v error -f lavfi -i "color=c=gray:s=320x240:r=30:d=2" -vf "noise=alls=25:allf=t+u" \
+    -c:v libx264 -crf 0 -preset ultrafast -pix_fmt yuv420p noise25.mkv
+ffmpeg -v error -f lavfi -i "color=c=gray:s=320x240:r=30:d=2" -vf "noise=alls=100:allf=t+u" \
+    -c:v libx264 -crf 0 -preset ultrafast -pix_fmt yuv420p noise100.mkv
+for strength in 25 100; do
+    out=$(python3 "$preview" clip "noise$strength.mkv" -o "noise$strength.mp4" --max-mb 0.1)
+    expect_eq "noise $strength exits 0" "$?" "0"
+    expect_eq "noise $strength within cap" "$(field "$out" withinCap)" "true"
+    expect_le "noise $strength under 0.1 MB" "$(field "$out" sizeBytes)" 100000
+    expect_le "noise $strength took at most 3 encodes" "$(field "$out" encodes)" 3
+done
+expect_eq "noise reports its bitrate ceiling" "$(field "$out" maxrateKbps | grep -cE '^[0-9]+$')" "1"
+out=$(python3 "$preview" clip noise25.mkv -o noise-wide.mp4 --max-mb 50)
+expect_eq "--max-mb never raises the clip cap" "$(field "$out" capBytes)" "8000000"
 
 echo "stills"
 out=$(python3 "$preview" stills big.png small.png -d stills)
@@ -83,13 +105,34 @@ expect_eq "probe reads duration" "$(field "$out" durationSeconds)" "30.0"
 expect_eq "probe reports the default muxer's atom order" "$(field "$out" moovBeforeMdat)" "false"
 
 echo "glb"
-if command -v gltfpack >/dev/null; then
-    echo "  skip  glb decimation (covered by hand; needs a mesh fixture)"
+# A PATH holding only what preview.py needs besides gltfpack.
+mkdir -p nogltf
+for tool in python3 ffmpeg ffprobe; do ln -s "$(command -v "$tool")" "nogltf/$tool"; done
+if PATH="$work/nogltf" python3 "$preview" glb missing.glb >"$work/out" 2>&1; then
+    fail "glb without gltfpack should fail"
+elif grep -qF "gltfpack" "$work/out"; then
+    pass "glb names the missing tool"
 else
-    if python3 "$preview" glb missing.glb >"$work/out" 2>&1; then
-        fail "glb without gltfpack should fail"
+    fail "glb error doesn't name gltfpack"
+fi
+if ! command -v gltfpack >/dev/null; then
+    echo "SKIP: media-preview glb tests: gltfpack not on PATH (npm install gltfpack)"
+else
+    python3 "$here/make-mesh.py" sphere.glb
+    tris() { python3 "$here/make-mesh.py" --triangles "$1"; }
+    expect_eq "fixture has 50,000 triangles" "$(tris sphere.glb)" "50000"
+    out=$(python3 "$preview" glb sphere.glb -o sphere-preview.glb)
+    expect_eq "glb exits 0" "$?" "0"
+    expect_eq "glb output is GLB" "$(head -c 4 sphere-preview.glb)" "glTF"
+    expect_eq "glb keeps half the triangles first" "$(field "$out" simplifyRatio)" "0.5"
+    if [ "$(tris sphere-preview.glb)" -lt 50000 ]; then pass "glb has fewer triangles"; else fail "glb kept $(tris sphere-preview.glb) triangles"; fi
+    expect_le "glb is smaller than its source" "$(field "$out" sizeBytes)" "$(wc -c < sphere.glb)"
+    out=$(python3 "$preview" glb sphere.glb -o sphere-tight.glb --max-mb 0.03)
+    expect_eq "tight glb fits" "$(field "$out" withinCap)" "true"
+    if python3 -c 'import sys; sys.exit(0 if float(sys.argv[1]) < 0.5 else 1)' "$(field "$out" simplifyRatio)"; then
+        pass "glb loop decimated further to fit"
     else
-        if grep -qF "gltfpack" "$work/out"; then pass "glb names the missing tool"; else fail "glb error doesn't name gltfpack"; fi
+        fail "glb loop stayed at ratio $(field "$out" simplifyRatio)"
     fi
 fi
 

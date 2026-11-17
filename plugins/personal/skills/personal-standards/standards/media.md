@@ -18,6 +18,9 @@ Contents: [Previews and originals](#previews-and-originals) Â· [Video](#video) Â
 - **Make previews with a script, not by hand.** The skill's `preview.py` applies
   the numbers below the same way every time, so a preview from Tuesday's run and
   one from Friday's look alike. A prompt that says "keep it small" drifts.
+- **A preview takes seconds, not minutes.** Encode once, with a bitrate ceiling
+  set by the size cap, and on the GPU when there is one. Render the preview at
+  preview size when the pipeline can, rather than shrinking a 4K master after.
 - **Originals live in object storage** (GCS, S3, Azure Blob), written by the
   pipeline rather than the agent, and the chat gets a link: a signed URL that
   expires, or an authenticated console link. Say which, and when a signed link

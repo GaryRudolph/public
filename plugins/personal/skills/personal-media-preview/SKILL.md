@@ -43,8 +43,14 @@ python3 scripts/preview.py probe anything.mp4           # facts only
 
 A source longer than the cap is sped up to fit, never cut, so a 30-second
 turntable becomes a 10-second clip at 3×; a shorter one keeps its length. If
-the file is over the size cap, the script re-encodes at lower quality until it
-fits. `--encoder h264_nvenc` uses the GPU encoder on a runner that has one.
+the encode is one pass: constant quality with a bitrate ceiling worked out from
+the size cap, so even a hard source fits the first time (a rare overshoot gets
+at most two retries). The encoder is `auto`: NVENC, with GPU decoding, when
+this ffmpeg has a working one, else x264 `veryfast`. `--max-mb` tightens the
+cap (never raises it) for a slower channel; `glb` takes it too.
+
+Most of the time on a big source is decoding it. When the pipeline can render
+the preview at 1280×720 itself, that's faster than shrinking a 4K master.
 
 Each output prints one JSON line: `path`, `sizeBytes`, `codec`, `width`,
 `height`, `pixFmt`, and for video `durationSeconds`, `fps`, `speedFactor`,
