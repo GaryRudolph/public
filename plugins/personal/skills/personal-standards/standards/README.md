@@ -16,6 +16,7 @@ This directory contains coding standards for consistent, maintainable, quality c
 - **[Versioning](versioning.md)** — SemVer for artifacts, integer-major for contracts, commit-count `versionCode`, per-platform surface map, release & hotfix flows
 - **[Security](security.md)** — Auth (OAuth, JWT, native-app BCPs), authorization and bootstrap, shared-domain cookies, encryption and erasure, input validation, checklists
 - **[Makefile](makefile.md)** — Target vocabulary, self-documenting help, workspace/polyrepo delegation, danger guards
+- **[Session Media](media.md)** — Phone-sized previews of renders, flyovers, stills and 3D; caps, formats, where each goes
 
 ## Platform-Specific Standards
 

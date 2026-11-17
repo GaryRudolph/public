@@ -64,6 +64,7 @@ plugins/
         claude-workflows/           <- plan-segment.js (Claude only)
         scripts/  tests/            <- plan_state, check_wave, gate hook, tally; offline tests
       personal-makefile/
+      personal-media-preview/       <- phone-sized previews of renders, video, stills, 3D; preview.py + tests
   workstation/             <- needs this Mac's files
     .claude-plugin/  .codex-plugin/  .cursor-plugin/  gemini-extension.json
     skills/
@@ -162,6 +163,7 @@ cleaned up, then push.
 | `personal` | `personal-plan-model-tiers` | Passive driver: group tagged steps into waves (no-thrash) and insert STOP markers with handoff blocks at tier boundaries |
 | `personal` | `personal-plan-orchestrate` | Active driver: same tagging and waves, but delegates each wave to a subagent on the right model, on Claude Code (a plugin workflow, gated by a hook) and Cursor (`Task`), and pauses only where its recorded mode stops (gated: every STOP gate; unattended: questions, failures, premium work and the cost guard) |
 | `personal` | `personal-makefile` | Audit and align Makefiles to the personal standard. Dry-run first; apply repo by repo with confirmation |
+| `personal` | `personal-media-preview` | Make phone-sized previews before showing output: a 720p H.264 clip (10 s, 8 MB) or labelled flyover (60 s, 15 MB), stills, a contact sheet, a decimated GLB; prints facts per output |
 | `workstation` | `personal-allowlist-scout` | Propose safe build commands missing from the per-harness allowlists, repo by repo |
 
 The MacWhisper skills (`whisper-*`) live in the notes repo's `.agents/skills/`.

@@ -247,7 +247,7 @@ TEST_ENV = \
     LEGACY_JETBRAINS_GLOB="$(LEGACY_JETBRAINS_GLOB)"
 
 .PHONY: help install uninstall dry-run status test test-blocks test-extensions test-hooks test-allowlists \
-        test-secrets test-release test-repo-baseline test-codebase-review test-orchestrate test-session-doctor test-session-start clean-test \
+        test-secrets test-release test-repo-baseline test-codebase-review test-media-preview test-orchestrate test-session-doctor test-session-start clean-test \
         install-blocks uninstall-blocks dry-run-blocks status-blocks \
         install-extensions uninstall-extensions dry-run-extensions status-extensions \
         install-hooks uninstall-hooks dry-run-hooks status-hooks \
@@ -426,7 +426,7 @@ clean-allowlists:
 # test
 # ---------------------------------------------------------------------------
 
-test: test-blocks test-extensions test-hooks test-allowlists test-manifests test-secrets test-release test-orchestrate test-repo-baseline test-review-guide test-codebase-review test-session-doctor test-session-start test-roundtrip
+test: test-blocks test-extensions test-hooks test-allowlists test-manifests test-secrets test-release test-orchestrate test-repo-baseline test-review-guide test-codebase-review test-media-preview test-session-doctor test-session-start test-roundtrip
 
 # Install + uninstall through this Makefile into a sandboxed $HOME.
 test-roundtrip:
@@ -461,6 +461,10 @@ test-repo-baseline:
 
 test-review-guide:
 	@bash "$(PLUGINS_DIR)/personal/skills/personal-review-guide/tests/test-review-guide.sh"
+
+# Needs ffmpeg and ffprobe; prints SKIP and passes when they're missing.
+test-media-preview:
+	@bash "$(PLUGINS_DIR)/personal/skills/personal-media-preview/tests/test-media-preview.sh"
 
 test-codebase-review:
 	@bash "$(PLUGINS_DIR)/personal/skills/personal-codebase-review/tests/test-codebase-review.sh"

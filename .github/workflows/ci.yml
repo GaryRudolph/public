@@ -5,9 +5,9 @@
 # which the secrets kits and the other scripts must support. The repo is
 # public, so macOS minutes are free.
 #
-# sops and age are installed on both so test-kit.sh and test-single-repo.sh
-# run; without them they print "SKIP: ... not installed" and exit 0, which is
-# why the last step fails the job on a SKIP.
+# sops, age and ffmpeg are installed on both so test-kit.sh,
+# test-single-repo.sh and test-media-preview.sh run; without them they print
+# "SKIP: ..." and exit 0, which is why the last step fails the job on a SKIP.
 #
 # `validate` prints plugin manifest warnings (no version, no LICENSE, no
 # icon). They are known, and `claude plugin validate` exits 0 on them, so the
@@ -59,7 +59,7 @@ jobs:
         if: runner.os == 'Linux'
         run: |
           sudo apt-get update
-          sudo apt-get install --yes age
+          sudo apt-get install --yes age ffmpeg
 
       - uses: nhedger/setup-sops@v3
         if: runner.os == 'Linux'
@@ -68,7 +68,7 @@ jobs:
 
       - name: Install sops and age (macOS)
         if: runner.os == 'macOS'
-        run: brew install sops age
+        run: brew install sops age ffmpeg
 
       - name: Tool versions
         run: |
@@ -81,6 +81,7 @@ jobs:
           claude --version
           sops --version
           age --version
+          ffmpeg -version | head -1
 
       - name: Validate and test
         run: make -C agents validate test 2>&1 | tee "$RUNNER_TEMP/ci.log"
