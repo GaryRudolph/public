@@ -56,6 +56,7 @@ this skill's directory instead; the files are identical.
 | GCP, Firebase, IAP, Terraform access groups, Identity Platform, Cloud KMS, Cloud Logging sinks | `standards/gcp.md` |
 | Secrets (single repo and estate) and their Makefiles | `standards/secrets/README.md`, and the `personal-secrets` skill for procedures |
 | Makefiles | `standards/makefile.md` |
+| Showing renders, video, stills or 3D in chat or an artifact | `standards/media.md`, and the `personal-media-preview` skill to make the previews |
 | Python / Swift / Kotlin / Go | `standards/<language>/` (code-style, architecture, testing, documentation, security) |
 
 Precedence: project standards, then organization standards, then these.
