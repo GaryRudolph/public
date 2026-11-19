@@ -1,6 +1,6 @@
 # Security Standards
 
-Contents: [Authentication](#authentication) · [Authorization](#authorization) · [Shared-Domain Cookies](#shared-domain-cookies) · [Input Validation](#input-validation) · [Security Headers](#security-headers) · [API Security](#api-security) · [Encryption and Erasure](#encryption-and-erasure) · [Secrets Management](#secrets-management) · [Logging](#logging) · [Dependency Security](#dependency-security) · [Cross-Language Security Parallels](#cross-language-security-parallels) · [Security Checklist — Before Deployment](#security-checklist--before-deployment) · [Regular Security Tasks](#regular-security-tasks) · [Language-Specific Security](#language-specific-security) · [Platform-Specific Security](#platform-specific-security)
+Contents: [Authentication](#authentication) · [Authorization](#authorization) · [Shared-Domain Cookies](#shared-domain-cookies) · [Input Validation](#input-validation) · [Security Headers](#security-headers) · [API Security](#api-security) · [Encryption and Erasure](#encryption-and-erasure) · [Secrets Management](#secrets-management) · [Explicit CLI Identity](#explicit-cli-identity) · [Logging](#logging) · [Dependency Security](#dependency-security) · [Cross-Language Security Parallels](#cross-language-security-parallels) · [Security Checklist — Before Deployment](#security-checklist--before-deployment) · [Regular Security Tasks](#regular-security-tasks) · [Language-Specific Security](#language-specific-security) · [Platform-Specific Security](#platform-specific-security)
 
 ## Authentication
 
@@ -80,6 +80,33 @@ For personal data that has to be erasable from stores nobody edits: revisions ([
 - Commit secrets only as SOPS + age ciphertext, and only to private repos: in a private repo's own `secrets/` folder, or in the estate's private secrets repo once two repos share a value or a public repo needs one. Deployed services read them from the platform's secret store, never by decrypting ([Secrets Management](secrets/README.md))
 - Validate required secrets at startup; never log secrets
 - Support multiple active keys during rotation (current + previous)
+
+## Explicit CLI Identity
+
+Several sessions run at once against different organizations, and a CLI's default account, project or context is one file in the home directory that all of them share. A session that switches it, or trusts it, acts on whichever organization the last session left there. So every command that reaches a remote names its identity, and nothing changes the default.
+
+- **Name it on the command**: when a CLI takes an account, organization, project, subscription, profile or context as a flag, pass it on every command that touches a remote, reads included. This covers an agent's own tool calls, commands handed to a person, Makefiles, scripts and CI
+- **No flag, then an env var on that one command**: `CLOUDSDK_CORE_ACCOUNT=dev@example.com bq ls`, not an `export` earlier in the session, so the command is complete when copied on its own
+- **Never change the shared default**: no `gcloud config set account|project`, `gcloud config configurations activate`, `gcloud auth application-default login` to switch orgs, `gh auth switch`, `kubectl config use-context`, `az account set`, `firebase use`, `docker context use` or `terraform workspace select`. Adding a credential is fine; activating it is the problem, so use `gcloud auth login --no-activate` where the tool allows it
+- **The active default is not evidence**: which account and project the work wants comes from the repo (its `AGENTS.md`, README, Makefile variables, tfvars, `.firebaserc`) or from the Owner, never from `gcloud config get account` or the current kube context. If the repo doesn't say, ask before the first remote command
+- **Repos say which identity they use**: a repo that drives these CLIs names its account and project per environment in one place, such as Makefile variables (`GCP_PROJECT ?= example-dev`, `GCP_ACCOUNT ?= dev@example.com`) that every target passes on. CI keeps its own identity ([gcp.md](gcp.md#ci-identity)) and still passes the project
+- **Exempt**: commands that touch no remote (`gcloud components list`, `kubectl config get-contexts`) and tools with no notion of an account
+
+| Tool | Name it with | Instead of |
+|------|--------------|------------|
+| `gcloud` | `--account=<email> --project=<id>`, or `--configuration=<name>` for a named configuration | `gcloud config set`, `gcloud config configurations activate` |
+| `gsutil` | `gcloud storage ... --account=<email> --project=<id>` (gsutil takes no account flag) | the active gcloud account |
+| `bq` | `--project_id=<id>`, with `CLOUDSDK_CORE_ACCOUNT=<email>` on the command | the active gcloud account and project |
+| Google client libraries, Terraform `google` provider | `GOOGLE_OAUTH_ACCESS_TOKEN=(gcloud auth print-access-token --account=<email>)` or service-account impersonation on the command; the project set in the provider or the call | application default credentials from whichever login ran last |
+| `firebase` | `--account <email> --project <id>` | `firebase use`, the logged-in default |
+| `gh` | `--repo <owner>/<repo>`, with `GH_TOKEN=(gh auth token --user <login>)` on the command when more than one account is logged in | `gh auth switch` |
+| `aws` | `--profile <name> --region <region>` | a default profile or an exported `AWS_PROFILE` |
+| `az` | `--subscription <id>` | `az account set` |
+| `kubectl` | `--context <name> --namespace <ns>` | `kubectl config use-context` |
+| `helm` | `--kube-context <name> --namespace <ns>` | the current kube context |
+| `docker` | `--context <name>` | `docker context use` |
+| `terraform` | `TF_WORKSPACE=<name>` on the command | `terraform workspace select`, which every session in that checkout shares |
+| HCP Terraform (`terraform` with a `cloud` block) | that organization's own named token on the command, `TF_TOKEN_app_terraform_io=<token>` (the host with dots as underscores), read from where the repo keeps it, plus `TF_CLOUD_ORGANIZATION=<org>` when the `cloud` block doesn't name one | `terraform login`, which keeps one token per host for every session |
 
 ## Logging
 
