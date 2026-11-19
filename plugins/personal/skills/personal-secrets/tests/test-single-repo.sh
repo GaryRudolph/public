@@ -245,6 +245,18 @@ git rm -q --cached "$cafe"; rm "$cafe"
 cp secrets/ci/apple-distribution.p12.sops "secrets/ci/apple distribution.p12.sops"
 expect_ok   "check: a ciphertext name with a space"              make secrets-check
 rm "secrets/ci/apple distribution.p12.sops"
+# A binary name with a space goes through every command whole.
+head -c 64 /dev/urandom > "secrets/ci/push key.p8"
+cp "secrets/ci/push key.p8" "$work/pushkey.orig"
+expect_ok   "encrypt: a name with a space"                       make secrets-encrypt
+expect_eq   "  ...sealed under its own name"                     "$(ls secrets/ci | grep -c '^push key\.p8\.sops$')" "1"
+expect_ok   "decrypt: a name with a space"                       make secrets-decrypt CONFIRM=1
+expect_ok   "  ...round-trips"                                   cmp "secrets/ci/push key.p8" "$work/pushkey.orig"
+expect_ok   "clean: a name with a space"                         make secrets-clean
+expect_eq   "  ...removed the cleartext"                         "$(ls secrets/ci | grep -c '^push key\.p8$')" "0"
+expect_ok   "updatekeys: a name with a space"                    make secrets-updatekeys SCOPE=ci
+expect_grep "  ...updates it whole"                              "updated secrets/ci/push key.p8.sops"
+rm "secrets/ci/push key.p8.sops"
 
 printf '\nupdatekeys\n'
 awk -v drop="$(pub envprod)" 'index($0, drop) == 0' "$work/sops.bak" > secrets/.sops.yaml

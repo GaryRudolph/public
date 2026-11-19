@@ -132,7 +132,8 @@ cmd_encrypt() {
     local sel="${1:-}" f t tmp list
     if [ -n "$sel" ]; then list=$(logical "$sel"); else list=$(clear_files) || die "cannot list cleartext: find failed, or .sops.yaml can't be read"; fi
     [ -n "$list" ] || { note "no cleartext to encrypt"; return 0; }
-    for f in $list; do
+    while IFS= read -r f <&3; do
+        [ -n "$f" ] || continue
         [ -f "$f" ] || die "$SECRETS_DIR/$f doesn't exist"
         case "$f" in */*) ;; *) die "$f isn't in a scope folder (ci/, <env>/)" ;; esac
         is_scope "${f%%/*}" || die "$f: no creation rule for scope ${f%%/*}/ in .sops.yaml"
@@ -147,7 +148,7 @@ cmd_encrypt() {
             rm -f "$tmp"
             die "cannot encrypt $f"
         fi
-    done
+    done 3<<<"$list"
 }
 
 cmd_decrypt() {
@@ -159,14 +160,15 @@ cmd_decrypt() {
         list=$(cipher_files | sed 's/\.sops$//') || die "cannot list ciphertext: find failed, or .sops.yaml can't be read"
     fi
     [ -n "$list" ] || { note "nothing to decrypt"; return 0; }
-    for f in $list; do case "$f" in *.env) has_env=yes ;; esac; done
+    while IFS= read -r f <&3; do case "$f" in *.env) has_env=yes ;; esac; done 3<<<"$list"
     if [ "$has_env" = yes ] && [ "${CONFIRM:-}" != 1 ]; then
         [ -t 0 ] || die "decrypting a .env writes cleartext to disk; re-run with CONFIRM=1 (code should use secrets-env)"
         printf 'This writes cleartext secrets to disk. Code should use secrets-env instead.\nType "yes" to continue: ' >&2
         read -r ans || ans=""
         [ "$ans" = yes ] || die "aborted"
     fi
-    for f in $list; do
+    while IFS= read -r f <&3; do
+        [ -n "$f" ] || continue
         c="$f.sops"
         tmp="$f.tmp.$$"
         if ! decrypt_to_stdout "$c" > "$tmp" 2>/dev/null; then
@@ -185,7 +187,7 @@ cmd_decrypt() {
         mv "$tmp" "$f"
         chmod 600 "$f"
         note "decrypted $SECRETS_DIR/$f"
-    done
+    done 3<<<"$list"
 }
 
 # Merge dotenv on stdin, keeping each key's first position and its last value.
@@ -290,7 +292,10 @@ cmd_check() {
         [ -d "$s" ] || continue
         files=$(cd "$s" && find . -type f -name '*.env.sops' | sed 's|^\./||' | sort) \
             || { err "cannot list $s/'s files: find failed"; continue; }
-        keys=$(for f in $files; do printf '%s: ' "$f"; grep -v '^sops_' "$s/$f" | grep '=' | sed 's/=.*//' | sort | tr '\n' ' '; echo; done)
+        keys=$(while IFS= read -r f; do
+            [ -n "$f" ] || continue
+            printf '%s: ' "$f"; grep -v '^sops_' "$s/$f" | grep '=' | sed 's/=.*//' | sort | tr '\n' ' '; echo
+        done <<<"$files")
         if [ -z "$first" ]; then first="$s"; want_keys="$keys"; continue; fi
         [ "$keys" = "$want_keys" ] || err "$s/ and $first/ don't have the same files and keys"
     done
@@ -310,10 +315,11 @@ cmd_check() {
 cmd_clean() {
     local f list left=""
     list=$(clear_files) || die "cannot list cleartext: find failed, or .sops.yaml can't be read"
-    for f in $list; do
+    while IFS= read -r f <&3; do
+        [ -n "$f" ] || continue
         if [ -f "$f.sops" ]; then rm -f "$f"; note "removed $SECRETS_DIR/$f"
         else left="$left $f"; fi
-    done
+    done 3<<<"$list"
     [ -z "$left" ] || die "not encrypted yet:$left (secrets-encrypt them, or delete them)"
     cmd_check
 }
@@ -323,14 +329,15 @@ cmd_updatekeys() {
     [ -z "$s" ] || is_scope "$s" || die "no creation rule for scope $s/"
     list=$(cipher_files) || die "cannot list ciphertext: find failed, or .sops.yaml can't be read"
     [ -z "$s" ] || list=$(printf '%s\n' "$list" | grep "^$s/" || true)
-    for f in $list; do
+    while IFS= read -r f <&3; do
+        [ -n "$f" ] || continue
         t=$(file_type "${f%.sops}")
         sops updatekeys -y --input-type "$t" "$f" >/dev/null 2>&1 || die "updatekeys failed on $f (needs a key that opens it)"
         if [ "${ROTATE:-}" = 1 ]; then
             sops rotate -i --input-type "$t" --output-type "$t" "$f" || die "rotate failed on $f"
         fi
         note "updated $SECRETS_DIR/$f${ROTATE:+ (new data key)}"
-    done
+    done 3<<<"$list"
 }
 
 cmd_mint() {
