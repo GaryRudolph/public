@@ -51,7 +51,8 @@ python3 -I "${CLAUDE_PLUGIN_ROOT:-<plugin root>}/skills/personal-review-guide/sc
 
 It prints the base and merge-base, commits, each changed file with
 `+added -deleted`, its bucket, totals, test lines removed, paths naming a
-sensitive area, each file's GitHub diff anchor and the GitHub `owner/repo`, the repo's review surfaces (and other `AGENTS.md` or
+risk area, the changed files that are hotspots, each file's GitHub diff
+anchor and the GitHub `owner/repo`, the repo's review surfaces (and other `AGENTS.md` or
 `CLAUDE.md` headings about before/after, renders or snapshots), the PR
 template, and the plan, handoff and review files. Use `--committed` in `pr`
 mode, so the guide describes what's pushed. In `plan` mode the diff is
@@ -68,7 +69,10 @@ the new column. Tag each with the review.md checklists, deepest first, with
 default-up bias. A review surface's `Tag` is the floor for any area that
 touches it. Read every file in a `[study]` or `[check]` area; for `[skim]`
 read enough to be sure nothing in the checklists applies; for `[skip]`,
-name the tool that produced it.
+name the tool that produced it. Then add the review.md risk tags each area
+earns: `[hotspot]` for a file the facts list as one, the others from the
+code (a risk-area path name is a reason to read, not a tag). Put the PR's
+union of risk tags on its `Review tier:` line, after the tier.
 
 ### 3. Read base and head
 

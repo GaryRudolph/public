@@ -49,18 +49,18 @@ CONTAINED = re.compile(r"([A-Za-z0-9._-]+)\s+(r\d+\.f\d+)")
 CLAIM_PATH = re.compile(r"^specs/reviews/r(\d+)/f(\d+)\.md$")
 CLAIM_FIELD = re.compile(r"^-?\s*(Finding|Claim):\s*(.*)$")
 RANGE = re.compile(r"^([0-9a-f]*)\.\.([0-9a-f]+)$")
-HOTSPOT_LIMIT = 15
-HOTSPOT_BUCKETS = ("source", "orchestration", "api", "schema")
 
 
-def load_buckets():
+def load_review_facts():
     spec = importlib.util.spec_from_file_location("review_facts", REVIEW_FACTS)
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
-    return module.bucket
+    return module
 
 
-bucket = load_buckets()
+review_facts = load_review_facts()
+bucket = review_facts.bucket
+hotspots = review_facts.hotspots
 
 
 def run(cmd, cwd, check=False):
@@ -229,24 +229,6 @@ def churn(repo, frm, to):
             t[1] += int(added) if added.isdigit() else 0
             t[2] += int(deleted) if deleted.isdigit() else 0
     return by_bucket, by_dir
-
-
-def hotspots(repo, ref, days):
-    """Files in source-like buckets, by commits in the window times current lines (reference.md)."""
-    since = f"--since={days}.days"
-    counts = {}
-    for path in git(repo, "log", since, "--format=", "--name-only", ref).splitlines():
-        if path and bucket(path) in HOTSPOT_BUCKETS:
-            counts[path] = counts.get(path, 0) + 1
-    rows = []
-    for path, commits in counts.items():
-        blob = subprocess.run(["git", "cat-file", "-p", f"{ref}:{path}"], cwd=repo, capture_output=True)
-        if blob.returncode != 0 or b"\0" in blob.stdout[:8000]:
-            continue  # deleted since, or binary
-        lines = blob.stdout.count(b"\n")
-        rows.append((commits * lines, commits, lines, path))
-    rows.sort(reverse=True)
-    return rows[:HOTSPOT_LIMIT]
 
 
 def days_since(date):

@@ -4,8 +4,8 @@
 Prints what the agent needs to write a review guide for the change on the
 current branch: the base it diffs against, the commits, every changed file
 with its line counts and the bucket its path falls in, test lines removed,
-paths that name a sensitive area, each file's GitHub diff anchor, the repo's
-review surfaces, the PR template, and the plan, handoff and review files
+paths that name a risk area (security, financial, concurrency, PII), the changed files
+that are hotspots, each file's GitHub diff anchor, the repo's review surfaces, the PR template, and the plan, handoff and review files
 already on the branch.
 
 Emits no verdicts. Buckets come from the fixed path table below, which
@@ -61,10 +61,25 @@ BUCKETS = [
     ]),
 ]
 
-# Path words that point at the [study] checklist's sensitive areas. A fact
-# about the name only: the agent reads the code to decide.
-SENSITIVE = re.compile(r"auth|crypt|secret|token|permission|password|passwd|session|oauth|jwt|credential|acl|rbac|"
-                       r"signing|cert|key(?:s|store|chain)?\b|login", re.I)
+# Path words that point at the risk tags' areas (review.md "Risk tags"). A
+# fact about the name only: the agent reads the code to decide.
+RISK_WORDS = [
+    ("security", re.compile(r"auth|crypt|secret|token|permission|password|passwd|session|oauth|jwt|credential|acl|"
+                            r"rbac|signing|cert|key(?:s|store|chain)?\b|login", re.I)),
+    ("financial", re.compile(r"payment|billing|invoice|charge|refund|ledger|payout|wallet|stripe|checkout|"
+                             r"subscription|pricing|price", re.I)),
+    ("concurrency", re.compile(r"thread|async|concurren|parallel|mutex|lock|semaphore|atomic|queue|worker|"
+                                r"goroutine|channel|actor|scheduler|retry|idempot", re.I)),
+    ("pii", re.compile(r"pii|personal|profile|ssn|passport|birth|address|phone|email|contact|consent|gdpr|kyc|"
+                       r"medical|health", re.I)),
+]
+
+# Hotspots (review.md "Risk tags"): files in these buckets, scored by commits
+# touching them in the window times their lines, top HOTSPOT_LIMIT. A fixed
+# sort, shared with personal-codebase-review's full review.
+HOTSPOT_LIMIT = 15
+HOTSPOT_BUCKETS = ("source", "orchestration", "api", "schema")
+HOTSPOT_DAYS = 180
 
 SURFACE_HINT = re.compile(r"before|after|visual|render|screenshot|snapshot|diagram|golden", re.I)
 
@@ -87,6 +102,25 @@ def bucket(path):
         if any(fnmatch.fnmatchcase(path, p) for p in patterns):
             return name
     return "source"
+
+
+def hotspots(repo, ref, days=HOTSPOT_DAYS):
+    """(score, commits, lines, path) for the top files at ref, highest first."""
+    log = subprocess.run(["git", "log", f"--since={days}.days", "--format=", "--name-only", ref],
+                         cwd=repo, capture_output=True, text=True).stdout
+    counts = {}
+    for path in log.splitlines():
+        if path and bucket(path) in HOTSPOT_BUCKETS:
+            counts[path] = counts.get(path, 0) + 1
+    rows = []
+    for path, commits in counts.items():
+        blob = subprocess.run(["git", "cat-file", "-p", f"{ref}:{path}"], cwd=repo, capture_output=True)
+        if blob.returncode != 0 or b"\0" in blob.stdout[:8000]:
+            continue  # deleted since, or binary
+        lines = blob.stdout.count(b"\n")
+        rows.append((commits * lines, commits, lines, path))
+    rows.sort(reverse=True)
+    return rows[:HOTSPOT_LIMIT]
 
 
 def default_base():
@@ -218,11 +252,19 @@ def main():
         if f["bucket"] == "tests" and (f["status"] == "D" or to_int(f["deleted"]) > 0):
             print(f"  {f['status']} -{f['deleted']} {f['path']}")
 
-    print("\n== paths naming a sensitive area")
+    print("\n== paths naming a risk area (tag word path)")
     for f in files:
-        m = SENSITIVE.search(f["path"])
-        if m:
-            print(f"  {m.group(0).lower()}: {f['path']}")
+        for tag, words in RISK_WORDS:
+            m = words.search(f["path"])
+            if m:
+                print(f"  {tag} {m.group(0).lower()}: {f['path']}")
+
+    print(f"\n== hotspots changed (rank score=commits_in_{HOTSPOT_DAYS}d*lines path, at {base_ref or 'none'})")
+    if base_ref:
+        changed = {f["path"] for f in files}
+        for rank, (score, commits, lines, path) in enumerate(hotspots(root, base_ref), 1):
+            if path in changed:
+                print(f"  {rank} {score}={commits}*{lines} {path}")
 
     print("\n== diff anchors (path #anchor)")
     for f in files:

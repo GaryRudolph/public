@@ -4,10 +4,10 @@ How an agent hands a change to a human reviewer. Agents write code faster than a
 
 Contents:
 
-- [Review tiers](#review-tiers): `[study]`, `[check]`, `[skim]`, `[skip]` per area; the PR's tier is the highest; blast radius
+- [Review tiers](#review-tiers): `[study]`, `[check]`, `[skim]`, `[skip]` per area; the PR's tier is the highest; risk tags; blast radius
 - [Time to understand](#time-to-understand): about 2 minutes for the visible part, on a phone
 - [Three moments](#three-moments): plan, pre-PR, PR
-- [Agent reviews on a PR](#agent-reviews-on-a-pr): `/code-review` in the draft, Copilot once ready, the agent's triage, one push per round, the tally
+- [Agent reviews on a PR](#agent-reviews-on-a-pr): review levels by tier and risk, `/code-review` in the draft, Copilot once ready, the agent's triage, one push per round, the tally
 - [Description layout](#description-layout): the PR description, mobile first, a collapsible block per tier
 - [Evidence](#evidence): commands and results, "not run" when it wasn't
 - [Diagrams](#diagrams): before from the base commit, after from head, only where structure changed
@@ -38,7 +38,7 @@ An area is `[study]` if any of these is true:
 - It changes a contract other code or people depend on: an API path, request or response shape, wire or file format, event, CLI flag, environment variable, or public type.
 - It changes persisted data: a schema, a migration, a backfill, what gets written where.
 - It touches auth, authorization, crypto, secrets, or input validation at a trust boundary.
-- It changes concurrency or delivery: locking, ordering, retries, idempotency, timeouts that guard other work.
+- It changes concurrency or delivery: threads, async tasks or goroutines sharing state, locking, ordering, retries, idempotency, timeouts that guard other work.
 - It does something hard to undo: deletes data, sends email or money, writes to an external system.
 - A repo [review surface](#review-surfaces) tags it `[study]`.
 
@@ -69,6 +69,22 @@ The tier suggests how many people review it. The repo's rules decide.
 
 An agent's review (Claude Code Review, Copilot, Codex) is a sensor, not a verdict, and never counts as a person's, even where a repo lets its approval satisfy a required approval ([Agent reviews on a PR](#agent-reviews-on-a-pr)). The intent paragraph is what a review bot should check the diff against; a repo using Claude Code Review can say so in its `REVIEW.md`.
 
+### Risk tags
+
+A tier says how deep to read; a risk tag says why, and what to read for. Tag an area with any that apply, after its tier: `[study] [security]`. The PR carries the union on its tier line: `Review tier: [study] [security] [hotspot]`.
+
+| Tag | The area | Read it for |
+| --- | --- | --- |
+| `[security]` | Auth, authorization, sessions, crypto, secrets, input validation at a trust boundary | Who can now do what, what's trusted, what leaks |
+| `[financial]` | Money moves or is computed: payments, billing, refunds, pricing, ledgers, payouts | Rounding, idempotency, double charges, currency, audit trail |
+| `[pii]` | Personal data is read, stored, logged, exported or deleted | What's collected, where it ends up (logs included), retention and deletion |
+| `[concurrency]` | Threads, async tasks, goroutines or workers share state; locks, queues, retries, ordering or idempotency change | Races, deadlocks, lost or doubled work, ordering under failure; tests rarely catch these |
+| `[hotspot]` | A file among the repo's 15 hottest: commits touching it in the last 180 days times its lines, in source, orchestration, api or schema paths | Defects cluster where code is both big and churning; read the surrounding code, not just the hunk |
+
+The first four come from the change: path names hint (the facts script lists them), the code decides. `[hotspot]` is a fact about the file; the script computes it, and the same list feeds a full review ([codebase-review.md](codebase-review.md)). Risk is the harm if the change is wrong, not its size, so a one-line change to a refund path is `[financial]`. A risk tag usually comes with `[study]` (the checklist above covers security and data), but `[hotspot]` can sit on a `[skim]` refactor. Tags tell the human what to look for and set the agent review's level ([Agent reviews on a PR](#agent-reviews-on-a-pr)).
+
+A repo that wants a tag enforced, not just stated, maps it to paths in `CODEOWNERS` or a reviewer tool's path instructions (Copilot's `.instructions.md` `applyTo`, CodeRabbit's `path_instructions`). That's repo config, not this standard.
+
 ### Blast radius
 
 Next to the tier, one line on who or what breaks if the change is wrong (callers, users, stored data, deploys) and how reversible it is. "Every `/v1/orders` client; additive field, revert is safe" tells the reviewer more than a risk word.
@@ -95,7 +111,16 @@ Not every back-and-forth in a session needs a walkthrough: the pre-PR one is the
 
 A review an agent posts on the PR is a second opinion on a finished change: `/code-review` while it's a draft, then Copilot's from the ruleset once it's ready. The agent works both before the Owner merges, so the fixes land in this PR and not in a follow-up. The `personal-ship-pr` skill runs the loop; this section is the triage it applies.
 
-- **Review in the draft.** A `[check]` or `[study]` PR gets `/code-review medium <number>` while it's a draft, with CI fixed in the same round. A `[skim]` or `[skip]` PR leaves it to Copilot. Rulesets that request a review skip drafts, so Copilot reviews the finished change once.
+- **Use the harness's review.** The fresh-context review is the harness's own (Claude Code's `/code-review`, `codex exec review`, a Cursor agent), at the level below, with every finding reported (`--max-findings all`). Skills add the order, the waits and the record, not another reviewer.
+- **Review levels.** The tier sets the level and any risk tag adds one, up to `xhigh` (`max` only when the Owner asks). On `main` the incremental review takes the highest tier and tags in its range, read from each squash commit's `Review tier:` line; a commit without one counts as `[check]`.
+
+  | Stage | `[skim]`, `[skip]` | `[check]` | `[study]` |
+  | --- | --- | --- | --- |
+  | Draft PR | none (Copilot only); `low` with a risk tag | `medium` | `high` |
+  | Incremental on `main` ([codebase-review.md](codebase-review.md)) | `low` | `medium` | `high` |
+
+  A `[security]` PR also gets the harness's security review in the draft round where it has one (Claude Code's `/security-review`).
+- **Review in the draft.** The draft-round review runs while the PR is a draft, with CI fixed in the same round. Rulesets that request a review skip drafts, so Copilot reviews the finished change once.
 - **The agent decides each comment:** fix it, decline it, or defer it to a card ([core.md](../core.md) "Queue sessions"). It asks the Owner only when a fix would change a contract or a design, or when it disagrees with a finding on a `[study]` area. A security finding stays open until the Owner decides. Resolved means every comment has an outcome, not that every comment was fixed.
 - **Optional findings ride along.** A finding marked optional (nit, minor, low) never starts a push on its own.
 - **One push per round.** Batch the fixes into one commit (`address review: <summary>`). Each push can dismiss an approval and buy another review.
@@ -242,4 +267,4 @@ The draft is a working copy until the PR opens; from then on the description is 
 
 Whoever directed the agent owns the guide as much as the code: read it before the PR opens, because a confident, wrong review guide is worse than none. The agent that wrote the change writes the guide, since it knows the intent; a fresh-context reviewer, not the author, checks the code against it.
 
-This is the review of a change on its way in. A review of `main` after changes land, full, incremental or across repos, is [codebase-review.md](codebase-review.md); a branch's own pre-PR review is that standard's `interim` kind, and stays out of `specs/reviews/`.
+This is the review of a change on its way in. A review of `main` after changes land, full, incremental or across repos, is [codebase-review.md](codebase-review.md); a branch's own pre-PR review is its draft round ([Agent reviews on a PR](#agent-reviews-on-a-pr)), and stays out of `specs/reviews/`.

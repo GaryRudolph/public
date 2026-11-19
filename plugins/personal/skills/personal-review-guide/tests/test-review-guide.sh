@@ -24,10 +24,14 @@ git init -q -b main
 mkdir -p api orders tests docs .github
 printf 'syntax = "proto3";\nmessage Order { string id = 1; }\n' > api/orders.proto
 printf 'package orders\nfunc Create() {}\n' > orders/service.go
+printf 'package orders\nfunc Put() {}\n' > orders/store.go
 printf 'def test_a():\n    assert 1\n\ndef test_b():\n    assert 2\n' > tests/test_orders.py
 printf 'old name\n' > docs/old.md
 printf 'secret handling\n' > orders/auth_token.go
+printf 'func Refund() {}\n' > orders/billing.go
 git add -A && git commit -qm base
+printf 'package orders\nfunc Put() {}\nfunc Get() {}\n' > orders/store.go
+git commit -qam 'orders: add Get'
 
 git switch -qc feature
 printf 'syntax = "proto3";\nmessage Order { string id = 1; string status = 2; }\n' > api/orders.proto
@@ -36,6 +40,9 @@ printf 'def test_a():\n    assert 1\n' > tests/test_orders.py
 git mv docs/old.md docs/new.md
 printf 'h1:abc\n' > go.sum
 printf 'secret handling, rotated\n' > orders/auth_token.go
+printf 'func Refund() {}\nfunc Void() {}\n' > orders/billing.go
+printf 'func Run() {}\n' > orders/worker_pool.go
+printf 'package orders\nfunc Put() {}\nfunc Get() {}\nfunc List() {}\n' > orders/store.go
 cat > AGENTS.md <<'EOF'
 # Agents
 
@@ -67,7 +74,10 @@ expect_grep "  ...migration is schema"                    "A +1 -0 schema migrat
 expect_grep "  ...go.sum is generated"                    "generated go.sum"
 expect_grep "  ...rename keeps the old path"              "docs/new.md (from docs/old.md)"
 expect_grep "  ...test lines removed"                     "M -3 tests/test_orders.py"
-expect_grep "  ...sensitive path"                         "auth: orders/auth_token.go"
+expect_grep "  ...security path"                         "security auth: orders/auth_token.go"
+expect_grep "  ...financial path"                        "financial billing: orders/billing.go"
+expect_grep "  ...concurrency path"                      "concurrency worker: orders/worker_pool.go"
+expect_grep "  ...hotspot changed, ranked first"         "1 6=2*3 orders/store.go"
 expect_grep "  ...review surfaces section, verbatim"      "### Rendered diagrams"
 expect_grep "  ...surface field kept"                     "- Preview: required"
 expect_nogrep "  ...stops at the next ## heading"         "Show before and after renders."

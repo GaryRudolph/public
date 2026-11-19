@@ -2,15 +2,16 @@
 name: personal-codebase-review
 description: >
   Review the default branch rather than a diff: an incremental review of
-  every line since the last logged review (Claude Code's /code-review on
-  the commit range, plus a drift pass and a fix review of open findings), a
+  every line since the last logged review (the harness's own review on the
+  commit range, at the level its PRs' tiers and risk tags set, plus a drift
+  pass and a fix review of open findings), a
   full review of architecture, contracts, boundaries and hotspots at one
   commit, or an estate review of architecture and duplicated code across
   repos that coordinate, with or without a workspace repo. Writes a
   findings register and a PR-shaped summary to specs/reviews/, logs the
   review with its commit range so the next incremental knows where to
   start, and drafts the review PR and a tracking issue; remediation is
-  separate. Modes: status, incremental, full, estate, interim. Triggers:
+  separate. Modes: status, incremental, full, estate. Triggers:
   "review main", "codebase review", "full review", "incremental review",
   "review since the last review", "estate review", "review across repos",
   "is a review due", a milestone's review gate, and after a [study]-tier
@@ -25,10 +26,11 @@ like, and what the outputs are. Read it first; this file doesn't repeat it.
 [`reference.md`](reference.md) has the templates, the dimension prompts, the
 hotspot formula, and the harness table.
 
-This is a review of `main`, not of a branch. A branch's own review is the
-PR's job ([`personal-review-guide`](../personal-review-guide/SKILL.md) plus a
-fresh-context `/code-review`); `interim` mode only names that review and
-puts its draft where drafts go.
+This is a review of `main`, not of a branch. A branch's own review is its
+PR's draft round ([`personal-ship-pr`](../personal-ship-pr/SKILL.md)).
+Where the harness already reviews code (Claude Code's `/code-review`,
+`codex exec review`), call it; this skill adds the range, the dimensions
+the harness doesn't cover, the verifier and the record.
 
 ## Modes
 
@@ -38,7 +40,6 @@ puts its draft where drafts go.
 | `incremental` | Line-level review of `<anchor>..<head>`, drift pass, fix review | Register, summary, log row |
 | `full` | Architecture, contracts, boundaries, hotspots at `<head>`, fix review | Register, summary, log row |
 | `estate` | Architecture and duplication across member repos | Register and summary in the home repo; in every member, a log row and the findings delegated to it |
-| `interim` | The branch's own review before its PR | A draft in `.scratch/` or `specs/handoffs/`, removed before the PR opens |
 
 With no mode, run `status` and propose one.
 
@@ -105,15 +106,21 @@ repo's specs and ADRs, the accepted findings (id, location, reason) as
 known and not to be raised again unless the code there changed, and the
 severity floor.
 
-- `incremental`: correctness is the harness's range review. On Claude
-  Code, run `/code-review high <from>..<to>` (xhigh for a range over about
-  2,000 changed lines); elsewhere, reference.md "Harnesses". A split range
+- `incremental`: correctness is the harness's range review, at the level
+  review.md "Review levels" sets from the highest `Review tier:` line and
+  risk tags among the range's commits. On Claude Code, run
+  `/code-review <level> --max-findings all <from>..<to>`; elsewhere,
+  reference.md "Harnesses". A split range
   gets one correctness review per slice, limited to the slice's paths
   (reference.md "Slices"). Then the drift, tests and duplication reviewers
   on the whole range.
 - `full`: architecture, contracts, boundaries, test strategy, dependencies
   and security posture over the whole tree at `<to>`, then hotspots: the
-  facts' top files, line by line.
+  harness's review on each of the facts' top files, on Claude Code
+  `/code-review high --max-findings all <path>`. On Claude Code, run the
+  dimension reviewers and the verifier as one workflow (the Workflow tool;
+  load the `workflow-authoring` skill first, keep it under 10 agents).
+  Asking for a full review is the Owner's opt-in to that workflow.
 - `estate`: one reviewer for architecture across the members (who owns
   what, the contracts between them), one for duplicated code across them.
   No line review.
@@ -184,14 +191,6 @@ claim"), and touch nothing else in `specs/reviews/`; when the PR opens,
 tick those findings' boxes in the issue and append the PR link. A remediation prompt names no branch to cut: "work on your assigned branch (on a
 workstation, cut `fix/<slug>` off the default branch)" (git.md "Task
 branches and shared branches").
-
-## Interim
-
-`interim` reviews the current branch before its PR: run `/code-review` (or
-the harness's equivalent) on the merge-base`..HEAD`, verify as above, and
-write `{topic}-{word}-interim-review.md` where the review guide's draft
-goes (review.md "The draft"). Fix what's clear on the branch. It's removed
-with the handoff files before the PR opens and never enters the log.
 
 ## Don't
 

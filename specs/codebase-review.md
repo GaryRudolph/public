@@ -28,7 +28,7 @@ Three layers, each with one job:
 
 | Layer | Reviews | When | Lives in |
 | --- | --- | --- | --- |
-| Per change | A branch's diff, line by line | Each PR, each plan wave | The PR; `interim` drafts are removed before it opens |
+| Per change | A branch's diff, line by line | Each PR, each plan wave | The PR (its draft round, `personal-ship-pr`) |
 | Incremental | `main` since the last anchor, line by line plus drift | A milestone lands, a complex change merges, churn passes a threshold | `specs/reviews/` |
 | Full | `main` at a commit: architecture, contracts, boundaries, hotspots | Adoption, before a major release, when the anchor is lost | `specs/reviews/` |
 
@@ -47,8 +47,8 @@ the next incremental knows where to start.
 
 - **Reviews of `main` only.** Repos merge by squash, so a task branch's
   commits vanish at merge and can't anchor anything. A per-change review
-  stays with its PR, as before; an optional `interim` review goes where
-  drafts go and is removed with them.
+  stays with its PR, in its draft round (the `interim` kind this spec
+  first had was folded into it).
 - **Full is architectural, incremental is line-level.** Reading every line
   of a codebase is neither affordable nor useful once each line was reviewed
   as a diff. A full review reads structure (architecture against specs and
