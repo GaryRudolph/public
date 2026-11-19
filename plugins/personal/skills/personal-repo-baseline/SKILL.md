@@ -6,12 +6,13 @@ description: >
   and attribution set to "Assisted-by: Claude Code" for commits and PRs),
   GitHub's merge settings (squash only, PR title and description as the
   commit message, head branches deleted on merge), a PR template laid
-  out as a review guide, and CI that runs on draft PRs. Dry-run first; apply repo by repo with
-  confirmation; re-run any time to bring a repo up to the
+  out as a review guide, and CI that runs on draft PRs. Dry-run first;
+  apply repo by repo with confirmation; re-run any time to bring a repo up to the
   current baseline. personal-new-project runs it last. Triggers: "repo
   baseline", "set up this repo for agents", "add .claude/settings.json",
   "fix commit attribution", "Claude shows up as co-author", "squash merge
-  settings", "CI doesn't run on drafts", "update this repo to the baseline", "personal-repo-baseline".
+  settings", "CI doesn't run on drafts", "update this repo to the
+  baseline", "personal-repo-baseline".
 ---
 
 # Repo Baseline Skill
@@ -31,7 +32,7 @@ Behavior, and Merging) for the rules these settings serve.
 | **Agent attribution** | `.claude/settings.json` | [`templates/claude-settings.json`](templates/claude-settings.json): `$schema`, and `attribution.commit` and `attribution.pr` set to `Assisted-by: Claude Code` | Unset, Claude Code adds `Co-authored-by: Claude`. A plugin's settings carry only `agent` and `subagentStatusLine`, and cloud sessions read the repo's `.claude/settings.json`, never `~/.claude/settings.json` |
 | **Merge settings** | GitHub repo settings | [`templates/github-merge-settings.json`](templates/github-merge-settings.json): squash only, `PR_TITLE` and `PR_BODY`, head branches deleted | Squash makes the PR opener the author on `main` and the description, with its `Assisted-by` trailer, the commit message. GitHub still appends a `Co-authored-by` for a runner's branch commits, which git.md accepts. GitHub's defaults (`COMMIT_OR_PR_TITLE` and `COMMIT_MESSAGES`, merge commits and rebase on) copy every branch trailer onto `main`, and a rebase merge puts the agent there as author |
 | **PR template** | `.github/pull_request_template.md` (or another name GitHub reads) | [`templates/pull_request_template.md`](templates/pull_request_template.md): a review guide (`standards/review.md`), with `## Review guide` and a `Review tier:` line | Agents get the layout from the plugin and the `personal-review-guide` skill; people opening a PR on GitHub, and tools the plugin doesn't reach, get it only from the repo |
-| **CI on draft PRs** | `.github/workflows/*.yml` | Every workflow a PR runs, runs on a draft: no `if:` that skips drafts (`github.event.pull_request.draft == false`, `!github.event.pull_request.draft`), or, where a skip stays, `ready_for_review` in its `pull_request` `types` (git.md "Hot files") | `personal-ship-pr` fixes CI while the PR is a draft; a workflow that skips drafts reports nothing then, and without `ready_for_review` it doesn't run on that commit when the PR goes ready either, so a required check waits for the next push |
+| **CI on draft PRs** | `.github/workflows/*.yml` | Every workflow a PR runs, runs on a draft: no `if:` that skips drafts (`github.event.pull_request.draft == false`, `!github.event.pull_request.draft`), or, where a skip stays, `ready_for_review` in its `pull_request` `types` (git.md "CI on draft PRs") | `personal-ship-pr` fixes CI while the PR is a draft; a workflow that skips drafts reports nothing then, and without `ready_for_review` it doesn't run on that commit when the PR goes ready either, so a required check waits for the next push |
 
 - **Leave `attribution.sessionUrl` unset** (default `true`) so branch
   commits keep `Claude-Session:`, as git.md wants; `false` drops the link. In
@@ -131,9 +132,13 @@ the Owner confirms the repo. Call out:
 - GitHub values that differ, and whether `permissions.admin` allows the change
 - a repo that isn't on GitHub yet: its GitHub item waits
 - a PR template that's missing, or lacks `## Review guide` or `Review tier:`
-- a workflow that skips draft PRs; read the file where the lines alone
-  don't settle it (a draft test on a job a PR doesn't need, such as a
-  preview deploy, can stay, with `ready_for_review` in its types)
+- a workflow that skips draft PRs. Read the file where the lines alone
+  don't settle it, such as a `types:` line when the workflow has more than
+  one trigger. Only the workflows behind the default branch's required
+  checks need to run on drafts (`gh api
+  repos/<owner>/<name>/rules/branches/<default>` lists them, read-only); a
+  draft skip on another job, such as a preview deploy, can stay, with
+  `ready_for_review` in its types
 
 Preview the exact settings.json change with:
 

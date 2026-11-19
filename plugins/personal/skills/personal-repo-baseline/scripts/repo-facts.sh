@@ -377,7 +377,8 @@ import os, re, sys
 root = sys.argv[1]
 folder = os.path.join(root, ".github", "workflows")
 names = sorted(n for n in os.listdir(folder)
-               if n.endswith((".yml", ".yaml"))) if os.path.isdir(folder) else []
+               if n.endswith((".yml", ".yaml"))
+               and os.path.isfile(os.path.join(folder, n))) if os.path.isdir(folder) else []
 if not names:
     print("  workflows: none")
 pattern = re.compile(r"pull_request|types|draft|ready_for_review")

@@ -235,6 +235,7 @@ jobs:
     if: github.event.pull_request.draft == false
 EOF2
 printf 'on: push\n' > "$repo/.github/workflows/release.yaml"
+mkdir "$repo/.github/workflows/old.yml"
 expect_ok "workflows that skip drafts"           env PATH="$stub:$PATH" "$bash_bin" "$facts" "$repo"
 expect_grep "  ...workflow path"                 out 'path: .github/workflows/ci.yml'
 expect_grep "  ...pull_request trigger"          out 'mentions pull_request: yes'
@@ -243,6 +244,7 @@ expect_grep "  ...draft test"                    out '    7: if: github.event.pu
 expect_nogrep "  ...comments left out"           out 'commented out'
 expect_grep "  ...yaml extension read"           out 'path: .github/workflows/release.yaml'
 expect_grep "  ...push-only workflow"            out 'mentions pull_request: no'
+expect_nogrep "  ...a folder named *.yml skipped" out 'workflows/old.yml'
 rm -r "$repo/.github"
 
 expect_ok "gh refused"                           env PATH="$stub:$PATH" GH_STUB_FAIL=1 "$bash_bin" "$facts" "$repo"
