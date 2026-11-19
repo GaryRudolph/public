@@ -65,24 +65,28 @@ src_files=$(list_sops src) || fail "cannot list src/: find failed"
 dist_files=$(list_sops dist) || fail "cannot list dist/: find failed"
 
 mapped_files=$(printf '%s\n' "$entries" | awk 'NF { print $1 }')
-for f in $src_files $dist_files; do
+# Lists are read a line at a time, never word-split: an unquoted expansion
+# would glob, so dist/[ab].env.sops could check dist/a.env.sops instead.
+while IFS= read -r f; do
+    [ -n "$f" ] || continue
     logical=${f#*/}
     has_line "$mapped_files" "${logical%.sops}" \
         || fail "$f is not listed in $ACCESS_MAP (map it, or delete it)"
-done
+done <<< "$src_files$nl$dist_files"
 
 # --- tracked plaintext --------------------------------------------------------
 tracked=$(git ls-files -- src dist keys) || fail "cannot list tracked files: git ls-files failed"
 plain=$(printf '%s\n' "$tracked" | grep -v '\.sops$' | grep -v '/\.gitkeep$' || true)
-[ -z "$plain" ] || fail "plaintext is tracked: $(printf '%s ' $plain)"
+[ -z "$plain" ] || fail "plaintext is tracked: $(printf '%s' "$plain" | tr '\n' ' ')"
 
 # --- break-glass ------------------------------------------------------------
 if [ -f "$BREAKGLASS" ]; then
     bg=$(breakglass_pub)
     grep -qF "$bg" .sops.yaml 2>/dev/null || fail "$BREAKGLASS isn't a source recipient in .sops.yaml"
-    for f in $dist_files; do
+    while IFS= read -r f; do
+        [ -n "$f" ] || continue
         grep -qF "$bg" "$f" || fail "$f isn't encrypted to break-glass (make build)"
-    done
+    done <<< "$dist_files"
 else
     fail "$BREAKGLASS is missing"
 fi
@@ -90,14 +94,22 @@ fi
 # --- pairing: src change needs a dist change --------------------------------
 check_pairing() {
     local changed="$1" f logical
-    for f in $(printf '%s\n' "$changed" | grep -E '^(src|dist|keys)/' | grep -v '\.sops$' | grep -v '/\.gitkeep$' || true); do
-        fail "$f is plaintext; only *.sops may be committed under src/ dist/ keys/"
-    done
-    for f in $(printf '%s\n' "$changed" | grep -E '^src/.*\.sops$' || true); do
+    while IFS= read -r f; do
+        case "$f" in
+            src/*|dist/*|keys/*) ;;
+            *) continue ;;
+        esac
+        case "$f" in
+            *.sops|*/.gitkeep) ;;
+            *) fail "$f is plaintext; only *.sops may be committed under src/ dist/ keys/" ;;
+        esac
+    done <<< "$changed"
+    while IFS= read -r f; do
+        case "$f" in src/*.sops) ;; *) continue ;; esac
         logical=${f#src/}
         has_line "$changed" "dist/$logical" \
             || fail "$f changed without dist/$logical (make build)"
-    done
+    done <<< "$changed"
     if has_line "$changed" "$ACCESS_MAP"; then
         case "$nl$changed" in
             *"${nl}dist/"*) ;;

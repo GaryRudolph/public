@@ -185,6 +185,12 @@ expect_grep "  ...says ok"                          "check: ok"
 expect_ok   "lint passes with the real tools"       make lint
 expect_grep "  ...says ok"                          "check: ok"
 expect_ok   "ci passes with the real tools"         make ci RANGE=HEAD~1..HEAD
+# An orphan whose name is a glob matching a mapped file (oss.env.sops) must
+# be checked under its own name, not the file the glob expands to.
+cp src/oss.env.sops 'src/[co]ss.env.sops'
+expect_fail "lint: a glob-named orphan is caught"   make lint
+expect_grep "  ...under its own name"               'src/\[co\]ss.env.sops is not listed'
+rm 'src/[co]ss.env.sops'
 
 printf '\naccess changes\n'
 sed -i.bak 's/^@oss        = site__actions /@oss        = /' access.map && rm access.map.bak
