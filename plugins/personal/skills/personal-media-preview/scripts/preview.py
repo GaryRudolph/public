@@ -86,7 +86,9 @@ def make_video(src: Path, out: Path, limits: VideoLimits, encoder: str) -> dict:
     Quality is constant (CRF) with a bitrate ceiling worked out from the size
     cap, so an easy source stays small and a hard one is held under the cap in
     the same encode. VBV can overshoot slightly, so an output over the cap is
-    re-encoded with the ceiling scaled down, at most twice.
+    re-encoded with the ceiling scaled down, at most twice. NVENC has a rate
+    floor that a very noisy source can sit above, so one still over the cap
+    after its retries is encoded again with x264, which holds the cap.
     """
     source = probe(src)
     duration = source.get("durationSeconds") or 0.0
@@ -96,18 +98,14 @@ def make_video(src: Path, out: Path, limits: VideoLimits, encoder: str) -> dict:
     filters = [f"setpts=PTS/{speed:.6f}", f"fps={MAX_FPS}", _video_scale_filter(*VIDEO_BOX)]
     out.parent.mkdir(parents=True, exist_ok=True)
     encoder = _pick_encoder(encoder)
-    # On a GPU runner, decode on the card too: decoding a 4K source is most of the time.
-    decode = ["-hwaccel", "auto"] if "nvenc" in encoder else []
-    maxrate_kbps = int(limits.max_bytes * 8 * CAP_HEADROOM / out_seconds / 1000)
-    facts: dict = {}
-    for encodes in range(1, MAX_ENCODES + 1):
-        args = [*decode, "-i", str(src), "-an", "-vf", ",".join(filters), "-t", str(limits.max_seconds)]
-        tail = ["-pix_fmt", "yuv420p", "-movflags", "+faststart", str(out)]
-        _ffmpeg(*args, *_encoder_args(encoder, maxrate_kbps), *tail)
-        facts = probe(out)
-        if facts["sizeBytes"] <= limits.max_bytes or encodes == MAX_ENCODES:
-            break  # past the last try, keep the rate this file was made at
-        maxrate_kbps = int(maxrate_kbps * limits.max_bytes / facts["sizeBytes"] * CAP_HEADROOM)
+    first_maxrate_kbps = int(limits.max_bytes * 8 * CAP_HEADROOM / out_seconds / 1000)
+    facts, maxrate_kbps, encodes = _encode_to_cap(
+        src, out, filters, limits, encoder, first_maxrate_kbps)
+    if "nvenc" in encoder and facts["sizeBytes"] > limits.max_bytes:
+        encoder = "libx264"
+        facts, maxrate_kbps, more = _encode_to_cap(
+            src, out, filters, limits, encoder, first_maxrate_kbps)
+        encodes += more
     facts.update(
         kind=limits.kind,
         source=str(src),
@@ -120,6 +118,27 @@ def make_video(src: Path, out: Path, limits: VideoLimits, encoder: str) -> dict:
         withinCap=facts["sizeBytes"] <= limits.max_bytes,
     )
     return facts
+
+
+def _encode_to_cap(src: Path, out: Path, filters: list[str], limits: VideoLimits,
+                   encoder: str, maxrate_kbps: int) -> tuple[dict, int, int]:
+    """Encode until the file fits the cap or MAX_ENCODES are spent.
+
+    Returns the output's facts, the bitrate ceiling the file was made at, and
+    the number of encodes run.
+    """
+    # On a GPU runner, decode on the card too: decoding a 4K source is most of the time.
+    decode = ["-hwaccel", "auto"] if "nvenc" in encoder else []
+    facts: dict = {}
+    for encodes in range(1, MAX_ENCODES + 1):
+        args = [*decode, "-i", str(src), "-an", "-vf", ",".join(filters), "-t", str(limits.max_seconds)]
+        tail = ["-pix_fmt", "yuv420p", "-movflags", "+faststart", str(out)]
+        _ffmpeg(*args, *_encoder_args(encoder, maxrate_kbps), *tail)
+        facts = probe(out)
+        if facts["sizeBytes"] <= limits.max_bytes or encodes == MAX_ENCODES:
+            break  # past the last try, keep the rate this file was made at
+        maxrate_kbps = int(maxrate_kbps * limits.max_bytes / facts["sizeBytes"] * CAP_HEADROOM)
+    return facts, maxrate_kbps, encodes
 
 
 def make_still(src: Path, out: Path) -> dict:

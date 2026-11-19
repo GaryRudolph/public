@@ -78,11 +78,51 @@ for strength in 25 100; do
     expect_eq "noise $strength exits 0" "$?" "0"
     expect_eq "noise $strength within cap" "$(field "$out" withinCap)" "true"
     expect_le "noise $strength under 0.1 MB" "$(field "$out" sizeBytes)" 100000
-    expect_le "noise $strength took at most 3 encodes" "$(field "$out" encodes)" 3
+    # Each encoder gets 3 tries, and a GPU box can use NVENC's and then x264's.
+    expect_le "noise $strength took at most 6 encodes" "$(field "$out" encodes)" 6
 done
 expect_eq "noise reports its bitrate ceiling" "$(field "$out" maxrateKbps | grep -cE '^[0-9]+$')" "1"
 out=$(python3 "$preview" clip noise25.mkv -o noise-wide.mp4 --max-mb 50)
 expect_eq "--max-mb never raises the clip cap" "$(field "$out" capBytes)" "8000000"
+# NVENC can't go under a cap on very noisy sources (it has a rate floor), so
+# a clip still over the cap after its retries is encoded again with x264. Fake
+# ffmpeg and probe: NVENC always makes 10 MB, x264 1 MB. A second case has NVENC
+# fit the cap, which must not fall back.
+out=$(python3 - "$preview" <<'EOF'
+import importlib.util, json, sys
+from pathlib import Path
+spec = importlib.util.spec_from_file_location("preview", sys.argv[1])
+preview = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(preview)
+
+def run(nvenc_bytes):
+    used = []
+    def fake_ffmpeg(*args):
+        used.append(args[args.index("-c:v") + 1])
+    preview._ffmpeg = fake_ffmpeg
+    def fake_probe(path):
+        if path.name == "src.mp4":
+            return {"durationSeconds": 10.0}
+        return {"sizeBytes": nvenc_bytes if "nvenc" in used[-1] else 1_000_000}
+    preview.probe = fake_probe
+    facts = preview.make_video(Path("src.mp4"), Path("out.mp4"), preview.CLIP, "h264_nvenc")
+    return facts["encoder"], facts["encodes"], facts["withinCap"], used
+
+fell = run(10_000_000)
+held = run(1_000_000)
+print(json.dumps({
+    "fellEncoder": fell[0], "fellEncodes": fell[1], "fellWithin": fell[2],
+    "fellOrder": ",".join(fell[3]),
+    "heldEncoder": held[0], "heldEncodes": held[1], "heldWithin": held[2],
+}))
+EOF
+)
+expect_eq "NVENC over the cap falls back to libx264" "$(field "$out" fellEncoder)" "libx264"
+expect_eq "fallback counts every encode" "$(field "$out" fellEncodes)" "4"
+expect_eq "fallback output fits the cap" "$(field "$out" fellWithin)" "true"
+expect_eq "fallback runs NVENC's retries first" "$(field "$out" fellOrder)" "h264_nvenc,h264_nvenc,h264_nvenc,libx264"
+expect_eq "NVENC within the cap is kept" "$(field "$out" heldEncoder)" "h264_nvenc"
+expect_eq "NVENC within the cap takes one encode" "$(field "$out" heldEncodes)" "1"
 # Every encode over the cap, which real sources almost never manage: fake
 # ffmpeg and probe so the retry loop runs out, then check the facts describe
 # the last encode, not a rate lowered for an encode that never ran.
