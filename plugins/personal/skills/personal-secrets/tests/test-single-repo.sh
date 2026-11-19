@@ -199,6 +199,53 @@ expect_ok   "online check: private repo"                         make secrets-ch
 expect_fail "online check: public repo fails"                    env GH_PRIVATE=false make secrets-check ONLINE=1
 expect_grep "  ...says so" "isn't private"
 
+printf '\ncheck fails closed\n'
+mkdir -p "$work/nogit" "$work/nofind"
+printf '#!/bin/sh\nexit 2\n' > "$work/nogit/git"
+printf '#!/bin/sh\nexit 2\n' > "$work/nofind/find"
+chmod +x "$work/nogit/git" "$work/nofind/find"
+expect_fail "check: git can't list tracked files"                env PATH="$work/nogit:$PATH" make secrets-check
+expect_grep "  ...says so" "cannot list tracked files: git ls-files failed"
+expect_fail "check: find can't list ciphertext"                  env PATH="$work/nofind:$PATH" make secrets-check
+expect_grep "  ...says so" "cannot list secrets/'s ciphertext: find failed"
+expect_grep "  ...nor an environment's files" "cannot list prod/'s files: find failed"
+expect_grep "  ...and says the check failed" "secrets check failed"
+expect_ok   "check passes with the real tools"                   make secrets-check
+expect_grep "  ...says ok" "secrets check ok"
+# find fails on ci/ only, the first scope: a failure before the last scope counts.
+mkdir -p "$work/nofindci"
+printf '#!/bin/sh\ncase "$1" in ci) exit 2 ;; esac\nexec %s "$@"\n' "$(command -v find)" > "$work/nofindci/find"
+chmod +x "$work/nofindci/find"
+expect_fail "check: find fails on the first scope only"          env PATH="$work/nofindci:$PATH" make secrets-check
+expect_grep "  ...says so" "cannot list secrets/'s cleartext: find failed"
+expect_fail "updatekeys: find fails on another scope"            env PATH="$work/nofindci:$PATH" make secrets-updatekeys SCOPE=prod
+expect_grep "  ...says so" "cannot list ciphertext: find failed"
+expect_fail "clean: find fails"                                  env PATH="$work/nofindci:$PATH" make secrets-clean
+expect_grep "  ...says so" "cannot list cleartext: find failed"
+# awk can't read .sops.yaml, so the scopes can't be listed.
+mkdir -p "$work/noscopes"
+printf '#!/bin/sh\nfor a; do last=$a; done\n[ "$last" = .sops.yaml ] && exit 2\nexec %s "$@"\n' "$(command -v awk)" > "$work/noscopes/awk"
+chmod +x "$work/noscopes/awk"
+expect_fail "updatekeys: scopes can't be read"                   env PATH="$work/noscopes:$PATH" make secrets-updatekeys
+expect_grep "  ...says so" ".sops.yaml can't be read"
+expect_fail "clean: scopes can't be read"                        env PATH="$work/noscopes:$PATH" make secrets-clean
+expect_grep "  ...says so" ".sops.yaml can't be read"
+expect_fail "check: scopes can't be read"                        env PATH="$work/noscopes:$PATH" make secrets-check
+expect_grep "  ...says so" "cannot read the deploy environments"
+mv .git "$work/dotgit"
+expect_fail "check: secrets/ outside a git repo"                 env GIT_CEILING_DIRECTORIES="$work" make secrets-check
+expect_grep "  ...says so" "git ls-files failed"
+mv "$work/dotgit" .git
+cafe=$'secrets/prod/caf\303\251.env'
+printf 'X_TOKEN=1\n' > "$cafe"
+git add -f "$cafe"
+expect_fail "check: tracked cleartext with a non-ASCII name"     make secrets-check
+expect_grep "  ...names it as is" "tracked cleartext: $cafe"
+git rm -q --cached "$cafe"; rm "$cafe"
+cp secrets/ci/apple-distribution.p12.sops "secrets/ci/apple distribution.p12.sops"
+expect_ok   "check: a ciphertext name with a space"              make secrets-check
+rm "secrets/ci/apple distribution.p12.sops"
+
 printf '\nupdatekeys\n'
 awk -v drop="$(pub envprod)" 'index($0, drop) == 0' "$work/sops.bak" > secrets/.sops.yaml
 expect_fail "check sees the stale recipients"                    make secrets-check
