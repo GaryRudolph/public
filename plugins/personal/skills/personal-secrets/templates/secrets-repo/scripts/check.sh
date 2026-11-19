@@ -10,6 +10,10 @@
 #           changes src/<f>.sops without dist/<f>.sops, or changes access.map
 #           without any dist/ change (run make build first).
 # --range:  the same pairing rules over a commit range, for the CI check.
+#
+# Fails closed: if find, git ls-files or git diff can't list the files a rule
+# needs, the check fails and names the listing, rather than passing a scan it
+# never made.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 . scripts/lib.sh
@@ -19,6 +23,16 @@ failures=0
 fail() {
     printf 'FAIL: %s\n' "$*" >&2
     failures=$((failures + 1))
+}
+
+# Whether newline-separated list $1 holds line $2 exactly. A shell match,
+# not printf | grep -q: under pipefail, grep -q exiting on a match can
+# SIGPIPE a long printf and read as no match.
+nl='
+'
+has_line() {
+    case "$nl$1$nl" in *"$nl$2$nl"*) return 0 ;; esac
+    return 1
 }
 
 # --- access.map -------------------------------------------------------------
@@ -41,30 +55,38 @@ else
     entries=""
 fi
 
+# A src/ or dist/ that doesn't exist holds no files; any other find failure
+# fails the check (see the header).
+list_sops() {
+    [ -d "$1" ] || return 0
+    find "$1" -type f -name '*.sops' | sort
+}
+src_files=$(list_sops src) || fail "cannot list src/: find failed"
+dist_files=$(list_sops dist) || fail "cannot list dist/: find failed"
+
 mapped_files=$(printf '%s\n' "$entries" | awk 'NF { print $1 }')
-orphans=$(for dir in src dist; do
-    find "$dir" -type f -name '*.sops' 2>/dev/null | sort | while read -r f; do
-        logical=${f#"$dir"/}
-        printf '%s\n' "$mapped_files" | grep -qxF "${logical%.sops}" || printf '%s\n' "$f"
-    done
-done)
-for f in $orphans; do
-    fail "$f is not listed in $ACCESS_MAP (map it, or delete it)"
-done
+# Lists are read a line at a time, never word-split: an unquoted expansion
+# would glob, so dist/[ab].env.sops could check dist/a.env.sops instead.
+while IFS= read -r f; do
+    [ -n "$f" ] || continue
+    logical=${f#*/}
+    has_line "$mapped_files" "${logical%.sops}" \
+        || fail "$f is not listed in $ACCESS_MAP (map it, or delete it)"
+done <<< "$src_files$nl$dist_files"
 
 # --- tracked plaintext --------------------------------------------------------
-if git rev-parse --git-dir >/dev/null 2>&1; then
-    plain=$(git ls-files -- src dist keys | grep -v '\.sops$' | grep -v '/\.gitkeep$' || true)
-    [ -z "$plain" ] || fail "plaintext is tracked: $(printf '%s ' $plain)"
-fi
+tracked=$(git ls-files -- src dist keys) || fail "cannot list tracked files: git ls-files failed"
+plain=$(printf '%s\n' "$tracked" | grep -v '\.sops$' | grep -v '/\.gitkeep$' || true)
+[ -z "$plain" ] || fail "plaintext is tracked: $(printf '%s' "$plain" | tr '\n' ' ')"
 
 # --- break-glass ------------------------------------------------------------
 if [ -f "$BREAKGLASS" ]; then
     bg=$(breakglass_pub)
     grep -qF "$bg" .sops.yaml 2>/dev/null || fail "$BREAKGLASS isn't a source recipient in .sops.yaml"
-    for f in $(find dist -type f -name '*.sops' 2>/dev/null | sort); do
+    while IFS= read -r f; do
+        [ -n "$f" ] || continue
         grep -qF "$bg" "$f" || fail "$f isn't encrypted to break-glass (make build)"
-    done
+    done <<< "$dist_files"
 else
     fail "$BREAKGLASS is missing"
 fi
@@ -72,26 +94,44 @@ fi
 # --- pairing: src change needs a dist change --------------------------------
 check_pairing() {
     local changed="$1" f logical
-    for f in $(printf '%s\n' "$changed" | grep -E '^(src|dist|keys)/' | grep -v '\.sops$' | grep -v '/\.gitkeep$' || true); do
-        fail "$f is plaintext; only *.sops may be committed under src/ dist/ keys/"
-    done
-    for f in $(printf '%s\n' "$changed" | grep -E '^src/.*\.sops$' || true); do
+    while IFS= read -r f; do
+        case "$f" in
+            src/*|dist/*|keys/*) ;;
+            *) continue ;;
+        esac
+        case "$f" in
+            *.sops|*/.gitkeep) ;;
+            *) fail "$f is plaintext; only *.sops may be committed under src/ dist/ keys/" ;;
+        esac
+    done <<< "$changed"
+    while IFS= read -r f; do
+        case "$f" in src/*.sops) ;; *) continue ;; esac
         logical=${f#src/}
-        printf '%s\n' "$changed" | grep -qxF "dist/$logical" \
+        has_line "$changed" "dist/$logical" \
             || fail "$f changed without dist/$logical (make build)"
-    done
-    if printf '%s\n' "$changed" | grep -qxF "$ACCESS_MAP" \
-        && ! printf '%s\n' "$changed" | grep -q '^dist/'; then
-        fail "$ACCESS_MAP changed without any dist/ change (make build)"
+    done <<< "$changed"
+    if has_line "$changed" "$ACCESS_MAP"; then
+        case "$nl$changed" in
+            *"${nl}dist/"*) ;;
+            *) fail "$ACCESS_MAP changed without any dist/ change (make build)" ;;
+        esac
     fi
 }
 
 case "$mode" in
     "") ;;
-    --staged) check_pairing "$(git diff --cached --name-only --diff-filter=ACMRD)" ;;
+    --staged)
+        changed=$(git diff --cached --name-only --diff-filter=ACMRD) \
+            || fail "cannot list staged changes: git diff --cached failed"
+        check_pairing "$changed"
+        ;;
     --range)
         [ -n "${2:-}" ] || die "usage: check.sh --range <base>..<head>"
-        check_pairing "$(git diff --name-only --diff-filter=ACMRD "$2")"
+        # A range CI can't resolve (a shallow clone, a force-pushed base) fails
+        # here rather than pairing-checking nothing.
+        changed=$(git diff --name-only --diff-filter=ACMRD "$2") \
+            || fail "cannot list changes in $2: git diff failed"
+        check_pairing "$changed"
         ;;
     *) die "usage: check.sh [--staged | --range <base>..<head>]" ;;
 esac

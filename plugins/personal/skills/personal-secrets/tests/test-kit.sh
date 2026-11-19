@@ -152,6 +152,46 @@ git add -A
 expect_ok   "commit with dist/ passes the hook"    git commit -qm fresh
 expect_ok   "ci --range passes for that commit"    make ci RANGE=HEAD~1..HEAD
 
+printf '\ncheck fails closed\n'
+mkdir -p "$work/nogit" "$work/nofind"
+printf '#!/bin/sh\nexit 2\n' > "$work/nogit/git"
+printf '#!/bin/sh\nexit 2\n' > "$work/nofind/find"
+chmod +x "$work/nogit/git" "$work/nofind/find"
+expect_fail "lint: git can't list tracked files"    env PATH="$work/nogit:$PATH" make lint
+expect_grep "  ...says so"                          "cannot list tracked files: git ls-files failed"
+expect_fail "lint: find can't list src/ or dist/"   env PATH="$work/nofind:$PATH" make lint
+expect_grep "  ...names src/"                       "cannot list src/: find failed"
+expect_grep "  ...and dist/"                        "cannot list dist/: find failed"
+expect_fail "ci: git can't diff the range"          env PATH="$work/nogit:$PATH" make ci RANGE=HEAD~1..HEAD
+expect_grep "  ...says so"                          "cannot list changes in HEAD~1..HEAD: git diff failed"
+expect_fail "ci: a range git can't resolve fails"   make ci RANGE=no-such-base..HEAD
+expect_grep "  ...names the range"                  "cannot list changes in no-such-base..HEAD"
+expect_fail "hook: git can't list staged changes"   env PATH="$work/nogit:$PATH" bash scripts/check.sh --staged
+expect_grep "  ...says so"                          "cannot list staged changes: git diff --cached failed"
+expect_fail "consumer: find can't list dist/"       as_consumer "$site" env PATH="$work/nofind:$PATH" make -s dist-decrypt-env KEY=AUTH_TOKEN
+expect_grep "  ...says so"                          "cannot list dist/'s env files: find failed"
+expect_fail "consumer export: find can't list dist/" as_consumer "$site" env PATH="$work/nofind:$PATH" make -s dist-decrypt-env
+expect_grep "  ...says so"                          "cannot list dist/'s env files: find failed"
+# A fresh estate whose src/ and dist/ don't exist yet has nothing to list:
+# that's empty, not a failure.
+fresh="$work/fresh"
+cp -R "$kit" "$fresh"
+rm -rf "$fresh/src" "$fresh/dist"
+printf '%s\n' "$bg_pub" > "$fresh/breakglass.pub"
+sed -i.bak "s/<breakglass-age-public-key>/$bg_pub/" "$fresh/.sops.yaml" && rm "$fresh/.sops.yaml.bak"
+git -C "$fresh" init -q
+expect_ok   "lint: no src/ or dist/ lists as empty"  make --no-print-directory -C "$fresh" lint
+expect_grep "  ...says ok"                          "check: ok"
+expect_ok   "lint passes with the real tools"       make lint
+expect_grep "  ...says ok"                          "check: ok"
+expect_ok   "ci passes with the real tools"         make ci RANGE=HEAD~1..HEAD
+# An orphan whose name is a glob matching a mapped file (oss.env.sops) must
+# be checked under its own name, not the file the glob expands to.
+cp src/oss.env.sops 'src/[co]ss.env.sops'
+expect_fail "lint: a glob-named orphan is caught"   make lint
+expect_grep "  ...under its own name"               'src/\[co\]ss.env.sops is not listed'
+rm 'src/[co]ss.env.sops'
+
 printf '\naccess changes\n'
 sed -i.bak 's/^@oss        = site__actions /@oss        = /' access.map && rm access.map.bak
 git add access.map
