@@ -2,8 +2,9 @@ export const meta = {
   name: 'plan-segment',
   description: 'Run one dispatch unit of a tagged plan for personal-plan-orchestrate: one wave, every working directory executed and then reviewed',
   whenToUse: 'Only when the personal-plan-orchestrate skill launches it with plan_state.py output and the contracts for that unit',
+  // Draft is left out on purpose: only a premium unit with xdeepDrafts uses it, and an
+  // undeclared phase still gets its own group, so other runs don't show an empty one.
   phases: [
-    { title: 'Draft', detail: '[xdeep] drafts from distinct angles, then a judge' },
     { title: 'Execute', detail: 'one worker per working directory, plus any retry' },
     { title: 'Review', detail: 'one reviewer per working directory, read-only' },
   ],
