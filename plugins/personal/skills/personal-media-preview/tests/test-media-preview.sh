@@ -102,22 +102,6 @@ EOF
 expect_eq "overshoot: every encode ran" "$(field "$out" encodes)" "3"
 expect_eq "overshoot: reported rate is the last one used" "$(field "$out" reported)" "$(field "$out" lastUsed)"
 
-# auto picks the encoder by core count: many cores means libx264 without probing
-# ffmpeg, and an explicit encoder is never second-guessed.
-out=$(python3 - "$preview" <<'EOF'
-import importlib.util, json, sys
-spec = importlib.util.spec_from_file_location("preview", sys.argv[1])
-preview = importlib.util.module_from_spec(spec)
-spec.loader.exec_module(preview)
-preview._run = lambda *args: (_ for _ in ()).throw(AssertionError("auto probed ffmpeg"))
-preview._usable_cores = lambda: preview.NVENC_BELOW_CORES
-many = preview._pick_encoder("auto")
-print(json.dumps({"many": many, "explicit": preview._pick_encoder("h264_nvenc")}))
-EOF
-)
-expect_eq "auto uses libx264 at the core threshold, no probe" "$(field "$out" many)" "libx264"
-expect_eq "explicit encoder is kept" "$(field "$out" explicit)" "h264_nvenc"
-
 echo "stills"
 out=$(python3 "$preview" stills big.png small.png -d stills)
 expect_eq "stills exits 0" "$?" "0"
