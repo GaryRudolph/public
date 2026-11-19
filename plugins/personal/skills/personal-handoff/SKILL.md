@@ -25,7 +25,7 @@ those facts; decide the topic and the contents yourself.
 | "handoff", "write a handoff" | `.scratch/handoff-{topic}-{word}.md` | No |
 | A plan from plan mode, or "write the plan to a file" | `.scratch/plan-{topic}-{word}.md` | No |
 | Moving from `m{N}` to `m{N+1}` on a project with `specs/` | `{project-root}/specs/handoffs/handoff-m{N+1}-{topic}.md` | Yes |
-| Either of the first two on a cloud or self-hosted runner | `{project-root}/specs/handoffs/handoff-{topic}-{word}.md` or `plan-{topic}-{word}.md` | Yes, until the branch is readied for merge |
+| Either of the first two on a cloud or self-hosted runner | `{project-root}/specs/handoffs/handoff-{topic}-{word}.md` or `plan-{topic}-{word}.md` | Yes, until the PR is marked ready |
 | The plan and session handoff of any `personal-plan-orchestrate` run, on any machine, gated or unattended | `{project-root}/specs/handoffs/plan-{topic}-{word}.md` and `handoff-{topic}-{word}.md` | Yes, committed and pushed at kickoff and after every wave |
 
 ## Naming

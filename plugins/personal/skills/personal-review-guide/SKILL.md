@@ -8,10 +8,10 @@ description: >
   only where structure changed, run the repo's own review surfaces, and
   write the PR description, collapsible by tier. Three modes: plan (the
   shape of the change, previewed when cheap), walkthrough (the draft
-  description before asking to open a PR), pr (publish or refresh the
+  description before opening the draft PR), pr (publish or refresh the
   description). Triggers: "walk me through it", "explain the change",
   "review guide", "write the PR description", "before and after", "what
-  should I review", before asking to open a PR, and when a plan changes a
+  should I review", before opening a PR, and when a plan changes a
   contract, a flow, a schema or a review surface.
 ---
 
@@ -36,7 +36,7 @@ drawn or rendered, never recalled.
 | Mode | When | Writes |
 | --- | --- | --- |
 | `plan` | A plan changes a contract, a flow, a schema, or a review surface | A "Shape of the change" section in the plan |
-| `walkthrough` | The work is done and you're about to ask to open a PR, or the Owner asks for a walkthrough | The draft, shown as an Artifact page where the harness has one, plus the terminal summary |
+| `walkthrough` | The work is done and you're about to open the draft PR, or the Owner asks for a walkthrough | The draft, shown as an Artifact page where the harness has one, plus the terminal summary |
 | `pr` | Opening a PR, or a push that changes a tagged area, the tier, or the evidence | The PR description, from the draft |
 
 Not every turn needs a walkthrough. The pre-PR one is the one that counts.
@@ -125,7 +125,8 @@ section stays last.
   has one (it renders Mermaid and can embed rendered images), and print the
   terminal summary (reference.md). Without Artifacts, print the summary and
   the draft's path.
-- `pr`: opening a PR waits for the Owner's ask, as always. When the Owner asks, the
+- `pr`: the PR opens as a draft without asking (`personal-ship-pr` runs
+  the loop after it); opening one ready for review waits for the Owner. The
   description is the draft, with the trailer paragraph last. On a runner,
   `git rm` the committed draft, commit and push, then open the PR with the
   draft's text as the body, so the file can't reach `main` if the PR
@@ -138,10 +139,7 @@ section stays last.
   is the last line, and read it back to check (git.md "PR Body"). On later
   pushes to a PR this session opened or drives, regenerate the draft and
   update the description when a tagged area, the tier, or the evidence
-  changed, and say in the report what changed in the guide. After it
-  opens or goes ready, wait for the reviews the repo requests and work
-  them (review.md "Agent reviews on a PR") before calling it ready to
-  merge. On Claude
+  changed, and say in the report what changed in the guide. On Claude
   Code's cloud proxy, open the PR over REST (`gh api` or the GitHub MCP
   tools), not `gh pr create`, which goes through GraphQL, and edit its
   description with the GitHub MCP tools only.

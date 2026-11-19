@@ -75,7 +75,6 @@ turn, so save first ("Questions, and saving before them" in `SKILL.md`).
   and the step-up or waiver the gate allows (`Waive: <the concern>`). The
   approval you launch with is the picked label, verbatim, or the words the Owner
   typed under Other.
-- **The PR at completion:** `Open the PR` or `Not yet`.
 
 **How the hook reads them.** An answer picked in a dialog is a human
 message of the turn it joins, after its question's text: a gate answered

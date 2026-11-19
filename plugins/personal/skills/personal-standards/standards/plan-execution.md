@@ -1025,7 +1025,7 @@ Final completion runs once the last group finishes and its review passes: in the
 
    This summary dovetails with the handoff convention — promote it to a `.scratch/handoff-*.md` or `handoffs/` file if the work needs to be picked up by another engineer or session.
 
-Under orchestrate, final completion also lists every unattended checkpoint, automatic retry and fix-up with its reason under **Deviations from plan**, writes the final handoff beside the plan (the same fields, plus the Completion summary), commits and pushes both, and then asks whether to open a PR, naming the cleanup commit that removes the plan and the handoff or promotes what is durable to `specs/`. Opening or merging the PR waits for the Owner.
+Under orchestrate, final completion also lists every unattended checkpoint, automatic retry and fix-up with its reason under **Deviations from plan**, writes the final handoff beside the plan (the same fields, plus the Completion summary), commits and pushes both, and then runs `personal-ship-pr`, which opens the PR as a draft and removes the plan and the handoff (or promotes what is durable to `specs/`) before marking it ready. Merging waits for the Owner.
 
 ## STOP gate semantics (fail closed)
 

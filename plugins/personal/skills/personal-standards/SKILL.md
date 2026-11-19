@@ -49,6 +49,7 @@ this skill's directory instead; the files are identical.
 | Tiered plans, STOP gates | `standards/plan-execution.md` |
 | Handoffs, saved plans | the `personal-handoff` skill |
 | PR descriptions, review guides and tiers, before/after diagrams, review surfaces | `standards/review.md`, and the `personal-review-guide` skill to write one |
+| Opening a PR and working its reviews to merge-ready | `standards/review.md` "Agent reviews on a PR", and the `personal-ship-pr` skill to run the loop |
 | Reviewing `main`: full, incremental and estate reviews, the `specs/reviews/` log, review gates | `standards/codebase-review.md`, and the `personal-codebase-review` skill to run one |
 | Branches, commits, PRs, AI attribution | `standards/git.md`, and the `personal-repo-baseline` skill for a repo's `.claude/settings.json` attribution and GitHub merge settings |
 | Versions, releases | `standards/versioning.md`, and the `personal-release` skill for cutting releases and hotfixes |
