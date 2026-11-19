@@ -188,6 +188,7 @@ expect_grep "  ...local attribution value"       out 'attribution: {"commit": ""
 expect_grep "  ...local file ignored by git"     out 'ignored by git: yes'
 expect_nogrep "  ...local values otherwise hidden" out 's3cr3t-value'
 expect_grep "  ...no PR template"                 out '  present: no'
+expect_grep "  ...no workflows"                  out '  workflows: none'
 expect_grep "  ...GitHub values printed"         out '"allow_merge_commit": true'
 expect_grep "  ...request names the repo"        gh-args 'repos/acme/widget'
 for key in full_name default_branch $(python3 -c 'import json,sys; print(" ".join(json.load(open(sys.argv[1]))))' "$gh_tmpl"); do
@@ -221,6 +222,27 @@ cp "$here/../templates/pull_request_template.md" "$repo/.github/PULL_REQUEST_TEM
 expect_ok "PR template from the baseline"        env PATH="$stub:$PATH" "$bash_bin" "$facts" "$repo"
 expect_grep "  ...review guide"                  out 'has ## Review guide: yes'
 expect_grep "  ...tier line"                     out 'has Review tier: line: yes'
+rm -r "$repo/.github"
+
+mkdir -p "$repo/.github/workflows"
+cat > "$repo/.github/workflows/ci.yml" <<'EOF2'
+on:
+  pull_request:
+    types: [opened, synchronize]
+  # a draft skip, commented out
+jobs:
+  test:
+    if: github.event.pull_request.draft == false
+EOF2
+printf 'on: push\n' > "$repo/.github/workflows/release.yaml"
+expect_ok "workflows that skip drafts"           env PATH="$stub:$PATH" "$bash_bin" "$facts" "$repo"
+expect_grep "  ...workflow path"                 out 'path: .github/workflows/ci.yml'
+expect_grep "  ...pull_request trigger"          out 'mentions pull_request: yes'
+expect_grep "  ...types line"                    out '    3: types: [opened, synchronize]'
+expect_grep "  ...draft test"                    out '    7: if: github.event.pull_request.draft == false'
+expect_nogrep "  ...comments left out"           out 'commented out'
+expect_grep "  ...yaml extension read"           out 'path: .github/workflows/release.yaml'
+expect_grep "  ...push-only workflow"            out 'mentions pull_request: no'
 rm -r "$repo/.github"
 
 expect_ok "gh refused"                           env PATH="$stub:$PATH" GH_STUB_FAIL=1 "$bash_bin" "$facts" "$repo"

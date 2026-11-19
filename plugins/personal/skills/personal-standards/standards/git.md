@@ -147,6 +147,8 @@ Don't make every PR edit one shared file. A file most PRs touch (`CHANGELOG.md`,
 
 Merge queues need GitHub Enterprise Cloud for private org repos, and a small repo doesn't need one. Nothing here depends on a queue. A required check's workflow should still list `merge_group:` among its triggers (inert until a queue is enabled), so turning one on later can't stall on a check that never reports.
 
+CI runs on draft PRs: the fixes go in while the PR is a draft ([review.md](review.md#agent-reviews-on-a-pr)), so a workflow a PR needs doesn't skip drafts. `pull_request:` with its default types (`opened`, `synchronize`, `reopened`) already does; marking the PR ready isn't one of them, so CI doesn't run again on the same commit, and the checks from the draft stand. A workflow that must skip drafts (a costly preview deploy) adds `ready_for_review` to its `types`, or it never runs on that commit. The `personal-repo-baseline` skill checks this.
+
 ### PR Body
 
 The description is a review guide: what a reviewer needs to understand the change in about 2 minutes on a phone, with the rest collapsed by review tier. [review.md](review.md) "Description layout" has the full example and the rules for tiers, evidence and diagrams; the skeleton is:
