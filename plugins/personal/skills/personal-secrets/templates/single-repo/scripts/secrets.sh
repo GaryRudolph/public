@@ -102,16 +102,18 @@ logical() {
 }
 
 # Every file under a scope folder, as logical paths: ciphertext or cleartext.
+# Both fail if find fails on any scope, not only the last, so a caller never
+# acts on a partial list.
 cipher_files() {
     local s
     for s in $(scopes); do
-        if [ -d "$s" ]; then find "$s" -type f -name '*.sops' ! -name '*.tmp.*'; fi
+        if [ -d "$s" ]; then find "$s" -type f -name '*.sops' ! -name '*.tmp.*' || return 1; fi
     done | sort
 }
 clear_files() {
     local s
     for s in $(scopes); do
-        if [ -d "$s" ]; then find "$s" -type f ! -name '*.sops' ! -name '*.tmp.*'; fi
+        if [ -d "$s" ]; then find "$s" -type f ! -name '*.sops' ! -name '*.tmp.*' || return 1; fi
     done | sort
 }
 
@@ -125,7 +127,7 @@ decrypt_to_stdout() {
 
 cmd_encrypt() {
     local sel="${1:-}" f t tmp list
-    if [ -n "$sel" ]; then list=$(logical "$sel"); else list=$(clear_files); fi
+    if [ -n "$sel" ]; then list=$(logical "$sel"); else list=$(clear_files) || die "cannot list cleartext: find failed"; fi
     [ -n "$list" ] || { note "no cleartext to encrypt"; return 0; }
     for f in $list; do
         [ -f "$f" ] || die "$SECRETS_DIR/$f doesn't exist"
@@ -151,7 +153,7 @@ cmd_decrypt() {
         list=$(logical "$sel")
         [ -f "$list.sops" ] || die "$SECRETS_DIR/$list.sops doesn't exist"
     else
-        list=$(cipher_files | sed 's/\.sops$//')
+        list=$(cipher_files | sed 's/\.sops$//') || die "cannot list ciphertext: find failed"
     fi
     [ -n "$list" ] || { note "nothing to decrypt"; return 0; }
     for f in $list; do case "$f" in *.env) has_env=yes ;; esac; done
@@ -245,14 +247,15 @@ cmd_check() {
     # Only ciphertext is tracked under a scope folder. Every listing below
     # fails closed: one that can't run fails the check, so a scan never
     # passes on files it didn't see.
-    tracked=$(git ls-files) || err "cannot list tracked files: git ls-files failed"
+    tracked=$(git -c core.quotePath=false ls-files) || err "cannot list tracked files: git ls-files failed"
     while IFS= read -r f; do
         case "$f" in */*) case "$f" in *.sops) ;; *) err "tracked cleartext: $SECRETS_DIR/$f" ;; esac ;; esac
     done <<<"$tracked"
 
     ciphers=$(find . -mindepth 2 -type f -name '*.sops' ! -name '*.tmp.*' | sed 's|^\./||' | sort) \
         || err "cannot list $SECRETS_DIR/'s ciphertext: find failed"
-    for f in $ciphers; do
+    while IFS= read -r f; do
+        [ -n "$f" ] || continue
         s=${f%%/*}
         if ! is_scope "$s"; then err "$f: $s/ has no creation rule"; continue; fi
         want=$(rules | awk -v s="$s" '$1 == s {print $2}' | sort -u)
@@ -274,7 +277,7 @@ cmd_check() {
                 done < "$f"
                 ;;
         esac
-    done
+    done <<<"$ciphers"
 
     # Every deploy environment folder has the same files with the same keys.
     envs=$(deploy_scopes)
@@ -301,8 +304,9 @@ cmd_check() {
 }
 
 cmd_clean() {
-    local f left=""
-    for f in $(clear_files); do
+    local f list left=""
+    list=$(clear_files) || die "cannot list cleartext: find failed"
+    for f in $list; do
         if [ -f "$f.sops" ]; then rm -f "$f"; note "removed $SECRETS_DIR/$f"
         else left="$left $f"; fi
     done
@@ -312,12 +316,9 @@ cmd_clean() {
 
 cmd_updatekeys() {
     local s="${1:-}" f t list
-    if [ -n "$s" ]; then
-        is_scope "$s" || die "no creation rule for scope $s/"
-        list=$(cipher_files | grep "^$s/" || true)
-    else
-        list=$(cipher_files)
-    fi
+    [ -z "$s" ] || is_scope "$s" || die "no creation rule for scope $s/"
+    list=$(cipher_files) || die "cannot list ciphertext: find failed"
+    [ -z "$s" ] || list=$(printf '%s\n' "$list" | grep "^$s/" || true)
     for f in $list; do
         t=$(file_type "${f%.sops}")
         sops updatekeys -y --input-type "$t" "$f" >/dev/null 2>&1 || die "updatekeys failed on $f (needs a key that opens it)"

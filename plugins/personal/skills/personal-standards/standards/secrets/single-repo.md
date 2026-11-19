@@ -376,7 +376,9 @@ secrets at all ([gcp.md](../gcp.md#firebase-emulator-guard)).
 
 The check fails closed: if it can't list the tracked files (`git ls-files`)
 or the files under `secrets/` (`find`), it fails and says which, rather than
-passing a scan it never made.
+passing a scan it never made. A `secrets/` folder outside a git repo fails
+too. `secrets-encrypt`, `secrets-decrypt`, `secrets-updatekeys` and
+`secrets-clean` stop the same way rather than act on a partial list.
 
 One more check runs in CI only, because it needs the network: the repo is
 private. A public repo with a `secrets/` folder fails the build.
