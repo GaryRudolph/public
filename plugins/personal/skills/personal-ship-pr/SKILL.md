@@ -6,7 +6,7 @@ description: >-
   PR and fix CI, remove the runner's handoff files, mark it ready, work
   Copilot's review in rounds until every comment has an outcome, then stop
   and report the tally for the Owner to merge. Never merges. Triggers:
-  "open a PR", "PR this", "ship it", "get this ready to merge", the work on
+  "open a PR", "PR this", "ship-it-danno", "get this ready to merge", the work on
   a task branch is done, and a personal-plan-orchestrate run completes.
 ---
 
