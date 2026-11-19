@@ -34,7 +34,7 @@ its delegated register with the home review by name:
 - Range: <full from SHA>..<full to SHA>
 - Repo: garyrudolph/public
 - Follows: r6
-- Reviewers: correctness (/code-review high), drift, tests, duplication; Opus, high
+- Reviewers: correctness (/code-review medium), drift, tests, duplication; Opus, high
 - Verifier: dropped 3 of 11
 - Accepted, not raised again: r3.f2, r5.f1
 
@@ -233,8 +233,10 @@ Next: open the review PR and issue?
 
 ## Reviewers
 
-Fresh context, never the session that wrote the code. On Claude Code, the
-`Agent` tool with the most capable model the session offers (Opus as of
+Fresh context, never the session that wrote the code. On Claude Code, a
+full review runs them inside one workflow (the `Workflow` tool, or the
+`Agent` tool where it isn't available), and other kinds use the `Agent`
+tool, with the most capable model the session offers (Opus as of
 2026-11), high effort for incremental, xhigh for full and estate and the
 verifier. Each reviewer returns findings in the register's field shape, at
 or above the floor: `medium` for full and estate, `low` for incremental.
@@ -249,7 +251,7 @@ better findings."
 
 | Dimension | Kinds | Asks |
 | --- | --- | --- |
-| correctness | incremental | The harness's range review; on Claude Code `/code-review high <from>..<to>` |
+| correctness | incremental | The harness's range review at the level review.md sets; on Claude Code `/code-review <level> --max-findings all <from>..<to>` |
 | drift | incremental | Did the range change a contract, schema, layer boundary or dependency direction? Is that in a spec, ADR or the PR's review guide? Does the code still match the specs it cites? |
 | duplication | incremental, full | Code in the range (or tree) that repeats an existing helper, model, client or algorithm; one-use wrappers; dead code |
 | tests | incremental, full | Behavior with no test that fails when it breaks; loosened or deleted assertions; tests that only check mocks |
@@ -257,7 +259,7 @@ better findings."
 | contracts | full | Every API, wire or file format, event, CLI flag and env var the repo exposes or consumes: versioned, documented, consistent with each other |
 | security | full | Trust boundaries, authn and authz placement, secrets handling, input validation at the edges (security.md) |
 | dependencies | full | Runtimes and libraries behind their latest stable or near end of life; pins that disagree across the repo |
-| hotspots | full | Line-by-line on the facts' top hotspot files, as a correctness review |
+| hotspots | full | Line by line on each of the facts' top hotspot files at `<to>`, as a correctness review of the whole file (`/code-review` reviews diffs, so it doesn't fit) |
 | estate architecture | estate | Which repo owns which concept and contract; contracts between members that don't fit; responsibilities split or doubled across repos |
 | estate duplication | estate | The same model, client, algorithm or config written in two or more members, worth sharing |
 
@@ -275,7 +277,7 @@ left out: gen/ (buf), vendor/    11,300
 ```
 
 Each slice's correctness review covers `<from>..<to>` for its paths only: on
-Claude Code, run `/code-review high` with the range and name the slice's
+Claude Code, run `/code-review <level> --max-findings all` with the range and name the slice's
 paths as the target, or, where the command takes only one target, give a
 fresh correctness reviewer `git diff <from>..<to> -- <paths>` and the
 correctness prompt. The register header adds
@@ -292,18 +294,18 @@ header records how many were dropped.
 
 ## Hotspots
 
-`score = commits touching the file in the last 180 days × the file's lines
-at <head>`, for files in the `source`, `orchestration`, `api` and `schema`
-buckets (personal-review-guide's bucket table), top 15. Change the window
-with `--hotspot-days`. A fixed sort, not a judgment: read the files, and
-skip one whose size is data rather than logic.
+review.md "Risk tags" defines them; `review_facts.py`'s `hotspots()` in
+personal-review-guide computes them, for the PR's `[hotspot]` tag and for
+this skill's facts alike. Change the window here with `--hotspot-days`. A
+fixed sort, not a judgment: read the files, and skip one whose size is data
+rather than logic.
 
 ## Harnesses
 
 | Step | Claude Code | Codex | Cursor | Gemini CLI | GitHub |
 | --- | --- | --- | --- | --- | --- |
-| Range review | `/code-review high <from>..<to>` | `codex exec review --base <from>` from a checkout of `<to>`, or `--commit <sha>` | Agent with the range and the correctness prompt | `/code-review` extension on a branch at `<to>` | Copilot review covers PRs only |
-| Dimension reviewers | `Agent` tool | subagents | `Task` | sequential prompts | n/a |
+| Range review | `/code-review <level> --max-findings all <from>..<to>` | `codex exec review --base <from>` from a checkout of `<to>`, or `--commit <sha>`, with the level as `-c model_reasoning_effort='"<level>"'` (`low`, `medium`, `high`, `xhigh`) | Agent with the range and the correctness prompt (no level control: say so in the register header) | `/code-review` extension on a branch at `<to>` (no level control: say so in the register header) | Copilot review covers PRs only |
+| Dimension reviewers | `Workflow` tool for a full review (reviewers, then the verifier), or the `Agent` tool where it isn't available; `Agent` tool otherwise | subagents | `Task` | sequential prompts | n/a |
 | Scheduled `status` | a cloud scheduled task, or `claude-code-action` on a cron workflow | a Codex cloud task | Automations | an Action on cron | Code Quality's scheduled scan, as an input |
 
 The record, the log and the outputs are the same everywhere.

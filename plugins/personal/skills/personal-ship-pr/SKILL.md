@@ -2,8 +2,9 @@
 name: personal-ship-pr
 description: >-
   Take a finished change from draft PR to merge-ready: open it as a draft
-  with the review guide, run /code-review medium on a [check] or [study]
-  PR and fix CI, remove the runner's handoff files, mark it ready, work
+  with the review guide, run the harness's /code-review at the level the
+  PR's tier and risk tags set, and fix CI, remove the runner's handoff
+  files, mark it ready, work
   Copilot's review in rounds until every comment has an outcome, then stop
   and report the tally for the Owner to merge. Never merges. Triggers:
   "open a PR", "PR this", "ship it", "get this ready to merge", the work on
@@ -35,19 +36,22 @@ The point: a fresh-context review catches what Copilot would, before a push
 can buy a Copilot round. Start it as soon as the draft is open, without
 asking.
 
-- **`[check]` or `[study]` PR:** run a fresh-context review of the PR:
-  `/code-review medium <number>` on Claude Code, without `--comment` or
-  `--fix`; elsewhere the harness's range review on merge-base`..HEAD`
-  (`personal-codebase-review`'s reference.md "Harnesses"). Triage its
-  findings as review.md says.
-- **`[skim]` or `[skip]` PR:** skip it; Copilot's review is enough.
+- **The review:** the harness's own, at the level review.md "Review
+  levels" sets from the PR's tier and risk tags: on Claude Code
+  `/code-review <level> --max-findings all <number>`, without `--comment`
+  or `--fix`; elsewhere the harness's range review on merge-base`..HEAD`
+  (`personal-codebase-review`'s reference.md "Harnesses"). A `[skim]` or
+  `[skip]` PR with no risk tag skips it; Copilot's review is enough.
+- **`[security]`:** also the harness's security review where it has one
+  (Claude Code's `/security-review`).
+- Triage the findings as review.md says.
 - **CI:** wait for the checks on the head commit and fix what this change
   broke. A failure the change didn't cause isn't fixed here: stop, leave
   the PR in draft, and report the failure (red on the base too, or which
   service it names) to the Owner.
 
-Batch the fixes into one push. Run `/code-review` once; run it again only
-when the fixes rewrote a `[study]` area.
+Batch the fixes into one push. Run the review once; run it again only when
+the fixes rewrote a `[study]` area.
 
 ## 3. Mark it ready
 

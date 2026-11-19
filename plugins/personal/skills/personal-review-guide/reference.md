@@ -18,10 +18,11 @@ for grouping and tagging, not tags. Keep this table and the script's
 | `orchestration` | names containing `orchestrat`, `workflow`, `pipeline`, `scheduler`, `queue`, `saga`, `dispatch`; `jobs/`, `workers/`, `worker/` |
 | `source` | everything else |
 
-The script also lists paths whose names mention a sensitive area (auth,
-crypto, secrets, tokens, permissions, sessions, OAuth, JWT, credentials,
-ACLs, signing, certificates, keys, login), and test files with lines
-removed. Both are prompts to read, not findings.
+The script also lists paths whose names mention a risk area (review.md
+"Risk tags": security, financial, concurrency, PII, by the word lists in
+`RISK_WORDS`), the changed files among the repo's hotspots, and test files
+with lines removed. The first and last are prompts to read, not findings;
+a hotspot is a fact, and its area gets `[hotspot]`.
 
 ## Review time
 

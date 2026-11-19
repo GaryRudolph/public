@@ -4,7 +4,7 @@ How `main` gets reviewed after integration, beside the review of each change. [r
 
 Contents:
 
-- [Kinds](#kinds): incremental, full, estate, interim
+- [Kinds](#kinds): incremental, full, estate; a branch's own review is the PR's
 - [When](#when): milestone gates, complex changes, churn, an optional schedule
 - [Anchors](#anchors): commits on the default branch only
 - [The record](#the-record): `specs/reviews/`, the log, the register, the summary, fix claims
@@ -22,13 +22,12 @@ Contents:
 | `incremental` | Every changed line since the anchor, plus drift on what changed | `<anchor>..<head>` of the default branch | Yes, and moves the anchor |
 | `full` | Structure at one commit: architecture, contracts, boundaries, hotspots | `..<head>` | Yes, and moves the anchor |
 | `estate` | Architecture across repos and major duplicated code between them | each member's `<anchor>..<head>` | Yes, in the home repo and in every member; doesn't move a member's anchor |
-| `interim` | A branch before its PR, when a session wants one | merge-base`..HEAD` | No. A draft, removed before the PR opens |
 
-**Incremental** is the line-level review. It runs the harness's range review over the commits since the anchor (Claude Code: `/code-review high <from>..<to>`), then a drift pass on what the range changed: a contract or schema altered, a layer reaching past its neighbor, a helper written again beside an existing one, a test loosened. It ends with the [fix review](#closing-the-loop). Above about 8,000 changed lines, it's still incremental: split the range into slices by path, each under the cap, and review every slice (see [Large ranges](#large-ranges)). A full review is no substitute, since it doesn't read the changed lines.
+**Incremental** is the line-level review. It runs the harness's range review over the commits since the anchor, at the level [review.md](review.md#agent-reviews-on-a-pr) sets from the range's highest tier and risk tags, with every finding reported (Claude Code: `/code-review <level> --max-findings all <from>..<to>`), then a drift pass on what the range changed: a contract or schema altered, a layer reaching past its neighbor, a helper written again beside an existing one, a test loosened. It ends with the [fix review](#closing-the-loop). Above about 8,000 changed lines, it's still incremental: split the range into slices by path, each under the cap, and review every slice (see [Large ranges](#large-ranges)). A full review is no substitute, since it doesn't read the changed lines.
 
-**Full** doesn't read every line; each line was read once as a diff. It reads structure: the architecture against the repo's specs and ADRs (draw it, from the code), every contract the repo exposes or consumes, module boundaries and the direction of dependencies, module-level duplication, test strategy (what has no tests that should, what's tested only through mocks), dependency and toolchain currency against end-of-life dates, and security posture at the design level (trust boundaries, where secrets live, who can call what). Then it reads hotspots, the files that are both large and frequently changed, line by line.
+**Full** doesn't read every line; each line was read once as a diff. It reads structure: the architecture against the repo's specs and ADRs (draw it, from the code), every contract the repo exposes or consumes, module boundaries and the direction of dependencies, module-level duplication, test strategy (what has no tests that should, what's tested only through mocks), dependency and toolchain currency against end-of-life dates, and security posture at the design level (trust boundaries, where secrets live, who can call what). Then it reads hotspots ([review.md](review.md#risk-tags) defines them) line by line, as whole files rather than diffs.
 
-**Estate** is [below](#estates). **Interim** is the per-change review under another name: it lives where drafts live (`.scratch/`, or `specs/handoffs/{topic}-{word}-interim-review.md` on a runner) and goes when the handoff files go ([review.md](review.md) "The draft"). It never touches the log, because nothing it anchors to survives a squash merge.
+**Estate** is [below](#estates). A branch's own review before merge isn't a kind here: it's the draft round of its PR ([review.md](review.md#agent-reviews-on-a-pr), the `personal-ship-pr` skill), and it never touches the log, because nothing it anchors to survives a squash merge.
 
 ## When
 

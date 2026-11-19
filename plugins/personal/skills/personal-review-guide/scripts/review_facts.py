@@ -4,7 +4,8 @@
 Prints what the agent needs to write a review guide for the change on the
 current branch: the base it diffs against, the commits, every changed file
 with its line counts and the bucket its path falls in, test lines removed,
-paths that name a sensitive area, each file's GitHub diff anchor, the repo's
+paths that name a risk area (security, financial, concurrency, PII), the
+changed files that are hotspots, each file's GitHub diff anchor, the repo's
 review surfaces, the PR template, and the plan, handoff and review files
 already on the branch.
 
@@ -26,6 +27,7 @@ import os
 import re
 import subprocess
 import sys
+import threading
 
 # First match wins. Keep in step with reference.md "Bucket table".
 BUCKETS = [
@@ -61,10 +63,33 @@ BUCKETS = [
     ]),
 ]
 
-# Path words that point at the [study] checklist's sensitive areas. A fact
-# about the name only: the agent reads the code to decide.
-SENSITIVE = re.compile(r"auth|crypt|secret|token|permission|password|passwd|session|oauth|jwt|credential|acl|rbac|"
-                       r"signing|cert|key(?:s|store|chain)?\b|login", re.I)
+# Path words that point at the risk tags' areas (review.md "Risk tags"). A
+# fact about the name only: the agent reads the code to decide. Words match
+# at the start of a path token (after / _ . - or a camelCase hump), so
+# "lock" finds lock_manager.go but not block.tsx or clock.go.
+RISK_WORDS = [
+    ("security", r"auth|crypt|secret|token|permission|password|passwd|session|oauth|jwt|credential|acl|rbac|"
+                 r"signing|cert|key(?:s|store|chain)?(?![a-z])|login"),
+    ("financial", r"payment|billing|invoice|charge|refund|ledger|payout|wallet|stripe|checkout|subscription|"
+                  r"pricing|price"),
+    ("concurrency", r"thread|async|concurren|parallel|mutex|lock|semaphore|atomic|queue|worker|goroutine|"
+                    r"scheduler|retry|retries|idempot"),
+    ("pii", r"pii|personal|ssn|passport|birth|phone|email|consent|gdpr|kyc|medical|patient"),
+]
+RISK_WORDS = [(tag, re.compile(rf"(?<![a-z0-9])(?:{words})")) for tag, words in RISK_WORDS]
+
+
+def risk_tokens(path):
+    """The path lowercased, with camelCase humps split so each word starts a token."""
+    path = re.sub(r"(?<=[A-Z])(?=[A-Z][a-z])", "_", path)  # APIKey -> API_Key
+    return re.sub(r"(?<=[a-z0-9])(?=[A-Z])", "_", path).lower()
+
+# Hotspots (review.md "Risk tags"): files in these buckets, scored by commits
+# touching them in the window times their lines, top HOTSPOT_LIMIT. A fixed
+# sort, shared with personal-codebase-review's full review.
+HOTSPOT_LIMIT = 15
+HOTSPOT_BUCKETS = ("source", "orchestration", "api", "schema")
+HOTSPOT_DAYS = 180
 
 SURFACE_HINT = re.compile(r"before|after|visual|render|screenshot|snapshot|diagram|golden", re.I)
 
@@ -76,7 +101,7 @@ GITHUB_REMOTE = re.compile(r"github\.com[:/]+([^/]+)/([^/]+?)(?:\.git)?/*$")
 
 
 def git(*args, check=False):
-    r = subprocess.run(["git", *args], capture_output=True, text=True)
+    r = subprocess.run(["git", "-c", "core.quotePath=false", *args], capture_output=True, text=True)
     if check and r.returncode != 0:
         raise RuntimeError(r.stderr.strip() or f"git {' '.join(args)} failed")
     return r.stdout.strip() if r.returncode == 0 else ""
@@ -87,6 +112,89 @@ def bucket(path):
         if any(fnmatch.fnmatchcase(path, p) for p in patterns):
             return name
     return "source"
+
+
+def hotspots(repo, ref, days=HOTSPOT_DAYS):
+    """(score, commits, lines, path) for the top files at ref, highest first.
+
+    Commits count under the path the file has at ref, following renames in
+    the window, and every file is read through one `git cat-file --batch`.
+    """
+    counts = {}
+    for path, commits in churn(repo, ref, days).items():
+        if bucket(path) in HOTSPOT_BUCKETS:
+            counts[path] = commits
+    rows = [(counts[path] * lines, counts[path], lines, path) for path, lines in line_counts(repo, ref, counts)]
+    rows.sort(reverse=True)
+    return rows[:HOTSPOT_LIMIT]
+
+
+def churn(repo, ref, days):
+    """Commits per path in the window, each counted under the path's newest name."""
+    log = subprocess.run(["git", "log", f"--since={days}.days", "-M", "-z", "--format=%x00", "--name-status", ref],
+                         cwd=repo, capture_output=True).stdout.decode("utf-8", "surrogateescape")
+    fields = log.split("\0")
+    newest = {}  # old name -> the name it has at ref, from renames seen so far (log runs newest first)
+    counts = {}
+    i = 0
+    while i < len(fields):
+        status = fields[i].strip("\n")
+        if not status:
+            i += 1
+            continue
+        if status[0] in "RC" and i + 2 < len(fields):
+            old, new = fields[i + 1], fields[i + 2]
+            if status[0] == "R":
+                newest[old] = newest.get(new, new)
+            path = newest.get(new, new)
+            i += 3
+        else:
+            path = newest.get(fields[i + 1], fields[i + 1]) if i + 1 < len(fields) else ""
+            i += 2
+        if path:
+            counts[path] = counts.get(path, 0) + 1
+    return counts
+
+
+def line_counts(repo, ref, paths):
+    """(path, lines) for each text file present at ref, streamed through one cat-file process."""
+    proc = subprocess.Popen(["git", "cat-file", "--batch"], cwd=repo, stdin=subprocess.PIPE, stdout=subprocess.PIPE)
+    paths = list(paths)
+
+    def feed():
+        for path in paths:
+            proc.stdin.write(f"{ref}:{path}\n".encode("utf-8", "surrogateescape"))
+        proc.stdin.close()
+
+    writer = threading.Thread(target=feed, daemon=True)
+    writer.start()
+    out = proc.stdout
+    for path in paths:
+        line = out.readline()
+        if not line or line.rstrip(b"\n").endswith(b" missing"):
+            continue  # "<ref:path> missing" (the path may hold spaces): deleted since, no payload follows
+        header = line.split()
+        remaining, lines, is_text, first = int(header[2]), 0, header[1] == b"blob", True
+        while remaining:  # every object's payload is read, so the next header lines up
+            chunk = out.read(min(remaining, 65536))
+            if not chunk:
+                break
+            if first and b"\0" in chunk[:8000]:
+                is_text = False  # binary
+            first = False
+            lines += chunk.count(b"\n")
+            remaining -= len(chunk)
+        out.read(1)  # the newline after each payload
+        if is_text:
+            yield path, lines
+    writer.join()
+    proc.wait()
+
+
+def is_shallow(repo):
+    """A shallow clone's log misses older commits, so its hotspot counts are low."""
+    r = subprocess.run(["git", "rev-parse", "--is-shallow-repository"], cwd=repo, capture_output=True, text=True)
+    return r.stdout.strip() == "true"
 
 
 def default_base():
@@ -218,11 +326,31 @@ def main():
         if f["bucket"] == "tests" and (f["status"] == "D" or to_int(f["deleted"]) > 0):
             print(f"  {f['status']} -{f['deleted']} {f['path']}")
 
-    print("\n== paths naming a sensitive area")
+    print("\n== paths naming a risk area (tag word path)")
     for f in files:
-        m = SENSITIVE.search(f["path"])
-        if m:
-            print(f"  {m.group(0).lower()}: {f['path']}")
+        for tag, words in RISK_WORDS:
+            m = words.search(risk_tokens(f["path"]))
+            if m:
+                print(f"  {tag} {m.group(0).lower()}: {f['path']}")
+
+    # Ranked at the merge base, so its paths line up with the diff's even if
+    # the base branch renamed a file since.
+    print(f"\n== hotspots changed (rank score=commits_in_{HOTSPOT_DAYS}d*lines path, "
+          f"at merge_base {git('rev-parse', '--short', merge_base) if merge_base else 'none'})")
+    if merge_base and is_shallow(root):
+        print("  unavailable: shallow clone; deepen past the window first "
+              f"(git fetch --shallow-since=\"{HOTSPOT_DAYS} days ago\" origin, or --unshallow)")
+    elif merge_base:
+        # A renamed hotspot ranks under its base path; report where it went.
+        changed = {}
+        for f in files:
+            changed[f["path"]] = f["path"]
+            if f["old"]:
+                changed[f["old"]] = f["path"]
+        for rank, (score, commits, lines, path) in enumerate(hotspots(root, merge_base), 1):
+            if path in changed:
+                moved = f" (from {path})" if changed[path] != path else ""
+                print(f"  {rank} {score}={commits}*{lines} {changed[path]}{moved}")
 
     print("\n== diff anchors (path #anchor)")
     for f in files:

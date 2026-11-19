@@ -24,10 +24,14 @@ git init -q -b main
 mkdir -p api orders tests docs .github
 printf 'syntax = "proto3";\nmessage Order { string id = 1; }\n' > api/orders.proto
 printf 'package orders\nfunc Create() {}\n' > orders/service.go
+printf 'package orders\nfunc Put() {}\n' > orders/store.go
 printf 'def test_a():\n    assert 1\n\ndef test_b():\n    assert 2\n' > tests/test_orders.py
 printf 'old name\n' > docs/old.md
 printf 'secret handling\n' > orders/auth_token.go
+printf 'func Refund() {}\n' > orders/billing.go
 git add -A && git commit -qm base
+printf 'package orders\nfunc Put() {}\nfunc Get() {}\n' > orders/store.go
+git commit -qam 'orders: add Get'
 
 git switch -qc feature
 printf 'syntax = "proto3";\nmessage Order { string id = 1; string status = 2; }\n' > api/orders.proto
@@ -36,6 +40,12 @@ printf 'def test_a():\n    assert 1\n' > tests/test_orders.py
 git mv docs/old.md docs/new.md
 printf 'h1:abc\n' > go.sum
 printf 'secret handling, rotated\n' > orders/auth_token.go
+printf 'func Refund() {}\nfunc Void() {}\n' > orders/billing.go
+printf 'func Run() {}\n' > orders/worker_pool.go
+printf 'x\n' > orders/blockFactory.go
+printf 'x\n' > orders/OrderWorker.kt
+printf 'x\n' > orders/APIKey.kt
+printf 'package orders\nfunc Put() {}\nfunc Get() {}\nfunc List() {}\n' > orders/store.go
 cat > AGENTS.md <<'EOF'
 # Agents
 
@@ -67,7 +77,13 @@ expect_grep "  ...migration is schema"                    "A +1 -0 schema migrat
 expect_grep "  ...go.sum is generated"                    "generated go.sum"
 expect_grep "  ...rename keeps the old path"              "docs/new.md (from docs/old.md)"
 expect_grep "  ...test lines removed"                     "M -3 tests/test_orders.py"
-expect_grep "  ...sensitive path"                         "auth: orders/auth_token.go"
+expect_grep "  ...security path"                         "security auth: orders/auth_token.go"
+expect_grep "  ...financial path"                        "financial billing: orders/billing.go"
+expect_grep "  ...concurrency path"                      "concurrency worker: orders/worker_pool.go"
+expect_grep "  ...camelCase hump starts a word"          "concurrency worker: orders/OrderWorker.kt"
+expect_grep "  ...acronym then word splits"              "security key: orders/APIKey.kt"
+expect_nogrep "  ...no match inside a word"              ": orders/blockFactory.go"
+expect_grep "  ...hotspot changed, ranked first"         "1 6=2*3 orders/store.go"
 expect_grep "  ...review surfaces section, verbatim"      "### Rendered diagrams"
 expect_grep "  ...surface field kept"                     "- Preview: required"
 expect_nogrep "  ...stops at the next ## heading"         "Show before and after renders."
@@ -111,6 +127,23 @@ git init -q -b trunk "$work/lonely" && git -C "$work/lonely" commit -q --allow-e
 expect_ok "no base found: still prints"                  "$work/lonely"
 expect_grep "  ...says none"                              "base_ref: none (none found)"
 expect_grep "  ...no surfaces"                            "none"
+
+printf 'hotspots: rename and shallow clone\n'
+hot="$work/hot"
+git init -q -b main "$hot"
+(cd "$hot" && mkdir src && printf 'a\nb\n' > src/motor.go && git add -A && git commit -qm one \
+    && git mv src/motor.go src/engine.go && printf 'a\nb\nc\n' > src/engine.go && git commit -qam two \
+    && printf 'a\nb\nc\nd\n' > src/engine.go && printf 'x\n' > src/café.go && mkdir src/motor.go \
+    && printf 'x\n' > src/motor.go/keep.go && printf 'x\n' > 'src/old part.go' && git add -A && git commit -qm three \
+    && git rm -q 'src/old part.go' && git commit -qm four \
+    && git switch -qc feat && git mv src/engine.go src/core.go && printf 'x\ny\n' > src/café.go \
+    && git add -A && git commit -qm move)
+expect_ok "renamed hotspot"                              --base main --committed "$hot"
+expect_grep "  ...history follows the earlier rename"    "1 12=3*4 src/core.go (from src/engine.go)"
+expect_grep "  ...non-ASCII path, unquoted"              "1*1 src/café.go"
+git clone -q --depth 1 --no-local "file://$hot" "$work/shallow" 2>/dev/null
+expect_ok "shallow clone"                                "$work/shallow"
+expect_grep "  ...hotspots unavailable"                  "unavailable: shallow clone"
 
 printf 'pr_body_guard.py\n'
 if python3 -I "$here/test_pr_body_guard.py" >"$work/guard" 2>&1; then pass "guard tests"; else fail "guard tests"; sed 's/^/        /' "$work/guard" >&2; fi
