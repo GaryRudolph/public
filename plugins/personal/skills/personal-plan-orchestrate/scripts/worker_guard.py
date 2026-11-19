@@ -11,7 +11,8 @@ agent_type names a worker:
   that write, gh workflow run, goreleaser release (or bare goreleaser)
   without --snapshot or --skip=publish, goreleaser publish, announce and
   continue, and the package publishers (npm, pnpm and yarn publish, cargo
-  publish, twine upload, docker push, gem push, poetry and uv publish)
+  publish, twine upload, docker push or docker image push after any global
+  options, gem push, poetry and uv publish)
   unless they carry --dry-run;
 - the repo's own publish, release and deploy scripts: a script run whose
   basename contains publish, release or deploy (`scripts/publish-formula.sh`,
@@ -47,6 +48,9 @@ WORKER = re.compile(r"^[a-z][a-z0-9-]*:plan-worker$")
 # VAR=value prefixes.
 START = r"(?:^|[;&|(`\n]|\$\()\s*(?:(?:sudo|env|command|exec|nohup|time)\s+|[A-Za-z_]\w*=\S*\s+)*"
 GIT_OPTS = r"(?:\s+-[Cc]\s+\S+|\s+--?[\w-]+(?:=\S+)?)*"
+# docker's global options before the subcommand (--context prod, --config dir, -H host), so a push that names its
+# context or config, as security.md "Explicit CLI Identity" asks, is still a push.
+DOCKER_OPTS = r"(?:\s+--?[\w-]+(?:=\S+|\s+(?!-)[^\s;&|]+)?)*"
 
 OUTWARD = [
     (re.compile(START + r"git" + GIT_OPTS + r"\s+push\b"), "git push"),
@@ -55,7 +59,7 @@ OUTWARD = [
     (re.compile(START + r"gh\s+workflow\s+run\b"), "gh workflow run"),
 ]
 PUBLISH = re.compile(START + r"(npm\s+publish|pnpm\s+publish|yarn\s+(?:npm\s+)?publish|cargo\s+publish|twine\s+upload|"
-                     r"docker\s+push|gem\s+push|poetry\s+publish|uv\s+publish)\b([^;&|\n]*)")
+                     r"docker" + DOCKER_OPTS + r"\s+(?:image\s+)?push|gem\s+push|poetry\s+publish|uv\s+publish)\b([^;&|\n]*)")
 GORELEASER = re.compile(START + r"goreleaser\b([^;&|\n]*)")
 GORELEASER_SAFE = re.compile(r"--snapshot\b|--skip[= ]\S*\bpublish\b")
 GORELEASER_OTHER = {"build", "check", "healthcheck", "init", "jsonschema", "completion", "help", "man", "verify-license"}
