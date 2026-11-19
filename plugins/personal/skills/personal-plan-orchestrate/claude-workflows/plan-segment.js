@@ -2,6 +2,11 @@ export const meta = {
   name: 'plan-segment',
   description: 'Run one dispatch unit of a tagged plan for personal-plan-orchestrate: one wave, every working directory executed and then reviewed',
   whenToUse: 'Only when the personal-plan-orchestrate skill launches it with plan_state.py output and the contracts for that unit',
+  phases: [
+    { title: 'Draft', detail: '[xdeep] drafts from distinct angles, then a judge' },
+    { title: 'Execute', detail: 'one worker per working directory, plus any retry' },
+    { title: 'Review', detail: 'one reviewer per working directory, read-only' },
+  ],
 }
 
 // One run = one dispatch unit (a wave, or the part of a wave inside one
@@ -279,23 +284,22 @@ if (canary) {
     : 'No canary: this first unit has one group, and its review covers the unit')
 }
 
-const ph = unitTitle()
-phase(ph)
+log(unitTitle())
 async function execute(g) {
   const drafts = args.xdeepDrafts || 0
   let design = null
   if (drafts) {
     const ds = (await parallel(ANGLES.slice(0, drafts).map((a, i) => () =>
-      agent(draftPrompt(g, a), { label: `Draft ${i + 1} ${title(g)}`, phase: ph, schema: DRAFT, ...reader() })))).filter(Boolean)
+      agent(draftPrompt(g, a), { label: `Draft ${i + 1} ${title(g)}`, phase: 'Draft', schema: DRAFT, ...reader() })))).filter(Boolean)
     if (ds.length < 2) return null
-    const j = await agent(judgePrompt(g, ds), { label: `Judge ${title(g)}`, phase: ph, schema: JUDGE, ...reader() })
+    const j = await agent(judgePrompt(g, ds), { label: `Judge ${title(g)}`, phase: 'Draft', schema: JUDGE, ...reader() })
     if (!j) return null
     design = j.synthesis
   }
-  return noted(g, await agent(workerPrompt(g, design), { label: title(g), phase: ph, schema: RESULT, ...worker() }))
+  return noted(g, await agent(workerPrompt(g, design), { label: title(g), phase: 'Execute', schema: RESULT, ...worker() }))
 }
 function review(g, work, t = tier) {
-  return agent(reviewPrompt(g, work, t), { label: `Review ${title(g, t)}`, phase: ph, schema: REVIEW, ...reader(t) })
+  return agent(reviewPrompt(g, work, t), { label: `Review ${title(g, t)}`, phase: 'Review', schema: REVIEW, ...reader(t) })
 }
 // Every rule a worker disclosed breaking, from every attempt: each is gate 1 in both modes, and its group gets no retry.
 // The parent logs the group as CONCERNS (`worker disclosed: ...`), so the fix-up waits for the Owner's answer.
@@ -329,7 +333,7 @@ if (again.length) {
     const why = !x.work ? 'with no result' : x.work.status === 'done' ? 'with its review missing' : `as ${x.work.status}: ${x.work.surprises}`
     retries.push({ id: x.id, from: tier, to: t, effort: route(t).effort || null, reason: why })
     const work = x.work && x.work.status === 'done' ? x.work
-      : noted(g, await agent(workerPrompt(g, null, t, why), { label: `${title(g, t)} (retry)`, phase: ph, schema: RESULT, ...worker(t) }))
+      : noted(g, await agent(workerPrompt(g, null, t, why), { label: `${title(g, t)} (retry)`, phase: 'Execute', schema: RESULT, ...worker(t) }))
     const r = work && work.status === 'done' ? await review(g, work, t) : null
     return { ...x, tier: t, work: work || null, review: r || null }
   }))
