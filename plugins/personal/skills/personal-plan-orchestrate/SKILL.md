@@ -460,7 +460,8 @@ Unattended, the parent asks only for what is the Owner's:
   a step-up past the automatic one, the guard;
 - a third failure on a group, a scope breach, a worker's disclosed breach,
   gate 0, and gate 1 after the automatic retry or at once;
-- outward actions, including the PR at completion.
+- outward actions. The PR at completion is not one: it opens as a draft
+  and `personal-ship-pr` runs.
 
 Gated mode asks all of these, plus every gate, every failed check and every
 repeat CONCERNS.
