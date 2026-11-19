@@ -46,7 +46,8 @@ turntable becomes a 10-second clip at 3×; a shorter one keeps its length. If
 the encode is one pass: constant quality with a bitrate ceiling worked out from
 the size cap, so even a hard source fits the first time (a rare overshoot gets
 at most two retries). The encoder is `auto`: NVENC, with GPU decoding, when
-this ffmpeg has a working one, else x264 `veryfast`. `--max-mb` tightens the
+this ffmpeg has a working one and the box has fewer than 8 cores, else x264
+`veryfast` (on a many-core GPU runner x264 finishes first). `--max-mb` tightens the
 cap (never raises it) for a slower channel; `glb` takes it too.
 
 Most of the time on a big source is decoding it. When the pipeline can render
