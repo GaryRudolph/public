@@ -6,11 +6,11 @@ size, duration, resolution, codec, and whether the MP4 index comes first). It
 makes no judgement about the content; the agent decides what to send where.
 
 Usage:
-    preview.py clip SRC [-o OUT]       # <=10 s, <=8 MB, 720p H.264
+    preview.py clip SRC [-o OUT]       # <=10 s, <=8 MB, 720p H.264 (--max-mb to tighten)
     preview.py flyover SRC [-o OUT]    # <=60 s, <=15 MB, named *-flyover.mp4
     preview.py stills SRC... [-d DIR]  # <=2048 px JPEG, one per input
     preview.py sheet SRC [-o OUT]      # contact sheet of evenly spaced frames
-    preview.py glb SRC [-o OUT]        # decimated GLB <=15 MB (needs gltfpack)
+    preview.py glb SRC [-o OUT]        # decimated GLB <=15 MB (needs gltfpack; --max-mb to tighten)
     preview.py probe FILE...           # facts only, no output written
 
 Needs ffmpeg and ffprobe on PATH; glb also needs gltfpack.
@@ -21,7 +21,7 @@ import json
 import shutil
 import subprocess
 import sys
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 
 MB = 1_000_000
@@ -29,7 +29,9 @@ VIDEO_BOX = (1280, 720)  # 720p: long edge 1280, short edge 720, either orientat
 LONG_EDGE_STILL = 2048
 MAX_FPS = 30
 JPEG_QUALITY = 3  # ffmpeg mjpeg scale, 2 (best) to 31; 3 is about quality 85
-H264_QUALITY_STEPS = (23, 26, 29, 32, 35, 38)
+H264_QUALITY = 23  # CRF / NVENC CQ; the bitrate ceiling does the size work
+CAP_HEADROOM = 0.9  # aim under the cap; VBV can overshoot a little
+MAX_ENCODES = 3
 GLB_MAX_BYTES = 15 * MB
 GLB_RATIOS = (0.5, 0.25, 0.1, 0.05, 0.02)
 SHEET_COLUMNS = 4
@@ -54,6 +56,8 @@ def main() -> int:
     _require("ffmpeg", "ffprobe")
     if args.mode in ("clip", "flyover"):
         limits = CLIP if args.mode == "clip" else FLYOVER
+        if args.max_mb is not None:
+            limits = replace(limits, max_bytes=min(limits.max_bytes, int(args.max_mb * MB)))
         return _emit(make_video(Path(args.src), _video_out(args, limits), limits, args.encoder))
     if args.mode == "stills":
         out_dir = Path(args.dir)
@@ -68,7 +72,8 @@ def main() -> int:
     if args.mode == "glb":
         _require("gltfpack")
         out = Path(args.out or f"{Path(args.src).stem}-preview.glb")
-        return _emit(make_glb(Path(args.src), out))
+        cap = GLB_MAX_BYTES if args.max_mb is None else min(GLB_MAX_BYTES, int(args.max_mb * MB))
+        return _emit(make_glb(Path(args.src), out, cap))
     status = 0
     for path in args.src:
         status |= _emit(probe(Path(path)))
@@ -76,31 +81,41 @@ def main() -> int:
 
 
 def make_video(src: Path, out: Path, limits: VideoLimits, encoder: str) -> dict:
-    """Encode src to an H.264 preview within limits, raising quality steps until it fits."""
+    """Encode src to an H.264 preview within limits, in one pass when it can.
+
+    Quality is constant (CRF) with a bitrate ceiling worked out from the size
+    cap, so an easy source stays small and a hard one is held under the cap in
+    the same encode. VBV can overshoot slightly, so an output over the cap is
+    re-encoded with the ceiling scaled down, at most twice.
+    """
     source = probe(src)
     duration = source.get("durationSeconds") or 0.0
     speed = max(1.0, duration / limits.max_seconds) if duration else 1.0
-    filters = [f"setpts=PTS/{speed:.6f}", _video_scale_filter(*VIDEO_BOX), f"fps={MAX_FPS}"]
+    out_seconds = min(duration / speed, limits.max_seconds) if duration else limits.max_seconds
+    # Drop frames before scaling, so only the frames kept get scaled.
+    filters = [f"setpts=PTS/{speed:.6f}", f"fps={MAX_FPS}", _video_scale_filter(*VIDEO_BOX)]
     out.parent.mkdir(parents=True, exist_ok=True)
+    encoder = _pick_encoder(encoder)
+    # On a GPU runner, decode on the card too: decoding a 4K source is most of the time.
+    decode = ["-hwaccel", "auto"] if "nvenc" in encoder else []
+    maxrate_kbps = int(limits.max_bytes * 8 * CAP_HEADROOM / out_seconds / 1000)
     facts: dict = {}
-    for quality in H264_QUALITY_STEPS:
-        _ffmpeg(
-            "-i", str(src), "-an",
-            "-vf", ",".join(filters),
-            "-t", str(limits.max_seconds),
-            *_encoder_args(encoder, quality),
-            "-pix_fmt", "yuv420p", "-movflags", "+faststart",
-            str(out),
-        )
+    for encodes in range(1, MAX_ENCODES + 1):
+        args = [*decode, "-i", str(src), "-an", "-vf", ",".join(filters), "-t", str(limits.max_seconds)]
+        tail = ["-pix_fmt", "yuv420p", "-movflags", "+faststart", str(out)]
+        _ffmpeg(*args, *_encoder_args(encoder, maxrate_kbps), *tail)
         facts = probe(out)
         if facts["sizeBytes"] <= limits.max_bytes:
             break
+        maxrate_kbps = int(maxrate_kbps * limits.max_bytes / facts["sizeBytes"] * CAP_HEADROOM)
     facts.update(
         kind=limits.kind,
         source=str(src),
         sourceDurationSeconds=duration,
         speedFactor=round(speed, 3),
-        quality=quality,
+        encoder=encoder,
+        maxrateKbps=maxrate_kbps,
+        encodes=encodes,
         capBytes=limits.max_bytes,
         withinCap=facts["sizeBytes"] <= limits.max_bytes,
     )
@@ -127,18 +142,18 @@ def make_sheet(src: Path, out: Path, frames: int) -> dict:
     return probe(out) | {"kind": "sheet", "source": str(src), "frames": frames}
 
 
-def make_glb(src: Path, out: Path) -> dict:
+def make_glb(src: Path, out: Path, max_bytes: int = GLB_MAX_BYTES) -> dict:
     """Decimate with gltfpack, halving the kept ratio until the file fits."""
     ratio = GLB_RATIOS[0]
     for ratio in GLB_RATIOS:
         _run("gltfpack", "-i", str(src), "-o", str(out), "-cc", "-si", str(ratio))
-        if out.stat().st_size <= GLB_MAX_BYTES:
+        if out.stat().st_size <= max_bytes:
             break
     size = out.stat().st_size
     return {
         "path": str(out), "kind": "glb", "source": str(src),
         "sizeBytes": size, "simplifyRatio": ratio,
-        "capBytes": GLB_MAX_BYTES, "withinCap": size <= GLB_MAX_BYTES,
+        "capBytes": max_bytes, "withinCap": size <= max_bytes,
     }
 
 
@@ -191,7 +206,7 @@ def moov_before_mdat(path: Path) -> bool | None:
 
 def _video_out(args: argparse.Namespace, limits: VideoLimits) -> Path:
     out = Path(args.out or f"{Path(args.src).stem}-{limits.kind}.mp4")
-    if limits is FLYOVER and not out.stem.endswith("-flyover"):
+    if limits.kind == "flyover" and not out.stem.endswith("-flyover"):
         out = out.with_name(f"{out.stem}-flyover{out.suffix or '.mp4'}")
     return out
 
@@ -215,10 +230,26 @@ def _video_scale_filter(long_edge: int, short_edge: int) -> str:
     )
 
 
-def _encoder_args(encoder: str, quality: int) -> list[str]:
+def _encoder_args(encoder: str, maxrate_kbps: int) -> list[str]:
+    rate = ["-maxrate", f"{maxrate_kbps}k", "-bufsize", f"{maxrate_kbps}k"]
     if "nvenc" in encoder:
-        return ["-c:v", encoder, "-rc", "vbr", "-cq", str(quality), "-b:v", "0"]
-    return ["-c:v", encoder, "-preset", "slow", "-crf", str(quality)]
+        return ["-c:v", encoder, "-preset", "p4", "-rc", "vbr", "-cq", str(H264_QUALITY), *rate]
+    return ["-c:v", encoder, "-preset", "veryfast", "-crf", str(H264_QUALITY), *rate]
+
+
+def _pick_encoder(requested: str) -> str:
+    """auto: NVENC when this ffmpeg has it (a GPU runner), else libx264."""
+    if requested != "auto":
+        return requested
+    if " h264_nvenc " not in _run("ffmpeg", "-hide_banner", "-encoders").stdout:
+        return "libx264"
+    # Listed isn't usable: a build can have NVENC with no GPU or driver here.
+    probe_encode = subprocess.run(
+        ["ffmpeg", "-v", "error", "-f", "lavfi", "-i", "color=s=256x144:d=0.1",
+         "-c:v", "h264_nvenc", "-f", "null", "-"],
+        capture_output=True, stdin=subprocess.DEVNULL,
+    )
+    return "h264_nvenc" if probe_encode.returncode == 0 else "libx264"
 
 
 def _rate(value: str | None) -> float | None:
@@ -257,7 +288,10 @@ def _parse_args() -> argparse.Namespace:
         mode = modes.add_parser(name)
         mode.add_argument("src")
         mode.add_argument("-o", "--out")
-        mode.add_argument("--encoder", default="libx264", help="libx264 or h264_nvenc")
+        mode.add_argument("--encoder", default="auto",
+                          help="auto (NVENC if ffmpeg has it), libx264 or h264_nvenc")
+        mode.add_argument("--max-mb", type=float,
+                          help="size cap in MB, below the mode's default (for a tighter channel)")
     stills = modes.add_parser("stills")
     stills.add_argument("src", nargs="+")
     stills.add_argument("-d", "--dir", default=".")
@@ -268,6 +302,7 @@ def _parse_args() -> argparse.Namespace:
     glb = modes.add_parser("glb")
     glb.add_argument("src")
     glb.add_argument("-o", "--out")
+    glb.add_argument("--max-mb", type=float, help="size cap in MB, below the 15 MB default")
     probe_mode = modes.add_parser("probe")
     probe_mode.add_argument("src", nargs="+")
     return parser.parse_args()
