@@ -42,7 +42,9 @@ asking.
   findings as review.md says.
 - **`[skim]` or `[skip]` PR:** skip it; Copilot's review is enough.
 - **CI:** wait for the checks on the head commit and fix what this change
-  broke. A failure the change didn't cause goes in the report, not in a fix.
+  broke. A failure the change didn't cause isn't fixed here: stop, leave
+  the PR in draft, and report the failure (red on the base too, or which
+  service it names) to the Owner.
 
 Batch the fixes into one push. Run `/code-review` once; run it again only
 when the fixes rewrote a `[study]` area.
