@@ -132,7 +132,8 @@ cmd_encrypt() {
     local sel="${1:-}" f t tmp list
     if [ -n "$sel" ]; then list=$(logical "$sel"); else list=$(clear_files) || die "cannot list cleartext: find failed, or .sops.yaml can't be read"; fi
     [ -n "$list" ] || { note "no cleartext to encrypt"; return 0; }
-    for f in $list; do
+    while IFS= read -r f <&3; do
+        [ -n "$f" ] || continue
         [ -f "$f" ] || die "$SECRETS_DIR/$f doesn't exist"
         case "$f" in */*) ;; *) die "$f isn't in a scope folder (ci/, <env>/)" ;; esac
         is_scope "${f%%/*}" || die "$f: no creation rule for scope ${f%%/*}/ in .sops.yaml"
@@ -147,7 +148,7 @@ cmd_encrypt() {
             rm -f "$tmp"
             die "cannot encrypt $f"
         fi
-    done
+    done 3<<<"$list"
 }
 
 cmd_decrypt() {
@@ -159,14 +160,15 @@ cmd_decrypt() {
         list=$(cipher_files | sed 's/\.sops$//') || die "cannot list ciphertext: find failed, or .sops.yaml can't be read"
     fi
     [ -n "$list" ] || { note "nothing to decrypt"; return 0; }
-    for f in $list; do case "$f" in *.env) has_env=yes ;; esac; done
+    while IFS= read -r f <&3; do case "$f" in *.env) has_env=yes ;; esac; done 3<<<"$list"
     if [ "$has_env" = yes ] && [ "${CONFIRM:-}" != 1 ]; then
         [ -t 0 ] || die "decrypting a .env writes cleartext to disk; re-run with CONFIRM=1 (code should use secrets-env)"
         printf 'This writes cleartext secrets to disk. Code should use secrets-env instead.\nType "yes" to continue: ' >&2
         read -r ans || ans=""
         [ "$ans" = yes ] || die "aborted"
     fi
-    for f in $list; do
+    while IFS= read -r f <&3; do
+        [ -n "$f" ] || continue
         c="$f.sops"
         tmp="$f.tmp.$$"
         if ! decrypt_to_stdout "$c" > "$tmp" 2>/dev/null; then
@@ -185,7 +187,7 @@ cmd_decrypt() {
         mv "$tmp" "$f"
         chmod 600 "$f"
         note "decrypted $SECRETS_DIR/$f"
-    done
+    done 3<<<"$list"
 }
 
 # Merge dotenv on stdin, keeping each key's first position and its last value.
@@ -253,13 +255,13 @@ cmd_check() {
     # fails closed: one that can't run fails the check, so a scan never
     # passes on files it didn't see.
     tracked=$(git -c core.quotePath=false ls-files) || err "cannot list tracked files: git ls-files failed"
-    while IFS= read -r f; do
+    while IFS= read -r f <&3; do
         case "$f" in */*) case "$f" in *.sops) ;; *) err "tracked cleartext: $SECRETS_DIR/$f" ;; esac ;; esac
-    done <<<"$tracked"
+    done 3<<<"$tracked"
 
     ciphers=$(find . -mindepth 2 -type f -name '*.sops' ! -name '*.tmp.*' | sed 's|^\./||' | sort) \
         || err "cannot list $SECRETS_DIR/'s ciphertext: find failed"
-    while IFS= read -r f; do
+    while IFS= read -r f <&3; do
         [ -n "$f" ] || continue
         s=${f%%/*}
         if ! is_scope "$s"; then err "$f: $s/ has no creation rule"; continue; fi
@@ -282,7 +284,7 @@ cmd_check() {
                 done < "$f"
                 ;;
         esac
-    done <<<"$ciphers"
+    done 3<<<"$ciphers"
 
     # Every deploy environment folder has the same files with the same keys.
     first=""
@@ -290,7 +292,10 @@ cmd_check() {
         [ -d "$s" ] || continue
         files=$(cd "$s" && find . -type f -name '*.env.sops' | sed 's|^\./||' | sort) \
             || { err "cannot list $s/'s files: find failed"; continue; }
-        keys=$(for f in $files; do printf '%s: ' "$f"; grep -v '^sops_' "$s/$f" | grep '=' | sed 's/=.*//' | sort | tr '\n' ' '; echo; done)
+        keys=$(while IFS= read -r f <&3; do
+            [ -n "$f" ] || continue
+            printf '%s: ' "$f"; grep -v '^sops_' "$s/$f" | grep '=' | sed 's/=.*//' | sort | tr '\n' ' '; echo
+        done 3<<<"$files")
         if [ -z "$first" ]; then first="$s"; want_keys="$keys"; continue; fi
         [ "$keys" = "$want_keys" ] || err "$s/ and $first/ don't have the same files and keys"
     done
@@ -301,7 +306,7 @@ cmd_check() {
             || err "the repo isn't private (or gh can't tell); a public repo keeps no $SECRETS_DIR/ folder"
     fi
 
-    left=$(clear_files | tr '\n' ' ') || err "cannot list $SECRETS_DIR/'s cleartext: find failed, or .sops.yaml can't be read"
+    left=$(clear_files | sed "s/.*/'&'/" | tr '\n' ' ') || err "cannot list $SECRETS_DIR/'s cleartext: find failed, or .sops.yaml can't be read"
     [ -n "$left" ] && note "  note  cleartext on disk (gitignored): $left"
     [ "$bad" = 0 ] || die "secrets check failed"
     note "secrets check ok"
@@ -310,10 +315,11 @@ cmd_check() {
 cmd_clean() {
     local f list left=""
     list=$(clear_files) || die "cannot list cleartext: find failed, or .sops.yaml can't be read"
-    for f in $list; do
+    while IFS= read -r f <&3; do
+        [ -n "$f" ] || continue
         if [ -f "$f.sops" ]; then rm -f "$f"; note "removed $SECRETS_DIR/$f"
-        else left="$left $f"; fi
-    done
+        else left="$left '$f'"; fi
+    done 3<<<"$list"
     [ -z "$left" ] || die "not encrypted yet:$left (secrets-encrypt them, or delete them)"
     cmd_check
 }
@@ -323,14 +329,15 @@ cmd_updatekeys() {
     [ -z "$s" ] || is_scope "$s" || die "no creation rule for scope $s/"
     list=$(cipher_files) || die "cannot list ciphertext: find failed, or .sops.yaml can't be read"
     [ -z "$s" ] || list=$(printf '%s\n' "$list" | grep "^$s/" || true)
-    for f in $list; do
+    while IFS= read -r f <&3; do
+        [ -n "$f" ] || continue
         t=$(file_type "${f%.sops}")
         sops updatekeys -y --input-type "$t" "$f" >/dev/null 2>&1 || die "updatekeys failed on $f (needs a key that opens it)"
         if [ "${ROTATE:-}" = 1 ]; then
             sops rotate -i --input-type "$t" --output-type "$t" "$f" || die "rotate failed on $f"
         fi
         note "updated $SECRETS_DIR/$f${ROTATE:+ (new data key)}"
-    done
+    done 3<<<"$list"
 }
 
 cmd_mint() {
