@@ -27,6 +27,7 @@ import os
 import re
 import subprocess
 import sys
+import threading
 
 # First match wins. Keep in step with reference.md "Bucket table".
 BUCKETS = [
@@ -99,7 +100,7 @@ GITHUB_REMOTE = re.compile(r"github\.com[:/]+([^/]+)/([^/]+?)(?:\.git)?/*$")
 
 
 def git(*args, check=False):
-    r = subprocess.run(["git", *args], capture_output=True, text=True)
+    r = subprocess.run(["git", "-c", "core.quotePath=false", *args], capture_output=True, text=True)
     if check and r.returncode != 0:
         raise RuntimeError(r.stderr.strip() or f"git {' '.join(args)} failed")
     return r.stdout.strip() if r.returncode == 0 else ""
@@ -113,33 +114,79 @@ def bucket(path):
 
 
 def hotspots(repo, ref, days=HOTSPOT_DAYS):
-    """(score, commits, lines, path) for the top files at ref, highest first."""
-    log = subprocess.run(["git", "log", f"--since={days}.days", "--format=", "--name-only", ref],
-                         cwd=repo, capture_output=True, text=True).stdout
+    """(score, commits, lines, path) for the top files at ref, highest first.
+
+    Commits count under the path the file has at ref, following renames in
+    the window, and every file is read through one `git cat-file --batch`.
+    """
     counts = {}
-    for path in log.splitlines():
-        if path and bucket(path) in HOTSPOT_BUCKETS:
-            counts[path] = counts.get(path, 0) + 1
-    paths = list(counts)
-    # One `git cat-file --batch` for every file, not a process per file.
-    query = "".join(f"{ref}:{path}\n" for path in paths).encode()
-    out = subprocess.run(["git", "cat-file", "--batch"], cwd=repo, input=query, capture_output=True).stdout
-    rows, pos = [], 0
-    for path in paths:
-        end = out.index(b"\n", pos)
-        header = out[pos:end].split()
-        pos = end + 1
-        if len(header) < 3 or header[1] != b"blob":
-            continue  # missing at ref (deleted since)
-        size = int(header[2])
-        blob = out[pos:pos + size]
-        pos += size + 1
-        if b"\0" in blob[:8000]:
-            continue  # binary
-        lines = blob.count(b"\n")
-        rows.append((counts[path] * lines, counts[path], lines, path))
+    for path, commits in churn(repo, ref, days).items():
+        if bucket(path) in HOTSPOT_BUCKETS:
+            counts[path] = commits
+    rows = [(counts[path] * lines, counts[path], lines, path) for path, lines in line_counts(repo, ref, counts)]
     rows.sort(reverse=True)
     return rows[:HOTSPOT_LIMIT]
+
+
+def churn(repo, ref, days):
+    """Commits per path in the window, each counted under the path's newest name."""
+    log = subprocess.run(["git", "log", f"--since={days}.days", "-M", "-z", "--format=%x00", "--name-status", ref],
+                         cwd=repo, capture_output=True).stdout.decode("utf-8", "surrogateescape")
+    fields = log.split("\0")
+    newest = {}  # old name -> the name it has at ref, from renames seen so far (log runs newest first)
+    counts = {}
+    i = 0
+    while i < len(fields):
+        status = fields[i].strip("\n")
+        if not status:
+            i += 1
+            continue
+        if status[0] in "RC" and i + 2 < len(fields):
+            old, new = fields[i + 1], fields[i + 2]
+            if status[0] == "R":
+                newest[old] = newest.get(new, new)
+            path = newest.get(new, new)
+            i += 3
+        else:
+            path = newest.get(fields[i + 1], fields[i + 1]) if i + 1 < len(fields) else ""
+            i += 2
+        if path:
+            counts[path] = counts.get(path, 0) + 1
+    return counts
+
+
+def line_counts(repo, ref, paths):
+    """(path, lines) for each text file present at ref, streamed through one cat-file process."""
+    proc = subprocess.Popen(["git", "cat-file", "--batch"], cwd=repo, stdin=subprocess.PIPE, stdout=subprocess.PIPE)
+    paths = list(paths)
+
+    def feed():
+        for path in paths:
+            proc.stdin.write(f"{ref}:{path}\n".encode("utf-8", "surrogateescape"))
+        proc.stdin.close()
+
+    writer = threading.Thread(target=feed, daemon=True)
+    writer.start()
+    out = proc.stdout
+    for path in paths:
+        header = out.readline().split()
+        if len(header) < 3:
+            continue  # "<ref:path> missing": deleted since, no payload follows
+        remaining, lines, is_text, first = int(header[2]), 0, header[1] == b"blob", True
+        while remaining:  # every object's payload is read, so the next header lines up
+            chunk = out.read(min(remaining, 65536))
+            if not chunk:
+                break
+            if first and b"\0" in chunk[:8000]:
+                is_text = False  # binary
+            first = False
+            lines += chunk.count(b"\n")
+            remaining -= len(chunk)
+        out.read(1)  # the newline after each payload
+        if is_text:
+            yield path, lines
+    writer.join()
+    proc.wait()
 
 
 def is_shallow(repo):

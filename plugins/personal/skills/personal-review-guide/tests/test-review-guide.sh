@@ -129,11 +129,15 @@ expect_grep "  ...no surfaces"                            "none"
 printf 'hotspots: rename and shallow clone\n'
 hot="$work/hot"
 git init -q -b main "$hot"
-(cd "$hot" && mkdir src && printf 'a\nb\nc\n' > src/engine.go && git add -A && git commit -qm one \
-    && printf 'a\nb\nc\nd\n' > src/engine.go && git commit -qam two \
-    && git switch -qc feat && git mv src/engine.go src/core.go && git commit -qm move)
+(cd "$hot" && mkdir src && printf 'a\nb\n' > src/motor.go && git add -A && git commit -qm one \
+    && git mv src/motor.go src/engine.go && printf 'a\nb\nc\n' > src/engine.go && git commit -qam two \
+    && printf 'a\nb\nc\nd\n' > src/engine.go && printf 'x\n' > src/café.go && mkdir src/motor.go \
+    && printf 'x\n' > src/motor.go/keep.go && git add -A && git commit -qm three \
+    && git switch -qc feat && git mv src/engine.go src/core.go && printf 'x\ny\n' > src/café.go \
+    && git add -A && git commit -qm move)
 expect_ok "renamed hotspot"                              --base main --committed "$hot"
-expect_grep "  ...reported at its new path"              "1 8=2*4 src/core.go (from src/engine.go)"
+expect_grep "  ...history follows the earlier rename"    "1 12=3*4 src/core.go (from src/engine.go)"
+expect_grep "  ...non-ASCII path, unquoted"              "1*1 src/café.go"
 git clone -q --depth 1 --no-local "file://$hot" "$work/shallow" 2>/dev/null
 expect_ok "shallow clone"                                "$work/shallow"
 expect_grep "  ...hotspots unavailable"                  "unavailable: shallow clone"
