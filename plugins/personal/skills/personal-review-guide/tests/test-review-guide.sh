@@ -42,6 +42,8 @@ printf 'h1:abc\n' > go.sum
 printf 'secret handling, rotated\n' > orders/auth_token.go
 printf 'func Refund() {}\nfunc Void() {}\n' > orders/billing.go
 printf 'func Run() {}\n' > orders/worker_pool.go
+printf 'x\n' > orders/blockFactory.go
+printf 'x\n' > orders/OrderWorker.kt
 printf 'package orders\nfunc Put() {}\nfunc Get() {}\nfunc List() {}\n' > orders/store.go
 cat > AGENTS.md <<'EOF'
 # Agents
@@ -77,6 +79,8 @@ expect_grep "  ...test lines removed"                     "M -3 tests/test_order
 expect_grep "  ...security path"                         "security auth: orders/auth_token.go"
 expect_grep "  ...financial path"                        "financial billing: orders/billing.go"
 expect_grep "  ...concurrency path"                      "concurrency worker: orders/worker_pool.go"
+expect_grep "  ...camelCase hump starts a word"          "concurrency worker: orders/OrderWorker.kt"
+expect_nogrep "  ...no match inside a word"              ": orders/blockFactory.go"
 expect_grep "  ...hotspot changed, ranked first"         "1 6=2*3 orders/store.go"
 expect_grep "  ...review surfaces section, verbatim"      "### Rendered diagrams"
 expect_grep "  ...surface field kept"                     "- Preview: required"

@@ -233,8 +233,9 @@ Next: open the review PR and issue?
 
 ## Reviewers
 
-Fresh context, never the session that wrote the code. On Claude Code, the
-`Agent` tool with the most capable model the session offers (Opus as of
+Fresh context, never the session that wrote the code. On Claude Code, a
+full review runs them inside one workflow (the `Workflow` tool), and other
+kinds use the `Agent` tool, with the most capable model the session offers (Opus as of
 2026-11), high effort for incremental, xhigh for full and estate and the
 verifier. Each reviewer returns findings in the register's field shape, at
 or above the floor: `medium` for full and estate, `low` for incremental.
@@ -257,7 +258,7 @@ better findings."
 | contracts | full | Every API, wire or file format, event, CLI flag and env var the repo exposes or consumes: versioned, documented, consistent with each other |
 | security | full | Trust boundaries, authn and authz placement, secrets handling, input validation at the edges (security.md) |
 | dependencies | full | Runtimes and libraries behind their latest stable or near end of life; pins that disagree across the repo |
-| hotspots | full | The harness's review on each of the facts' top hotspot files; on Claude Code `/code-review high --max-findings all <path>` |
+| hotspots | full | Line by line on each of the facts' top hotspot files at `<to>`, as a correctness review of the whole file (`/code-review` reviews diffs, so it doesn't fit) |
 | estate architecture | estate | Which repo owns which concept and contract; contracts between members that don't fit; responsibilities split or doubled across repos |
 | estate duplication | estate | The same model, client, algorithm or config written in two or more members, worth sharing |
 
@@ -303,7 +304,6 @@ rather than logic.
 | Step | Claude Code | Codex | Cursor | Gemini CLI | GitHub |
 | --- | --- | --- | --- | --- | --- |
 | Range review | `/code-review <level> --max-findings all <from>..<to>` | `codex exec review --base <from>` from a checkout of `<to>`, or `--commit <sha>` | Agent with the range and the correctness prompt | `/code-review` extension on a branch at `<to>` | Copilot review covers PRs only |
-| File review (hotspots) | `/code-review high --max-findings all <path>` | an agent with the file and the correctness prompt | Agent with the file and the correctness prompt | `/code-review` extension on the file | n/a |
 | Dimension reviewers | `Workflow` tool for a full review (reviewers, then the verifier); `Agent` tool otherwise | subagents | `Task` | sequential prompts | n/a |
 | Scheduled `status` | a cloud scheduled task, or `claude-code-action` on a cron workflow | a Codex cloud task | Automations | an Action on cron | Code Quality's scheduled scan, as an input |
 

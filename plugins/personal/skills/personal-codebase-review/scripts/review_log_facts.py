@@ -420,7 +420,7 @@ def main():
     ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     ap.add_argument("--members")
     ap.add_argument("--owner")
-    ap.add_argument("--hotspot-days", type=int, default=180)
+    ap.add_argument("--hotspot-days", type=int, default=review_facts.HOTSPOT_DAYS)
     ap.add_argument("--no-fetch", action="store_true")
     ap.add_argument("repo", nargs="?", default=".")
     args = ap.parse_args()

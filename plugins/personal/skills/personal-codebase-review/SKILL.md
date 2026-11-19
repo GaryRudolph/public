@@ -116,8 +116,9 @@ severity floor.
   on the whole range.
 - `full`: architecture, contracts, boundaries, test strategy, dependencies
   and security posture over the whole tree at `<to>`, then hotspots: the
-  harness's review on each of the facts' top files, on Claude Code
-  `/code-review high --max-findings all <path>`. On Claude Code, run the
+  fresh correctness reviewer per top file with the whole file at `<to>`
+  (the harness's `/code-review` reviews a diff, and a hotspot needs the
+  file). On Claude Code, run the
   dimension reviewers and the verifier as one workflow (the Workflow tool;
   load the `workflow-authoring` skill first, keep it under 10 agents).
   Asking for a full review is the Owner's opt-in to that workflow.

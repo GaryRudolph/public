@@ -4,8 +4,9 @@
 Prints what the agent needs to write a review guide for the change on the
 current branch: the base it diffs against, the commits, every changed file
 with its line counts and the bucket its path falls in, test lines removed,
-paths that name a risk area (security, financial, concurrency, PII), the changed files
-that are hotspots, each file's GitHub diff anchor, the repo's review surfaces, the PR template, and the plan, handoff and review files
+paths that name a risk area (security, financial, concurrency, PII), the
+changed files that are hotspots, each file's GitHub diff anchor, the repo's
+review surfaces, the PR template, and the plan, handoff and review files
 already on the branch.
 
 Emits no verdicts. Buckets come from the fixed path table below, which
@@ -62,17 +63,24 @@ BUCKETS = [
 ]
 
 # Path words that point at the risk tags' areas (review.md "Risk tags"). A
-# fact about the name only: the agent reads the code to decide.
+# fact about the name only: the agent reads the code to decide. Words match
+# at the start of a path token (after / _ . - or a camelCase hump), so
+# "lock" finds lock_manager.go but not block.tsx or clock.go.
 RISK_WORDS = [
-    ("security", re.compile(r"auth|crypt|secret|token|permission|password|passwd|session|oauth|jwt|credential|acl|"
-                            r"rbac|signing|cert|key(?:s|store|chain)?\b|login", re.I)),
-    ("financial", re.compile(r"payment|billing|invoice|charge|refund|ledger|payout|wallet|stripe|checkout|"
-                             r"subscription|pricing|price", re.I)),
-    ("concurrency", re.compile(r"thread|async|concurren|parallel|mutex|lock|semaphore|atomic|queue|worker|"
-                                r"goroutine|channel|actor|scheduler|retry|idempot", re.I)),
-    ("pii", re.compile(r"pii|personal|profile|ssn|passport|birth|address|phone|email|contact|consent|gdpr|kyc|"
-                       r"medical|health", re.I)),
+    ("security", r"auth|crypt|secret|token|permission|password|passwd|session|oauth|jwt|credential|acl|rbac|"
+                 r"signing|cert|key(?:s|store|chain)?(?![a-z])|login"),
+    ("financial", r"payment|billing|invoice|charge|refund|ledger|payout|wallet|stripe|checkout|subscription|"
+                  r"pricing|price"),
+    ("concurrency", r"thread|async|concurren|parallel|mutex|lock|semaphore|atomic|queue|worker|goroutine|"
+                    r"scheduler|retry|retries|idempot"),
+    ("pii", r"pii|personal|ssn|passport|birth|phone|email|consent|gdpr|kyc|medical|patient"),
 ]
+RISK_WORDS = [(tag, re.compile(rf"(?<![a-z0-9])(?:{words})")) for tag, words in RISK_WORDS]
+
+
+def risk_tokens(path):
+    """The path lowercased, with camelCase humps split so each word starts a token."""
+    return re.sub(r"(?<=[a-z0-9])(?=[A-Z])", "_", path).lower()
 
 # Hotspots (review.md "Risk tags"): files in these buckets, scored by commits
 # touching them in the window times their lines, top HOTSPOT_LIMIT. A fixed
@@ -255,7 +263,7 @@ def main():
     print("\n== paths naming a risk area (tag word path)")
     for f in files:
         for tag, words in RISK_WORDS:
-            m = words.search(f["path"])
+            m = words.search(risk_tokens(f["path"]))
             if m:
                 print(f"  {tag} {m.group(0).lower()}: {f['path']}")
 

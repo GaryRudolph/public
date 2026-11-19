@@ -3,7 +3,8 @@ name: personal-ship-pr
 description: >-
   Take a finished change from draft PR to merge-ready: open it as a draft
   with the review guide, run the harness's /code-review at the level the
-  PR's tier and risk tags set, and fix CI, remove the runner's handoff files, mark it ready, work
+  PR's tier and risk tags set, and fix CI, remove the runner's handoff
+  files, mark it ready, work
   Copilot's review in rounds until every comment has an outcome, then stop
   and report the tally for the Owner to merge. Never merges. Triggers:
   "open a PR", "PR this", "ship it", "get this ready to merge", the work on
