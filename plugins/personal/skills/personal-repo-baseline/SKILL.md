@@ -135,10 +135,14 @@ the Owner confirms the repo. Call out:
 - a workflow that skips draft PRs. Read the file where the lines alone
   don't settle it, such as a `types:` line when the workflow has more than
   one trigger. Only the workflows behind the default branch's required
-  checks need to run on drafts (`gh api
-  repos/<owner>/<name>/rules/branches/<default>` lists them, read-only); a
-  draft skip on another job, such as a preview deploy, can stay, with
-  `ready_for_review` in its types
+  checks need to run on drafts. Read both places GitHub keeps them,
+  read-only: rulesets (`gh api repos/<owner>/<name>/rules/branches/<default>`,
+  the `required_status_checks` rules) and classic branch protection (`gh
+  api repos/<owner>/<name>/branches/<default>/protection/required_status_checks`).
+  A refused or unreadable call means unknown, not none: then treat every
+  `pull_request` workflow as required, or ask the Owner. A draft skip on
+  another job, such as a preview deploy, can stay, with `ready_for_review`
+  in its types
 
 Preview the exact settings.json change with:
 
