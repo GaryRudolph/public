@@ -83,6 +83,24 @@ done
 expect_eq "noise reports its bitrate ceiling" "$(field "$out" maxrateKbps | grep -cE '^[0-9]+$')" "1"
 out=$(python3 "$preview" clip noise25.mkv -o noise-wide.mp4 --max-mb 50)
 expect_eq "--max-mb never raises the clip cap" "$(field "$out" capBytes)" "8000000"
+# Every encode over the cap, which real sources almost never manage: fake
+# ffmpeg and probe so the retry loop runs out, then check the facts describe
+# the last encode, not a rate lowered for an encode that never ran.
+out=$(python3 - "$preview" <<'EOF'
+import importlib.util, json, sys
+from pathlib import Path
+spec = importlib.util.spec_from_file_location("preview", sys.argv[1])
+preview = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(preview)
+rates = []
+preview._ffmpeg = lambda *args: rates.append(int(args[args.index("-maxrate") + 1].rstrip("k")))
+preview.probe = lambda path: {"durationSeconds": 10.0} if path.name == "src.mp4" else {"sizeBytes": 10_000_000}
+facts = preview.make_video(Path("src.mp4"), Path("over.mp4"), preview.CLIP, "libx264")
+print(json.dumps({"encodes": facts["encodes"], "reported": facts["maxrateKbps"], "lastUsed": rates[-1]}))
+EOF
+)
+expect_eq "overshoot: every encode ran" "$(field "$out" encodes)" "3"
+expect_eq "overshoot: reported rate is the last one used" "$(field "$out" reported)" "$(field "$out" lastUsed)"
 
 echo "stills"
 out=$(python3 "$preview" stills big.png small.png -d stills)
