@@ -22,9 +22,13 @@ Contents: [Previews and originals](#previews-and-originals) Â· [Video](#video) Â
   set by the size cap, and on the GPU when there is one. Render the preview at
   preview size when the pipeline can, rather than shrinking a 4K master after.
 - **Originals live in object storage** (GCS, S3, Azure Blob), written by the
-  pipeline rather than the agent, and the chat gets a link: a signed URL that
-  expires, or an authenticated console link. Say which, and when a signed link
-  expires.
+  pipeline rather than the agent. Which identity writes them is the
+  environment's choice, not this standard's.
+- **Chat gets an authenticated link by default:** `storage.cloud.google.com` or
+  the cloud's console, which checks the viewer's own access and needs no signer.
+  Use a signed URL only for someone without access, and say when it expires. On
+  GCS a signed URL needs a service account to sign it (a person's own token
+  can't), so it's the exception, not the default.
 
 ## Video
 
@@ -74,7 +78,7 @@ Contents: [Previews and originals](#previews-and-originals) Â· [Video](#video) Â
 | --- | --- |
 | Clip, flyover, still, contact sheet | `SendUserFile` into chat |
 | Interactive 3D | An Artifact page with the GLB as a supporting file |
-| Originals | Object storage, written by the pipeline; a link in chat |
+| Originals | Object storage, written by the pipeline; an authenticated link in chat |
 
 ## Why these numbers
 
