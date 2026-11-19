@@ -198,10 +198,13 @@ disagree, the picker wins and the kit's consistency check fails.
 - **While a run works, write nothing to the tree**, commit nothing and push
   nothing. The plan is tracked, so an edit shows up as a new dirty path to
   `check_wave.py`. Reply to anything that arrives with one line.
-- **Outward actions wait for the Owner in every mode:** opening or merging a PR,
+- **Outward actions wait for the Owner in every mode:** merging a PR,
   pushing a tag, deleting a remote branch, deploying, publishing a release
   or a package, posting anywhere outside the branch and the chat, and
-  permission prompts. Workers never take one (`contract.md` item 8).
+  permission prompts. Workers never take one (`contract.md` item 8). The
+  run opens its PR only at completion, as a draft (step 5); from there
+  `personal-ship-pr`'s own steps (review requests, thread replies, marking
+  ready) need no ask.
 - **A compaction changes nothing.** The plan, the handoff, the snapshot
   files and the run record are the state, not the chat. After a `/compact`
   (the Owner's or automatic), re-read the plan's Status and the handoff before
@@ -217,7 +220,7 @@ disagree, the picker wins and the kit's consistency check fails.
   there at kickoff.
 - **The handoff:** `handoff-{topic}-{word}.md` beside it, same
   `{topic}-{word}`. Both are removed or promoted to durable docs before the
-  PR merges (core.md "Runner scratch rides the branch").
+  PR is marked ready (core.md "Runner scratch rides the branch").
 - **Where nothing can be pushed** (decision 11, a workstation only, gated
   only): a plan in no git repo, such as a cross-repo plan in a plain folder
   of sibling repos, stays with its handoff in that folder's `.scratch/`,
@@ -457,7 +460,8 @@ Unattended, the parent asks only for what is the Owner's:
   a step-up past the automatic one, the guard;
 - a third failure on a group, a scope breach, a worker's disclosed breach,
   gate 0, and gate 1 after the automatic retry or at once;
-- outward actions, including the PR at completion.
+- outward actions. The PR at completion is not one: it opens as a draft
+  and `personal-ship-pr` runs.
 
 Gated mode asks all of these, plus every gate, every failed check and every
 repeat CONCERNS.
@@ -551,11 +555,10 @@ When `plan_state.py` has no `next` and the last review passed:
 3. Append the Completion summary (standard §"Final completion"), with every
    checkpoint, retry and fix-up under **Deviations from plan**.
 4. Write the final handoff; commit; push.
-5. Print the completed Cost table and the Completion summary, then ask
-   (a choice dialog where the harness has one: `Open the PR`, `Not yet`)
-   whether to open a PR, naming the cleanup commit (remove the plan and the
-   handoff, or promote what's durable to `specs/`), with the short handoff
-   summary. Wait.
+5. Print the completed Cost table and the Completion summary, then run
+   `personal-ship-pr`: it opens the PR as a draft, removes the plan and the
+   handoff (or promotes what's durable to `specs/`) before marking it
+   ready, and stops at merge-ready for the Owner to merge.
 
 ## Subagent context contract
 

@@ -172,8 +172,8 @@ The short handoff summary follows the `Reply` line. On a runner:
       gated: every gate stops, and so does every failed check or repeat CONCERNS.
     Either way, after every wave I commit and push the plan and its handoff
     (specs/handoffs/handoff-auth-otter.md), and every message that stops or asks ends
-    with a short handoff summary. Opening or merging a PR, tags, remote branch deletes,
-    deploys and permission prompts wait for you.
+    with a short handoff summary. At the end I open a draft PR and work its reviews;
+    merging, tags, remote branch deletes, deploys and permission prompts wait for you.
     Reply unattended or gated; name any file to strike from Creates.
 
 On a workstation, the signal line says what was checked and names the

@@ -22,8 +22,9 @@ no canary, and no gate-5 stop or checkpoint in either mode. `canaryDone` is
 true from the next launch on all the same.
 
 A first review CONCERNS (not a failed check or a disclosed breach) gets its
-`N-fix` without a gate in both modes. Opening a PR, tags, remote branch
-deletes, deploys and permission prompts wait in both modes; on a runner,
+`N-fix` without a gate in both modes. Opening a PR ready for review
+(completion opens a draft), merging, tags, remote branch deletes, deploys
+and permission prompts wait in both modes; on a runner,
 commit and push before a call likely to trip a permission prompt.
 
 **Checkpoints are logged, not asked.** End the unit's Review log note with
