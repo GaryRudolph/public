@@ -37,8 +37,7 @@ asking.
 
 - **`[check]` or `[study]` PR:** run `/code-review medium <number>`, without
   `--comment` or `--fix`. Triage its findings as review.md says.
-- **`[skim]` or `[skip]` PR:** skip it; Copilot's review is enough. When the
-  tier was a close call, run it anyway (review.md's default-up bias).
+- **`[skim]` or `[skip]` PR:** skip it; Copilot's review is enough.
 - **CI:** wait for the checks on the head commit and fix what this change
   broke. A failure the change didn't cause goes in the report, not in a fix.
 
