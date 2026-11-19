@@ -75,17 +75,19 @@ jobs:
         run: brew install sops age ffmpeg
 
       - name: Tool versions
+        # sed -n 1p, not head -1: head exits after one line, and under
+        # pipefail the writer's broken pipe (make 3.81 on macOS) fails the step.
         run: |
-          echo "/bin/bash: $(/bin/bash --version | head -1)"
-          echo "bash on PATH: $(command -v bash) $(bash --version | head -1)"
-          make --version | head -1
+          echo "/bin/bash: $(/bin/bash --version | sed -n 1p)"
+          echo "bash on PATH: $(command -v bash) $(bash --version | sed -n 1p)"
+          make --version | sed -n 1p
           python3 --version
           jq --version
           node --version
           claude --version
           sops --version
           age --version
-          ffmpeg -version | head -1
+          ffmpeg -version | sed -n 1p
           npm ls --global gltfpack | grep gltfpack
 
       - name: Validate and test
