@@ -4,7 +4,11 @@
 #
 # It also runs on merge_group, because a required check that never reports
 # there stalls the merge queue. In the queue it checks base_sha..sha, what the
-# queue is about to land; without a range `make ci` skips the pairing check.
+# queue is about to land.
+#
+# It fails closed: only the first push of main (no before commit) runs
+# without a range. A base it can't resolve, after trying to fetch it, fails
+# the check rather than skipping the pairing rules.
 name: freshness
 
 on:
@@ -29,11 +33,17 @@ jobs:
             range="origin/${{ github.base_ref }}...HEAD"
           elif [ "${{ github.event_name }}" = merge_group ]; then
             range="${{ github.event.merge_group.base_sha }}..${{ github.sha }}"
+          elif [ "${{ github.event.before }}" = 0000000000000000000000000000000000000000 ]; then
+            range=""
           else
             range="${{ github.event.before }}..${{ github.sha }}"
           fi
-          if git cat-file -e "${range%%.*}" 2>/dev/null; then
-            make ci RANGE="$range"
-          else
+          if [ -z "$range" ]; then
             make ci
+            exit 0
           fi
+          # A force-push can leave the base unreachable from any ref; fetch it
+          # by SHA. If it's still missing, make ci fails on the range.
+          base=${range%%.*}
+          git cat-file -e "$base^{commit}" 2>/dev/null || git fetch -q origin "$base" || true
+          make ci RANGE="$range"

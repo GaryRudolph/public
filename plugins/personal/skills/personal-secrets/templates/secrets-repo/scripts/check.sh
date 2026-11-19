@@ -25,6 +25,16 @@ fail() {
     failures=$((failures + 1))
 }
 
+# Whether newline-separated list $1 holds line $2 exactly. A shell match,
+# not printf | grep -q: under pipefail, grep -q exiting on a match can
+# SIGPIPE a long printf and read as no match.
+nl='
+'
+has_line() {
+    case "$nl$1$nl" in *"$nl$2$nl"*) return 0 ;; esac
+    return 1
+}
+
 # --- access.map -------------------------------------------------------------
 if entries=$(access_entries); then
     while read -r file ids; do
@@ -57,7 +67,7 @@ dist_files=$(list_sops dist) || fail "cannot list dist/: find failed"
 mapped_files=$(printf '%s\n' "$entries" | awk 'NF { print $1 }')
 for f in $src_files $dist_files; do
     logical=${f#*/}
-    printf '%s\n' "$mapped_files" | grep -qxF "${logical%.sops}" \
+    has_line "$mapped_files" "${logical%.sops}" \
         || fail "$f is not listed in $ACCESS_MAP (map it, or delete it)"
 done
 
@@ -85,12 +95,14 @@ check_pairing() {
     done
     for f in $(printf '%s\n' "$changed" | grep -E '^src/.*\.sops$' || true); do
         logical=${f#src/}
-        printf '%s\n' "$changed" | grep -qxF "dist/$logical" \
+        has_line "$changed" "dist/$logical" \
             || fail "$f changed without dist/$logical (make build)"
     done
-    if printf '%s\n' "$changed" | grep -qxF "$ACCESS_MAP" \
-        && ! printf '%s\n' "$changed" | grep -q '^dist/'; then
-        fail "$ACCESS_MAP changed without any dist/ change (make build)"
+    if has_line "$changed" "$ACCESS_MAP"; then
+        case "$nl$changed" in
+            *"${nl}dist/"*) ;;
+            *) fail "$ACCESS_MAP changed without any dist/ change (make build)" ;;
+        esac
     fi
 }
 

@@ -413,7 +413,11 @@ Two constraints the implementation has to respect:
 Both fail closed: if `scripts/check.sh` can't list the files a rule needs
 (`find` under `src/` or `dist/`, `git ls-files`, or `git diff` over the staged
 changes or the range), it fails and says which, rather than passing a scan it
-never made. A `RANGE` git can't resolve fails the same way.
+never made. A `src/` or `dist/` that doesn't exist yet lists as empty. CI
+checks every run over a range, except the first push of `main`, which has no
+base commit. If it can't resolve the base, even after fetching it by SHA (a
+force-push can leave it unreachable), the check fails instead of skipping the
+pairing rules.
 `dist-decrypt-env.sh` does too: if it can't list `dist/`'s env files, it stops
 before printing anything, since a partial list could hide a second file
 holding the same `KEY`.

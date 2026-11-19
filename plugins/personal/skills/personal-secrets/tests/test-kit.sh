@@ -172,6 +172,16 @@ expect_fail "consumer: find can't list dist/"       as_consumer "$site" env PATH
 expect_grep "  ...says so"                          "cannot list dist/'s env files: find failed"
 expect_fail "consumer export: find can't list dist/" as_consumer "$site" env PATH="$work/nofind:$PATH" make -s dist-decrypt-env
 expect_grep "  ...says so"                          "cannot list dist/'s env files: find failed"
+# A fresh estate whose src/ and dist/ don't exist yet has nothing to list:
+# that's empty, not a failure.
+fresh="$work/fresh"
+cp -R "$kit" "$fresh"
+rm -rf "$fresh/src" "$fresh/dist"
+printf '%s\n' "$bg_pub" > "$fresh/breakglass.pub"
+sed -i.bak "s/<breakglass-age-public-key>/$bg_pub/" "$fresh/.sops.yaml" && rm "$fresh/.sops.yaml.bak"
+git -C "$fresh" init -q
+expect_ok   "lint: no src/ or dist/ lists as empty"  make --no-print-directory -C "$fresh" lint
+expect_grep "  ...says ok"                          "check: ok"
 expect_ok   "lint passes with the real tools"       make lint
 expect_grep "  ...says ok"                          "check: ok"
 expect_ok   "ci passes with the real tools"         make ci RANGE=HEAD~1..HEAD
