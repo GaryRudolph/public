@@ -44,6 +44,7 @@ printf 'func Refund() {}\nfunc Void() {}\n' > orders/billing.go
 printf 'func Run() {}\n' > orders/worker_pool.go
 printf 'x\n' > orders/blockFactory.go
 printf 'x\n' > orders/OrderWorker.kt
+printf 'x\n' > orders/APIKey.kt
 printf 'package orders\nfunc Put() {}\nfunc Get() {}\nfunc List() {}\n' > orders/store.go
 cat > AGENTS.md <<'EOF'
 # Agents
@@ -80,6 +81,7 @@ expect_grep "  ...security path"                         "security auth: orders/
 expect_grep "  ...financial path"                        "financial billing: orders/billing.go"
 expect_grep "  ...concurrency path"                      "concurrency worker: orders/worker_pool.go"
 expect_grep "  ...camelCase hump starts a word"          "concurrency worker: orders/OrderWorker.kt"
+expect_grep "  ...acronym then word splits"              "security key: orders/APIKey.kt"
 expect_nogrep "  ...no match inside a word"              ": orders/blockFactory.go"
 expect_grep "  ...hotspot changed, ranked first"         "1 6=2*3 orders/store.go"
 expect_grep "  ...review surfaces section, verbatim"      "### Rendered diagrams"
@@ -132,7 +134,8 @@ git init -q -b main "$hot"
 (cd "$hot" && mkdir src && printf 'a\nb\n' > src/motor.go && git add -A && git commit -qm one \
     && git mv src/motor.go src/engine.go && printf 'a\nb\nc\n' > src/engine.go && git commit -qam two \
     && printf 'a\nb\nc\nd\n' > src/engine.go && printf 'x\n' > src/café.go && mkdir src/motor.go \
-    && printf 'x\n' > src/motor.go/keep.go && git add -A && git commit -qm three \
+    && printf 'x\n' > src/motor.go/keep.go && printf 'x\n' > 'src/old part.go' && git add -A && git commit -qm three \
+    && git rm -q 'src/old part.go' && git commit -qm four \
     && git switch -qc feat && git mv src/engine.go src/core.go && printf 'x\ny\n' > src/café.go \
     && git add -A && git commit -qm move)
 expect_ok "renamed hotspot"                              --base main --committed "$hot"

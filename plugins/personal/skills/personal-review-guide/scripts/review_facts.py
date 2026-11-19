@@ -81,6 +81,7 @@ RISK_WORDS = [(tag, re.compile(rf"(?<![a-z0-9])(?:{words})")) for tag, words in 
 
 def risk_tokens(path):
     """The path lowercased, with camelCase humps split so each word starts a token."""
+    path = re.sub(r"(?<=[A-Z])(?=[A-Z][a-z])", "_", path)  # APIKey -> API_Key
     return re.sub(r"(?<=[a-z0-9])(?=[A-Z])", "_", path).lower()
 
 # Hotspots (review.md "Risk tags"): files in these buckets, scored by commits
@@ -169,9 +170,10 @@ def line_counts(repo, ref, paths):
     writer.start()
     out = proc.stdout
     for path in paths:
-        header = out.readline().split()
-        if len(header) < 3:
-            continue  # "<ref:path> missing": deleted since, no payload follows
+        line = out.readline()
+        if not line or line.rstrip(b"\n").endswith(b" missing"):
+            continue  # "<ref:path> missing" (the path may hold spaces): deleted since, no payload follows
+        header = line.split()
         remaining, lines, is_text, first = int(header[2]), 0, header[1] == b"blob", True
         while remaining:  # every object's payload is read, so the next header lines up
             chunk = out.read(min(remaining, 65536))
@@ -331,18 +333,21 @@ def main():
             if m:
                 print(f"  {tag} {m.group(0).lower()}: {f['path']}")
 
-    print(f"\n== hotspots changed (rank score=commits_in_{HOTSPOT_DAYS}d*lines path, at {base_ref or 'none'})")
-    if base_ref and is_shallow(root):
+    # Ranked at the merge base, so its paths line up with the diff's even if
+    # the base branch renamed a file since.
+    print(f"\n== hotspots changed (rank score=commits_in_{HOTSPOT_DAYS}d*lines path, "
+          f"at merge_base {git('rev-parse', '--short', merge_base) if merge_base else 'none'})")
+    if merge_base and is_shallow(root):
         print("  unavailable: shallow clone; deepen past the window first "
               f"(git fetch --shallow-since=\"{HOTSPOT_DAYS} days ago\" origin, or --unshallow)")
-    elif base_ref:
+    elif merge_base:
         # A renamed hotspot ranks under its base path; report where it went.
         changed = {}
         for f in files:
             changed[f["path"]] = f["path"]
             if f["old"]:
                 changed[f["old"]] = f["path"]
-        for rank, (score, commits, lines, path) in enumerate(hotspots(root, base_ref), 1):
+        for rank, (score, commits, lines, path) in enumerate(hotspots(root, merge_base), 1):
             if path in changed:
                 moved = f" (from {path})" if changed[path] != path else ""
                 print(f"  {rank} {score}={commits}*{lines} {changed[path]}{moved}")
