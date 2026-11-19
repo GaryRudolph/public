@@ -63,22 +63,28 @@ with `draft: false`). If a ruleset reserves that for the Owner, ask.
 ## 4. Copilot rounds
 
 1. Wait for Copilot's review of the head commit, and for any other review
-   the repo requests (Claude Code Review, a reviewer a ruleset adds). Where the ruleset doesn't
-   request it (Copilot isn't a requested reviewer a few minutes after the
-   ready or the push), request it with `request_copilot_review`. If nothing
-   posts within about 30 minutes, say so once and go to step 5, where the
-   missing review is reported as waiting on the Owner.
-2. Triage every comment from each of them (review.md). A comment that repeats one already
+   the repo requests (Claude Code Review, a reviewer a ruleset adds).
+   Where the ruleset doesn't request it (Copilot isn't a requested
+   reviewer a few minutes after the ready or the push), request it with
+   `request_copilot_review`. A review whose findings are only in its body
+   may send no event, so check the PR's reviews rather than waiting on
+   one. If nothing posts within about 30 minutes, say so once and go to
+   step 5, where the missing review is reported as waiting on the Owner.
+2. Triage every finding from each of them (review.md): the inline threads
+   and the review body, where Copilot lists findings it has no thread for
+   (such as "previously missed" ones). A finding that repeats one already
    declined gets a reply linking the earlier one, and no change.
 3. If anything is to be fixed, make one push, reply on every thread, and
-   start the next round. Otherwise the loop is done.
+   start the next round; otherwise the loop is done. A body-only finding
+   has no thread to reply on: its outcome goes in the tally.
 
 Stop after three rounds that each needed a fix: once Copilot has reviewed
 the third fix push, go to step 5 and report what's still open. Copilot
 can find something new on every push forever.
 
-The loop is done when every comment has an outcome and a reply, not when
-every comment was fixed. A decline or a deferral is an outcome.
+The loop is done when every finding has an outcome and a reply (or a tally
+line), not when every finding was fixed. A decline or a deferral is an
+outcome.
 
 ## 5. Merge-ready, then stop
 
@@ -88,7 +94,7 @@ Check:
 - Copilot's latest review covers the head commit, or the report says
   why not (it never posted, or the round cap was hit), and no other
   requested review is pending.
-- Every thread has a reply.
+- Every thread has a reply, and every body-only finding a tally line.
 - Nothing waits on the Owner, or the report names what does.
 - No `specs/handoffs/` plan, session handoff or review draft is on the
   branch. Milestone handoffs are allowed.
