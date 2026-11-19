@@ -29,6 +29,14 @@ emit_file() {
         || { echo "# skip $logical (this key can't decrypt it; expected)" >&2; return 1; }
 }
 
+# Every env file under root, listed up front so a find that can't run stops
+# here: a partial list could hide a second file holding KEY and return the
+# wrong value, or emit a partial environment.
+env_files() {
+    find "$root" -type f -name '*.env.sops' | sort \
+        || { echo "cannot list $root/'s env files: find failed" >&2; return 1; }
+}
+
 value_of() {
     printf '%s\n' "$1" | awk -v k="$want_key" 'index($0, k "=") == 1 { print substr($0, length(k) + 2); exit }'
 }
@@ -51,16 +59,18 @@ if [ -n "$want_key" ]; then
         print_value "$value"
         exit 0
     fi
+    files=$(env_files) || exit 1
     matches=""
     found=""
     while read -r f; do
+        [ -n "$f" ] || continue
         content=$(emit_file "$f" 2>/dev/null) || continue
         value=$(value_of "$content")
         [ -n "$value" ] || continue
         logical=${f%.sops}
         matches="$matches ${logical#"$root"/}"
         found=$value
-    done < <(find "$root" -type f -name '*.env.sops' | sort)
+    done <<< "$files"
     [ -n "$matches" ] || { echo "KEY $want_key not found in any env file this key can decrypt" >&2; exit 1; }
     if [ "$(printf '%s\n' $matches | wc -l | tr -d ' ')" -gt 1 ]; then
         echo "KEY $want_key is in more than one file:$matches" >&2
@@ -77,6 +87,8 @@ if [ -n "$sel_file" ]; then
     exit 0
 fi
 
-find "$root" -type f -name '*.env.sops' | sort | while read -r f; do
+files=$(env_files) || exit 1
+while read -r f; do
+    [ -n "$f" ] || continue
     emit_file "$f" || true
-done
+done <<< "$files"
