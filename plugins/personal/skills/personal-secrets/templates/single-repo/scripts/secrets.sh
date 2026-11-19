@@ -79,8 +79,9 @@ is_scope() { scopes | grep -qx "$1"; }
 # A deploy environment is a scope with config in deploy/<scope>.env. Other
 # non-ci scopes are GitHub environments for one privileged job (terraform-prod).
 deploy_scopes() {
-    local s
-    for s in $(scopes); do [ "$s" != ci ] && [ -f "$root/$DEPLOY_DIR/$s.env" ] && echo "$s"; done
+    local s list
+    list=$(scopes) || return 1
+    for s in $list; do [ "$s" != ci ] && [ -f "$root/$DEPLOY_DIR/$s.env" ] && echo "$s"; done
     return 0
 }
 
@@ -102,17 +103,19 @@ logical() {
 }
 
 # Every file under a scope folder, as logical paths: ciphertext or cleartext.
-# Both fail if find fails on any scope, not only the last, so a caller never
-# acts on a partial list.
+# Both fail if the scopes can't be read or find fails on any scope, not only
+# the last, so a caller never acts on a partial list.
 cipher_files() {
-    local s
-    for s in $(scopes); do
+    local s list
+    list=$(scopes) || return 1
+    for s in $list; do
         if [ -d "$s" ]; then find "$s" -type f -name '*.sops' ! -name '*.tmp.*' || return 1; fi
     done | sort
 }
 clear_files() {
-    local s
-    for s in $(scopes); do
+    local s list
+    list=$(scopes) || return 1
+    for s in $list; do
         if [ -d "$s" ]; then find "$s" -type f ! -name '*.sops' ! -name '*.tmp.*' || return 1; fi
     done | sort
 }
@@ -127,7 +130,7 @@ decrypt_to_stdout() {
 
 cmd_encrypt() {
     local sel="${1:-}" f t tmp list
-    if [ -n "$sel" ]; then list=$(logical "$sel"); else list=$(clear_files) || die "cannot list cleartext: find failed"; fi
+    if [ -n "$sel" ]; then list=$(logical "$sel"); else list=$(clear_files) || die "cannot list cleartext: find failed, or .sops.yaml can't be read"; fi
     [ -n "$list" ] || { note "no cleartext to encrypt"; return 0; }
     for f in $list; do
         [ -f "$f" ] || die "$SECRETS_DIR/$f doesn't exist"
@@ -153,7 +156,7 @@ cmd_decrypt() {
         list=$(logical "$sel")
         [ -f "$list.sops" ] || die "$SECRETS_DIR/$list.sops doesn't exist"
     else
-        list=$(cipher_files | sed 's/\.sops$//') || die "cannot list ciphertext: find failed"
+        list=$(cipher_files | sed 's/\.sops$//') || die "cannot list ciphertext: find failed, or .sops.yaml can't be read"
     fi
     [ -n "$list" ] || { note "nothing to decrypt"; return 0; }
     for f in $list; do case "$f" in *.env) has_env=yes ;; esac; done
@@ -244,6 +247,8 @@ cmd_check() {
         rules | awk -v s="$s" '$1 == s && $3 == "breakglass"' | grep -q . || err "scope $s/: break-glass (&breakglass) isn't a recipient"
     done
 
+    envs=$(deploy_scopes) || err "cannot read the deploy environments from .sops.yaml"
+
     # Only ciphertext is tracked under a scope folder. Every listing below
     # fails closed: one that can't run fails the check, so a scan never
     # passes on files it didn't see.
@@ -270,7 +275,7 @@ cmd_check() {
                     k=${line%%=*}
                     printf '%s' "$k" | grep -Eq '^[A-Z][A-Z0-9_]*$' || err "$f: key '$k' isn't UPPER_SNAKE"
                     case "${line#*=}" in 'ENC['*) ;; *) err "$f: $k isn't encrypted" ;; esac
-                    for e in $(deploy_scopes); do
+                    for e in $envs; do
                         upper=$(printf '%s' "$e" | tr 'a-z-' 'A-Z_')
                         case "_${k}_" in *"_${upper}_"*) err "$f: key '$k' names an environment; the folder says that" ;; esac
                     done
@@ -280,7 +285,6 @@ cmd_check() {
     done <<<"$ciphers"
 
     # Every deploy environment folder has the same files with the same keys.
-    envs=$(deploy_scopes)
     first=""
     for s in $envs; do
         [ -d "$s" ] || continue
@@ -297,7 +301,7 @@ cmd_check() {
             || err "the repo isn't private (or gh can't tell); a public repo keeps no $SECRETS_DIR/ folder"
     fi
 
-    left=$(clear_files | tr '\n' ' ') || err "cannot list $SECRETS_DIR/'s cleartext: find failed"
+    left=$(clear_files | tr '\n' ' ') || err "cannot list $SECRETS_DIR/'s cleartext: find failed, or .sops.yaml can't be read"
     [ -n "$left" ] && note "  note  cleartext on disk (gitignored): $left"
     [ "$bad" = 0 ] || die "secrets check failed"
     note "secrets check ok"
@@ -305,7 +309,7 @@ cmd_check() {
 
 cmd_clean() {
     local f list left=""
-    list=$(clear_files) || die "cannot list cleartext: find failed"
+    list=$(clear_files) || die "cannot list cleartext: find failed, or .sops.yaml can't be read"
     for f in $list; do
         if [ -f "$f.sops" ]; then rm -f "$f"; note "removed $SECRETS_DIR/$f"
         else left="$left $f"; fi
@@ -317,7 +321,7 @@ cmd_clean() {
 cmd_updatekeys() {
     local s="${1:-}" f t list
     [ -z "$s" ] || is_scope "$s" || die "no creation rule for scope $s/"
-    list=$(cipher_files) || die "cannot list ciphertext: find failed"
+    list=$(cipher_files) || die "cannot list ciphertext: find failed, or .sops.yaml can't be read"
     [ -z "$s" ] || list=$(printf '%s\n' "$list" | grep "^$s/" || true)
     for f in $list; do
         t=$(file_type "${f%.sops}")

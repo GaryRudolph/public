@@ -222,6 +222,16 @@ expect_fail "updatekeys: find fails on another scope"            env PATH="$work
 expect_grep "  ...says so" "cannot list ciphertext: find failed"
 expect_fail "clean: find fails"                                  env PATH="$work/nofindci:$PATH" make secrets-clean
 expect_grep "  ...says so" "cannot list cleartext: find failed"
+# awk can't read .sops.yaml, so the scopes can't be listed.
+mkdir -p "$work/noscopes"
+printf '#!/bin/sh\nfor a; do last=$a; done\n[ "$last" = .sops.yaml ] && exit 2\nexec %s "$@"\n' "$(command -v awk)" > "$work/noscopes/awk"
+chmod +x "$work/noscopes/awk"
+expect_fail "updatekeys: scopes can't be read"                   env PATH="$work/noscopes:$PATH" make secrets-updatekeys
+expect_grep "  ...says so" ".sops.yaml can't be read"
+expect_fail "clean: scopes can't be read"                        env PATH="$work/noscopes:$PATH" make secrets-clean
+expect_grep "  ...says so" ".sops.yaml can't be read"
+expect_fail "check: scopes can't be read"                        env PATH="$work/noscopes:$PATH" make secrets-check
+expect_grep "  ...says so" "cannot read the deploy environments"
 mv .git "$work/dotgit"
 expect_fail "check: secrets/ outside a git repo"                 env GIT_CEILING_DIRECTORIES="$work" make secrets-check
 expect_grep "  ...says so" "git ls-files failed"
