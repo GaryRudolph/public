@@ -105,8 +105,8 @@ def make_video(src: Path, out: Path, limits: VideoLimits, encoder: str) -> dict:
         tail = ["-pix_fmt", "yuv420p", "-movflags", "+faststart", str(out)]
         _ffmpeg(*args, *_encoder_args(encoder, maxrate_kbps), *tail)
         facts = probe(out)
-        if facts["sizeBytes"] <= limits.max_bytes:
-            break
+        if facts["sizeBytes"] <= limits.max_bytes or encodes == MAX_ENCODES:
+            break  # past the last try, keep the rate this file was made at
         maxrate_kbps = int(maxrate_kbps * limits.max_bytes / facts["sizeBytes"] * CAP_HEADROOM)
     facts.update(
         kind=limits.kind,
