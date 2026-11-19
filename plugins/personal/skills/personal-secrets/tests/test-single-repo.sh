@@ -199,6 +199,20 @@ expect_ok   "online check: private repo"                         make secrets-ch
 expect_fail "online check: public repo fails"                    env GH_PRIVATE=false make secrets-check ONLINE=1
 expect_grep "  ...says so" "isn't private"
 
+printf '\ncheck fails closed\n'
+mkdir -p "$work/nogit" "$work/nofind"
+printf '#!/bin/sh\nexit 2\n' > "$work/nogit/git"
+printf '#!/bin/sh\nexit 2\n' > "$work/nofind/find"
+chmod +x "$work/nogit/git" "$work/nofind/find"
+expect_fail "check: git can't list tracked files"                env PATH="$work/nogit:$PATH" make secrets-check
+expect_grep "  ...says so" "cannot list tracked files: git ls-files failed"
+expect_fail "check: find can't list ciphertext"                  env PATH="$work/nofind:$PATH" make secrets-check
+expect_grep "  ...says so" "cannot list secrets/'s ciphertext: find failed"
+expect_grep "  ...nor an environment's files" "cannot list prod/'s files: find failed"
+expect_grep "  ...and says the check failed" "secrets check failed"
+expect_ok   "check passes with the real tools"                   make secrets-check
+expect_grep "  ...says ok" "secrets check ok"
+
 printf '\nupdatekeys\n'
 awk -v drop="$(pub envprod)" 'index($0, drop) == 0' "$work/sops.bak" > secrets/.sops.yaml
 expect_fail "check sees the stale recipients"                    make secrets-check

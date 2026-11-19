@@ -229,7 +229,7 @@ cmd_env() {
 }
 
 cmd_check() {
-    local bad=0 s f k want have first files keys envs upper
+    local bad=0 s f k want have first files keys envs upper tracked ciphers left
     err() { printf '  FAIL  %s\n' "$*" >&2; bad=1; }
 
     if grep -Eq '^[[:space:]]*-?[[:space:]]*(encrypted_regex|unencrypted_regex|encrypted_suffix|unencrypted_suffix|encrypted_comment_regex|unencrypted_comment_regex|mac_only_encrypted):' .sops.yaml; then
@@ -242,14 +242,17 @@ cmd_check() {
         rules | awk -v s="$s" '$1 == s && $3 == "breakglass"' | grep -q . || err "scope $s/: break-glass (&breakglass) isn't a recipient"
     done
 
-    # Only ciphertext is tracked under a scope folder.
-    if git -C "$root" rev-parse >/dev/null 2>&1; then
-        while IFS= read -r f; do
-            case "$f" in */*) case "$f" in *.sops) ;; *) err "tracked cleartext: $SECRETS_DIR/$f" ;; esac ;; esac
-        done < <(git ls-files)
-    fi
+    # Only ciphertext is tracked under a scope folder. Every listing below
+    # fails closed: one that can't run fails the check, so a scan never
+    # passes on files it didn't see.
+    tracked=$(git ls-files) || err "cannot list tracked files: git ls-files failed"
+    while IFS= read -r f; do
+        case "$f" in */*) case "$f" in *.sops) ;; *) err "tracked cleartext: $SECRETS_DIR/$f" ;; esac ;; esac
+    done <<<"$tracked"
 
-    for f in $(find . -mindepth 2 -type f -name '*.sops' ! -name '*.tmp.*' | sed 's|^\./||' | sort); do
+    ciphers=$(find . -mindepth 2 -type f -name '*.sops' ! -name '*.tmp.*' | sed 's|^\./||' | sort) \
+        || err "cannot list $SECRETS_DIR/'s ciphertext: find failed"
+    for f in $ciphers; do
         s=${f%%/*}
         if ! is_scope "$s"; then err "$f: $s/ has no creation rule"; continue; fi
         want=$(rules | awk -v s="$s" '$1 == s {print $2}' | sort -u)
@@ -278,7 +281,8 @@ cmd_check() {
     first=""
     for s in $envs; do
         [ -d "$s" ] || continue
-        files=$(cd "$s" && find . -type f -name '*.env.sops' | sed 's|^\./||' | sort)
+        files=$(cd "$s" && find . -type f -name '*.env.sops' | sed 's|^\./||' | sort) \
+            || { err "cannot list $s/'s files: find failed"; continue; }
         keys=$(for f in $files; do printf '%s: ' "$f"; grep -v '^sops_' "$s/$f" | grep '=' | sed 's/=.*//' | sort | tr '\n' ' '; echo; done)
         if [ -z "$first" ]; then first="$s"; want_keys="$keys"; continue; fi
         [ "$keys" = "$want_keys" ] || err "$s/ and $first/ don't have the same files and keys"
@@ -290,7 +294,7 @@ cmd_check() {
             || err "the repo isn't private (or gh can't tell); a public repo keeps no $SECRETS_DIR/ folder"
     fi
 
-    left=$(clear_files | tr '\n' ' ')
+    left=$(clear_files | tr '\n' ' ') || err "cannot list $SECRETS_DIR/'s cleartext: find failed"
     [ -n "$left" ] && note "  note  cleartext on disk (gitignored): $left"
     [ "$bad" = 0 ] || die "secrets check failed"
     note "secrets check ok"
