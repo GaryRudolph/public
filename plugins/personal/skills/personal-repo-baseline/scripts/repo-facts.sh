@@ -368,6 +368,29 @@ if not found and not os.path.isdir(folder):
     print("  present: no")
 PY
 
+    # Workflows and the lines that decide whether they run on a draft PR:
+    # the trigger, its types, and any draft test. The agent reads them
+    # (and the file, when it's unclear) and decides.
+    section "Workflows on pull requests"
+    python3 - "$root" <<'PY'
+import os, re, sys
+root = sys.argv[1]
+folder = os.path.join(root, ".github", "workflows")
+names = sorted(n for n in os.listdir(folder)
+               if n.endswith((".yml", ".yaml"))
+               and os.path.isfile(os.path.join(folder, n))) if os.path.isdir(folder) else []
+if not names:
+    print("  workflows: none")
+pattern = re.compile(r"pull_request|types|draft|ready_for_review")
+for name in names:
+    lines = open(os.path.join(folder, name), encoding="utf-8", errors="replace").read().splitlines()
+    print(f"  path: .github/workflows/{name}")
+    print(f"  mentions pull_request: {'yes' if any('pull_request' in l for l in lines) else 'no'}")
+    for number, line in enumerate(lines, 1):
+        if pattern.search(line) and not line.lstrip().startswith("#"):
+            print(f"    {number}: {line.strip()}")
+PY
+
     section "GitHub merge settings"
     while IFS= read -r line; do printf '%s\n' "$line"; done < "$ghf"
 }
