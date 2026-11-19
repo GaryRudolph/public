@@ -1006,12 +1006,16 @@ def a_workers_clearly_outward_commands_are_denied_and_its_other_bash_is_untouche
         for ok in ("git commit --allow-empty -m 'm1.s1 Check'", "git add a && git commit -F - <<'EOF'\nm1.s2 Doc git push\n\nAssisted-by: Claude Code\nEOF",
                    "make ci > /tmp/log 2>&1", "echo 'never git push here'", "gh pr view 3", "gh release view v1 --json tagName",
                    "goreleaser check", "goreleaser release --snapshot --clean", "goreleaser release --clean --skip=announce,publish",
-                   "npm publish --dry-run", "cat > docs/release.md <<'EOF'\ngit push origin v1.2.3\ngh release create v1.2.3\nEOF"):
+                   "npm publish --dry-run", "docker --context prod build -t x .", "docker --context prod images",
+                   "docker image ls", "cat > docs/release.md <<'EOF'\ngit push origin v1.2.3\ngh release create v1.2.3\nEOF"):
             assert guard_bash(agent, ok) is None, (agent, ok)
         for bad in ("git push", "git -C /r push origin HEAD", "cd /r && DRY_RUN=0 git push --tags", "make ci\ngit push",
                     "gh pr create --fill", "gh pr merge 3 --squash", "gh release create v1.0.0", "gh release upload v1 x.tgz",
                     "gh workflow run release.yml", "goreleaser release --clean", "goreleaser --clean", "goreleaser publish",
-                    "npm publish", "FOO=1 cargo publish", "docker push ghcr.io/x/y", "$(git push)"):
+                    "npm publish", "FOO=1 cargo publish", "docker push ghcr.io/x/y", "$(git push)",
+                    "docker --context prod push ghcr.io/x/y", "DOCKER_CONFIG=/tmp/d docker --config /tmp/d push x",
+                    "docker -H tcp://h:2376 push x", "docker --debug push x", "docker image push x",
+                    "docker --context=prod image push x"):
             assert worker_denies(agent, bad), (agent, bad)
         assert guard_bash(agent, "git push", "reviewer_guard.py") is None  # the reviewer guard leaves workers alone
     for agent in (None, "personal:plan-worker-extra", "Explore", "personal:plan-reviewer"):  # the parent pushes; others aren't ours

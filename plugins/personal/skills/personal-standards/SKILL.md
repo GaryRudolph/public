@@ -52,7 +52,7 @@ this skill's directory instead; the files are identical.
 | Reviewing `main`: full, incremental and estate reviews, the `specs/reviews/` log, review gates | `standards/codebase-review.md`, and the `personal-codebase-review` skill to run one |
 | Branches, commits, PRs, AI attribution | `standards/git.md`, and the `personal-repo-baseline` skill for a repo's `.claude/settings.json` attribution and GitHub merge settings |
 | Versions, releases | `standards/versioning.md`, and the `personal-release` skill for cutting releases and hotfixes |
-| Auth, authorization, cookies, crypto, erasure, input validation | `standards/security.md` |
+| Auth, authorization, cookies, crypto, erasure, input validation, CLI account flags | `standards/security.md` |
 | GCP, Firebase, IAP, Terraform access groups, Identity Platform, Cloud KMS, Cloud Logging sinks | `standards/gcp.md` |
 | Secrets (single repo and estate) and their Makefiles | `standards/secrets/README.md`, and the `personal-secrets` skill for procedures |
 | Makefiles | `standards/makefile.md` |
