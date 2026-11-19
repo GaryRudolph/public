@@ -59,14 +59,15 @@ with `draft: false`). If a ruleset reserves that for the Owner, ask.
 1. Wait for Copilot's review of the head commit. Where the ruleset doesn't
    request it (Copilot isn't a requested reviewer a few minutes after the
    ready or the push), request it with `request_copilot_review`. If nothing
-   posts within about 30 minutes, say so once and go to step 5.
+   posts within about 30 minutes, say so once and go to step 5, where the
+   missing review is reported as waiting on the Owner.
 2. Triage every comment (review.md). A comment that repeats one already
    declined gets a reply linking the earlier one, and no change.
 3. If anything is to be fixed, make one push, reply on every thread, and
    start the next round. Otherwise the loop is done.
 
-Stop after three rounds that each needed a fix, and report what's still
-open. Copilot can find something new on every push forever.
+Stop after three rounds that each needed a fix: once Copilot has reviewed
+the third fix push, go to step 5 and report what's still open. Copilot can find something new on every push forever.
 
 The loop is done when every comment has an outcome and a reply, not when
 every comment was fixed. A decline or a deferral is an outcome.
@@ -76,8 +77,8 @@ every comment was fixed. A decline or a deferral is an outcome.
 Check:
 
 - The required checks are green on the head commit.
-- Copilot's latest review covers the head commit, or the round after it
-  raised nothing to fix.
+- Copilot's latest review covers the head commit, or the report says
+  why not (it never posted, or the round cap was hit).
 - Every thread has a reply.
 - Nothing waits on the Owner, or the report names what does.
 - No `specs/handoffs/` plan, session handoff or review draft is on the
@@ -85,8 +86,10 @@ Check:
 - GitHub reports the PR as mergeable.
 
 If the branch is behind and the repo requires it to be up to date, update
-it (`update_pull_request_branch`) as the last push. Wait for CI, and don't
-start another Copilot round for it. On a conflict, ask.
+it (`update_pull_request_branch`) as the last push, then `git pull
+--ff-only` so the checkout has GitHub's merge commit before any later
+commit. Wait for CI, and don't start another Copilot round for it. On a
+conflict, ask.
 
 Then report: the PR link, the tier, CI status, the tally (`/code-review: 2
 fixed. Copilot: 3 fixed, 1 declined (why), 1 deferred (card)`), whether an

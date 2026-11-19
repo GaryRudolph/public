@@ -202,7 +202,9 @@ disagree, the picker wins and the kit's consistency check fails.
   pushing a tag, deleting a remote branch, deploying, publishing a release
   or a package, posting anywhere outside the branch and the chat, and
   permission prompts. Workers never take one (`contract.md` item 8). The
-  run opens its PR only at completion, as a draft (step 5).
+  run opens its PR only at completion, as a draft (step 5); from there
+  `personal-ship-pr`'s own steps (review requests, thread replies, marking
+  ready) need no ask.
 - **A compaction changes nothing.** The plan, the handoff, the snapshot
   files and the run record are the state, not the chat. After a `/compact`
   (the Owner's or automatic), re-read the plan's Status and the handoff before
