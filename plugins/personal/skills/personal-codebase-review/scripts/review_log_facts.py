@@ -301,7 +301,9 @@ def report_repo(repo, args):
                 print(f"    {a + d} {n} +{a} -{d} {path}")
 
     print(f"  hotspots (score=commits_in_{args.hotspot_days}d*lines commits lines path):")
-    for score, commits, lines, path in hotspots(repo, ref, args.hotspot_days):
+    if review_facts.is_shallow(repo):
+        print("    unavailable: shallow clone; deepen past the window first")
+    for score, commits, lines, path in ([] if review_facts.is_shallow(repo) else hotspots(repo, ref, args.hotspot_days)):
         print(f"    {score} {commits} {lines} {path}")
 
     regs = registers(repo, ref)

@@ -120,15 +120,32 @@ def hotspots(repo, ref, days=HOTSPOT_DAYS):
     for path in log.splitlines():
         if path and bucket(path) in HOTSPOT_BUCKETS:
             counts[path] = counts.get(path, 0) + 1
-    rows = []
-    for path, commits in counts.items():
-        blob = subprocess.run(["git", "cat-file", "-p", f"{ref}:{path}"], cwd=repo, capture_output=True)
-        if blob.returncode != 0 or b"\0" in blob.stdout[:8000]:
-            continue  # deleted since, or binary
-        lines = blob.stdout.count(b"\n")
-        rows.append((commits * lines, commits, lines, path))
+    paths = list(counts)
+    # One `git cat-file --batch` for every file, not a process per file.
+    query = "".join(f"{ref}:{path}\n" for path in paths).encode()
+    out = subprocess.run(["git", "cat-file", "--batch"], cwd=repo, input=query, capture_output=True).stdout
+    rows, pos = [], 0
+    for path in paths:
+        end = out.index(b"\n", pos)
+        header = out[pos:end].split()
+        pos = end + 1
+        if len(header) < 3 or header[1] != b"blob":
+            continue  # missing at ref (deleted since)
+        size = int(header[2])
+        blob = out[pos:pos + size]
+        pos += size + 1
+        if b"\0" in blob[:8000]:
+            continue  # binary
+        lines = blob.count(b"\n")
+        rows.append((counts[path] * lines, counts[path], lines, path))
     rows.sort(reverse=True)
     return rows[:HOTSPOT_LIMIT]
+
+
+def is_shallow(repo):
+    """A shallow clone's log misses older commits, so its hotspot counts are low."""
+    r = subprocess.run(["git", "rev-parse", "--is-shallow-repository"], cwd=repo, capture_output=True, text=True)
+    return r.stdout.strip() == "true"
 
 
 def default_base():
@@ -268,11 +285,20 @@ def main():
                 print(f"  {tag} {m.group(0).lower()}: {f['path']}")
 
     print(f"\n== hotspots changed (rank score=commits_in_{HOTSPOT_DAYS}d*lines path, at {base_ref or 'none'})")
-    if base_ref:
-        changed = {f["path"] for f in files}
+    if base_ref and is_shallow(root):
+        print("  unavailable: shallow clone; deepen past the window first "
+              f"(git fetch --shallow-since=\"{HOTSPOT_DAYS} days ago\" origin, or --unshallow)")
+    elif base_ref:
+        # A renamed hotspot ranks under its base path; report where it went.
+        changed = {}
+        for f in files:
+            changed[f["path"]] = f["path"]
+            if f["old"]:
+                changed[f["old"]] = f["path"]
         for rank, (score, commits, lines, path) in enumerate(hotspots(root, base_ref), 1):
             if path in changed:
-                print(f"  {rank} {score}={commits}*{lines} {path}")
+                moved = f" (from {path})" if changed[path] != path else ""
+                print(f"  {rank} {score}={commits}*{lines} {changed[path]}{moved}")
 
     print("\n== diff anchors (path #anchor)")
     for f in files:

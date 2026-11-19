@@ -234,8 +234,9 @@ Next: open the review PR and issue?
 ## Reviewers
 
 Fresh context, never the session that wrote the code. On Claude Code, a
-full review runs them inside one workflow (the `Workflow` tool), and other
-kinds use the `Agent` tool, with the most capable model the session offers (Opus as of
+full review runs them inside one workflow (the `Workflow` tool, or the
+`Agent` tool where it isn't available), and other kinds use the `Agent`
+tool, with the most capable model the session offers (Opus as of
 2026-11), high effort for incremental, xhigh for full and estate and the
 verifier. Each reviewer returns findings in the register's field shape, at
 or above the floor: `medium` for full and estate, `low` for incremental.
@@ -303,8 +304,8 @@ rather than logic.
 
 | Step | Claude Code | Codex | Cursor | Gemini CLI | GitHub |
 | --- | --- | --- | --- | --- | --- |
-| Range review | `/code-review <level> --max-findings all <from>..<to>` | `codex exec review --base <from>` from a checkout of `<to>`, or `--commit <sha>` | Agent with the range and the correctness prompt | `/code-review` extension on a branch at `<to>` | Copilot review covers PRs only |
-| Dimension reviewers | `Workflow` tool for a full review (reviewers, then the verifier); `Agent` tool otherwise | subagents | `Task` | sequential prompts | n/a |
+| Range review | `/code-review <level> --max-findings all <from>..<to>` | `codex exec review --base <from>` from a checkout of `<to>`, or `--commit <sha>`, with the level as `-c model_reasoning_effort='"<level>"'` (`low`, `medium`, `high`, `xhigh`) | Agent with the range and the correctness prompt (no level control: say so in the register header) | `/code-review` extension on a branch at `<to>` (no level control: say so in the register header) | Copilot review covers PRs only |
+| Dimension reviewers | `Workflow` tool for a full review (reviewers, then the verifier), or the `Agent` tool where it isn't available; `Agent` tool otherwise | subagents | `Task` | sequential prompts | n/a |
 | Scheduled `status` | a cloud scheduled task, or `claude-code-action` on a cron workflow | a Codex cloud task | Automations | an Action on cron | Code Quality's scheduled scan, as an input |
 
 The record, the log and the outputs are the same everywhere.

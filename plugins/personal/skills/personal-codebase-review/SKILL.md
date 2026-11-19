@@ -116,12 +116,14 @@ severity floor.
   on the whole range.
 - `full`: architecture, contracts, boundaries, test strategy, dependencies
   and security posture over the whole tree at `<to>`, then hotspots: the
-  fresh correctness reviewer per top file with the whole file at `<to>`
-  (the harness's `/code-review` reviews a diff, and a hotspot needs the
-  file). On Claude Code, run the
+  facts' top files split across at most two fresh correctness reviewers,
+  each reading its files whole at `<to>` (the harness's `/code-review`
+  reviews a diff, and a hotspot needs the file). On Claude Code, run the
   dimension reviewers and the verifier as one workflow (the Workflow tool;
   load the `workflow-authoring` skill first, keep it under 10 agents).
-  Asking for a full review is the Owner's opt-in to that workflow.
+  Asking for a full review is the Owner's opt-in to that workflow. Where
+  the Workflow tool isn't available, dispatch the same fresh reviewers and
+  verifier with the `Agent` tool.
 - `estate`: one reviewer for architecture across the members (who owns
   what, the contracts between them), one for duplicated code across them.
   No line review.

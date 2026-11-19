@@ -126,6 +126,18 @@ expect_ok "no base found: still prints"                  "$work/lonely"
 expect_grep "  ...says none"                              "base_ref: none (none found)"
 expect_grep "  ...no surfaces"                            "none"
 
+printf 'hotspots: rename and shallow clone\n'
+hot="$work/hot"
+git init -q -b main "$hot"
+(cd "$hot" && mkdir src && printf 'a\nb\nc\n' > src/engine.go && git add -A && git commit -qm one \
+    && printf 'a\nb\nc\nd\n' > src/engine.go && git commit -qam two \
+    && git switch -qc feat && git mv src/engine.go src/core.go && git commit -qm move)
+expect_ok "renamed hotspot"                              --base main --committed "$hot"
+expect_grep "  ...reported at its new path"              "1 8=2*4 src/core.go (from src/engine.go)"
+git clone -q --depth 1 --no-local "file://$hot" "$work/shallow" 2>/dev/null
+expect_ok "shallow clone"                                "$work/shallow"
+expect_grep "  ...hotspots unavailable"                  "unavailable: shallow clone"
+
 printf 'pr_body_guard.py\n'
 if python3 -I "$here/test_pr_body_guard.py" >"$work/guard" 2>&1; then pass "guard tests"; else fail "guard tests"; sed 's/^/        /' "$work/guard" >&2; fi
 hooks="$here/../../../hooks/claude-hooks.json"

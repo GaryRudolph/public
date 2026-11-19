@@ -119,7 +119,7 @@ A review an agent posts on the PR is a second opinion on a finished change: `/co
   | Draft PR | none (Copilot only); `low` with a risk tag | `medium` | `high` |
   | Incremental on `main` ([codebase-review.md](codebase-review.md)) | `low` | `medium` | `high` |
 
-  A `[security]` PR also gets the harness's security review in the draft round where it has one (Claude Code's `/security-review`).
+  A harness whose review takes no level runs at its default, and the record says so. A `[security]` PR also gets the harness's security review in the draft round where it has one (Claude Code's `/security-review`).
 - **Review in the draft.** The draft-round review runs while the PR is a draft, with CI fixed in the same round. Rulesets that request a review skip drafts, so Copilot reviews the finished change once.
 - **The agent decides each comment:** fix it, decline it, or defer it to a card ([core.md](../core.md) "Queue sessions"). It asks the Owner only when a fix would change a contract or a design, or when it disagrees with a finding on a `[study]` area. A security finding stays open until the Owner decides. Resolved means every comment has an outcome, not that every comment was fixed.
 - **Optional findings ride along.** A finding marked optional (nit, minor, low) never starts a push on its own.
