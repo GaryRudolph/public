@@ -255,13 +255,13 @@ cmd_check() {
     # fails closed: one that can't run fails the check, so a scan never
     # passes on files it didn't see.
     tracked=$(git -c core.quotePath=false ls-files) || err "cannot list tracked files: git ls-files failed"
-    while IFS= read -r f; do
+    while IFS= read -r f <&3; do
         case "$f" in */*) case "$f" in *.sops) ;; *) err "tracked cleartext: $SECRETS_DIR/$f" ;; esac ;; esac
-    done <<<"$tracked"
+    done 3<<<"$tracked"
 
     ciphers=$(find . -mindepth 2 -type f -name '*.sops' ! -name '*.tmp.*' | sed 's|^\./||' | sort) \
         || err "cannot list $SECRETS_DIR/'s ciphertext: find failed"
-    while IFS= read -r f; do
+    while IFS= read -r f <&3; do
         [ -n "$f" ] || continue
         s=${f%%/*}
         if ! is_scope "$s"; then err "$f: $s/ has no creation rule"; continue; fi
@@ -284,7 +284,7 @@ cmd_check() {
                 done < "$f"
                 ;;
         esac
-    done <<<"$ciphers"
+    done 3<<<"$ciphers"
 
     # Every deploy environment folder has the same files with the same keys.
     first=""
@@ -292,10 +292,10 @@ cmd_check() {
         [ -d "$s" ] || continue
         files=$(cd "$s" && find . -type f -name '*.env.sops' | sed 's|^\./||' | sort) \
             || { err "cannot list $s/'s files: find failed"; continue; }
-        keys=$(while IFS= read -r f; do
+        keys=$(while IFS= read -r f <&3; do
             [ -n "$f" ] || continue
             printf '%s: ' "$f"; grep -v '^sops_' "$s/$f" | grep '=' | sed 's/=.*//' | sort | tr '\n' ' '; echo
-        done <<<"$files")
+        done 3<<<"$files")
         if [ -z "$first" ]; then first="$s"; want_keys="$keys"; continue; fi
         [ "$keys" = "$want_keys" ] || err "$s/ and $first/ don't have the same files and keys"
     done
@@ -306,7 +306,7 @@ cmd_check() {
             || err "the repo isn't private (or gh can't tell); a public repo keeps no $SECRETS_DIR/ folder"
     fi
 
-    left=$(clear_files | tr '\n' ' ') || err "cannot list $SECRETS_DIR/'s cleartext: find failed, or .sops.yaml can't be read"
+    left=$(clear_files | sed "s/.*/'&'/" | tr '\n' ' ') || err "cannot list $SECRETS_DIR/'s cleartext: find failed, or .sops.yaml can't be read"
     [ -n "$left" ] && note "  note  cleartext on disk (gitignored): $left"
     [ "$bad" = 0 ] || die "secrets check failed"
     note "secrets check ok"
@@ -318,7 +318,7 @@ cmd_clean() {
     while IFS= read -r f <&3; do
         [ -n "$f" ] || continue
         if [ -f "$f.sops" ]; then rm -f "$f"; note "removed $SECRETS_DIR/$f"
-        else left="$left $f"; fi
+        else left="$left '$f'"; fi
     done 3<<<"$list"
     [ -z "$left" ] || die "not encrypted yet:$left (secrets-encrypt them, or delete them)"
     cmd_check
