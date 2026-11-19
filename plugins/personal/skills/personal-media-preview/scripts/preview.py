@@ -18,6 +18,7 @@ Needs ffmpeg and ffprobe on PATH; glb also needs gltfpack.
 
 import argparse
 import json
+import os
 import shutil
 import subprocess
 import sys
@@ -32,6 +33,10 @@ JPEG_QUALITY = 3  # ffmpeg mjpeg scale, 2 (best) to 31; 3 is about quality 85
 H264_QUALITY = 23  # CRF / NVENC CQ; the bitrate ceiling does the size work
 CAP_HEADROOM = 0.9  # aim under the cap; VBV can overshoot a little
 MAX_ENCODES = 3
+# NVENC with GPU decode beat x264 veryfast on 1 to 4 cores, tied at 8, and lost
+# on 21 (4K source, measured on an RTX PRO 6000): its session setup costs about
+# 1.6 s, which a many-core CPU makes up. `auto` uses NVENC only below this.
+NVENC_BELOW_CORES = 8
 GLB_MAX_BYTES = 15 * MB
 GLB_RATIOS = (0.5, 0.25, 0.1, 0.05, 0.02)
 SHEET_COLUMNS = 4
@@ -237,10 +242,24 @@ def _encoder_args(encoder: str, maxrate_kbps: int) -> list[str]:
     return ["-c:v", encoder, "-preset", "veryfast", "-crf", str(H264_QUALITY), *rate]
 
 
+def _usable_cores() -> int:
+    """CPU cores this process may run on (affinity-aware where the OS has it)."""
+    try:
+        return len(os.sched_getaffinity(0))
+    except AttributeError:  # macOS has no sched_getaffinity
+        return os.cpu_count() or 1
+
+
 def _pick_encoder(requested: str) -> str:
-    """auto: NVENC when this ffmpeg has it (a GPU runner), else libx264."""
+    """auto: NVENC on a few-core box that has a working one, else libx264.
+
+    With enough cores x264 finishes first, and skipping NVENC also skips its
+    throwaway probe encode below.
+    """
     if requested != "auto":
         return requested
+    if _usable_cores() >= NVENC_BELOW_CORES:
+        return "libx264"
     if " h264_nvenc " not in _run("ffmpeg", "-hide_banner", "-encoders").stdout:
         return "libx264"
     # Listed isn't usable: a build can have NVENC with no GPU or driver here.
@@ -289,7 +308,7 @@ def _parse_args() -> argparse.Namespace:
         mode.add_argument("src")
         mode.add_argument("-o", "--out")
         mode.add_argument("--encoder", default="auto",
-                          help="auto (NVENC if ffmpeg has it), libx264 or h264_nvenc")
+                          help=f"auto (NVENC if ffmpeg has it and under {NVENC_BELOW_CORES} cores), libx264 or h264_nvenc")
         mode.add_argument("--max-mb", type=float,
                           help="size cap in MB, below the mode's default (for a tighter channel)")
     stills = modes.add_parser("stills")
