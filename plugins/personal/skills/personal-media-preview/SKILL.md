@@ -56,7 +56,9 @@ the preview at 1280×720 itself, that's faster than shrinking a 4K master.
 Each output prints one JSON line: `path`, `sizeBytes`, `codec`, `width`,
 `height`, `pixFmt`, and for video `durationSeconds`, `fps`, `speedFactor`,
 `moovBeforeMdat`, `capBytes` and `withinCap`. The exit code is 1 when an
-output couldn't be brought under its cap. The script decides nothing else:
+output couldn't be brought under its cap. `encoder` names the one that made
+the file: NVENC, or libx264 when a very noisy source sat above NVENC's rate
+floor and was encoded again. The script decides nothing else:
 which preview to make, whether a flyover is warranted, and what the frames
 show are yours to judge.
 
