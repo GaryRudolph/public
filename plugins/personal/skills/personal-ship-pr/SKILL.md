@@ -8,8 +8,9 @@ description: >-
   mark it ready, work Copilot's review in rounds until every comment has an
   outcome, waiting on CI and reviews itself, then stop, notify, and report
   the tally for the Owner to merge. Never merges. Triggers: "open a PR",
-  "PR this", "ship it", "punch it chewie", "make it so", "get this ready to
-  merge", the work on a task branch is done, a PR was just opened (the
+  "PR this", "ship it", "punch it chewie", "make it so" (as the whole
+  message, not "make it so that ..."), "get this ready to merge", the work
+  on a task branch is done, a PR was just opened (the
   plugin's hook says so), and a personal-plan-orchestrate run completes.
 ---
 
@@ -23,7 +24,10 @@ on a PR" for the triage, and [`git.md`](../personal-standards/standards/git.md)
 
 The loop has standing approval, however it started: the Owner asking ("ship
 it", "punch it chewie", "make it so"), the work being done, the plugin's
-hook after a PR opened, or an orchestrate run completing. It's one step for
+hook after a PR opened, or an orchestrate run completing. The three
+go-ahead phrases count only as the whole message, or as a closer after a
+finished change: "make it so the retry backs off" is a feature request,
+not a ship. It's one step for
 core.md's "Pause after each step" and "Wait for approval": don't stop
 between its steps to ask or to show progress. It stops only at an exit
 below, or when the Owner said "draft only" or "hold" for this PR. None of
@@ -173,15 +177,18 @@ area, that's an exit: say which files and what each side wanted.
 conflict from a later merge gets fixed before the Owner finds it:
 
 - With `gh`: `pr_state.py --pr <n> --wait-until conflict --interval 900
-  --timeout 7200` in a background Bash. It costs no context until it
-  exits. Exit 3 (no conflict yet): re-arm it. Exit 0: if the PR merged or
+  --timeout 6600` in a background Bash with `timeout` 7200000, so the
+  script's own deadline comes first. It costs no context until it exits. Exit 3 (no conflict yet): re-arm it. Exit 0: if the PR merged or
   closed, stop and report the final status ("Status"), with a
   notification; if it conflicts, resolve as above, wait for CI, and report
   and notify again.
 - On the web: a `send_later` check-in every two hours that reads
-  `mergeable_state` and does the same.
+  `mergeable_state` and does the same, for 24 hours at most. Then stop
+  parking and say so in the status line; the Owner can say "keep
+  watching".
 
-Stop parking when the PR merges or closes, or the Owner says stop.
+Stop parking when the PR merges or closes, or the Owner says stop, and
+cancel the pending check-in (`delete_trigger`) when you do.
 
 ## Status
 
@@ -195,14 +202,14 @@ starts with the same tag:
 | `[needs you]` | `Status: needs you: <what>` | An exit |
 | `[ready]` | `Status: merge-ready, parked for conflicts until you merge` | Step 5, parked |
 | `[done]` | `Status: done, archivable` | See below |
-| `[done]` | `Status: done, not archivable: <what remains>` | The PR merged or closed, something else is still open here |
+| `[done, not archivable]` | `Status: done, not archivable: <what remains>` | The PR merged or closed, something else is still open here |
 
 Done and archivable means all of these: the PR merged or closed; no
 watch or check-in is left running for it; the tree is clean and nothing
 is unpushed; no question to the Owner is pending; and every follow-up is
 queued as a card or written into the PR, not held only in this session.
-Archiving a `[ready]` session ends its parking and nothing else; say so
-if the Owner asks.
+To stop a `[ready]` session's parking, say stop before archiving it: on
+the web a check-in already scheduled still fires after an archive.
 
 ## Exits
 
@@ -229,9 +236,11 @@ way the harness offers:
   (`run_in_background`, `timeout` up to 7200000), which wakes the session
   when it exits:
   `python3 -I <skill>/scripts/pr_state.py --pr <n> --wait-until checks-done`,
-  or `--wait-until review-on-head` for Copilot (`--reviewer any` for
-  another reviewer), `--wait-until conflict` while parked, or
-  `--wait-until change` for anything. Exit 0 means
+  or `--wait-until review-on-head --timeout 1800` for Copilot (step 4's
+  30 minutes; `--reviewer any` for another reviewer; several `--reviewer`
+  flags end on the first of them, so wait once per reviewer to wait for
+  all), `--wait-until conflict` while parked, or `--wait-until change`
+  for anything. Exit 0 means
   the condition holds; exit 3 means `--timeout` (default an hour) passed.
   Then read its JSON and decide. It prints facts only (check states, which
   reviews cover the head, threads and their replies); what failed and why

@@ -5,7 +5,9 @@ After a call that creates a pull request, it adds context telling the agent
 to run personal-ship-pr from step 2 in the same turn, so a draft PR isn't
 where the session stops. It sees PR creation through a GitHub MCP server's
 `create_pull_request` tool, `gh pr create` (not `--web`, which only opens a
-browser) and `gh api` POSTs to `repos/<owner>/<repo>/pulls`.
+browser, or `--dry-run`) and `gh api` POSTs to `repos/<owner>/<repo>/pulls`.
+When the tool's response shows it failed (an error flag, or Bash output
+with no PR URL), it stays quiet.
 
 `PERSONAL_SHIP_PR=0` in the harness environment turns it off. Every other
 call gets no output, and so does any error of this hook's own: it sees
@@ -24,13 +26,14 @@ GH_PR_CREATE = re.compile(START + r"gh\s+pr\s+create\b([^;&|\n]*)")
 GH_API = re.compile(START + r"gh\s+api\b([^;&|\n]*)")
 PULLS_PATH = re.compile(r"(?:^|/)repos/[^/\s'\"]+/[^/\s'\"]+/pulls/?$")
 HEREDOC = re.compile(r"<<-?\s*(['\"]?)([A-Za-z_]\w*)\1")
+PR_URL = re.compile(r"/pulls?/\d+")
 
 CONTEXT = (
     "personal-ship-pr: a pull request was just opened. Unless the Owner said \"draft only\" or \"hold\" for it, "
     "load the personal-ship-pr skill (if it isn't already running) and carry its loop on from step 2 now, in this "
     "turn: /code-review at the level the tier sets, or say \"Skipping /code-review: <reason>\"; fix CI; mark the "
     "PR ready; work the Copilot rounds. The loop has standing approval, so don't stop between its steps to ask; "
-    "wait with the skill's \"Waiting\" section instead of ending the turn. Never merge."
+    "wait on CI and reviews as the skill's \"Waiting\" section says. Never merge."
 )
 
 
@@ -74,16 +77,28 @@ def creates_pr(event):
     visible = strip_heredocs((event.get("tool_input") or {}).get("command") or "")
     for m in GH_PR_CREATE.finditer(visible):
         argv = words(m.group(1))
-        if "--web" not in argv and "-w" not in argv:
+        if not {"--web", "-w", "--dry-run"} & set(argv):
             return True
     return any(gh_api_creates_pr(m.group(1)) for m in GH_API.finditer(visible))
+
+
+def failed(response):
+    """True when the tool's response shows the call didn't open a PR."""
+    if not isinstance(response, dict):
+        return False
+    if response.get("is_error") or response.get("isError") or response.get("interrupted"):
+        return True
+    if "stdout" in response:
+        return not PR_URL.search(str(response.get("stdout") or ""))
+    return False
 
 
 def main():
     try:
         if os.environ.get("PERSONAL_SHIP_PR", "").strip().lower() in ("0", "false", "no", "off"):
             return
-        if creates_pr(json.load(sys.stdin)):
+        event = json.load(sys.stdin)
+        if creates_pr(event) and not failed(event.get("tool_response")):
             print(json.dumps({"hookSpecificOutput": {"hookEventName": "PostToolUse", "additionalContext": CONTEXT}}))
     except Exception:  # fail open: this hook sees every Bash call
         return

@@ -10,11 +10,12 @@ Without --wait-until it prints the state once. With it, it polls every
 or when --timeout passes first (exit 3, "timed_out": true):
 
 - checks-done: no check run or commit status on the head commit is still
-  pending, and at least one exists, or --grace seconds have passed with
-  none (a repo without CI).
+  pending, and the same checks were there on the previous poll (so a fast
+  check that finishes before slower CI registers doesn't end the wait),
+  or --grace seconds have passed with none (a repo without CI).
 - review-on-head: a review of the head commit by a login that starts with
-  a --reviewer prefix, case-insensitive (default `copilot`; `any` for
-  anyone).
+  any one --reviewer prefix, case-insensitive (default `copilot`; `any`
+  for anyone). It's any-of: wait once per reviewer to wait for several.
 - conflict: GitHub reports the PR conflicts with its base
   (`mergeable_state` is `dirty`), or it's no longer open (merged or
   closed), so a parked watch ends either way.
@@ -34,6 +35,7 @@ import re
 import subprocess
 import sys
 import time
+import urllib.parse
 
 GITHUB_REMOTE = re.compile(r"github\.com[:/]+([^/]+)/([^/]+?)(?:\.git)?/*$")
 FAILED = {"failure", "timed_out", "cancelled", "action_required", "startup_failure", "stale"}
@@ -70,7 +72,8 @@ def default_pr(repo):
     if not branch:
         raise Unavailable("detached HEAD; pass --pr N")
     owner = repo.split("/")[0]
-    pulls = api(f"repos/{repo}/pulls?head={owner}:{branch}&state=open&per_page=5")
+    head = urllib.parse.quote(f"{owner}:{branch}", safe=":/")
+    pulls = api(f"repos/{repo}/pulls?head={head}&state=open&per_page=5")
     if not pulls:
         raise Unavailable(f"no open PR with head {owner}:{branch}; pass --pr N")
     return pulls[0]["number"]
@@ -87,6 +90,7 @@ def snapshot(repo, number):
     checks = [{"name": c["name"], "kind": "check_run",
                "state": c["conclusion"] if c["status"] == "completed" else "pending"} for c in runs]
     checks += [{"name": s["context"], "kind": "status", "state": s["state"]} for s in statuses]
+    checks.sort(key=lambda c: (c["kind"], c["name"]))
     pending = [c["name"] for c in checks if c["state"] == "pending"]
     failed = [c["name"] for c in checks if c["state"] in FAILED or c["state"] == "error"]
 
@@ -123,9 +127,17 @@ def fingerprint(s):
                       sort_keys=True)
 
 
-def met(condition, s, first, elapsed, reviewers, grace):
+def check_names(s):
+    return sorted((c["kind"], c["name"]) for c in s["checks"]["all"])
+
+
+def met(condition, s, first, prev, elapsed, reviewers, grace):
     if condition == "checks-done":
-        return not s["checks"]["pending"] and (s["checks"]["total"] > 0 or elapsed >= grace)
+        if s["checks"]["pending"]:
+            return False
+        if s["checks"]["total"] == 0:
+            return elapsed >= grace
+        return prev is not None and check_names(prev) == check_names(s)
     if condition == "review-on-head":
         return any(r["on_head"] and ("any" in reviewers or r["author"].lower().startswith(reviewers))
                    for r in s["reviews"])
@@ -154,17 +166,17 @@ def main():
         print(f"pr_state: {e}", file=sys.stderr)
         return 1
 
-    start = time.monotonic()
+    start, prev = time.monotonic(), None
     while a.wait_until:
         elapsed = time.monotonic() - start
-        if met(a.wait_until, state, first, elapsed, reviewers, a.grace):
+        if met(a.wait_until, state, first, prev, elapsed, reviewers, a.grace):
             break
         if elapsed >= a.timeout:
             state["timed_out"] = True
             break
-        time.sleep(a.interval)
+        time.sleep(max(0, min(a.interval, a.timeout - elapsed)))
         try:
-            state = snapshot(repo, number)
+            prev, state = state, snapshot(repo, number)
         except (Unavailable, KeyError, TypeError, ValueError) as e:
             print(f"pr_state: poll failed, retrying: {e}", file=sys.stderr)
 

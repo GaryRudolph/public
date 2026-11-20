@@ -121,6 +121,15 @@ check("checks-done returns when nothing is pending", rc == 0 and s and s["checks
 check("  ...names the condition", s and s.get("condition") == "checks-done", s)
 
 f = Fake()
+f.checks(none=True, n=1)
+f.checks(pending=True, n=2)
+f.checks(n=3)
+f.checks(n=4)
+rc, s, err = f.run("--wait-until", "checks-done", "--interval", "0")
+check("a fast check alone doesn't end the wait before CI registers",
+      rc == 0 and s and s["checks"]["total"] == 3 and not s["checks"]["pending"], (rc, s and s["checks"], err))
+
+f = Fake()
 rc, s, err = f.run("--wait-until", "checks-done", "--interval", "0", "--timeout", "0")
 check("timeout: exit 3, timed_out", rc == 3 and s and s.get("timed_out") is True, (rc, err))
 
@@ -196,8 +205,11 @@ def hook(event, env_extra=None, raw=None):
     return out["additionalContext"] if out.get("hookEventName") == "PostToolUse" else "wrong event"
 
 
-def bash(command):
-    return {"tool_name": "Bash", "tool_input": {"command": command}}
+def bash(command, stdout=None):
+    event = {"tool_name": "Bash", "tool_input": {"command": command}}
+    if stdout is not None:
+        event["tool_response"] = {"stdout": stdout, "stderr": "", "interrupted": False}
+    return event
 
 
 def fires(name, got, want):
@@ -215,6 +227,14 @@ fires("gh api GET pulls", hook(bash("gh api repos/a/b/pulls")), False)
 fires("gh api -X GET with fields", hook(bash("gh api -X GET repos/a/b/pulls -f state=open")), False)
 fires("gh api PATCH a PR", hook(bash("gh api -X PATCH repos/a/b/pulls/3 -f draft=false")), False)
 fires("gh pr list", hook(bash("gh pr list")), False)
+fires("gh pr create --dry-run", hook(bash("gh pr create --dry-run -t x -b y")), False)
+fires("gh pr create that printed the PR URL",
+      hook(bash("gh pr create -t x -F b.md", "https://github.com/a/b/pull/12\n")), True)
+fires("gh api that returned the PR", hook(bash("gh api -X POST repos/a/b/pulls -f title=x",
+                                                 '{"html_url": "https://github.com/a/b/pull/12"}')), True)
+fires("gh pr create that failed (no PR URL)", hook(bash("gh pr create -t x -F b.md", "")), False)
+fires("MCP call flagged as an error", hook({"tool_name": "mcp__github__create_pull_request",
+                                            "tool_response": {"isError": True}}), False)
 fires("heredoc mentioning gh pr create", hook(bash("cat > n.md <<'EOF'\ngh pr create --fill\nEOF")), False)
 fires("other MCP tool", hook({"tool_name": "mcp__github__update_pull_request", "tool_input": {}}), False)
 fires("PERSONAL_SHIP_PR=0 turns it off", hook({"tool_name": "mcp__github__create_pull_request"},
