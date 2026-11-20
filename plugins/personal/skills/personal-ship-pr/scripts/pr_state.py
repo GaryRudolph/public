@@ -148,7 +148,8 @@ def met(condition, s, first, prev, elapsed, reviewers, grace):
             return elapsed >= grace
         return prev is not None and check_names(prev) == check_names(s)
     if condition == "review-on-head":
-        return any(r["on_head"] and ("any" in reviewers or r["author"].lower().startswith(reviewers))
+        return any(r["on_head"] and r["state"] != "PENDING"
+                   and ("any" in reviewers or r["author"].lower().startswith(reviewers))
                    for r in s["reviews"])
     if condition == "conflict":
         return s["mergeable_state"] in ("dirty", "behind") or s["state"] != "open" or s["merged"]

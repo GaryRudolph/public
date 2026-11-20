@@ -7,7 +7,8 @@ where the session stops. It sees PR creation through a GitHub MCP server's
 `create_pull_request` tool, `gh pr create` (not `--web`, which only opens a
 browser, or `--dry-run`) and `gh api` POSTs to `repos/<owner>/<repo>/pulls`.
 When the tool's response shows it failed (an error flag, or Bash output
-with no PR URL), it stays quiet.
+with no PR URL and an error on stderr), it stays quiet; output with no URL
+and no error (`--jq`, `--silent`, a redirect) still counts as opened.
 
 `PERSONAL_SHIP_PR=0` in the harness environment turns it off. Every other
 call gets no output, and so does any error of this hook's own: it sees
@@ -27,6 +28,7 @@ GH_API = re.compile(START + r"gh\s+api\b([^;&|\n]*)")
 PULLS_PATH = re.compile(r"(?:^|/)repos/[^/\s'\"]+/[^/\s'\"]+/pulls/?$")
 HEREDOC = re.compile(r"<<-?\s*(['\"]?)([A-Za-z_]\w*)\1")
 PR_URL = re.compile(r"/pulls?/\d+")
+GH_ERROR = re.compile(r"(?i)\b(error|failed|could not|not found|HTTP [45]\d\d)\b")
 
 CONTEXT = (
     "personal-ship-pr: a pull request was just opened. Unless the Owner said \"draft only\" or \"hold\" for it, "
@@ -88,8 +90,10 @@ def failed(response):
         return False
     if response.get("is_error") or response.get("isError") or response.get("interrupted"):
         return True
-    if "stdout" in response:
-        return not PR_URL.search(str(response.get("stdout") or ""))
+    # Output alone can't prove success: --jq, --silent and redirects all hide the URL. So only output with no PR URL
+    # whose stderr reads like an error counts as a failure.
+    if "stdout" in response and not PR_URL.search(str(response.get("stdout") or "")):
+        return bool(GH_ERROR.search(str(response.get("stderr") or "")))
     return False
 
 

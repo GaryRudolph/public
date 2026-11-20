@@ -163,6 +163,11 @@ rc, s, err = f.run("--wait-until", "review-on-head", "--interval", "0", "--timeo
 check("  ...someone else's review doesn't count", rc == 3, (rc, err))
 rc, s, err = f.run("--wait-until", "review-on-head", "--reviewer", "any", "--interval", "0")
 check("  ...unless --reviewer any", rc == 0, (rc, err))
+f = Fake()
+f.put(f"repos/{REPO}/pulls/7/reviews?per_page=100", [
+    {"id": 4, "user": {"login": "gary"}, "state": "PENDING", "commit_id": HEAD}])
+rc, s, err = f.run("--wait-until", "review-on-head", "--reviewer", "any", "--interval", "0", "--timeout", "0")
+check("  ...an unsubmitted (PENDING) review doesn't count", rc == 3, (rc, err))
 
 f = Fake()
 f.checks(pending=True, n=1)
@@ -265,10 +270,10 @@ def hook(event, env_extra=None, raw=None):
     return out["additionalContext"] if out.get("hookEventName") == "PostToolUse" else "wrong event"
 
 
-def bash(command, stdout=None):
+def bash(command, stdout=None, stderr=""):
     event = {"tool_name": "Bash", "tool_input": {"command": command}}
     if stdout is not None:
-        event["tool_response"] = {"stdout": stdout, "stderr": "", "interrupted": False}
+        event["tool_response"] = {"stdout": stdout, "stderr": stderr, "interrupted": False}
     return event
 
 
@@ -292,7 +297,14 @@ fires("gh pr create that printed the PR URL",
       hook(bash("gh pr create -t x -F b.md", "https://github.com/a/b/pull/12\n")), True)
 fires("gh api that returned the PR", hook(bash("gh api -X POST repos/a/b/pulls -f title=x",
                                                  '{"html_url": "https://github.com/a/b/pull/12"}')), True)
-fires("gh pr create that failed (no PR URL)", hook(bash("gh pr create -t x -F b.md", "")), False)
+fires("gh pr create that failed (no URL, error on stderr)",
+      hook(bash("gh pr create -t x -F b.md", "", "pull request create failed: GraphQL: No commits")), False)
+fires("gh api that failed (HTTP 422)",
+      hook(bash("gh api -X POST repos/a/b/pulls -f title=x", "", "gh: Validation Failed (HTTP 422)")), False)
+fires("gh api --jq .number: no URL, no error", hook(bash("gh api -X POST repos/a/b/pulls -f title=x --jq .number",
+                                                           "12\n")), True)
+fires("gh pr create with stdout redirected: progress on stderr only",
+      hook(bash("gh pr create -t x -F b.md > /dev/null", "", "Creating pull request for x into main in a/b")), True)
 fires("MCP call flagged as an error", hook({"tool_name": "mcp__github__create_pull_request",
                                             "tool_response": {"isError": True}}), False)
 fires("heredoc mentioning gh pr create", hook(bash("cat > n.md <<'EOF'\ngh pr create --fill\nEOF")), False)

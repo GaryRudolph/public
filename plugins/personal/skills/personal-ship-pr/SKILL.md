@@ -166,7 +166,8 @@ or a review, and before every push.
   round.
 - `behind` (GitHub reports it only where the repo requires an
   up-to-date branch): during the loop, leave it for step 5, which updates
-  it once. While parked, update it (`update_pull_request_branch`), wait
+  it once. While parked, update it (`update_pull_request_branch`), then
+  `git pull --ff-only` so the checkout has GitHub's merge commit, wait
   for CI, rerun step 5's checks, and park again.
 - Anything else (`clean`, `unstable`, `blocked`): GitHub can merge it, so
   leave it alone.
