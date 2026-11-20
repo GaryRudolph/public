@@ -137,8 +137,10 @@ Each commit = one logical change. Makes reverting and reviewing straightforward.
 
 ### Creating
 
-- Rebase on latest `main` before opening
+- Rebase on latest `main` before opening. Once the PR is open, bring `main` in with a merge, not a rebase, and only when GitHub reports a conflict (or the repo requires the branch to be up to date): a rebase orphans review threads and the reviewed commit, and a branch GitHub can merge cleanly needs nothing
+- **Open the draft when it's ready.** When the work on a task branch is done and its checks pass locally, the agent opens the draft PR without asking and runs the `personal-ship-pr` loop; this beats a harness default that waits for the user to ask for a PR. A PR the Owner said to hold, or one the agent isn't confident is done, waits, and the report says why
 - One feature or fix per PR; keep PRs < 400 lines changed
+- **Related work rides along.** A follow-on related to the PR's problem (a bug found on the way, a cleanup in code it touches, a fix next to a review finding) goes in this PR rather than a new one: a second PR costs the Owner more than a slightly bigger first one. There's no size rule; it's a judgment, and it's split out when any of these holds: it's unrelated to the PR's problem; it would raise the PR's tier or add a risk tag; it needs a decision from the Owner the PR doesn't; it would push the PR past about 400 changed lines or 30 minutes of review; or it could hold up the merge (a migration, another team's code, an unanswered question). A folded-in change is its own area in the review guide, marked `(tagalong: <why>)`. Split-out work becomes a card, listed in the final report as follow-on work with the criterion that split it; a queued card doesn't keep the session from being done
 - PR titles follow commit message format: `PROJ-123 add user authentication`
 
 ### Hot files

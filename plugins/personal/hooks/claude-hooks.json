@@ -25,6 +25,14 @@
           { "type": "command", "command": "python3 -I \"${CLAUDE_PLUGIN_ROOT}\"/skills/personal-review-guide/scripts/pr_body_guard.py", "timeout": 10 }
         ]
       }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Bash|mcp__.+__create_pull_request",
+        "hooks": [
+          { "type": "command", "command": "python3 -I \"${CLAUDE_PLUGIN_ROOT}\"/skills/personal-ship-pr/scripts/ship_pr_hook.py", "timeout": 10 }
+        ]
+      }
     ]
   }
 }

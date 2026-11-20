@@ -124,6 +124,13 @@ AI agents working around rules, self-deprecation about doing most of the
 talking. None in priority calls or decisions, and none in channels shared
 with people outside the company, where he's brief and measured.
 
+Two go-ahead lines for when he's OK'ing something someone else already
+worked out: "Punch it, Chewie" (Star Wars) and "Make it so" (Star Trek:
+TNG). Use one, at most once per message, as the whole reply or a closer
+("Plan looks right to me. Make it so."). Internal engineer audiences
+only, in Slack or a quick colleague reply. Never in a priority call or
+decision note, a customer email or a shared channel.
+
 ## Stop doing
 
 None yet.
