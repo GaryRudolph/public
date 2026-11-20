@@ -191,7 +191,6 @@ It's a gate between milestones, not a plan step. The review dispatches its own f
 - **The session that finishes `m{N}`** writes the `m{N+1}` handoff with `Review: pending, after m{N}'s PR merges`. Where the harness can queue task cards, it queues `1 [deep]: Review m{N} on main` and `2 after 1 [deep]: Start m{N+1}` (core.md "Queue sessions"); otherwise the handoff tells the next session to run the review first.
 - **The session that starts `m{N+1}`** checks the handoff. If the review is pending and `m{N}` has merged, it runs `personal-codebase-review` in its own context before planning, and folds the summary's decisions and high findings into `m{N+1}`'s plan: a high finding in code the previous milestone wrote is a step, not a follow-up. If `m{N}` hasn't merged, it stops and says so.
 - **A plan that ships as one PR**, however many milestones it has, gets the review after that PR merges: its [Completion summary](#final-completion-all-groups-done) lists it under Follow-ups, and the session queues the review card if it can. Inside one PR `main` doesn't change, so there's nothing to review between its milestones.
-- **A complex change** (a `[study]`-tier PR, a plan with an `[xdeep]` step) gets the same follow-up and card when it merges, even mid-project.
 
 The drivers don't dispatch the review: `personal-plan-orchestrate` never sends it to a worker, and neither driver writes it as a step. Both name the gate at grouping when the plan is one milestone of several.
 

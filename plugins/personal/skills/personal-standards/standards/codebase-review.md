@@ -5,7 +5,7 @@ How `main` gets reviewed after integration, beside the review of each change. [r
 Contents:
 
 - [Kinds](#kinds): incremental, full, estate; a branch's own review is the PR's
-- [When](#when): milestone gates, complex changes, churn, an optional schedule
+- [When](#when): milestone gates in a plan, "Review due" outside one, churn, an optional schedule
 - [Anchors](#anchors): commits on the default branch only
 - [The record](#the-record): `specs/reviews/`, the log, the register, the summary, fix claims
 - [Findings](#findings): fields, statuses, accepted findings
@@ -35,14 +35,15 @@ Contents:
 | --- | --- |
 | A repo adopts this standard (no log yet) | `full` |
 | `m{N}` lands on the default branch and `m{N+1}` follows | `incremental`, run by the session that starts `m{N+1}`, before planning it ([plan-execution.md](plan-execution.md) "Review gate") |
-| A `[study]`-tier PR, or a plan with an `[xdeep]` step, merges | `incremental`, as a follow-up card |
 | A plan that shipped as one PR merges | `incremental`, from the plan's Completion summary |
 | More than about 8,000 changed lines since the anchor | `incremental`, split into path slices ([Large ranges](#large-ranges)) |
 | Before a major release, or after a large migration | `full` |
 | Repos that coordinate each reached a milestone, or the cross-repo shape changed | `estate` |
 | Optional schedule, at most monthly | `status`, then `incremental` only if it's due |
 
-A review is **due** when the anchor is 30 or more days old and anything changed since, or when a trigger above fired and no review covers it. `status` reports the facts (days, commits, changed lines since the anchor) and says whether one is due; on a schedule, it does nothing when none is.
+A review is **due** when 20 or more commits have landed on the default branch since the anchor, or when a trigger above fired and no review covers it. Commits, not days: a quiet repo doesn't need one, a busy one needs it sooner. `status` reports the facts (days, commits, changed lines since the anchor) and says whether one is due; on a schedule, it does nothing when none is.
+
+Outside a plan, nothing starts a review on its own. When a PR merges in a repo with a `specs/reviews/` log, the `personal-ship-pr` session's final report adds `Review due: <N> commits on <default> since r<N>` once the count reaches 20, and the Owner decides whether to start one. A risky PR doesn't trigger one: its own draft round and Copilot review covered the diff, and a review of `main` is about what accumulates.
 
 ### Large ranges
 

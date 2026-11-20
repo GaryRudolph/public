@@ -14,8 +14,9 @@ description: >
   separate. Modes: status, incremental, full, estate. Triggers:
   "review main", "codebase review", "full review", "incremental review",
   "review since the last review", "estate review", "review across repos",
-  "is a review due", a milestone's review gate, and after a [study]-tier
-  PR or an [xdeep] step merges.
+  "is a review due", and a milestone's review gate. A "Review due"
+  line in a shipped PR's report is information for the Owner, not a
+  trigger.
 ---
 
 # personal-codebase-review

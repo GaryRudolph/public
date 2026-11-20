@@ -184,7 +184,8 @@ conflict from a later merge gets fixed before the Owner finds it:
   --timeout 6600` in a background Bash with `timeout` 7200000, so the
   script's own deadline comes first. It costs no context until it exits.
   Exit 3 (nothing yet): re-arm it. Exit 0: if the PR merged or closed,
-  stop and report the final status ("Status"), with a notification; if
+  stop and report the final status ("Status", "After the merge"), with a
+  notification; if
   it's `dirty` or `behind`, handle it as above, wait for CI, and report
   and notify again.
 - On the web: a `send_later` check-in every two hours that reads
@@ -194,6 +195,17 @@ conflict from a later merge gets fixed before the Owner finds it:
 
 Stop parking when the PR merges or closes, or the Owner says stop, and
 cancel the pending check-in (`delete_trigger`) when you do.
+
+## After the merge
+
+When the PR merges, the final report also says whether a review of `main`
+is due, where the repo keeps a `specs/reviews/` log: run
+[`../personal-codebase-review/scripts/review_log_facts.py`](../personal-codebase-review/scripts/review_log_facts.py)
+and read `since_anchor: commits=`. At 20 or more, add `Review due: <N>
+commits on <default> since r<N>` (codebase-review.md "When"). It's
+information for the Owner: don't start a review, queue a card for one, or
+count it against "done, archivable". Inside a plan, the milestone gate
+already covers it; say nothing.
 
 ## Status
 
