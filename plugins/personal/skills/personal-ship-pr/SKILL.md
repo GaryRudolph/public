@@ -193,23 +193,27 @@ cancel the pending check-in (`delete_trigger`) when you do.
 ## Status
 
 The Owner may be running several of these, so every report ends with one
-status line, and where the harness can rename the session (Claude Code's
-`set_session_title` on its own session, from `get_session`) the title
-starts with the same tag:
+status line that starts with its emoji. Where the harness can rename the
+session (Claude Code's `set_session_title` on its own session, from
+`get_session`), the title starts with the same emoji, updated whenever
+the state changes. Only ❓ and 🛑 need the Owner.
 
-| Tag | Line | When |
+| Emoji | Line | When |
 | --- | --- | --- |
-| `[needs you]` | `Status: needs you: <what>` | An exit |
-| `[ready]` | `Status: merge-ready, parked for conflicts until you merge` | Step 5, parked |
-| `[done]` | `Status: done, archivable` | See below |
-| `[done, not archivable]` | `Status: done, not archivable: <what remains>` | The PR merged or closed, something else is still open here |
+| 🔄 | `Status: 🔄 working: <what>` | Mid-loop: reviewing, fixing, pushing |
+| ⏳ | `Status: ⏳ waiting on <CI, Copilot's review>; nothing needed from you` | The loop is waiting on something other than the Owner |
+| ❓ | `Status: ❓ question: <the question>` | An exit that needs the Owner's answer: a contract, design or security call, a conflict that picks a behavior |
+| 🛑 | `Status: 🛑 blocked: <what's wrong and what's needed>` | An exit that needs the Owner to act: CI red on the base too, a refused draft, a ruleset step, the round cap |
+| ✅ | `Status: ✅ merge-ready; parked for conflicts until you merge` | Step 5, parked |
+| 🏁 | `Status: 🏁 done, archivable` | See below |
+| 📌 | `Status: 📌 done, not archivable: <what remains>` | The PR merged or closed, something else is still open here |
 
 Done and archivable means all of these: the PR merged or closed; no
 watch or check-in is left running for it; the tree is clean and nothing
 is unpushed; no question to the Owner is pending; and every follow-up is
 queued as a card or written into the PR, not held only in this session.
-To stop a `[ready]` session's parking, say stop before archiving it: on
-the web a check-in already scheduled still fires after an archive.
+To stop a ✅ session's parking, say stop before archiving it: on the web
+a check-in already scheduled still fires after an archive.
 
 ## Exits
 
@@ -219,9 +223,9 @@ one, a ruleset
 that reserves a step for the Owner, a draft the repo refuses, or the round
 cap. At every exit and at step 5, report as step 5 says and send one push
 notification where the harness has one (Claude Code's `PushNotification`):
-the PR, then the state or what's needed, in a line (`acme/orders#124
-merge-ready: Copilot 3 fixed, 1 declined` or `acme/orders#124 needs you:
-CI red on main too`). The Owner may be driving several PRs; the
+the status emoji, the PR, then the state or what's needed, in a line
+(`✅ acme/orders#124 merge-ready: Copilot 3 fixed, 1 declined` or
+`🛑 acme/orders#124 blocked: CI red on main too`). The Owner may be driving several PRs; the
 notification is how they learn which one needs them. At an exit, cancel
 any check-in or watch you started for this PR; at step 5, parking takes
 over.
