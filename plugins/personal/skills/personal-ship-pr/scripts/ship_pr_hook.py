@@ -5,10 +5,13 @@ After a call that creates a pull request, it adds context telling the agent
 to run personal-ship-pr from step 2 in the same turn, so a draft PR isn't
 where the session stops. It sees PR creation through a GitHub MCP server's
 `create_pull_request` tool, `gh pr create` (not `--web`, which only opens a
-browser, or `--dry-run`) and `gh api` POSTs to `repos/<owner>/<repo>/pulls`.
-When the tool's response shows it failed (an error flag, or Bash output
-with no PR URL and an error on stderr), it stays quiet; output with no URL
-and no error (`--jq`, `--silent`, a redirect) still counts as opened.
+browser, `--dry-run` or `--help`) and `gh api` POSTs to
+`repos/<owner>/<repo>/pulls` (not `--help`), reading backslash-continued
+lines as one command. When the tool's response shows it failed (an error
+flag, or Bash output with no PR URL and an error on stderr), it stays
+quiet; output with no URL and no error (`--jq`, `--silent`, a redirect)
+still counts. It doesn't model shell control flow (`a || gh pr create`),
+so its message asks the agent to confirm a new PR exists before starting.
 
 `PERSONAL_SHIP_PR=0` in the harness environment turns it off. Every other
 call gets no output, and so does any error of this hook's own: it sees
@@ -29,10 +32,13 @@ PULLS_PATH = re.compile(r"(?:^|/)repos/[^/\s'\"]+/[^/\s'\"]+/pulls/?$")
 HEREDOC = re.compile(r"<<-?\s*(['\"]?)([A-Za-z_]\w*)\1")
 PR_URL = re.compile(r"/pulls?/\d+")
 GH_ERROR = re.compile(r"(?i)\b(error|failed|could not|not found|HTTP [45]\d\d)\b")
+CONTINUATION = re.compile(r"\\\r?\n")
+HELP = {"--help", "-h"}
 
 CONTEXT = (
-    "personal-ship-pr: a pull request was just opened. Unless the Owner said \"draft only\" or \"hold\" for it, "
-    "load the personal-ship-pr skill (if it isn't already running) and carry its loop on from step 2 now, in this "
+    "personal-ship-pr: this call may have opened a pull request. First confirm it did: a new PR exists from this "
+    "call (a conditional, a failed or a help-only command may not have opened one, and an existing PR doesn't "
+    "count). If it did, and unless the Owner said \"draft only\" or \"hold\" for it, load the personal-ship-pr skill (if it isn't already running) and carry its loop on from step 2 now, in this "
     "turn: /code-review at the level the tier sets, or say \"Skipping /code-review: <reason>\"; fix CI; mark the "
     "PR ready; work the Copilot rounds. The loop has standing approval, so don't stop between its steps to ask; "
     "wait on CI and reviews as the skill's \"Waiting\" section says. Never merge."
@@ -60,7 +66,7 @@ def words(segment):
 
 def gh_api_creates_pr(args):
     argv = words(args)
-    if not any(not w.startswith("-") and PULLS_PATH.search(w.split("?")[0]) for w in argv):
+    if HELP & set(argv) or not any(not w.startswith("-") and PULLS_PATH.search(w.split("?")[0]) for w in argv):
         return False
     methods = [argv[i + 1].upper() for i, w in enumerate(argv[:-1]) if w in ("-X", "--method")]
     methods += [w.split("=", 1)[1].upper() for w in argv if w.startswith("--method=")]
@@ -76,10 +82,11 @@ def creates_pr(event):
         return True
     if tool != "Bash":
         return False
-    visible = strip_heredocs((event.get("tool_input") or {}).get("command") or "")
+    command = (event.get("tool_input") or {}).get("command") or ""
+    visible = CONTINUATION.sub(" ", strip_heredocs(command))  # one logical line per backslash-continued command
     for m in GH_PR_CREATE.finditer(visible):
         argv = words(m.group(1))
-        if not {"--web", "-w", "--dry-run"} & set(argv):
+        if not ({"--web", "-w", "--dry-run"} | HELP) & set(argv):
             return True
     return any(gh_api_creates_pr(m.group(1)) for m in GH_API.finditer(visible))
 

@@ -307,6 +307,13 @@ fires("gh pr create with stdout redirected: progress on stderr only",
       hook(bash("gh pr create -t x -F b.md > /dev/null", "", "Creating pull request for x into main in a/b")), True)
 fires("MCP call flagged as an error", hook({"tool_name": "mcp__github__create_pull_request",
                                             "tool_response": {"isError": True}}), False)
+fires("gh pr create --help", hook(bash("gh pr create --help")), False)
+fires("gh api ... pulls -h", hook(bash("gh api -X POST repos/a/b/pulls -h")), False)
+fires("--dry-run on a continued line", hook(bash("gh pr create --body-file pr.md \\\n  --dry-run")), False)
+fires("--web on a continued line", hook(bash("gh pr create -t x \\\n  --web")), False)
+fires("a continued gh pr create still counts", hook(bash("gh pr create --draft \\\n  -t x -F b.md")), True)
+ctx = hook({"tool_name": "mcp__github__create_pull_request"}) or ""
+check("context asks to confirm a new PR exists first", "First confirm it did" in ctx, ctx)
 fires("heredoc mentioning gh pr create", hook(bash("cat > n.md <<'EOF'\ngh pr create --fill\nEOF")), False)
 fires("other MCP tool", hook({"tool_name": "mcp__github__update_pull_request", "tool_input": {}}), False)
 fires("PERSONAL_SHIP_PR=0 turns it off", hook({"tool_name": "mcp__github__create_pull_request"},

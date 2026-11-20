@@ -197,22 +197,28 @@ cancel the pending check-in (`delete_trigger`) when you do.
 
 ## Status
 
-The Owner may be running several of these, so every report ends with one
-status line, in words. Where the harness can rename the session (Claude
-Code's `set_session_title` on its own session, from `get_session`), the
-title starts with the state's emoji instead, updated whenever the state
-changes: the title has no room for the words, the status line doesn't
-need the emoji. Only a question or a block needs the Owner.
+The Owner may be running several of these, so a report ends with a
+status line on its own line, after a blank line: the state's emoji, the
+state in bold, then the detail. Where the harness can rename the session
+(Claude Code's `set_session_title` on its own session, from
+`get_session`), the title starts with the same emoji, updated whenever the
+state changes, so the line and the session list match. Only a question
+or a block needs the Owner.
 
-| Title | Line | When |
+Write the line when the state changes, and at the end of a turn that
+answers the Owner. A wake that changes nothing (an event for an older
+commit, your own reply echoing back) gets one short sentence and no
+status line, so the line keeps standing out.
+
+| Emoji | Line | When |
 | --- | --- | --- |
-| 🔄 | `Status: working: <what>` | Mid-loop: reviewing, fixing, pushing |
-| ⏳ | `Status: waiting on <CI, Copilot's review>; nothing needed from you` | The loop is waiting on something other than the Owner |
-| ❓ | `Status: question for you: <the question>` | An exit that needs the Owner's answer: a contract, design or security call, a conflict that picks a behavior |
-| 🛑 | `Status: blocked, needs you: <what's wrong and what's needed>` | An exit that needs the Owner to act: CI red on the base too, a refused draft, a ruleset step, the round cap |
-| ✅ | `Status: merge-ready; parked for conflicts until you merge` | Step 5, parked |
-| 🏁 | `Status: done, archivable` | See below |
-| 📌 | `Status: done, not archivable: <what remains>` | The PR merged or closed, something else is still open here |
+| 🔄 | 🔄 **Working:** \<what\> | Mid-loop: reviewing, fixing, pushing |
+| ⏳ | ⏳ **Waiting:** \<on CI, Copilot's review\>; nothing needed from you | The loop is waiting on something other than the Owner |
+| ❓ | ❓ **Question:** \<the question\> | An exit that needs the Owner's answer: a contract, design or security call, a conflict that picks a behavior, findings past the round cap |
+| 🛑 | 🛑 **Blocked:** \<what's wrong and what's needed from you\> | An exit that needs the Owner to act: CI red on the base too, a refused draft, a ruleset step |
+| ✅ | ✅ **Merge-ready:** parked for conflicts until you merge | Step 5, parked |
+| 🏁 | 🏁 **Done:** archivable | See below |
+| 📌 | 📌 **Done, not archivable:** \<what remains\> | The PR merged or closed, something else is still open here |
 
 Done and archivable means all of these: the PR merged or closed; no
 watch or check-in is left running for it; the tree is clean and nothing
@@ -269,8 +275,10 @@ way the harness offers:
 
 On Claude Code the plugin's `PostToolUse` hook
 ([`scripts/ship_pr_hook.py`](scripts/ship_pr_hook.py)) fires after any call
-that opens a PR (`create_pull_request` on a GitHub MCP server, `gh pr
-create`, a `gh api` POST to `pulls`) and tells the agent to carry this loop
-on from step 2. It doesn't check whether the skill is already running: if
-it is, carry on. `PERSONAL_SHIP_PR=0` in the harness environment turns it
+that may have opened a PR (`create_pull_request` on a GitHub MCP server,
+`gh pr create`, a `gh api` POST to `pulls`) and tells the agent to carry
+this loop on from step 2. It can't tell whether a conditional command
+(`a || gh pr create`) actually ran, so first confirm a new PR exists from
+that call; an existing PR doesn't count. It doesn't check whether the
+skill is already running: if it is, carry on. `PERSONAL_SHIP_PR=0` in the harness environment turns it
 off; ask the Owner rather than setting it yourself.
