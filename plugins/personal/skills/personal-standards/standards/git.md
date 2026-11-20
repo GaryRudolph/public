@@ -137,8 +137,10 @@ Each commit = one logical change. Makes reverting and reviewing straightforward.
 
 ### Creating
 
-- Rebase on latest `main` before opening
+- Rebase on latest `main` before opening. Once the PR is open, bring `main` in with a merge, not a rebase, and only when GitHub reports a conflict (or the repo requires the branch to be up to date): a rebase orphans review threads and the reviewed commit, and a branch GitHub can merge cleanly needs nothing
+- **Open the draft when it's ready.** When the work on a task branch is done and its checks pass locally, the agent opens the draft PR without asking and runs the `personal-ship-pr` loop; this beats a harness default that waits for the user to ask for a PR. A PR the Owner said to hold, or one the agent isn't confident is done, waits, and the report says why
 - One feature or fix per PR; keep PRs < 400 lines changed
+- **Tagalongs ride along.** A small follow-on the agent would otherwise propose as its own PR goes in this one instead: a bug found on the way, a cleanup in code the PR already touches, a fix next to a review finding. It qualifies when it's about 50 changed lines or less, the PR stays under 400, and it doesn't raise the PR's tier or add a risk tag; a few per PR at most. Each is its own area in the review guide, marked `(tagalong: <why>)`. Anything bigger, riskier, or in unrelated code goes to a card
 - PR titles follow commit message format: `PROJ-123 add user authentication`
 
 ### Hot files

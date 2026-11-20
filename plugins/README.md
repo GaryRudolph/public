@@ -21,7 +21,8 @@ harness's:
   guards on `Bash`, one keeping the orchestrate reviewers read-only and one
   keeping its workers from outward commands, plus `personal-review-guide`'s
   check that a new PR's body has a review guide (on `Bash` and MCP
-  `create_pull_request`).
+  `create_pull_request`), and a `PostToolUse` hook from `personal-ship-pr`
+  that starts its loop once a PR opens.
 - `claude-agents/` and `claude-workflows/` inside `personal-plan-orchestrate`:
   its five plan worker and reviewer agents and the `plan-segment` workflow,
   named in the Claude manifest's `agents` and `workflows` fields.
@@ -39,7 +40,7 @@ plugins/
     .claude-plugin/plugin.json  .codex-plugin/plugin.json
     .cursor-plugin/plugin.json  gemini-extension.json
     hooks/hooks.json                <- SessionStart for Claude, Codex, Gemini
-    hooks/claude-hooks.json         <- Claude only: Workflow gate, reviewer and worker Bash guards
+    hooks/claude-hooks.json         <- Claude only: Workflow gate, reviewer and worker Bash guards, PR hooks
     hooks/cursor-hooks.json         <- empty; keeps Cursor off hooks.json
     cursor/rules/personal-core.mdc  <- GENERATED from core.md; Cursor's always-on core
     scripts/session-start.sh        <- prints core.md in parts
@@ -55,7 +56,7 @@ plugins/
       personal-secrets/             <- SOPS + age secrets, single repo and estate: procedures + tested kits
       personal-release/             <- cut releases and hotfixes; bump script + workflow
       personal-repo-baseline/       <- per-repo settings the plugin can't carry; facts + merge scripts
-      personal-ship-pr/             <- draft PR to merge-ready: /code-review, CI, Copilot rounds
+      personal-ship-pr/             <- draft PR to merge-ready: /code-review, CI, Copilot rounds; pr_state.py, hook + tests
       personal-codebase-review/     <- reviews of main: full, incremental, estate; log facts script + tests
       personal-plan-tag-tiers/ personal-plan-model-tiers/
       personal-plan-orchestrate/
@@ -159,7 +160,7 @@ cleaned up, then push.
 | `personal` | `personal-release` | Cut SemVer releases and hotfixes: propose the level from what changed, bump every version in lock-step, move the changelog, tag; set up version.txt and a Release workflow |
 | `personal` | `personal-repo-baseline` | Audit and apply the per-repo settings the plugin can't carry: `.claude/settings.json` attribution (`Assisted-by: Claude Code`), GitHub squash-only merge settings, the review-guide PR template, and CI that runs on draft PRs. Dry-run first; re-run to bring a repo up to the current baseline |
 | `personal` | `personal-review-guide` | Write the review guide for a change: tag areas `[study]` / `[check]` / `[skim]` / `[skip]`, read base and head, draw before/after only where structure changed, run the repo's review surfaces, and write the PR description collapsible by tier. Modes: plan, walkthrough, pr |
-| `personal` | `personal-ship-pr` | Take a finished change from draft PR to merge-ready: open the draft with the review guide, the harness's `/code-review` at the level the tier and risk tags set, fix CI, remove runner handoff files, mark ready, work Copilot's review in rounds until every comment has an outcome, and report the tally. Never merges |
+| `personal` | `personal-ship-pr` | Take a finished change from draft PR to merge-ready unattended: open the draft with the review guide as soon as the work is done, the harness's `/code-review` at the level the tier and risk tags set (or say why it's skipped), fix CI, remove runner handoff files, mark ready, work Copilot's review in rounds until every comment has an outcome, waiting on CI and reviews itself (`pr_state.py`, PR events), then notify and report the tally. A `PostToolUse` hook starts it when a PR opens. Never merges |
 | `personal` | `personal-codebase-review` | Review `main`, not a diff: incremental (every line since the last logged review, via `/code-review` on the range), full (architecture, contracts, boundaries, hotspots) or estate (architecture and duplication across repos, with or without a workspace). Writes a findings register and a PR-shaped summary to `specs/reviews/`, logs the range, and drafts the review PR and a tracking issue. Modes: status, incremental, full, estate |
 | `personal` | `personal-plan-tag-tiers` | Shared tagging layer: tag plan steps `[xdeep]` / `[deep]` / `[exec]` / `[fast]` to show complexity. Tags only; the two drivers call it automatically |
 | `personal` | `personal-plan-model-tiers` | Passive driver: group tagged steps into waves (no-thrash) and insert STOP markers with handoff blocks at tier boundaries |
