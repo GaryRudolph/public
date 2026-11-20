@@ -240,6 +240,13 @@ os.rename(os.path.join(f.dir, key(f"repos/{REPO}/pulls/7") + ".json"),
 f.put(f"repos/{REPO}/commits/{HEAD}/check-runs?per_page=100", {"check_runs": []}, n=3)
 rc, s, err = f.run("--wait-until", "checks-done", "--interval", "0.05", "--timeout", "0.3")
 check("a failed poll later is retried, not fatal", rc == 3 and s is not None and "retrying" in err, (rc, err))
+f = Fake()
+f.checks(none=True)
+f.put(f"repos/{REPO}/commits/{HEAD}/status?per_page=100", {"statuses": []})
+os.rename(os.path.join(f.dir, key(f"repos/{REPO}/pulls/7") + ".json"),
+          os.path.join(f.dir, key(f"repos/{REPO}/pulls/7") + ".1.json"))
+rc, s, err = f.run("--wait-until", "checks-done", "--interval", "0.05", "--grace", "0.1", "--timeout", "0.4")
+check("grace never passes on a stale snapshot while polls fail", rc == 3, (rc, err))
 
 
 print("ship_pr_hook.py")

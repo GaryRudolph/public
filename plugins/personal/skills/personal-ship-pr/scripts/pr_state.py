@@ -176,19 +176,20 @@ def main():
         return 1
 
     start = head_start = time.monotonic()
-    prev = None
+    prev, fresh = None, True
     while a.wait_until:
         now = time.monotonic()
-        if met(a.wait_until, state, first, prev, now - head_start, reviewers, a.grace):
+        if fresh and met(a.wait_until, state, first, prev, now - head_start, reviewers, a.grace):
             break
         if now - start >= a.timeout:
             state["timed_out"] = True
             break
         time.sleep(max(0, min(a.interval, a.timeout - (now - start))))
         try:
-            prev, state = state, snapshot(repo, number)
+            prev, state, fresh = state, snapshot(repo, number), True
         except (Unavailable, KeyError, TypeError, ValueError) as e:
             print(f"pr_state: poll failed, retrying: {e}", file=sys.stderr)
+            fresh = False  # judge conditions only on a snapshot just read, never the stale one
             continue
         if state["head_sha"] != prev["head_sha"]:  # a push: this commit's checks start from nothing
             prev, head_start = None, time.monotonic()
