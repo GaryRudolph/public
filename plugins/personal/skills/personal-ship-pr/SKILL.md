@@ -7,8 +7,9 @@ description: >-
   files, mark it ready, work
   Copilot's review in rounds until every comment has an outcome, then stop
   and report the tally for the Owner to merge. Never merges. Triggers:
-  "open a PR", "PR this", "ship it", "get this ready to merge", the work on
-  a task branch is done, and a personal-plan-orchestrate run completes.
+  "open a PR", "PR this", "ship it", "punch it chewie", "make it so", "get
+  this ready to merge", the work on a task branch is done, and a
+  personal-plan-orchestrate run completes.
 ---
 
 # personal-ship-pr
@@ -19,8 +20,9 @@ Read [`review.md`](../personal-standards/standards/review.md) "Agent reviews
 on a PR" for the triage, and [`git.md`](../personal-standards/standards/git.md)
 "Pull Requests" for the description and trailers.
 
-Asking for a PR is approval for the whole loop. It stops only where a step
-below says so.
+Asking for a PR is approval for the whole loop, and so are "ship it",
+"punch it chewie" and "make it so". It stops only where a step below says
+so. None of them is a "merge it": the Owner still merges.
 
 ## 1. Open the draft
 
