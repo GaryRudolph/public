@@ -38,9 +38,10 @@ latest base branch first, and rerun the checks if that brought anything
 in: this is the last time the branch is rebased (see "Keeping up with
 the base").
 
-Small follow-ons you'd otherwise propose as a new PR go in this one as
-tagalongs (git.md "Creating"), before the draft or in a later round. Bigger
-or riskier ones go to a card.
+Related follow-ons you'd otherwise propose as a new PR go in this one as
+tagalongs, before the draft or in a later round, unless one of git.md's
+split criteria holds ("Creating", "Related work rides along"). Split-out
+work goes to a card.
 
 Run `personal-review-guide` in `walkthrough` mode, then `pr` mode, with the
 PR opened as a draft. The walkthrough is shown, not a stop: carry on to
@@ -138,8 +139,9 @@ base merge counts as reviewed.
 
 Then report: the PR link, the tier, CI status, the tally (`/code-review: 2
 fixed. Copilot: 3 fixed, 1 declined (why), 1 deferred (card)`, or
-`/code-review: skipped ([skim], no risk tags)`), any tagalongs, whether an
-approval stands, and what waits on the Owner. Don't merge. The Owner
+`/code-review: skipped ([skim], no risk tags)`), any tagalongs, follow-on
+work queued as cards with the criterion that split each one out, whether
+an approval stands, and what waits on the Owner. Don't merge. The Owner
 merges, or says "merge it", and then git.md "Merging" applies.
 
 Then park: watch for a conflict until the PR merges or closes ("Keeping up
