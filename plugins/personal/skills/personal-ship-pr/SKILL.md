@@ -164,9 +164,12 @@ or a review, and before every push.
   rerun the repo's checks, and push it with this round's fixes, or alone.
   A merge that needed resolving is a fix push: Copilot reviews it next
   round.
-- Anything else (`clean`, `unstable`, `blocked`, `behind`): GitHub can
-  merge it, so leave it alone. A repo that requires the branch to be up
-  to date gets that once, at step 5.
+- `behind` (GitHub reports it only where the repo requires an
+  up-to-date branch): during the loop, leave it for step 5, which updates
+  it once. While parked, update it (`update_pull_request_branch`), wait
+  for CI, rerun step 5's checks, and park again.
+- Anything else (`clean`, `unstable`, `blocked`): GitHub can merge it, so
+  leave it alone.
 
 Resolve a conflict yourself when both sides' intent is clear (two
 additions to a list, an import, a rename the other PR did). When the
@@ -178,9 +181,10 @@ conflict from a later merge gets fixed before the Owner finds it:
 
 - With `gh`: `pr_state.py --pr <n> --wait-until conflict --interval 900
   --timeout 6600` in a background Bash with `timeout` 7200000, so the
-  script's own deadline comes first. It costs no context until it exits. Exit 3 (no conflict yet): re-arm it. Exit 0: if the PR merged or
-  closed, stop and report the final status ("Status"), with a
-  notification; if it conflicts, resolve as above, wait for CI, and report
+  script's own deadline comes first. It costs no context until it exits.
+  Exit 3 (nothing yet): re-arm it. Exit 0: if the PR merged or closed,
+  stop and report the final status ("Status"), with a notification; if
+  it's `dirty` or `behind`, handle it as above, wait for CI, and report
   and notify again.
 - On the web: a `send_later` check-in every two hours that reads
   `mergeable_state` and does the same, for 24 hours at most. Then stop
@@ -193,27 +197,28 @@ cancel the pending check-in (`delete_trigger`) when you do.
 ## Status
 
 The Owner may be running several of these, so every report ends with one
-status line that starts with its emoji. Where the harness can rename the
-session (Claude Code's `set_session_title` on its own session, from
-`get_session`), the title starts with the same emoji, updated whenever
-the state changes. Only ❓ and 🛑 need the Owner.
+status line, in words. Where the harness can rename the session (Claude
+Code's `set_session_title` on its own session, from `get_session`), the
+title starts with the state's emoji instead, updated whenever the state
+changes: the title has no room for the words, the status line doesn't
+need the emoji. Only a question or a block needs the Owner.
 
-| Emoji | Line | When |
+| Title | Line | When |
 | --- | --- | --- |
-| 🔄 | `Status: 🔄 working: <what>` | Mid-loop: reviewing, fixing, pushing |
-| ⏳ | `Status: ⏳ waiting on <CI, Copilot's review>; nothing needed from you` | The loop is waiting on something other than the Owner |
-| ❓ | `Status: ❓ question: <the question>` | An exit that needs the Owner's answer: a contract, design or security call, a conflict that picks a behavior |
-| 🛑 | `Status: 🛑 blocked: <what's wrong and what's needed>` | An exit that needs the Owner to act: CI red on the base too, a refused draft, a ruleset step, the round cap |
-| ✅ | `Status: ✅ merge-ready; parked for conflicts until you merge` | Step 5, parked |
-| 🏁 | `Status: 🏁 done, archivable` | See below |
-| 📌 | `Status: 📌 done, not archivable: <what remains>` | The PR merged or closed, something else is still open here |
+| 🔄 | `Status: working: <what>` | Mid-loop: reviewing, fixing, pushing |
+| ⏳ | `Status: waiting on <CI, Copilot's review>; nothing needed from you` | The loop is waiting on something other than the Owner |
+| ❓ | `Status: question for you: <the question>` | An exit that needs the Owner's answer: a contract, design or security call, a conflict that picks a behavior |
+| 🛑 | `Status: blocked, needs you: <what's wrong and what's needed>` | An exit that needs the Owner to act: CI red on the base too, a refused draft, a ruleset step, the round cap |
+| ✅ | `Status: merge-ready; parked for conflicts until you merge` | Step 5, parked |
+| 🏁 | `Status: done, archivable` | See below |
+| 📌 | `Status: done, not archivable: <what remains>` | The PR merged or closed, something else is still open here |
 
 Done and archivable means all of these: the PR merged or closed; no
 watch or check-in is left running for it; the tree is clean and nothing
 is unpushed; no question to the Owner is pending; and every follow-up is
 queued as a card or written into the PR, not held only in this session.
-To stop a ✅ session's parking, say stop before archiving it: on the web
-a check-in already scheduled still fires after an archive.
+To stop a merge-ready session's parking, say stop before archiving it:
+on the web a check-in already scheduled still fires after an archive.
 
 ## Exits
 
@@ -223,10 +228,10 @@ one, a ruleset
 that reserves a step for the Owner, a draft the repo refuses, or the round
 cap. At every exit and at step 5, report as step 5 says and send one push
 notification where the harness has one (Claude Code's `PushNotification`):
-the status emoji, the PR, then the state or what's needed, in a line
-(`✅ acme/orders#124 merge-ready: Copilot 3 fixed, 1 declined` or
-`🛑 acme/orders#124 blocked: CI red on main too`). The Owner may be driving several PRs; the
-notification is how they learn which one needs them. At an exit, cancel
+the PR, then the state or what's needed, in a line (`acme/orders#124
+merge-ready: Copilot 3 fixed, 1 declined` or `acme/orders#124 blocked,
+needs you: CI red on main too`). The Owner may be driving several PRs;
+the notification is how they learn which one needs them. At an exit, cancel
 any check-in or watch you started for this PR; at step 5, parking takes
 over.
 

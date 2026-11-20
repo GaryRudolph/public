@@ -10,17 +10,21 @@ Without --wait-until it prints the state once. With it, it polls every
 or when --timeout passes first (exit 3, "timed_out": true):
 
 - checks-done: no check run or commit status on the head commit is still
-  pending, and the same checks were there on the previous poll (so a fast
-  check that finishes before slower CI registers doesn't end the wait),
-  or --grace seconds have passed with none (a repo without CI).
+  pending, and the same checks were there on the previous poll of that
+  commit (so a fast check that finishes before slower CI registers doesn't
+  end the wait), or --grace seconds have passed on that commit with none
+  (a repo without CI). A push during the wait starts both over.
 - review-on-head: a review of the head commit by a login that starts with
   any one --reviewer prefix, case-insensitive (default `copilot`; `any`
   for anyone). It's any-of: wait once per reviewer to wait for several.
 - conflict: GitHub reports the PR conflicts with its base
-  (`mergeable_state` is `dirty`), or it's no longer open (merged or
-  closed), so a parked watch ends either way.
-- change: anything in the state differs from the first poll (a push, a
-  check, a review, a comment, draft or mergeable state).
+  (`mergeable_state` is `dirty`), or is out of date where the repo requires
+  an up-to-date branch (`behind`, which GitHub reports only then), or it's
+  no longer open (merged or closed), so a parked watch ends either way.
+- change: anything in the state differs from the first poll.
+
+Lists (check runs, statuses, reviews, review comments) are read across
+every page.
 
 It reports facts and emits no verdicts: which failure the change caused,
 what a finding means and what to do next are the agent's calls
@@ -60,6 +64,15 @@ def api(path):
     return json.loads(run("gh", "api", path) or "null")
 
 
+def api_list(path, key=None):
+    """Every item across every page: a list endpoint's items, or each page's `key` list for an object endpoint."""
+    pages = json.loads(run("gh", "api", "--paginate", "--slurp", path) or "[]")
+    items = []
+    for page in pages:
+        items.extend(page if key is None else (page or {}).get(key, []))
+    return items
+
+
 def default_repo():
     m = GITHUB_REMOTE.search(run("git", "remote", "get-url", "origin").strip())
     if not m:
@@ -82,10 +95,10 @@ def default_pr(repo):
 def snapshot(repo, number):
     pr = api(f"repos/{repo}/pulls/{number}")
     head = pr["head"]["sha"]
-    runs = api(f"repos/{repo}/commits/{head}/check-runs?per_page={PER_PAGE}").get("check_runs", [])
-    statuses = api(f"repos/{repo}/commits/{head}/status").get("statuses", [])
-    reviews = api(f"repos/{repo}/pulls/{number}/reviews?per_page={PER_PAGE}")
-    comments = api(f"repos/{repo}/pulls/{number}/comments?per_page={PER_PAGE}")
+    runs = api_list(f"repos/{repo}/commits/{head}/check-runs?per_page={PER_PAGE}", "check_runs")
+    statuses = api_list(f"repos/{repo}/commits/{head}/status?per_page={PER_PAGE}", "statuses")
+    reviews = api_list(f"repos/{repo}/pulls/{number}/reviews?per_page={PER_PAGE}")
+    comments = api_list(f"repos/{repo}/pulls/{number}/comments?per_page={PER_PAGE}")
 
     checks = [{"name": c["name"], "kind": "check_run",
                "state": c["conclusion"] if c["status"] == "completed" else "pending"} for c in runs]
@@ -116,15 +129,11 @@ def snapshot(repo, number):
                      "submitted_at": r.get("submitted_at"), "body_chars": len(r.get("body") or "")}
                     for r in reviews],
         "threads": list(threads.values()),
-        "truncated": [n for n, xs in (("check_runs", runs), ("reviews", reviews), ("comments", comments))
-                      if len(xs) >= PER_PAGE],
     }
 
 
 def fingerprint(s):
-    return json.dumps([s["head_sha"], s["draft"], s["state"], s["mergeable_state"], s["checks"]["all"],
-                       [r["id"] for r in s["reviews"]], [(t["id"], t["replies"]) for t in s["threads"]]],
-                      sort_keys=True)
+    return json.dumps(s, sort_keys=True)
 
 
 def check_names(s):
@@ -142,7 +151,7 @@ def met(condition, s, first, prev, elapsed, reviewers, grace):
         return any(r["on_head"] and ("any" in reviewers or r["author"].lower().startswith(reviewers))
                    for r in s["reviews"])
     if condition == "conflict":
-        return s["mergeable_state"] == "dirty" or s["state"] != "open" or s["merged"]
+        return s["mergeable_state"] in ("dirty", "behind") or s["state"] != "open" or s["merged"]
     return fingerprint(s) != fingerprint(first)
 
 
@@ -166,19 +175,23 @@ def main():
         print(f"pr_state: {e}", file=sys.stderr)
         return 1
 
-    start, prev = time.monotonic(), None
+    start = head_start = time.monotonic()
+    prev = None
     while a.wait_until:
-        elapsed = time.monotonic() - start
-        if met(a.wait_until, state, first, prev, elapsed, reviewers, a.grace):
+        now = time.monotonic()
+        if met(a.wait_until, state, first, prev, now - head_start, reviewers, a.grace):
             break
-        if elapsed >= a.timeout:
+        if now - start >= a.timeout:
             state["timed_out"] = True
             break
-        time.sleep(max(0, min(a.interval, a.timeout - elapsed)))
+        time.sleep(max(0, min(a.interval, a.timeout - (now - start))))
         try:
             prev, state = state, snapshot(repo, number)
         except (Unavailable, KeyError, TypeError, ValueError) as e:
             print(f"pr_state: poll failed, retrying: {e}", file=sys.stderr)
+            continue
+        if state["head_sha"] != prev["head_sha"]:  # a push: this commit's checks start from nothing
+            prev, head_start = None, time.monotonic()
 
     if a.wait_until:
         state["condition"] = a.wait_until

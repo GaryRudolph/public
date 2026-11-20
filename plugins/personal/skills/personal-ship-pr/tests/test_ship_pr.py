@@ -15,19 +15,28 @@ HOOK = os.path.join(SCRIPTS, "ship_pr_hook.py")
 HOOKS_FILE = os.path.join(HERE, "..", "..", "..", "hooks", "claude-hooks.json")
 failures = 0
 
-# A fake gh: `gh api <path>` answers from $FAKE_GH/<key>.<n>.json for its nth call of that path, else <key>.json.
+# A fake gh: `gh api [--paginate --slurp] <path>` answers from $FAKE_GH/<key>.<n>.json for its nth call of that
+# path, else <key>.json. With --slurp the answer is wrapped as one page, unless the fixture is <key>.pages.json,
+# which holds every page already.
 FAKE_GH = r'''#!/usr/bin/env python3
 import os, re, sys
 d = os.environ["FAKE_GH"]
-if sys.argv[1:2] != ["api"] or len(sys.argv) < 3:
-    sys.exit("fake gh: only `gh api <path>`")
-key = re.sub(r"[^A-Za-z0-9]+", "_", sys.argv[2]).strip("_")
+args = sys.argv[1:]
+paths = [a for a in args[1:] if not a.startswith("-")]
+if args[:1] != ["api"] or len(paths) != 1:
+    sys.exit("fake gh: only `gh api [--paginate --slurp] <path>`")
+slurp = "--slurp" in args
+key = re.sub(r"[^A-Za-z0-9]+", "_", paths[0]).strip("_")
 count = os.path.join(d, "." + key)
 n = int(open(count).read()) + 1 if os.path.exists(count) else 1
 open(count, "w").write(str(n))
+if slurp and os.path.exists(os.path.join(d, key + ".pages.json")):
+    sys.stdout.write(open(os.path.join(d, key + ".pages.json")).read())
+    sys.exit(0)
 for name in (f"{key}.{n}.json", f"{key}.json"):
     if os.path.exists(os.path.join(d, name)):
-        sys.stdout.write(open(os.path.join(d, name)).read())
+        body = open(os.path.join(d, name)).read()
+        sys.stdout.write("[" + body + "]" if slurp else body)
         sys.exit(0)
 sys.exit(f"fake gh: no fixture for {key}")
 '''
@@ -68,7 +77,7 @@ class Fake:
                                            "mergeable_state": "clean", "head": {"sha": HEAD, "ref": "feature/x"},
                                            "base": {"ref": "main"}, "requested_reviewers": [{"login": "Copilot"}]})
         self.checks(pending=True)
-        self.put(f"repos/{REPO}/commits/{HEAD}/status", {"statuses": [{"context": "lint", "state": "success"}]})
+        self.put(f"repos/{REPO}/commits/{HEAD}/status?per_page=100", {"statuses": [{"context": "lint", "state": "success"}]})
         self.put(f"repos/{REPO}/pulls/7/reviews?per_page=100", [
             {"id": 1, "user": {"login": "copilot-pull-request-reviewer[bot]"}, "state": "COMMENTED",
              "commit_id": "h1", "submitted_at": "t", "body": "found 2"}])
@@ -135,7 +144,7 @@ check("timeout: exit 3, timed_out", rc == 3 and s and s.get("timed_out") is True
 
 f = Fake()
 f.checks(none=True)
-f.put(f"repos/{REPO}/commits/{HEAD}/status", {"statuses": []})
+f.put(f"repos/{REPO}/commits/{HEAD}/status?per_page=100", {"statuses": []})
 rc, s, err = f.run("--wait-until", "checks-done", "--interval", "0", "--grace", "0")
 check("no CI: done after the grace period", rc == 0 and s and s["checks"]["total"] == 0, (rc, err))
 rc, s, err = f.run("--wait-until", "checks-done", "--interval", "0", "--grace", "100", "--timeout", "0")
@@ -174,6 +183,50 @@ f = Fake()
 f.put(f"repos/{REPO}/pulls/7", {**pr, "state": "closed", "merged": True}, n=2)
 rc, s, err = f.run("--wait-until", "conflict", "--interval", "0")
 check("  ...and ends when the PR merges", rc == 0 and s and s["merged"] is True, (rc, err))
+f = Fake()
+f.put(f"repos/{REPO}/pulls/7", {**pr, "mergeable_state": "behind"}, n=2)
+rc, s, err = f.run("--wait-until", "conflict", "--interval", "0")
+check("  ...and when it falls behind where the repo requires up to date",
+      rc == 0 and s and s["mergeable_state"] == "behind", (rc, err))
+
+print("pr_state.py: Copilot round 1")
+f = Fake()
+pending_page = {"check_runs": [{"name": "e2e", "status": "queued", "conclusion": None}]}
+done_page = {"check_runs": [{"name": "test", "status": "completed", "conclusion": "success"}]}
+open(os.path.join(f.dir, key(f"repos/{REPO}/commits/{HEAD}/check-runs?per_page=100") + ".pages.json"), "w").write(
+    json.dumps([done_page, pending_page]))
+rc, s, err = f.run()
+check("a pending check on page 2 is seen", rc == 0 and s and s["checks"]["pending"] == ["e2e"], (rc, s and s["checks"]))
+
+f = Fake()
+H3 = "h3"
+f.put(f"repos/{REPO}/pulls/7", {**pr, "head": {"sha": H3, "ref": "feature/x"}}, n=2)
+f.put(f"repos/{REPO}/pulls/7", {**pr, "head": {"sha": H3, "ref": "feature/x"}})
+f.checks(n=1)
+same_done = {"check_runs": [{"name": "test", "status": "completed", "conclusion": "success"},
+                            {"name": "build", "status": "completed", "conclusion": "success"}]}
+same_running = {"check_runs": [{"name": "test", "status": "in_progress", "conclusion": None},
+                               {"name": "build", "status": "completed", "conclusion": "success"}]}
+f.put(f"repos/{REPO}/commits/{H3}/check-runs?per_page=100", same_done, 1)
+f.put(f"repos/{REPO}/commits/{H3}/check-runs?per_page=100", same_running, 2)
+f.put(f"repos/{REPO}/commits/{H3}/check-runs?per_page=100", same_done)
+f.put(f"repos/{REPO}/commits/{H3}/status?per_page=100", {"statuses": [{"context": "lint", "state": "success"}]})
+rc, s, err = f.run("--wait-until", "checks-done", "--interval", "0")
+h3_calls = int(open(os.path.join(f.dir, "." + key(f"repos/{REPO}/commits/{H3}/check-runs?per_page=100"))).read())
+check("a push mid-wait starts the new commit's checks over", rc == 0 and s and s["head_sha"] == H3 and h3_calls >= 3,
+      (rc, h3_calls, err))
+
+f = Fake()
+f.put(f"repos/{REPO}/pulls/7/reviews?per_page=100", [
+    {"id": 1, "user": {"login": "copilot-pull-request-reviewer[bot]"}, "state": "DISMISSED", "commit_id": "h1",
+     "submitted_at": "t", "body": "found 2"}], n=2)
+f.checks(pending=True, n=2)
+rc, s, err = f.run("--wait-until", "change", "--interval", "0", "--timeout", "1")
+check("change: a dismissed review (same id) counts", rc == 0 and s and s["reviews"][0]["state"] == "DISMISSED", (rc, err))
+f = Fake()
+f.put(f"repos/{REPO}/pulls/7", {**pr, "requested_reviewers": []}, n=2)
+rc, s, err = f.run("--wait-until", "change", "--interval", "0", "--timeout", "1")
+check("  ...and so does a reviewer request ending", rc == 0 and s and s["requested_reviewers"] == [], (rc, err))
 
 print("pr_state.py: errors")
 f = Fake()
