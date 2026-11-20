@@ -201,11 +201,16 @@ cancel the pending check-in (`delete_trigger`) when you do.
 When the PR merges, the final report also says whether a review of `main`
 is due, where the repo keeps a `specs/reviews/` log: run
 [`../personal-codebase-review/scripts/review_log_facts.py`](../personal-codebase-review/scripts/review_log_facts.py)
-and read `since_anchor: commits=`. At 20 or more, add `Review due: <N>
-commits on <default> since r<N>` (codebase-review.md "When"). It's
+and read its `since_anchor:` line. At 20 or more `commits=`, or more than
+about 8,000 `changed_lines=`, add `Review due: <count> commits, <lines>
+changed lines on <default> since r<id>` (codebase-review.md "When"). It's
 information for the Owner: don't start a review, queue a card for one, or
-count it against "done, archivable". Inside a plan, the milestone gate
-already covers it; say nothing.
+count it against "done, archivable".
+
+Skip the line when the PR is part of a plan, since the milestone gate
+covers it: the PR's description names a plan (`Plan: specs/...`) or a
+milestone (`m{N}`), or this session ran it under
+`personal-plan-orchestrate`.
 
 ## Status
 

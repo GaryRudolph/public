@@ -29,7 +29,7 @@ Three layers, each with one job:
 | Layer | Reviews | When | Lives in |
 | --- | --- | --- | --- |
 | Per change | A branch's diff, line by line | Each PR, each plan wave | The PR (its draft round, `personal-ship-pr`) |
-| Incremental | `main` since the last anchor, line by line plus drift | A milestone lands, a complex change merges, churn passes a threshold | `specs/reviews/` |
+| Incremental | `main` since the last anchor, line by line plus drift | A milestone lands in a plan; outside one, the Owner after a `Review due` line (20 commits or about 8,000 changed lines) | `specs/reviews/` |
 | Full | `main` at a commit: architecture, contracts, boundaries, hotspots | Adoption, before a major release, when the anchor is lost | `specs/reviews/` |
 
 An **estate** review runs across several repos that coordinate (nowline's
@@ -96,10 +96,15 @@ the next incremental knows where to start.
   can't spawn reviewers, push its own branch or edit the plan, and a plan's
   files leave the branch before its PR merges. The milestone handoff marks
   it pending, and a numbered task card can queue it ahead of `m{N+1}`.
-- **A monthly cadence is optional.** `status` mode says whether a review is
-  due and is a no-op otherwise, so a scheduled task can run it without
-  producing noise. Not built in; offered once the first review has shown
-  whether the output is worth reading monthly.
+- **Outside a plan, the Owner decides.** A risky PR doesn't queue a review
+  of `main`: its own draft round and Copilot rounds covered the diff, and
+  what a review of `main` catches accumulates across PRs. So a shipped PR's
+  final report says `Review due` once 20 commits or about 8,000 changed
+  lines have landed since the last review, counted in commits rather than
+  days because a quiet repo doesn't need one. The Owner starts it or not.
+- **A scheduled cadence is optional.** `status` mode says whether a review
+  is due and is a no-op otherwise, so a scheduled task the Owner sets up
+  can run it without producing noise. Not built in.
 
 ## Evidence
 

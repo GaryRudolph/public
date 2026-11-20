@@ -41,9 +41,9 @@ Contents:
 | Repos that coordinate each reached a milestone, or the cross-repo shape changed | `estate` |
 | Optional schedule, at most monthly | `status`, then `incremental` only if it's due |
 
-A review is **due** when 20 or more commits have landed on the default branch since the anchor, or when a trigger above fired and no review covers it. Commits, not days: a quiet repo doesn't need one, a busy one needs it sooner. `status` reports the facts (days, commits, changed lines since the anchor) and says whether one is due; on a schedule, it does nothing when none is.
+A review is **due** when 20 or more commits have landed on the default branch since the anchor, or more than about 8,000 changed lines (one big squash-merged PR is one commit), or when a trigger above fired and no review covers it. Commits, not days: a quiet repo doesn't need one, a busy one needs it sooner. `status` reports the facts (days, commits, changed lines since the anchor) and says whether one is due; on a schedule, it does nothing when none is.
 
-Outside a plan, nothing starts a review on its own. When a PR merges in a repo with a `specs/reviews/` log, the `personal-ship-pr` session's final report adds `Review due: <N> commits on <default> since r<N>` once the count reaches 20, and the Owner decides whether to start one. A risky PR doesn't trigger one: its own draft round and Copilot review covered the diff, and a review of `main` is about what accumulates.
+Outside a plan, nothing starts a review on its own except a schedule the Owner set up. When a PR merges in a repo with a `specs/reviews/` log, the `personal-ship-pr` session's final report adds `Review due: <count> commits, <lines> changed lines on <default> since r<id>` once one is due, and the Owner decides whether to start one. A risky PR doesn't trigger one: its own draft round and Copilot review covered the diff, and a review of `main` is about what accumulates.
 
 ### Large ranges
 
