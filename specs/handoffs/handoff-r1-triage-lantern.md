@@ -26,6 +26,8 @@ at a time: a problem paragraph, a fix trade-off paragraph, then a question.
   wildcards minus sharing and permission tools; Slack and Google Workspace
   allow reads and prompt on send; Firebase allows reads and prompts on writes,
   deletes and deploys. The fixing session lists each server's real tool names.
+- f12: validate every live file and sidecar with `jq empty` before writing
+  any target; on any failure write nothing, name the file, exit non-zero.
 
 ## Pending
 
