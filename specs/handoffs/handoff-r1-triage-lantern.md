@@ -42,6 +42,12 @@ at a time: a problem paragraph, a fix trade-off paragraph, then a question.
   tests and a test target.
 - f14: declined; rely on makefile.md's CONFIRM_* danger guards, review
   aggregate targets by eye. Record as accepted in r2.
+- f7: fix as a seatbelt: per-segment check, ALWAYS_DENY before any allowlist,
+  workspace file may only add denies, test the real hook and wire --self-test,
+  docs stop calling it enforcement.
+- f8: extend the patterns: control keywords, { }, timeout/nice/xargs, re-check
+  sh|bash|zsh -c and eval strings, empty heredoc body; tests; soften the
+  adapter's claim.
 
 ## Pending
 
