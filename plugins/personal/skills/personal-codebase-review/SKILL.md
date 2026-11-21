@@ -192,7 +192,9 @@ queues them (codebase-review.md "Planning the remediation").
 Remediation isn't part of this run, and no fix is written in this session.
 Offer to start it, as separate PRs that cite finding IDs. When the fixes are
 plan-sized, offer one `[deep]` planning session first, as codebase-review.md
-"Planning the remediation" says; otherwise one card or session per group of
+"Planning the remediation" says: its prompt names the register, the
+tracking issue and the finding IDs, and asks for that planning session,
+which queues the per-group prompts below. Otherwise one card or session per group of
 findings that land together, handed over as plan-execution.md "Handing work to another
 session" says, each prompt behind its header (the repo the findings land
 in, the model for the fix's tier). Without a planning session,
