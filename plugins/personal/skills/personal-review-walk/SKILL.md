@@ -104,7 +104,9 @@ item looks already fixed, say so and offer that as the first option.
    alternative, with what each costs (effort, risk, what it breaks or
    locks in), then why the recommendation wins. For a plain fix with no
    real alternative, say what the fix touches and what accepting it as is
-   would cost.
+   would cost. Apply review.md's "Fix what's real, not what's possible":
+   when the trigger doesn't happen in real use, or the fix costs more than
+   the consequence, recommend `Accept as is` and put it first.
 
 Keep both to what the choice needs; link the register entry for the rest.
 

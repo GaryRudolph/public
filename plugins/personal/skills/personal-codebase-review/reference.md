@@ -288,7 +288,10 @@ each finding's Location already places it in a slice.
 
 One fresh reviewer gets every candidate finding and the code at `<to>`, and
 for each one tries to show it's wrong: find the guard, the test, the caller
-that rules it out, or reproduce it. It returns `confirmed` with how, or
+that rules it out, or reproduce it, and checks that the failure scenario
+can happen in real use of the code (review.md "Fix what's real, not what's
+possible"); a finding that can only be constructed is dropped, or kept at
+`low` when it's cheap to fix. It returns `confirmed` with how, or
 `dropped` with why. Only confirmed findings enter the register, and the
 header records how many were dropped.
 
