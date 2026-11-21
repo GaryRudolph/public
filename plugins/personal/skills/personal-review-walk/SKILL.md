@@ -154,7 +154,10 @@ committed; the `.scratch/` file holds the state.
 1. **Skipped items.** Walk each `skipped` item once more. A second skip
    records `skipped twice`, listed in the tally.
 2. **Tally.** Counts by outcome and the `fix` groups, as one short block.
-3. **One choice dialog** for what happens next, each a separate question:
+3. **One choice dialog** for what happens next, each a separate question.
+   Record the answers, and each action as it's done with its link (the
+   comment, the cards), on an `End:` line under `Status:`, committed (on a
+   runner, pushed) like an answer, so a respawn finishes only what's left:
    - Post the outcomes to the source: on a tracking issue, one comment
      listing every item's outcome and note (the next review's fix review
      can cite it as the `Resolution:` for `decided`, `accepted` and
@@ -167,7 +170,9 @@ committed; the `.scratch/` file holds the state.
      sessions" describes, numbered with `after` where the source requires
      an order. Findings from a register get `personal-codebase-review`
      "Show it"'s prompt (finding IDs, the tracking issue, fix claims);
-     others cite their PR thread or carry the finding's text.
+     others cite their PR thread or carry the finding's text. A walk over
+     a PR's own threads makes its `fix` items in that PR instead, after
+     the walk, as review.md's triage does.
    - Record a decision that sets a lasting rule as an ADR or a spec edit,
      on the walk's task branch, shipped with `personal-ship-pr`. A walk
      that ran on a workstation's shared branch proposes a task branch
