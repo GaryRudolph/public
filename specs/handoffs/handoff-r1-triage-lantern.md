@@ -40,6 +40,8 @@ at a time: a problem paragraph, a fix trade-off paragraph, then a question.
 - f6: exact command form where Cursor CLI supports it, else don't write
   multi-word commands for Cursor CLI; same rule for f1's rendering; add scout
   tests and a test target.
+- f14: declined; rely on makefile.md's CONFIRM_* danger guards, review
+  aggregate targets by eye. Record as accepted in r2.
 
 ## Pending
 
