@@ -288,11 +288,11 @@ each finding's Location already places it in a slice.
 
 One fresh reviewer gets every candidate finding and the code at `<to>`, and
 for each one tries to show it's wrong: find the guard, the test, the caller
-that rules it out, or reproduce it, and checks that it happens in real
-use of the code today (review.md "Fix what's real"); one that doesn't is
-dropped, unless the fix is trivial. A security finding it can't disprove
-stays, at its severity, for the Owner to decide. It returns `confirmed` with how, or
-`dropped` with why. Only confirmed findings enter the register, and the
+that rules it out, or reproduce it. A security finding it can't disprove
+is confirmed at its severity, for the Owner to decide. Any other finding
+must also happen in real use of the code today (review.md "Fix what's
+real"); one that doesn't is dropped, unless the fix is trivial. It returns
+`confirmed` with how, or `dropped` with why. Only confirmed findings enter the register, and the
 header records how many were dropped.
 
 ## Hotspots
