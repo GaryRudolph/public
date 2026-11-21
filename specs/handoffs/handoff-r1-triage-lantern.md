@@ -20,10 +20,12 @@ at a time: a problem paragraph, a fix trade-off paragraph, then a question.
   locally the hook only tells the agent to run it before its first build, so
   it goes through Claude Code's folder trust and permissions. f3's host check
   is still fixed.
-- f9: Owner's rule is "allow writes that have a rollback (version history) or
-  that create something the Owner deletes after". Pending: confirm the per-server
-  application, including prompting for anything that sends to people or changes
-  sharing, since version history doesn't undo a leak.
+- f9: allow writes with a rollback (version history) or creates the Owner
+  deletes after; prompt on anything that sends to people or changes sharing,
+  since history can't undo a leak. Notion, Google Docs, Figma, Miro keep
+  wildcards minus sharing and permission tools; Slack and Google Workspace
+  allow reads and prompt on send; Firebase allows reads and prompts on writes,
+  deletes and deploys. The fixing session lists each server's real tool names.
 
 ## Pending
 
