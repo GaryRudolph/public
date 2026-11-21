@@ -28,6 +28,9 @@ at a time: a problem paragraph, a fix trade-off paragraph, then a question.
   deletes and deploys. The fixing session lists each server's real tool names.
 - f12: validate every live file and sidecar with `jq empty` before writing
   any target; on any failure write nothing, name the file, exit non-zero.
+- f11: fix; diff live against this org's last-rendered sidecar (meta render
+  only on first install). Must land before f1, f4, f9.
+- f13: fix; guard only when a live file exists that no org's sidecar explains.
 
 ## Pending
 
