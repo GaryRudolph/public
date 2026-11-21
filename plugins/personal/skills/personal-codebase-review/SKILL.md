@@ -186,14 +186,18 @@ Before remediation, offer to walk the decisions and findings with the
 Owner, one at a time ([`personal-review-walk`](../personal-review-walk/SKILL.md)),
 never on the review PR's branch: a new task branch (on a runner, a card
 for a new session), or after the review PR merges. Its `fix` groups become
-the cards below.
+the cards below, or, when they're plan-sized, a planning session that
+queues them (codebase-review.md "Planning the remediation").
 
-Remediation isn't part of this run. Offer to start it, as separate PRs that
-cite finding IDs: one card or session per group of findings that land
-together, handed over as plan-execution.md "Handing work to another
+Remediation isn't part of this run, and no fix is written in this session.
+Offer to start it, as separate PRs that cite finding IDs. When the fixes are
+plan-sized, offer one `[deep]` planning session first, as codebase-review.md
+"Planning the remediation" says; otherwise one card or session per group of
+findings that land together, handed over as plan-execution.md "Handing work to another
 session" says, each prompt behind its header (the repo the findings land
-in, the model for the fix's tier). Remediation PRs don't wait on each
-other, so none is numbered, and all can start at once. Each prompt names
+in, the model for the fix's tier). Without a planning session,
+remediation PRs don't wait on each other, so none is numbered, and all can
+start at once. Each prompt names
 its finding IDs and the tracking issue, and says: cite both in the PR
 description (`Fixes r7.f1`, `Part of #<issue>`, no closing keyword); add a
 fix claim per finding at `specs/reviews/r{N}/f{K}.md` (reference.md "Fix
