@@ -26,7 +26,8 @@ default.
 1. **Find a walk already under way.** Look for `specs/handoffs/walk-*.md`
    (on a workstation's shared branch, `.scratch/walk-*.md`) whose `Source:`
    matches. If one exists, this is a resume: skip to "Each item" at its
-   first `Outcome: pending` item. Trust the file, not the conversation: a
+   first `Outcome: pending` item, or to "End" when none is pending (its
+   `skipped` items still get their second pass). Trust the file, not the conversation: a
    respawned or summarized session may remember answers the file never got,
    and the file wins.
 2. **Collect the items.** From a tracking issue, its checkboxes, with each
@@ -50,6 +51,13 @@ handoff (`personal-handoff`; `{topic}` such as `r1-full`). On a
 workstation's shared branch, where nothing gets committed without a yes,
 `.scratch/walk-{topic}-{word}.md` instead.
 
+Which branch: a task branch with no open PR, or, when the items are a PR's
+own review threads, that PR's branch. Never a review PR's branch: nothing
+else rides in a review PR (codebase-review.md), and it can merge mid-walk.
+After `personal-codebase-review`, that means a new task branch (on a
+runner, a new session, queued as a card) or waiting until the review PR
+merges.
+
 ```markdown
 # Walk: r1 full review
 
@@ -67,17 +75,18 @@ Kind: decision
 Outcome: pending
 ```
 
-Outcomes use the register's status words, so the next review's fix review
-can carry them over without translating:
+`decided`, `accepted` and `deferred` are the register's own statuses, so
+the next review's fix review can set them from the posted summary as
+written. `fix` leaves the finding `open` until a remediation PR fixes it,
+and `skipped` is the walk's own and never leaves it:
 
-| Outcome | Meaning |
-| --- | --- |
-| `decided: <choice>` | A decision taken; the choice in a few words |
-| `fix` or `fix: with <id>` | Queue a remediation; `with` groups items that land in one PR |
-| `accepted: <reason>` | Won't change; the reason is required |
-| `deferred: <reason>; revisit when <trigger>` | Later, with what brings it back |
-| `disputed: <reason>` | The Owner thinks the finding is wrong |
-| `skipped` | Come back to it at the end |
+| Outcome | Meaning | Register |
+| --- | --- | --- |
+| `decided: <choice>` | A decision taken; the choice in a few words | `decided` |
+| `fix` or `fix: with <id>` | Queue a remediation; `with` groups items that land in one PR | `open` |
+| `accepted: <reason>` | Won't change; the reason is required. A finding the Owner thinks is wrong is `accepted: not a defect, <why>` | `accepted` |
+| `deferred: <reason>; revisit when <trigger>` | Later, with what brings it back | `deferred` |
+| `skipped` | Come back to it at the end | `open` |
 
 `Note:` holds anything the Owner added beyond the choice, in their words.
 
@@ -137,11 +146,15 @@ committed; the `.scratch/` file holds the state.
      `personal-codebase-review` "Show it" describes (finding IDs, the
      tracking issue, fix claims, no branch named).
    - Record a decision that sets a lasting rule as an ADR or a spec edit,
-     on this branch, shipped with `personal-ship-pr`.
+     on the walk's task branch, shipped with `personal-ship-pr`. A walk
+     that ran on a workstation's shared branch proposes a task branch
+     first (core.md "Cut a task branch off a shared branch").
 4. **The walk file.** Once its content is posted or promoted, `git rm` it
-   and commit (on a runner, push). A walk that rode a PR's branch removes it
-   before the PR is marked ready, as runner scratch does. If the branch
-   ends with no net change, say so: deleting it is the Owner's call.
+   and commit (on a runner, push); on a workstation's shared branch,
+   delete the `.scratch/` file and commit nothing. A walk on a PR's branch
+   removes it in its last push; `personal-ship-pr`'s merge-ready check
+   catches one left behind. If the branch ends with no net change, say so:
+   deleting it is the Owner's call.
 
 ## Don't
 
