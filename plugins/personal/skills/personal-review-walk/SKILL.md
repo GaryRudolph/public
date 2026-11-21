@@ -1,9 +1,10 @@
 ---
 name: personal-review-walk
 description: >-
-  Walk the Owner through a review's outcomes one item at a time: a short
-  one-paragraph overview of a single decision, finding or recommendation,
-  then the choices for that item alone in a dialog, the answer recorded,
+  Walk the Owner through a review's outcomes one item at a time: for a
+  single decision, finding or recommendation, a short paragraph on the
+  problem and one on the fix and its trade-offs, then the choices for that
+  item alone in a dialog, the answer recorded,
   then the next item. Answers go into a walk file in specs/handoffs/ that is
   committed (and on a runner pushed) after every answer, so a respawned
   session resumes at the first open item. Ends with a tally, one summary on
@@ -92,12 +93,20 @@ and `skipped` is the walk's own and never leaves it:
 
 ## Each item
 
-**The overview, one paragraph.** What's wrong or what's being decided,
-where (file and line, or the contract), what it costs if left alone, and
-the recommendation with its reason. Read the code at its location at the
-current head first: if it changed since the review and the item looks
-already fixed, say so and offer that as the first option. Keep it to what
-the choice needs; link the register entry for the rest.
+**The overview, two short paragraphs.** Read the code at the item's
+location at the current head first: if it changed since the review and the
+item looks already fixed, say so and offer that as the first option.
+
+1. **The problem.** What's wrong or what's being decided, where (file and
+   line, or the contract), and what it costs if left alone: who hits it,
+   how often, how bad.
+2. **The fix and its trade-offs.** The recommendation and each real
+   alternative, with what each costs (effort, risk, what it breaks or
+   locks in), then why the recommendation wins. For a plain fix with no
+   real alternative, say what the fix touches and what accepting it as is
+   would cost.
+
+Keep both to what the choice needs; link the register entry for the rest.
 
 **The choices, in a dialog.** One `AskUserQuestion` call, for this item
 only, with the recommended option first and marked `(Recommended)`. For a
@@ -116,7 +125,7 @@ turn: answer it and ask again. A dismissed or empty dialog records nothing
 
 ## Save every answer
 
-After each answer and before the next item's overview:
+After each answer and before the next item's paragraphs:
 
 1. Update the item's `Outcome:` and `Note:` lines and the `Status:` line.
 2. On a task branch (always, on a runner), commit only the walk file:
