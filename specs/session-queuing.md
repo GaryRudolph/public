@@ -87,7 +87,7 @@ Cards are the easiest path and keep the Owner's click, so they stay the default 
        Branch: work on your assigned branch (on a workstation, cut `fix/<slug>` off the default branch)
        Preflight: before anything else, check `git remote get-url origin` against the primary repo and your model (a runner: `get_session`; elsewhere, your system prompt) against the model above. If either is wrong, do no work and recover as the standards say.
 
-   On a mismatch the session does no work and prints: one line naming what's wrong, the prompt in a `text` fence (plan-execution.md "Printing a prompt in chat"), then the repos as a bulleted list with the primary first and marked `(primary)`, the `/model` and the `/effort`. When only the model or effort is wrong, it also offers the in-place fix: run `/model` and `/effort`, then say go. The wrong session spends one short turn.
+   On a mismatch the session does no work. When only the model or effort is wrong, it recommends switching in place: one line naming what's wrong, then `/model` and `/effort` to run here before saying go. The session has just started, so a switch is cheaper than a new session. When the repo is wrong, it prints one line naming what's wrong, the prompt in a `text` fence (plan-execution.md "Printing a prompt in chat"), then the repos as a bulleted list with the primary first and marked `(primary)`, the `/model` and the `/effort`, for a new session. Either way the wrong session spends one short turn.
 
    It used to relaunch itself with `create_session` when the right model cost no more. Dropped 2026-11-13: the wrong session stayed up until the runner's idle release, holding a self-hosted runner's container and its one slot while the relaunched session queued behind it.
 
