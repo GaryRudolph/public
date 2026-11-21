@@ -182,6 +182,12 @@ from reference.md "Member PR", and the member's own issue for its
 delegated findings. Delegated findings get their remediation in their
 member, like any finding there.
 
+Before remediation, offer to walk the decisions and findings with the
+Owner, one at a time ([`personal-review-walk`](../personal-review-walk/SKILL.md)),
+never on the review PR's branch: a new task branch (on a runner, a card
+for a new session), or after the review PR merges. Its `fix` groups become
+the cards below.
+
 Remediation isn't part of this run. Offer to start it, as separate PRs that
 cite finding IDs: one card or session per group of findings that land
 together, handed over as plan-execution.md "Handing work to another

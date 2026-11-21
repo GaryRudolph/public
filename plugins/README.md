@@ -58,6 +58,7 @@ plugins/
       personal-repo-baseline/       <- per-repo settings the plugin can't carry; facts + merge scripts
       personal-ship-pr/             <- draft PR to merge-ready: /code-review, CI, Copilot rounds; pr_state.py, hook + tests
       personal-codebase-review/     <- reviews of main: full, incremental, estate; log facts script + tests
+      personal-review-walk/         <- a review's outcomes, one item per turn; walk file committed per answer
       personal-plan-tag-tiers/ personal-plan-model-tiers/
       personal-plan-orchestrate/
         SKILL.md                    <- harness-neutral core
@@ -93,7 +94,7 @@ quietly on some surfaces, so `make validate` runs before every push.
   Put scripts in `scripts/` and call them as `${CLAUDE_PLUGIN_ROOT}/scripts/…`.
 - **Hook output is capped at 10,000 characters.** Past the cap, Claude sees
   a 2,000-character preview. `core.md` is longer, so `hooks.json` runs
-  `session-start.sh` three times and each run prints one part.
+  `session-start.sh` once per part (with one spare entry) and each run prints one part.
 - **One hook file, three dialects.** Claude Code, Codex, and Gemini read
   `hooks/hooks.json` in the same shape. The command uses
   `${CLAUDE_PLUGIN_ROOT:-${extensionPath}}`: Claude and Codex export the
@@ -158,10 +159,11 @@ cleaned up, then push.
 | `personal` | `personal-new-project` | Start a new project on a boring stack at current stable versions (looked up from each registry, with EOL dates), laid out to the standards |
 | `personal` | `personal-secrets` | Run SOPS + age secrets in a private repo's own `secrets/` folder or the estate's secrets repo: set up from tested kits, edit secrets in cleartext beside ciphertext, mint and rotate CI and environment keys, grant estate access, wire CI and deploy syncs with least privilege |
 | `personal` | `personal-release` | Cut SemVer releases and hotfixes: propose the level from what changed, bump every version in lock-step, move the changelog, tag; set up version.txt and a Release workflow |
-| `personal` | `personal-repo-baseline` | Audit and apply the per-repo settings the plugin can't carry: `.claude/settings.json` attribution (`Assisted-by: Claude Code`), GitHub squash-only merge settings, the review-guide PR template, and CI that runs on draft PRs. Dry-run first; re-run to bring a repo up to the current baseline |
+| `personal` | `personal-repo-baseline` | Audit and apply the per-repo settings the plugin can't carry: `.claude/settings.json` attribution (`Assisted-by: Claude Code`), GitHub squash-only merge settings, the review-guide PR template, Copilot review instructions (feedback labels, the real-use bar), and CI that runs on draft PRs. Dry-run first; re-run to bring a repo up to the current baseline |
 | `personal` | `personal-review-guide` | Write the review guide for a change: tag areas `[study]` / `[check]` / `[skim]` / `[skip]`, read base and head, draw before/after only where structure changed, run the repo's review surfaces, and write the PR description collapsible by tier. Modes: plan, walkthrough, pr |
 | `personal` | `personal-ship-pr` | Take a finished change from draft PR to merge-ready unattended: open the draft with the review guide as soon as the work is done, the harness's `/code-review` at the level the tier and risk tags set (or say why it's skipped), fix CI, remove runner handoff files, mark ready, work Copilot's review in rounds until every comment has an outcome, waiting on CI and reviews itself (`pr_state.py`, PR events), then notify and report the tally. A `PostToolUse` hook starts it when a PR opens. Never merges |
 | `personal` | `personal-codebase-review` | Review `main`, not a diff: incremental (every line since the last logged review, via `/code-review` on the range), full (architecture, contracts, boundaries, hotspots) or estate (architecture and duplication across repos, with or without a workspace). Writes a findings register and a PR-shaped summary to `specs/reviews/`, logs the range, and drafts the review PR and a tracking issue. Modes: status, incremental, full, estate |
+| `personal` | `personal-review-walk` | Go through a review's decisions, findings or recommendations with the Owner one item per turn: a paragraph on the problem, one on the fix and its trade-offs, that item's choices in a dialog, the answer recorded in a walk file committed (and on a runner pushed) after every answer so a respawned session resumes where it left off. Ends with one summary on the source and remediation cards |
 | `personal` | `personal-plan-tag-tiers` | Shared tagging layer: tag plan steps `[xdeep]` / `[deep]` / `[exec]` / `[fast]` to show complexity. Tags only; the two drivers call it automatically |
 | `personal` | `personal-plan-model-tiers` | Passive driver: group tagged steps into waves (no-thrash) and insert STOP markers with handoff blocks at tier boundaries |
 | `personal` | `personal-plan-orchestrate` | Active driver: same tagging and waves, but delegates each wave to a subagent on the right model, on Claude Code (a plugin workflow, gated by a hook) and Cursor (`Task`), and pauses only where its recorded mode stops (gated: every STOP gate; unattended: questions, failures, premium work and the cost guard) |

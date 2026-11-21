@@ -81,7 +81,9 @@ the fixes rewrote a `[study]` area.
 
 On a runner, or after a `personal-plan-orchestrate` run on any machine,
 the push before ready removes the `specs/handoffs/` files (git.md
-"Merging"), so Copilot reviews the change that will merge. From here
+"Merging"), so Copilot reviews the change that will merge. On any
+machine, it also removes a `personal-review-walk` file
+(`specs/handoffs/walk-*.md`) whose walk has ended. From here
 the PR's description and threads hold the state; later turns skip the
 handoff step in "Save before you wait".
 
@@ -128,8 +130,8 @@ Check:
   requested review is pending.
 - Every thread has a reply, and every body-only finding a tally line.
 - Nothing waits on the Owner, or the report names what does.
-- No `specs/handoffs/` plan, session handoff or review draft is on the
-  branch. Milestone handoffs are allowed.
+- No `specs/handoffs/` plan, session handoff, walk file or review draft
+  is on the branch. Milestone handoffs are allowed.
 - GitHub reports the PR as mergeable.
 
 If the branch is behind and the repo requires it to be up to date, update

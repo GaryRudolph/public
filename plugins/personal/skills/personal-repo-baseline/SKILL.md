@@ -6,7 +6,9 @@ description: >
   and attribution set to "Assisted-by: Claude Code" for commits and PRs),
   GitHub's merge settings (squash only, PR title and description as the
   commit message, head branches deleted on merge), a PR template laid
-  out as a review guide, and CI that runs on draft PRs. Dry-run first;
+  out as a review guide, Copilot review instructions that label feedback
+  and skip findings that don't happen in real use, and CI that runs on
+  draft PRs. Dry-run first;
   apply repo by repo with confirmation; re-run any time to bring a repo up to the
   current baseline. personal-new-project runs it last. Triggers: "repo
   baseline", "set up this repo for agents", "add .claude/settings.json",
@@ -32,6 +34,7 @@ Behavior, and Merging) for the rules these settings serve.
 | **Agent attribution** | `.claude/settings.json` | [`templates/claude-settings.json`](templates/claude-settings.json): `$schema`, and `attribution.commit` and `attribution.pr` set to `Assisted-by: Claude Code` | Unset, Claude Code adds `Co-authored-by: Claude`. A plugin's settings carry only `agent` and `subagentStatusLine`, and cloud sessions read the repo's `.claude/settings.json`, never `~/.claude/settings.json` |
 | **Merge settings** | GitHub repo settings | [`templates/github-merge-settings.json`](templates/github-merge-settings.json): squash only, `PR_TITLE` and `PR_BODY`, head branches deleted | Squash makes the PR opener the author on `main` and the description, with its `Assisted-by` trailer, the commit message. GitHub still appends a `Co-authored-by` for a runner's branch commits, which git.md accepts. GitHub's defaults (`COMMIT_OR_PR_TITLE` and `COMMIT_MESSAGES`, merge commits and rebase on) copy every branch trailer onto `main`, and a rebase merge puts the agent there as author |
 | **PR template** | `.github/pull_request_template.md` (or another name GitHub reads) | [`templates/pull_request_template.md`](templates/pull_request_template.md): a review guide (`standards/review.md`), with `## Review guide` and a `Review tier:` line | Agents get the layout from the plugin and the `personal-review-guide` skill; people opening a PR on GitHub, and tools the plugin doesn't reach, get it only from the repo |
+| **Reviewer instructions** | `.github/copilot-instructions.md` | [`templates/copilot-instructions.md`](templates/copilot-instructions.md): label every comment (`blocking:`, `suggestion:`, `nit:`, `question:`), `blocking:` only with a trigger that happens in real use, security always blocking (review.md "Giving feedback") | Copilot's code review reads the repo's instructions, never the plugin; without them it rates every finding by its own scale and flags scenarios nobody runs |
 | **CI on draft PRs** | `.github/workflows/*.yml` | Every workflow a PR runs, runs on a draft: no `if:` that skips drafts (`github.event.pull_request.draft == false`, `!github.event.pull_request.draft`), or, where a skip stays, `ready_for_review` in its `pull_request` `types` (git.md "CI on draft PRs") | `personal-ship-pr` fixes CI while the PR is a draft; a workflow that skips drafts reports nothing then, and without `ready_for_review` it doesn't run on that commit when the PR goes ready either, so a required check waits for the next push |
 
 - **Leave `attribution.sessionUrl` unset** (default `true`) so branch
@@ -55,8 +58,13 @@ Behavior, and Merging) for the rules these settings serve.
   (`.github/PULL_REQUEST_TEMPLATE/`) gets the same proposal per file.
 - **A repo that uses Claude Code Review** — if it has a `REVIEW.md`, propose
   one line asking the reviewer to check the diff against the PR's stated
-  intent and to flag an area whose code doesn't match its review tag. Don't
-  create a `REVIEW.md` for it.
+  intent and to flag an area whose code doesn't match its review tag, and
+  the labels from `templates/copilot-instructions.md`. Don't create a
+  `REVIEW.md` for it.
+- **Copilot instructions that exist stay the repo's** — when
+  `.github/copilot-instructions.md` has no "Code review" section, propose
+  adding the template's as a hand edit. Never replace the file: it also
+  steers Copilot's chat and coding agent.
 - **`.claude/settings.local.json` wins on its machine** — report a local
   `attribution` that differs; don't edit it (it's personal and untracked).
 
@@ -94,6 +102,9 @@ Per repo (default: the current directory) it prints:
   `pull_request_template.md` at the root, in `.github/` or in `docs/`, and a
   `.github/PULL_REQUEST_TEMPLATE/` folder), whether it has `## Review
   guide` and a `Review tier:` line, and its contents verbatim
+- for `.github/copilot-instructions.md`: whether it exists, whether it has
+  a "Code review" heading and the `blocking:` label, and its contents
+  verbatim
 - for each workflow in `.github/workflows/`: whether it mentions
   `pull_request`, and the lines naming `pull_request`, `types`, `draft` or
   `ready_for_review`, with line numbers (comments left out)
@@ -132,6 +143,7 @@ the Owner confirms the repo. Call out:
 - GitHub values that differ, and whether `permissions.admin` allows the change
 - a repo that isn't on GitHub yet: its GitHub item waits
 - a PR template that's missing, or lacks `## Review guide` or `Review tier:`
+- Copilot instructions that are missing, or have no "Code review" section
 - a workflow that skips draft PRs. Read the file where the lines alone
   don't settle it, such as a `types:` line when the workflow has more than
   one trigger. Only the workflows behind the default branch's required
@@ -163,6 +175,8 @@ repos in one call):
   and separately about each existing value the template would replace
   (`Keep current` or `Take template`); the merge keeps them unless told.
 - **PR template** — show the new file or the diff, then `Apply` or `Skip`.
+- **Reviewer instructions** — show the new file or the diff, then `Apply`
+  or `Skip`.
 - **CI on draft PRs** — show the diff per workflow, then `Apply` or `Skip`.
 - **GitHub** — a remote, outward-facing change. Ask in this session, naming
   the repo and each value in the question (`Apply` or `Skip`). A yes to the file isn't a yes to GitHub, and a yes
@@ -194,6 +208,12 @@ change: commit it per `core.md`.
 `<repo>/.github/pull_request_template.md`. A template without a review
 guide: the hand edit from the bullet under the table, shown as a diff first.
 Either is an ordinary change: commit it per `core.md`.
+
+**Reviewer instructions.** No file: copy
+`<skill-dir>/templates/copilot-instructions.md` to
+`<repo>/.github/copilot-instructions.md`. A file without a "Code review"
+section: the hand edit from the bullet under the table, shown as a diff
+first. Either is an ordinary change: commit it per `core.md`.
 
 **CI on draft PRs.** A hand edit, shown as a diff first: remove the draft
 skip, or, where the Owner keeps it, add `ready_for_review` to that
@@ -273,6 +293,7 @@ the first push. On a runner, hand the Owner the command instead (Step 4).
 | `templates/claude-settings.json` | The baseline keys for a repo's `.claude/settings.json` |
 | `templates/github-merge-settings.json` | Target GitHub merge settings; also the PATCH body |
 | `templates/pull_request_template.md` | The review-guide PR template for a repo without one |
+| `templates/copilot-instructions.md` | Copilot code review instructions: feedback labels and the real-use bar |
 | `scripts/repo-facts.sh` | Read-only facts per repo (facts only, no verdicts) |
 | `scripts/merge_settings.py` | Mechanical, key-preserving merge of a template into a JSON file |
 | `tests/test-repo-baseline.sh` | Fixture tests for both scripts, with a stub `gh`; `make -C agents test` runs it |
