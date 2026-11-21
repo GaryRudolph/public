@@ -905,9 +905,9 @@ When the repo is right and only the model is wrong, on a harness that switches m
     Wrong model: this wants claude-sonnet-5-5 at high effort; this session runs claude-opus-5-5.
     Switch here, then say go:
     /model <alias>
-    /effort <level> (press s in the slider to keep it to this session)
+    /effort, then pick <level> and press s to keep it to this session
 
-The effort line is there because the session can't see its own level, and a level typed after `/effort` becomes that model's default ([Model picker](#model-picker) notes). On go, it runs the preflight again and starts the prompt. When the repo is wrong, or the harness can't switch models in a session, the whole reply is, in order:
+The effort line is there because the session can't see its own level, and a level typed after `/effort` or confirmed with Enter becomes that model's default, while `s` in the slider keeps it to the session ([Model picker](#model-picker) notes). On go, it runs the preflight again and starts the prompt. When the repo is wrong, or the harness can't switch models in a session, the whole reply is, in order:
 
 1. One line naming what's wrong: origin's URL and the primary it wants, or the model it wants and the one it runs.
 2. The prompt, header included, in a `text` fence ([Printing a prompt in chat](#printing-a-prompt-in-chat)).
