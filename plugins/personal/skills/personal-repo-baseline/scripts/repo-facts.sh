@@ -368,6 +368,25 @@ if not found and not os.path.isdir(folder):
     print("  present: no")
 PY
 
+    # Copilot's code review reads the repo's instructions, never the plugin.
+    # Printed verbatim; the agent compares it with
+    # templates/copilot-instructions.md.
+    section "Copilot instructions"
+    python3 - "$root" <<'PY'
+import os, re, sys
+path = os.path.join(sys.argv[1], ".github", "copilot-instructions.md")
+if os.path.isfile(path):
+    text = open(path, encoding="utf-8", errors="replace").read()
+    print("  path: .github/copilot-instructions.md")
+    print(f"  has Code review heading: {'yes' if re.search(r'^#+[ \t]+Code review[ \t]*$', text, re.M | re.I) else 'no'}")
+    print(f"  has blocking: label: {'yes' if 'blocking:' in text else 'no'}")
+    print("  contents:")
+    for line in text.splitlines():
+        print(f"    | {line}")
+else:
+    print("  present: no")
+PY
+
     # Workflows and the lines that decide whether they run on a draft PR:
     # the trigger, its types, and any draft test. The agent reads them
     # (and the file, when it's unclear) and decides.

@@ -39,6 +39,8 @@ if PERSONAL_REVIEW_GUIDE= python3 -I "$here/../../personal-review-guide/scripts/
 else
     pass "PR template passes the review-guide hook"
 fi
+copilot_tmpl="$here/../templates/copilot-instructions.md"
+if grep -q '^# Code review$' "$copilot_tmpl" && grep -q 'blocking:' "$copilot_tmpl" && grep -q 'nit:' "$copilot_tmpl"; then pass "Copilot instructions have the heading and labels"; else fail "Copilot instructions lack # Code review or the labels"; fi
 
 printf 'merge_settings.py\n'
 t="$work/new/.claude/settings.json"
@@ -222,6 +224,18 @@ cp "$here/../templates/pull_request_template.md" "$repo/.github/PULL_REQUEST_TEM
 expect_ok "PR template from the baseline"        env PATH="$stub:$PATH" "$bash_bin" "$facts" "$repo"
 expect_grep "  ...review guide"                  out 'has ## Review guide: yes'
 expect_grep "  ...tier line"                     out 'has Review tier: line: yes'
+rm -r "$repo/.github"
+
+mkdir -p "$repo/.github" && printf '# Style\n\nUse tabs.\n' > "$repo/.github/copilot-instructions.md"
+expect_ok "Copilot instructions without review"  env PATH="$stub:$PATH" "$bash_bin" "$facts" "$repo"
+expect_grep "  ...path"                          out 'path: .github/copilot-instructions.md'
+expect_grep "  ...no Code review heading"        out 'has Code review heading: no'
+expect_grep "  ...no blocking label"             out 'has blocking: label: no'
+expect_grep "  ...contents verbatim"             out '    | Use tabs.'
+cp "$here/../templates/copilot-instructions.md" "$repo/.github/copilot-instructions.md"
+expect_ok "Copilot instructions from the baseline" env PATH="$stub:$PATH" "$bash_bin" "$facts" "$repo"
+expect_grep "  ...Code review heading"           out 'has Code review heading: yes'
+expect_grep "  ...blocking label"                out 'has blocking: label: yes'
 rm -r "$repo/.github"
 
 mkdir -p "$repo/.github/workflows"
