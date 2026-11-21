@@ -898,11 +898,20 @@ These follow the [Model picker](#model-picker)'s Claude Code row; change both to
 
 The `Branch:` line is `Branch: Base branch X: open your PR against X` when the PR should land on X, and is dropped when the prompt carries its own `On branch` line (git.md "Task branches and shared branches" says how a runner reads both). Orchestrate's Kickoff prompt goes over verbatim, with no header: its hook matches a paste against the prompt in the plan, and its Claude Code adapter sets the model itself.
 
-**Recovering from a wrong repo or model.** The session does no work and never starts another session: a relaunch would leave this one holding its runner until idle release. Its whole reply is, in order:
+**Recovering from a wrong repo or model.** The session does no work and never starts another session: a relaunch would leave this one holding its runner until idle release. After its reply it ends the turn, so the wrong session spends one short turn.
 
-1. One line naming what's wrong: `Wrong model: this wants claude-sonnet-5-5 at high effort; this session runs claude-opus-5-5.` (for a wrong repo, origin's URL and the primary it wants).
+When the repo is right and only the model is wrong, on a harness that switches models in a session (Claude Code, local or cloud), the session has just started and holds nothing but the prompt, so switching in place costs less than a new session. Its whole reply is:
+
+    Wrong model: this wants claude-sonnet-5-5 at high effort; this session runs claude-opus-5-5.
+    Switch here, then say go:
+    /model <alias>
+    /effort, then pick <level> and press s to keep it to this session
+
+The effort line is there because the session can't see its own level, and a level typed after `/effort` or confirmed with Enter becomes that model's default, while `s` in the slider keeps it to the session ([Model picker](#model-picker) notes). On go, it runs the preflight again and starts the prompt. When the repo is wrong, or the harness can't switch models in a session, the whole reply is, in order:
+
+1. One line naming what's wrong: origin's URL and the primary it wants, or the model it wants and the one it runs.
 2. The prompt, header included, in a `text` fence ([Printing a prompt in chat](#printing-a-prompt-in-chat)).
-3. What to set for the new session, all three every time, whatever was wrong, below the fence so they're the last thing on screen:
+3. What to set for the new session, all three every time, below the fence so they're the last thing on screen:
 
        Repos:
        - <owner>/<repo> (primary)
@@ -910,9 +919,7 @@ The `Branch:` line is `Branch: Base branch X: open your PR against X` when the P
        /model <alias>
        /effort <level>
 
-   One bullet per repo, from the header's `Repos:` line, the primary first with ` (primary)` after it. When only the model or effort was wrong, add one line: or run those two here and say go.
-
-Then it ends the turn. The wrong session spends one short turn.
+   One bullet per repo, from the header's `Repos:` line, the primary first with ` (primary)` after it.
 
 **Order.** Number a set with waits as core.md "Queue sessions" says, and name it `<topic>-<word>` (the handoff naming). Each prompt's header carries its queue line, so each PR description carries `Queue: <set> <n>`, above the trailer paragraph. After the preflight, a dependent checks each prerequisite by finding its PR: `gh api -X GET search/issues -f q='repo:<owner>/<repo> is:pr in:body "Queue: <set> <m>"'` (where `gh` can't reach the repo, the GitHub tools' PR list, reading bodies). A merged PR means go. Anything else (no PR, an open one, a closed one) means hold: do no work, say `Waiting on <m> (<title>): <no PR yet | PR #<n> open>. Say ready when it's merged, or give me its PR or branch.`, and end the turn, with no polling and no `sleep`. On a reply, check again. A "ready" counts as the yes even when the check still finds nothing: build on the PR or branch it names (merged onto your branch as git.md says), else on the freshly fetched default branch, and say the check couldn't confirm the prerequisite.
 
