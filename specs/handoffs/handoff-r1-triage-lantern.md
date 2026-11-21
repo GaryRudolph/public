@@ -52,6 +52,10 @@ at a time: a problem paragraph, a fix trade-off paragraph, then a question.
   the consumer template and standards snippets to decrypting in the step that
   needs the value instead of exporting to $GITHUB_ENV. Any repo already on the
   template rotates.
+- f24: mask origin's userinfo before printing.
+- f23: one plugin-level origin helper (`plugins/personal/scripts/origin.py`:
+  host, owner, repo, masked URL) used by review_facts.py, repo-facts.sh,
+  session-doctor.py, review_log_facts.py, secrets-facts.sh; serves f3 and f24.
 
 ## Pending
 
