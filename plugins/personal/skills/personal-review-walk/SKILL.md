@@ -34,7 +34,8 @@ default.
 2. **Collect the items.** From a tracking issue, its checkboxes, with each
    finding's full entry from the register it links (on the review branch if
    the review PR hasn't merged). From a PR, its unresolved review threads
-   that need the Owner's call. From `/code-review`, its findings. From a
+   and the findings only in a review's body, where they need the Owner's
+   call. From `/code-review`, its findings. From a
    plan, its open questions. Skip items that already have an outcome at the
    source (a ticked box with a PR link, a resolved thread).
 3. **Order them.** The source's order when it gives one (a tracking issue
@@ -42,7 +43,13 @@ default.
    decisions first, then by severity, keeping items that touch the same
    files next to each other.
 4. **Write the walk file** before the first question, every item snapshotted
-   as pending, so the order survives a respawn. Commit it (see "Save every
+   as pending, so the order survives a respawn. Where the source isn't
+   durable (`/code-review` output, a plan's questions held only in the
+   conversation), copy each item's location, evidence or failure scenario,
+   and recommendation into its section, so a respawned session can brief
+   it without the old conversation; an issue, register or PR thread only
+   needs its link. Note any order the source requires between fixes
+   (#45: f11 before f1). Commit it (see "Save every
    answer"). Say how many items there are and roughly how long it'll take.
 
 ## The walk file
@@ -88,6 +95,7 @@ and `skipped` is the walk's own and never leaves it:
 | `accepted: <reason>` | Won't change; the reason is required. A finding the Owner thinks is wrong is `accepted: not a defect, <why>` | `accepted` |
 | `deferred: <reason>; revisit when <trigger>` | Later, with what brings it back | `deferred` |
 | `skipped` | Come back to it at the end | `open` |
+| `skipped twice` | Skipped again on the second pass; not asked a third time | `open` |
 
 `Note:` holds anything the Owner added beyond the choice, in their words.
 
@@ -144,18 +152,22 @@ committed; the `.scratch/` file holds the state.
 ## End
 
 1. **Skipped items.** Walk each `skipped` item once more. A second skip
-   leaves it `skipped`, listed in the tally.
+   records `skipped twice`, listed in the tally.
 2. **Tally.** Counts by outcome and the `fix` groups, as one short block.
 3. **One choice dialog** for what happens next, each a separate question:
    - Post the outcomes to the source: on a tracking issue, one comment
      listing every item's outcome and note (the next review's fix review
      can cite it as the `Resolution:` for `decided`, `accepted` and
      `deferred` findings), ending with the GitHub comment footer; on a PR,
-     a reply on each thread. Don't tick checkboxes: a tick means a
+     a reply on each thread, and one comment for the body-only findings.
+     Don't tick checkboxes: a tick means a
      remediation PR opened.
-   - Queue the remediation: one card per `fix` group, as
-     `personal-codebase-review` "Show it" describes (finding IDs, the
-     tracking issue, fix claims, no branch named).
+   - Queue the remediation: one card per `fix` group and per `decided`
+     item that needs work (r1.f18's `test.yml`), as core.md "Queue
+     sessions" describes, numbered with `after` where the source requires
+     an order. Findings from a register get `personal-codebase-review`
+     "Show it"'s prompt (finding IDs, the tracking issue, fix claims);
+     others cite their PR thread or carry the finding's text.
    - Record a decision that sets a lasting rule as an ADR or a spec edit,
      on the walk's task branch, shipped with `personal-ship-pr`. A walk
      that ran on a workstation's shared branch proposes a task branch
