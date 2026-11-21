@@ -898,18 +898,18 @@ These follow the [Model picker](#model-picker)'s Claude Code row; change both to
 
 The `Branch:` line is `Branch: Base branch X: open your PR against X` when the PR should land on X, and is dropped when the prompt carries its own `On branch` line (git.md "Task branches and shared branches" says how a runner reads both). Orchestrate's Kickoff prompt goes over verbatim, with no header: its hook matches a paste against the prompt in the plan, and its Claude Code adapter sets the model itself.
 
-**Recovering from a wrong repo or model.** The session does no work and never starts another session: a relaunch would leave this one holding its runner until idle release. Then it ends the turn. The wrong session spends one short turn.
+**Recovering from a wrong repo or model.** The session does no work and never starts another session: a relaunch would leave this one holding its runner until idle release. After its reply it ends the turn, so the wrong session spends one short turn.
 
-When the repo is right and only the model or effort is wrong, the session has just started and holds nothing but the prompt, so switching in place costs less than a new session. Its whole reply is:
+When the repo is right and only the model is wrong, on a harness that switches models in a session (Claude Code, local or cloud), the session has just started and holds nothing but the prompt, so switching in place costs less than a new session. Its whole reply is:
 
     Wrong model: this wants claude-sonnet-5-5 at high effort; this session runs claude-opus-5-5.
     Switch here, then say go:
     /model <alias>
-    /effort <level>
+    /effort <level> (press s in the slider to keep it to this session)
 
-On go, it runs the preflight again and starts the prompt. When the repo is wrong, a switch can't fix it, and the whole reply is, in order:
+The effort line is there because the session can't see its own level, and a level typed after `/effort` becomes that model's default ([Model picker](#model-picker) notes). On go, it runs the preflight again and starts the prompt. When the repo is wrong, or the harness can't switch models in a session, the whole reply is, in order:
 
-1. One line naming what's wrong: origin's URL and the primary it wants (and the model, if that's wrong too).
+1. One line naming what's wrong: origin's URL and the primary it wants, or the model it wants and the one it runs.
 2. The prompt, header included, in a `text` fence ([Printing a prompt in chat](#printing-a-prompt-in-chat)).
 3. What to set for the new session, all three every time, below the fence so they're the last thing on screen:
 
