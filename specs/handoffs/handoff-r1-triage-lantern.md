@@ -48,6 +48,10 @@ at a time: a problem paragraph, a fix trade-off paragraph, then a question.
 - f8: extend the patterns: control keywords, { }, timeout/nice/xargs, re-check
   sh|bash|zsh -c and eval strings, empty heredoc body; tests; soften the
   adapter's claim.
+- f5: emit ::add-mask:: per value (per line) under GITHUB_ACTIONS, and move
+  the consumer template and standards snippets to decrypting in the step that
+  needs the value instead of exporting to $GITHUB_ENV. Any repo already on the
+  template rotates.
 
 ## Pending
 
