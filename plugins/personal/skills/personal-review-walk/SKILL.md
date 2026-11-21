@@ -25,7 +25,7 @@ default.
 ## Start
 
 1. **Find a walk already under way.** Look for `specs/handoffs/walk-*.md`
-   (on a workstation's shared branch, `.scratch/walk-*.md`) whose `Source:`
+   and `.scratch/walk-*.md` whose `Source:`
    matches. If one exists, this is a resume: skip to "Each item" at its
    first `Outcome: pending` item, or to "End" when none is pending (its
    `skipped` items still get their second pass). Trust the file, not the conversation: a
@@ -57,7 +57,8 @@ default.
 `{project-root}/specs/handoffs/walk-{topic}-{word}.md`, named like a
 handoff (`personal-handoff`; `{topic}` such as `r1-full`). On a
 workstation's shared branch, where nothing gets committed without a yes,
-`.scratch/walk-{topic}-{word}.md` instead.
+`.scratch/walk-{topic}-{word}.md` instead. If a task branch is cut
+mid-walk, move the file to `specs/handoffs/` and commit it there.
 
 Which branch: a task branch with no open PR, or, when the items are a PR's
 own review threads, that PR's branch. Never a review PR's branch: nothing
