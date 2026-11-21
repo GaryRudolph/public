@@ -34,6 +34,12 @@ at a time: a problem paragraph, a fix trade-off paragraph, then a question.
 - f2: fix; replace only allow and deny. Must land before f17.
 - f1: fix allows and denies (Bash(...:*) for Claude Code, Shell(...) for
   Cursor CLI); ship with f4, after f11.
+- f4: remove op read, op run, curl -X GET, curl --get, curl -G,
+  wget --method=GET; keep git log/show/diff; scout classifies --output, --pre,
+  --upload-pack as unsafe.
+- f6: exact command form where Cursor CLI supports it, else don't write
+  multi-word commands for Cursor CLI; same rule for f1's rendering; add scout
+  tests and a test target.
 
 ## Pending
 
