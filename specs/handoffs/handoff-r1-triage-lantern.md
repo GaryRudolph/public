@@ -31,6 +31,9 @@ at a time: a problem paragraph, a fix trade-off paragraph, then a question.
 - f11: fix; diff live against this org's last-rendered sidecar (meta render
   only on first install). Must land before f1, f4, f9.
 - f13: fix; guard only when a live file exists that no org's sidecar explains.
+- f2: fix; replace only allow and deny. Must land before f17.
+- f1: fix allows and denies (Bash(...:*) for Claude Code, Shell(...) for
+  Cursor CLI); ship with f4, after f11.
 
 ## Pending
 
