@@ -121,6 +121,12 @@ A review an agent posts on the PR is a second opinion on a finished change: `/co
 
   A harness whose review takes no level runs at its default, and the record says so. A `[security]` PR also gets the harness's security review in the draft round where it has one (Claude Code's `/security-review`).
 - **Review in the draft.** The draft-round review runs while the PR is a draft, with CI fixed in the same round. Rulesets that request a review skip drafts, so Copilot reviews the finished change once.
+- **Fix what's real, not what's possible.** A reviewer, person or agent, is rewarded for finding something, and a confident finding isn't evidence. Before fixing one, answer three questions from the code, not from the finding's wording:
+  1. **Trigger:** what inputs or state set it off, and do they happen in real use of this code, given its callers, who runs it, and where? A malformed file the code itself writes, two runs at once of a tool one person runs, or a hostile caller of an internal script usually aren't.
+  2. **Consequence:** when it does happen, how bad: data loss, a security exposure, a silently wrong result, a loud failure with an obvious fix, or cosmetic.
+  3. **Cost:** the lines, branches and flags the fix adds, which every later reader pays for, and the tests it needs.
+
+  Fix when the trigger is realistic and the consequence outweighs the cost. Otherwise decline it, with the reasoning: `declined: needs <trigger>, which doesn't happen here because <why>; if it did, <consequence>`. A guard against a state the code can't reach is a cost with no benefit. Recommending a finding stay unfixed is a good outcome, not a failure to finish. A security finding still goes to the Owner, and a cheap fix to a real but unlikely problem is still worth making.
 - **The agent decides each comment:** fix it, decline it, or defer it to a card ([core.md](../core.md) "Queue sessions"). A related fix is made here unless one of git.md's split criteria holds ("Creating", "Related work rides along"). It asks the Owner only when a fix would change a contract or a design, or when it disagrees with a finding on a `[study]` area. A security finding stays open until the Owner decides. Resolved means every comment has an outcome, not that every comment was fixed.
 - **Optional findings ride along.** A finding marked optional (nit, minor, low) never starts a push on its own.
 - **One push per round.** Batch the fixes into one commit (`address review: <summary>`). Each push can dismiss an approval and buy another review.
