@@ -319,7 +319,7 @@ by the tools. Treat the first install of each as the real validation.
   `~/AGENTS.md` block, the `~/.cursor/skills` copies, and the refresh hook.
   The plugin carries the core as the always-apply `personal-core` rule
   (generated from `core.md` by `make -C agents cursor-core-rule`), so check
-  **Rules** lists it before switching. The denylist hook stays in both
+  **Rules** lists it before switching. The denylist hook (a seatbelt, not enforcement) stays in both
   modes.
 - **Without the plugin:** turning on **Sync Skills for Cloud Agents** copies
   `~/.cursor/skills` to cloud agents. Re-sync after edits.

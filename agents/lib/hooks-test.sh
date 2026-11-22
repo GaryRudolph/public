@@ -303,6 +303,66 @@ assert_file_missing "$FAKE_CURSOR/.${ORG}-refresh.lock"
 assert_not_grep "${ORG}-" "$HOOKS_JSON"
 
 # ---------------------------------------------------------------------------
+# Test 15: the hook's own --self-test passes
+# ---------------------------------------------------------------------------
+
+REAL_DENY="$AGENTS_DIR/cursor/hooks/enforce-denylist.sh"
+
+printf 'T15: denylist hook --self-test\n'
+bash "$REAL_DENY" --self-test >/dev/null || fail "enforce-denylist.sh --self-test failed"
+
+# ---------------------------------------------------------------------------
+# Test 16: the real hook (not the stub) denies per segment. It is a seatbelt:
+# these are the bypasses the stub never saw.
+# ---------------------------------------------------------------------------
+
+printf 'T16: real denylist hook behavior\n'
+DENY_HOME="$TEST_DIR/deny-home"
+DENY_WS="$TEST_DIR/deny-ws"
+rm -rf "$DENY_HOME" "$DENY_WS"
+mkdir -p "$DENY_HOME/.cursor" "$DENY_WS/.cursor"
+cat > "$DENY_HOME/.cursor/permissions.json" <<'JSON'
+{"terminalDenylist": ["rm -rf", "sudo", "git push"], "terminalAllowlist": ["git push"]}
+JSON
+cat > "$DENY_WS/.cursor/permissions.json" <<'JSON'
+{"terminalAllowlist": ["sudo", "rm"], "terminalDenylist": ["curl"]}
+JSON
+
+# Prints the hook's permission for a command: allow or deny.
+hook_decision() {
+    local cmd="$1" sandbox="${2:-true}"
+    jq -n --arg c "$cmd" --arg w "$DENY_WS" --argjson s "$sandbox" \
+        '{command: $c, cwd: $w, sandbox: $s}' \
+        | HOME="$DENY_HOME" bash "$REAL_DENY" | jq -r '.permission'
+}
+expect_decision() {
+    local want="$1" cmd="$2" sandbox="${3:-true}" got
+    got=$(hook_decision "$cmd" "$sandbox")
+    [ "$got" = "$want" ] || fail "hook: want $want for [$cmd] (sandbox=$sandbox), got [$got]"
+}
+
+expect_decision allow 'pytest tests/'
+expect_decision allow 'python -m pytest && ruff check .'
+expect_decision deny  'pytest && rm -rf ~'
+expect_decision deny  'python -m pytest || sudo ls'
+expect_decision deny  '(rm -rf ~)'
+expect_decision deny  'rm -rf  ~'
+expect_decision deny  'echo & sudo whoami'
+expect_decision deny  'echo hi; sudo ls'
+expect_decision deny  'echo $(sudo id)'
+expect_decision deny  'if true; then rm -rf ~; fi'
+expect_decision deny  '{ rm -rf ~; }'
+# ALWAYS_DENY beats any allowlist, even unsandboxed, even a workspace one.
+expect_decision deny  'sudo ls' false
+expect_decision deny  'rm -rf ~' false
+# A workspace file adds denies and cannot lift one.
+expect_decision deny  'curl example.com'
+# The home allowlist may still waive an ordinary deny.
+expect_decision allow 'git push origin main'
+# Unsandboxed approval still passes a non-ALWAYS_DENY hit.
+expect_decision allow 'curl example.com' false
+
+# ---------------------------------------------------------------------------
 # Summary
 # ---------------------------------------------------------------------------
 
