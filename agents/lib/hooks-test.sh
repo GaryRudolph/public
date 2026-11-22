@@ -322,10 +322,10 @@ DENY_WS="$TEST_DIR/deny-ws"
 rm -rf "$DENY_HOME" "$DENY_WS"
 mkdir -p "$DENY_HOME/.cursor" "$DENY_WS/.cursor"
 cat > "$DENY_HOME/.cursor/permissions.json" <<'JSON'
-{"terminalDenylist": ["rm -rf", "sudo", "git push"], "terminalAllowlist": ["git push"]}
+{"terminalDenylist": ["rm", "rm -rf", "sudo", "git push", "nohup"], "terminalAllowlist": ["git push", "sudo", "rm -rf"]}
 JSON
 cat > "$DENY_WS/.cursor/permissions.json" <<'JSON'
-{"terminalAllowlist": ["sudo", "rm"], "terminalDenylist": ["curl"]}
+{"terminalAllowlist": ["sudo", "rm", "curl"], "terminalDenylist": ["curl"]}
 JSON
 
 # Prints the hook's permission for a command: allow or deny.
@@ -360,6 +360,14 @@ expect_decision allow 'pytest tests/ 2>&1'
 # ALWAYS_DENY beats any allowlist, even unsandboxed, even a workspace one.
 expect_decision deny  'sudo ls' false
 expect_decision deny  'rm -rf ~' false
+# A protected entry wins over an ordinary one listed before it ("rm" first),
+# and over the home allowlist ("sudo", "rm -rf" are allowed there).
+expect_decision deny  'rm -rf ~' false
+# One approved segment must not exempt a later protected one.
+expect_decision deny  '(curl example.com); sudo ls' false
+# A deny on a wrapper word still applies, though the wrapped command is plain.
+expect_decision deny  'nohup make build'
+expect_decision allow 'nohup make build' false
 # A workspace file adds denies and cannot lift one.
 expect_decision deny  'curl example.com'
 # The home allowlist may still waive an ordinary deny.

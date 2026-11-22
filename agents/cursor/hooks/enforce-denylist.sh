@@ -264,16 +264,17 @@ denylist=$(load_list terminalDenylist)
 allowlist=$(jq -r '.terminalAllowlist[]? // empty' "$GLOBAL_PERMS" 2>/dev/null) || allowlist=""
 [ -n "$denylist" ] || allow
 
-matching_entry() {
-  local cmd="$1" entry
+# Prints every entry that prefix-matches the command, one per line.
+matching_entries() {
+  local cmd="$1" entry rc=1
   while IFS= read -r entry; do
     [ -z "$entry" ] && continue
     if [ "$cmd" = "$entry" ] || [[ "$cmd" == "$entry "* ]]; then
-      printf '%s' "$entry"
-      return 0
+      printf '%s\n' "$entry"
+      rc=0
     fi
   done
-  return 1
+  return $rc
 }
 
 ALWAYS_DENY='^rm[[:space:]]|^dd$|^mkfs$|^sudo$|get-secret|auth token|^git -C$|^databricks bundle destroy$'
@@ -283,20 +284,15 @@ PROPOSE_ONLY='^databricks bundle deploy$'
 segments=$(printf '%s' "$command" \
   | sed -e 's/[;|&(){}`]/\n/g')
 
-while IFS= read -r segment; do
-  segment=$(printf '%s' "$segment" | sed -e 's/[[:space:]][[:space:]]*/ /g' -e 's/^ //' -e 's/ $//')
-  # Drop leading env assignments and words that only wrap the next command.
-  while [[ "$segment" =~ ^[A-Za-z_][A-Za-z0-9_]*=[^[:space:]]*[[:space:]]+(.*)$ ]] \
-     || [[ "$segment" =~ ^(if|then|else|elif|do|while|until|time|exec|command|nohup|\!)[[:space:]]+(.*)$ ]]; do
-    segment="${BASH_REMATCH[${#BASH_REMATCH[@]}-1]}"
-  done
-  [ -n "$segment" ] || continue
+# Checks one candidate segment against the denylist. Emits a deny and exits,
+# or returns 0 so the next segment is still checked.
+check_segment() {
+  local segment="$1" hits hit
 
-  if argv_is_safe_tool "$segment"; then
-    continue
-  fi
-
-  hit=$(printf '%s\n' "$denylist" | matching_entry "$segment") || continue
+  hits=$(printf '%s\n' "$denylist" | matching_entries "$segment") || return 0
+  # A protected entry wins over an ordinary one that matched first.
+  hit=$(printf '%s\n' "$hits" | grep -E "$ALWAYS_DENY" | head -n 1) || true
+  [ -n "$hit" ] || hit=$(printf '%s\n' "$hits" | head -n 1)
 
   # ALWAYS_DENY comes before any allowlist.
   if printf '%s' "$hit" | grep -qE "$ALWAYS_DENY"; then
@@ -308,7 +304,7 @@ while IFS= read -r segment; do
     exit 0
   fi
 
-  printf '%s\n' "$allowlist" | matching_entry "$segment" >/dev/null && continue
+  printf '%s\n' "$allowlist" | matching_entries "$segment" >/dev/null && return 0
 
   if printf '%s' "$hit" | grep -qE "$PROPOSE_ONLY"; then
     jq -n --arg e "$hit" --arg s "$segment" '{
@@ -320,7 +316,7 @@ while IFS= read -r segment; do
   fi
 
   if [ "$sandboxed" = "false" ]; then
-    allow
+    return 0
   fi
 
   jq -n --arg e "$hit" --arg s "$segment" '{
@@ -329,6 +325,25 @@ while IFS= read -r segment; do
     agent_message: ("Matches the terminalDenylist entry \"" + $e + "\". This is the Cursor IDE denylist hook, not Auto-review. Parent chat: retry the SAME command with required_permissions [\"all\"] — that surfaces an approval card; on approval it runs in-session and you keep the output. Task / background subagent: do NOT retry and do not set request_smart_mode_approval (there is no approval UI; it fails the same way). Write the exact command and working_directory to the wave artifact and return; the orchestrator-parent runs it in the foreground. Sibling-root cwd also uses [\"all\"] — that is not denylist approval; still do not run this command from a Task.")
   }'
   exit 0
+}
+
+while IFS= read -r segment; do
+  segment=$(printf '%s' "$segment" | sed -e 's/[[:space:]][[:space:]]*/ /g' -e 's/^ //' -e 's/ $//')
+  [ -n "$segment" ] || continue
+  original="$segment"
+  # Drop leading env assignments and words that only wrap the next command.
+  while [[ "$segment" =~ ^[A-Za-z_][A-Za-z0-9_]*=[^[:space:]]*[[:space:]]+(.*)$ ]] \
+     || [[ "$segment" =~ ^(if|then|else|elif|do|while|until|time|exec|command|nohup|\!)[[:space:]]+(.*)$ ]]; do
+    segment="${BASH_REMATCH[${#BASH_REMATCH[@]}-1]}"
+  done
+  [ -n "$segment" ] || continue
+
+  # A deny on the wrapper word itself still applies.
+  [ "$original" = "$segment" ] || check_segment "$original"
+  if argv_is_safe_tool "$segment"; then
+    continue
+  fi
+  check_segment "$segment"
 done <<< "$segments"
 
 allow
