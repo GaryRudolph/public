@@ -106,6 +106,10 @@ Prefer the narrowest form the toolchain allows:
 3. **Decrypt files to disk:** only when the toolchain needs a file (a `.p8` or
    `.p12`), mode `0600`, removed when the job ends.
 
+Once the step has decrypted what it needs, `unset SOPS_AGE_KEY` before running
+anything else, so the build and its dependencies get the value, not the key
+that opens every file.
+
 Never append a value to `$GITHUB_ENV`. Every later step gets it, third-party
 actions included, and each step's log prints its `env:` block. A `uses:`
 action that needs a value takes it as a `with:` input from an output of the
