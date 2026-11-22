@@ -1,7 +1,7 @@
 ```
 --- KICKOFF: begin orchestration at [deep] ---
 
-  Status: 1/5 groups done | last review: wave-1 CONCERNS | current: public m3 s1 [1-fix] | updated 2026-11-22
+  Status: 1/5 groups done | last review: wave-1-fix PASS | current: public m3 s2-s5 [exec] | updated 2026-11-22
 
   mode: unattended | proposed unattended (harness=claude-code runner=cloud; assigned branch, CLAUDE_CODE_REMOTE=true) | guard 3x min $50 | fixups 2 | confirmed 2026-11-22 session 2ec2fdaa-1eac-5814-b7c2-d7ccce5bf7da: Unattended (Recommended)
 
@@ -32,6 +32,7 @@
 | wave | expected tokens | expected $ |
 |---|---|---|
 | 1 [deep] m3 s1 | ~2.7M | ~$1.4 |
+| 1-fix [deep] m3 s1 | — | — |
 | 2 [exec] m3 s2-s5 | ~5.6M | ~$2.2 |
 | orchestrator | ~4.3M | ~$3.8 |
 | **Total** | ~13M | ~$7.4 |
@@ -132,6 +133,7 @@ Acceptance: `make -C agents validate test` passes; the new assertions fail again
 ## Review log
 
 review wave-1 (public m3 s1) 8d34bd1..ab8298b: CONCERNS - the note says `claude_mcp` fails the render on an entry with no `:` or an empty server or tool part, but the jq it gives has no check (`nocolon` renders `mcp__nocolon__ocolon`, `:tool` renders `mcp____tool`): add an explicit guard that calls `error`, or drop the claim; minor: the per-tool record (what each tool does) is only in the gitignored wave output file, so it survives nowhere once the note becomes the PR description - 2026-11-22
+review wave-1-fix (public m3 s1) 8d34bd1..d6ba861: PASS - the guarded claude_mcp renders `notion:notion-search` and `notion:*` and errors on `nocolon`, `:tool` and `server:` as the note states; the per-tool record is the note's collapsed appendix; only the note changed - 2026-11-22
 
 ## Token log
 
@@ -146,3 +148,6 @@ review wave-1 (public m3 s1) 8d34bd1..ab8298b: CONCERNS - the note says `claude_
 tokens orchestrator-kickoff plan-r1-rendering-kestrel (claude-opus-5-5): input ~73 / cache read ~6.7M / cache write ~0 5m + ~180k 1h / output ~30k | ~$3.38 API-equiv
 tokens wave-1 public-m3-s1 (claude-opus-5-5): input ~69 / cache read ~5.3M / cache write ~210k / output ~48k | ~$3.06 API-equiv
 tokens review-wave-1 public-m3-s1 (claude-opus-5-5): input ~24 / cache read ~320k / cache write ~37k / output ~9.1k | ~$0.43 API-equiv
+tokens wave-1-fix public-m3-s1 (claude-opus-5-5): input ~19 / cache read ~990k / cache write ~56k / output ~5.8k | ~$0.60 API-equiv
+tokens review-wave-1-fix public-m3-s1 (claude-opus-5-5): input ~16 / cache read ~130k / cache write ~19k / output ~2.5k | ~$0.17 API-equiv
+tokens orchestrator-wave-1 public-m3-s1 (claude-opus-5-5): input ~14 / cache read ~1.8M / cache write ~0 5m + ~33k 1h / output ~7.4k | ~$0.77 API-equiv
