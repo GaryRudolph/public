@@ -51,13 +51,15 @@ PREFIX_WORDS = {"sudo", "env", "command", "exec", "nohup", "time", "eval", "then
 # Wrappers with their own flags and operands: `timeout -k 5 120 git push`, `nice -n 5 npm publish`,
 # `xargs -I{} git -C {} push`. A flag may take a value (-n 5, -I X); a duration or a {} placeholder is an operand.
 WRAPPERS = {"timeout", "nice", "xargs"}
+LONG_VALUE_FLAGS = {"--signal", "--kill-after", "--delimiter", "--max-args", "--max-procs", "--max-lines", "--replace", "--arg-file",
+                    "--eof", "--adjustment", "--user", "--group", "--unset", "--chdir", "--process-slot-var", "--host"}
 VALUE_FLAGS = {"timeout": set("sk"), "nice": set("n"), "xargs": set("aEIJLnPsdRlS"), "sudo": set("ugCUhpRrT"), "env": set("uCS")}
 WRAP_VALUE = re.compile(r"[+-]?\d+(?:\.\d+)?[smhd]?|[{%@]\S*")
 _WORDS = "|".join(re.escape(w) for w in sorted(PREFIX_WORDS | WRAPPERS, key=len, reverse=True))
-_WRAP_ARG = r"(?:-[A-Za-z]\s+\S+|-\S+|[+-]?\d+(?:\.\d+)?[smhd]?|[{%@]\S*)"
+_WRAP_ARG = r"(?:-[A-Za-z]\s+\S+|--[\w-]+\s+\S+|-\S+|[+-]?\d+(?:\.\d+)?[smhd]?|[{%@]\S*)"
 # A command word's position: the start, or after a separator, a subshell or a substitution, past the prefix words and
 # their flags and VAR=value prefixes.
-START = r"(?:^|[;&|(`\n]|\$\()\s*(?:(?:" + _WORDS + r")(?:\s+" + _WRAP_ARG + r")*\s+|[A-Za-z_]\w*=\S*\s+)*"
+START = r"(?:^|[;&|(`\n]|\$\()\s*(?:(?:\S*/)?(?:" + _WORDS + r")(?:\s+" + _WRAP_ARG + r")*\s+|[A-Za-z_]\w*=\S*\s+)*"
 GIT_OPTS = r"(?:\s+-[Cc]\s+\S+|\s+--?[\w-]+(?:=\S+)?)*"
 # docker's global options before the subcommand (--context prod, --config dir, -H host), so a push that names its
 # context or config, as security.md "Explicit CLI Identity" asks, is still a push.
@@ -96,7 +98,7 @@ MAKE_DRY = {"-n", "--dry-run", "--just-print", "--recon"}
 RUNNERS = {"npm", "pnpm", "yarn", "bun"}
 
 HEREDOC = re.compile(r"(<<-?[ \t]*(['\"]?)([A-Za-z_]\w*)\2)([^\n]*)\n(?:.*?\n)??[ \t]*\3[ \t]*(?=\n|$)", re.S)
-QUOTED = re.compile(r"'[^']*'|\"(?:[^\"\\]|\\.)*\"")
+QUOTED = re.compile(r"'[^']*'|\"(?:[^\"\\]|\\.)*\"")  # a $'...' string is the single-quoted one after its $
 
 
 def bare(command):
@@ -178,7 +180,7 @@ def named_problem(command):
             elif w in PREFIX_WORDS or w in WRAPPERS:
                 prefixed, wrapper = True, w
             elif prefixed and (w.startswith("-") or WRAP_VALUE.fullmatch(w)):
-                skip = len(w) == 2 and w[0] == "-" and w[1] in VALUE_FLAGS.get(wrapper, ())
+                skip = (len(w) == 2 and w[0] == "-" and w[1] in VALUE_FLAGS.get(wrapper, ())) or w in LONG_VALUE_FLAGS
             else:
                 break
             words = words[1:]
@@ -206,15 +208,27 @@ def named_problem(command):
     return None
 
 
-SHELL_C = re.compile(START + r"(?:\S*/)?(?:sh|bash|zsh|dash|ksh)(?:\s+-[A-Za-z-]+)*?\s+-[A-Za-z]*c[A-Za-z]*\s*$")
-EVAL = re.compile(START + r"eval\s*$")
+SHELL_C = re.compile(START + r"(?:\S*/)?(?:sh|bash|zsh|dash|ksh)(?:\s+(?:-[Oo]\s+\S+|-[A-Za-z-]+|--))*?\s+-[A-Za-z]*c[A-Za-z]*(?:\s+--)?\s*\$?$")
+EVAL = re.compile(START + r"eval\s*\$?$")
+# A shell that reads its commands from stdin (`... | sh`, `bash <<EOF`, `bash <<< '...'`): nothing here can see them.
+STDIN_SHELL = re.compile(r"(?:^|[|;&(`\n]|\$\()\s*(?:\S*/)?(?:sh|bash|zsh|dash|ksh)(?:\s+-[A-Za-z]+)*\s*(?:$|[;&|)`\n]|<<)")
+
+
+SUBSTITUTION = re.compile(r"\$\(([^()]*)\)|`([^`]*)`")
 
 
 def inner_strings(command):
-    """The quoted strings that a `sh|bash|zsh -c` or an `eval` runs, which bare() would set aside."""
+    """The strings a shell runs that bare() would set aside: the quoted string after `sh|bash|zsh -c` or `eval`, and
+    the body of a $(...) or backtick substitution inside double quotes (the shell runs it)."""
     command = HEREDOC.sub(r"\1\4", command)
-    return [m.group(0)[1:-1].replace('\\"', '"') for m in QUOTED.finditer(command)
-            if SHELL_C.search(command[:m.start()]) or EVAL.search(command[:m.start()])]
+    found = []
+    for m in QUOTED.finditer(command):
+        text = m.group(0)[1:-1]
+        if SHELL_C.search(command[:m.start()]) or EVAL.search(command[:m.start()]):
+            found.append(text.replace('\\"', '"'))
+        if m.group(0)[0] == '"':
+            found += [x or y for x, y in SUBSTITUTION.findall(text)]
+    return found
 
 
 def problem(command, depth=0):
@@ -225,6 +239,8 @@ def problem(command, depth=0):
             if why:
                 return why
     command = bare(command)
+    if STDIN_SHELL.search(command):
+        return "a shell that reads its commands from stdin"
     for rx, what in OUTWARD:
         if rx.search(command):
             return what

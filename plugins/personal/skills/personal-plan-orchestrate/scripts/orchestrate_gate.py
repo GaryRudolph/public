@@ -501,8 +501,11 @@ def check(inp):
     # Total row, so the limit itself is compared, not only its two inputs.
     rose = (before is not None and (mode.get("guard") or 0) > before) or \
         (floor is not None and (mode.get("guard_min") or 0) > floor) or \
-        (limit_before is not None and limit_now is not None and limit_now > limit_before)
+        (limit_before is not None and cost_now and (limit_now is None or limit_now > limit_before))  # a vanished Total removes the cap
     if rose and "gate-guard" not in given:
+        if (before, floor) == (mode.get("guard"), mode.get("guard_min")):
+            deny(f"the cost limit rose from ${limit_before or 0:g} to {'none (no Cost Total)' if limit_now is None else '$%g' % limit_now} "
+                 "since the last launch with the guard and floor unchanged, so the Cost table's Total row moved; approve gate-guard with the human's answer")
         deny(f"the cost guard rose from {before or 0:g}x min ${floor or 0:g} (limit ${limit_before or 0:g}) to {mode.get('guard') or 0:g}x min ${mode.get('guard_min') or 0:g} (limit ${limit_now or 0:g}) since the last launch; approve gate-guard with the human's answer")
     spent_before, spent_now = cost_before.get("actual"), cost_now.get("actual")
     if spent_before is not None and spent_now is not None and spent_now < spent_before:

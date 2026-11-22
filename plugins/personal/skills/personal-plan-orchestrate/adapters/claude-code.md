@@ -387,7 +387,7 @@ avoids the runner Stop hook.
   under auto mode with the allow rules above (verified on the Mac and the
   web). `worker_guard.py` denies a publish script run without its dry-run
   flag, including one behind shell keywords, `timeout`, `nice`, `xargs`,
-  `sh -c` or `eval`; it is a deny list, so a worker can still reach one
+  `sh -c` or `eval`, and denies a shell reading stdin; it is a deny list, so a worker can still reach one
   through an interpreter, a variable or a script it wrote, and the prompt and
   the auto-mode classifier remain the other layers.
 - Unattended answers no permission prompt: one mid-run still waits for

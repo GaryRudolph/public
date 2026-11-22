@@ -39,18 +39,20 @@ PREFIX_WORDS = {"sudo", "env", "command", "exec", "nohup", "time", "eval", "then
                 "until", "!", "{"}
 WRAPPERS = {"timeout", "nice", "xargs"}
 _WORDS = "|".join(re.escape(w) for w in sorted(PREFIX_WORDS | WRAPPERS, key=len, reverse=True))
-_WRAP_ARG = r"(?:-[A-Za-z]\s+\S+|-\S+|[+-]?\d+(?:\.\d+)?[smhd]?|[{%@]\S*)"
-START = r"(?:^|[;&|(`\n]|\$\()\s*(?:(?:" + _WORDS + r")(?:\s+" + _WRAP_ARG + r")*\s+|[A-Za-z_]\w*=\S*\s+)*"
-WRITERS = re.compile(START + r"(rm|rmdir|mv|cp|touch|mkdir|tee|truncate|chmod|chown|ln|dd|install|gh|patch)\b")
-FIND_WRITE = re.compile(r"\bfind\b[^;&|\n]*\s-(?:delete|fprint\w*|fls|exec(?:dir)?\s+(?:rm|rmdir|mv|cp|touch|mkdir|tee|truncate|chmod|chown|ln|dd|install|gh|patch)|"
-                        r"(?:exec|execdir|ok|okdir)\s+(?:sh|bash|zsh)\b)")
-SHELL_C = re.compile(START + r"(?:\S*/)?(?:sh|bash|zsh|dash|ksh)(?:\s+-[A-Za-z-]+)*?\s+-[A-Za-z]*c[A-Za-z]*\s*$")
-EVAL = re.compile(START + r"eval\s*$")
+_WRAP_ARG = r"(?:-[A-Za-z]\s+\S+|--[\w-]+\s+\S+|-\S+|[+-]?\d+(?:\.\d+)?[smhd]?|[{%@]\S*)"
+START = r"(?:^|[;&|(`\n]|\$\()\s*(?:(?:\S*/)?(?:" + _WORDS + r")(?:\s+" + _WRAP_ARG + r")*\s+|[A-Za-z_]\w*=\S*\s+)*"
+WRITERS = re.compile(START + r"(?:\S*/)?(rm|rmdir|mv|cp|touch|mkdir|tee|truncate|chmod|chown|ln|dd|install|gh|patch)\b")
+_WRITE_CMDS = r"(?:\S*/)?(?:rm|rmdir|mv|cp|touch|mkdir|tee|truncate|chmod|chown|ln|dd|install|gh|patch|sh|bash|zsh|sed|perl|python3?)\b"
+FIND_WRITE = re.compile(r"\bfind\b[^;&|\n]*\s-(?:delete|fprint\w*|fls|(?:exec|execdir|ok|okdir)\s+" + _WRITE_CMDS + ")")
+SHELL_C = re.compile(START + r"(?:\S*/)?(?:sh|bash|zsh|dash|ksh)(?:\s+(?:-[Oo]\s+\S+|-[A-Za-z-]+|--))*?\s+-[A-Za-z]*c[A-Za-z]*(?:\s+--)?\s*\$?$")
+EVAL = re.compile(START + r"eval\s*\$?$")
+# A shell that reads its commands from stdin (`... | sh`, `bash <<EOF`, `bash <<< '...'`): nothing here can see them.
+STDIN_SHELL = re.compile(r"(?:^|[|;&(`\n]|\$\()\s*(?:\S*/)?(?:sh|bash|zsh|dash|ksh)(?:\s+-[A-Za-z]+)*\s*(?:$|[;&|)`\n]|<<)")
 SED_IN_PLACE = re.compile(r"\b(?:sed|perl)\b[^;&|\n]*\s-[a-zA-Z]*i")
 REDIRECT = re.compile(r"(?<![0-9&])>>?\s*(?!&|/dev/null\b)\S|\b[0-9]>>?\s*(?!&|/dev/null\b)[^\s&]")
 
 HEREDOC = re.compile(r"(<<-?[ \t]*(['\"]?)([A-Za-z_]\w*)\2)([^\n]*)\n(?:.*?\n)??[ \t]*\3[ \t]*(?=\n|$)", re.S)
-QUOTED = re.compile(r"'[^']*'|\"(?:[^\"\\]|\\.)*\"")
+QUOTED = re.compile(r"'[^']*'|\"(?:[^\"\\]|\\.)*\"")  # a $'...' string is the single-quoted one after its $
 
 
 def bare(command):
@@ -58,11 +60,21 @@ def bare(command):
     return QUOTED.sub("''", HEREDOC.sub(r"\1\4", command))
 
 
+SUBSTITUTION = re.compile(r"\$\(([^()]*)\)|`([^`]*)`")
+
+
 def inner_strings(command):
-    """The quoted strings that a `sh|bash|zsh -c` or an `eval` runs, which bare() would set aside."""
+    """The strings a shell runs that bare() would set aside: the quoted string after `sh|bash|zsh -c` or `eval`, and
+    the body of a $(...) or backtick substitution inside double quotes (the shell runs it)."""
     command = HEREDOC.sub(r"\1\4", command)
-    return [m.group(0)[1:-1].replace('\\"', '"') for m in QUOTED.finditer(command)
-            if SHELL_C.search(command[:m.start()]) or EVAL.search(command[:m.start()])]
+    found = []
+    for m in QUOTED.finditer(command):
+        text = m.group(0)[1:-1]
+        if SHELL_C.search(command[:m.start()]) or EVAL.search(command[:m.start()]):
+            found.append(text.replace('\\"', '"'))
+        if m.group(0)[0] == '"':
+            found += [x or y for x, y in SUBSTITUTION.findall(text)]
+    return found
 
 
 def problem(command, depth=0):
@@ -73,7 +85,7 @@ def problem(command, depth=0):
             if why:
                 return why
     command = bare(command)
-    for rx, what in ((GIT_WRITE, "a git command that writes"), (WRITERS, "a command that writes files or acts outward"),
+    for rx, what in ((STDIN_SHELL, "a shell that reads its commands from stdin"), (GIT_WRITE, "a git command that writes"), (WRITERS, "a command that writes files or acts outward"),
                      (FIND_WRITE, "a find that deletes or writes"), (SED_IN_PLACE, "an in-place edit"),
                      (REDIRECT, "output redirected to a file")):
         m = rx.search(command)

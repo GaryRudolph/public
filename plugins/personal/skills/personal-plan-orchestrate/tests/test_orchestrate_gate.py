@@ -461,7 +461,7 @@ def a_raised_cost_total_or_a_lowered_token_log_cannot_move_the_guard_unseen():
     # Raising the Total row lifts max(guard x Total, floor) with guard and floor untouched: gate-guard.
     st3 = write_plan(UN + "unattended", tokens=TOKENS, cost=COST.replace("~$2.0 |", "~$80.0 |"),
                     status="0/1 groups done | updated 2026-10-07")  # the status line moves the handoff with the plan
-    assert "cost guard rose" in hook(seg(args(state=st3, canaryDone=True)), t, done)
+    assert "cost limit rose from $50 to $160" in hook(seg(args(state=st3, canaryDone=True)), t, done)
     ok = args(state=st3, canaryDone=True, approved=[{"gate": "gate-guard", "wave": 1}], approval="yes, keep going")
     assert hook(seg(ok), t + [human("yes, keep going")], done) is None
     # Deleting a Token log line lowers cost.actual: denied, and a gate-guard approval does not excuse it.
@@ -469,6 +469,10 @@ def a_raised_cost_total_or_a_lowered_token_log_cannot_move_the_guard_unseen():
     assert "Token log's total fell" in hook(seg(args(state=st4, canaryDone=True)), t, done)
     ok = args(state=st4, canaryDone=True, approved=[{"gate": "gate-guard", "wave": 1}], approval="yes, keep going")
     assert "Token log's total fell" in hook(seg(ok), t + [human("yes, keep going")], done)
+    # A deleted Total row leaves no limit at all: also a raise.
+    st6 = write_plan(UN + "unattended", tokens=TOKENS, cost=COST.replace("| **Total** | ~3M | ~$2.0 |\n", ""),
+                     status="0/1 groups done | updated 2026-10-10")
+    assert "cost limit rose from $50 to none" in hook(seg(args(state=st6, canaryDone=True)), t, done)
     # A lowered Total (a smaller limit) and a growing log pass.
     st5 = write_plan(UN + "unattended", tokens=TOKENS + TOKENS, status="0/1 groups done | updated 2026-10-09")
     assert hook(seg(args(state=st5, canaryDone=True)), t, done) is None
@@ -1086,10 +1090,13 @@ def the_guards_see_a_command_after_shell_keywords_wrappers_and_command_strings()
                   "nice -n 5 ./release.sh", "xargs -I{} git -C {} push", "xargs -n1 ./deploy.sh", 'bash -c "make release"',
                   "sh -c 'git push'", "bash -lc 'git push'", "/bin/bash -c 'gh pr merge 1'", "xargs sh -c 'git push'",
                   "eval 'git push'", "eval git push", "if make release; then :; fi",
+                  "timeout --signal KILL 5 git push", "xargs --delimiter '\\n' git push", "bash -o pipefail -c 'git push'",
+                  "bash -c -- 'git push'", "/usr/bin/env bash -c 'git push'", "bash -c $'git push'", "bash <<'EOF'\ngit push\nEOF",
+                  "bash <<< 'git push'", "echo 'git push' | sh", 'echo "$(git push)"', 'echo "`git push`"',
                   "cat <<EOF\nEOF\ngit push\ncat <<EOF\nx\nEOF")  # an empty heredoc body must not swallow the push after it
     worker_ok = ("for d in a; do git status; done", "timeout 5 make test", "nice -n 5 make ci", "xargs -n1 echo", "echo then git push",
                  "bash -c 'echo hi'", "eval 'echo ok'", "echo \"bash -c 'git push'\"", "cat > f <<'EOF'\nbash -c \"make release\"\nEOF",
-                 "cat <<EOF\nEOF\necho hi")
+                 "cat <<EOF\nEOF\necho hi", "bash scripts/test.sh", "echo \"$(git status)\"", "echo 'git push' | cat")
     for agent in WORKERS:
         for bad in worker_bad:
             assert worker_denies(agent, bad), (agent, bad)
@@ -1097,9 +1104,11 @@ def the_guards_see_a_command_after_shell_keywords_wrappers_and_command_strings()
             assert guard_bash(agent, ok) is None, (agent, ok)
     reviewer_bad = ("for f in a; do rm -f $f; done", "timeout 5 rm -f x", "find . -delete", "if true; then gh pr merge 1; fi",
                     "{ rm x; }", "xargs -I{} rm {}", "nice -n 5 mv a b", "find . -name x -exec rm {} \\;", 'bash -c "rm -f x"',
-                    "eval 'touch y'", "cat <<EOF\nEOF\nrm x\ncat <<EOF\ny\nEOF")
+                    "eval 'touch y'", "cat <<EOF\nEOF\nrm x\ncat <<EOF\ny\nEOF", "timeout --signal KILL 5 rm x",
+                    "xargs --delimiter '\\n' rm", "sudo --user bob rm x", "bash -o pipefail -c 'rm x'", "find . -name '*.tmp' -exec /bin/rm {} +",
+                    "find . -okdir rm {} \\;", "bash <<'EOF'\nrm x\nEOF", "echo 'rm x' | sh", 'echo "$(rm x)"', "/bin/rm x")
     reviewer_ok = ("find . -name '*.py' | head", "find . -name x -exec grep -l y {} \\;", "timeout 60 make ci 2>&1 | tail",
-                   "for f in a; do cat $f; done", "bash -c 'echo hi'", "xargs -n1 echo", "echo 'rm x'", "cat > /dev/null <<'EOF'\nrm x\nEOF")
+                   "for f in a; do cat $f; done", "bash -c 'echo hi'", "xargs -n1 echo", "echo 'rm x'", "cat > /dev/null <<'EOF'\nrm x\nEOF", "bash scripts/test.sh", 'echo "$(git status)"')
     for agent in ("personal:plan-reviewer", "orch-spike:plan-reviewer"):
         for bad in reviewer_bad:
             assert "read-only" in (guard_bash(agent, bad, "reviewer_guard.py") or ""), (agent, bad)
