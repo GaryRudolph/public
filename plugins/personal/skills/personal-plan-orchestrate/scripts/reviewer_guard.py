@@ -27,8 +27,8 @@ import re
 import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))  # python3 -I leaves the script's folder off the path
-from shell_scan import (ENV_SPLIT, START, STDIN_SHELL, Timeout, bare, deadline, find_writes,  # noqa: E402
-                        inner_strings)
+from shell_scan import (START, STDIN_SHELL, Timeout, bare, deadline, env_split, find_writes,  # noqa: E402
+                        inner_strings, join_continuations)
 
 REVIEWER = re.compile(r"^[a-z][a-z0-9-]*:plan-reviewer$")
 
@@ -43,20 +43,25 @@ REDIRECT = re.compile(r"(?<![0-9&])>>?\s*(?!&|/dev/null\b)\S|\b[0-9]>>?\s*(?!&|/
 
 def problem(command, depth=0):
     """Why a reviewer may not run command, or None."""
-    if depth < 3:
-        for text, kind, _ in inner_strings(command):
-            if kind == "opaque":
-                return "an ANSI-C quoted command string that can't be inspected"
-            why = problem(text, depth + 1)
-            if why:
-                return why
-    command = bare(command)
+    command = join_continuations(command)
+    nested = inner_strings(command)
+    if nested and depth >= 3:
+        return "command strings nested more than three levels deep"
+    for text, kind, _ in nested:
+        if kind == "opaque":
+            return "an ANSI-C quoted command string that can't be inspected"
+        why = problem(text, depth + 1)
+        if why:
+            return why
     found = find_writes(command)
     if found:
         return f"a find that deletes or writes ({found[0]!r})"
-    for rx, what in ((STDIN_SHELL, "a shell that reads its commands from stdin"), (ENV_SPLIT, "env -S, which runs a string this guard can't split"),
-                     (GIT_WRITE, "a git command that writes"), (WRITERS, "a command that writes files or acts outward"),
-                     (SED_IN_PLACE, "an in-place edit"), (REDIRECT, "output redirected to a file")):
+    if env_split(command):
+        return "env -S, which runs a string this guard can't split"
+    command = bare(command)
+    for rx, what in ((STDIN_SHELL, "a shell that reads its commands from stdin"), (GIT_WRITE, "a git command that writes"),
+                     (WRITERS, "a command that writes files or acts outward"), (SED_IN_PLACE, "an in-place edit"),
+                     (REDIRECT, "output redirected to a file")):
         m = rx.search(command)
         if m:
             return f"{what} ({m.group(0).strip()[:40]!r})"

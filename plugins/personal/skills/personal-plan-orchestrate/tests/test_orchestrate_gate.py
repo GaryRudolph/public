@@ -1147,6 +1147,40 @@ def the_guards_keep_round_two_of_the_review_closed():
             assert guard_bash(agent, ok, "reviewer_guard.py") is None, (agent, ok)
 
 
+def nested_evals(command, depth=4):
+    import shlex
+    for _ in range(depth):
+        command = "eval " + shlex.quote(command)
+    return command
+
+
+@case
+def the_guards_keep_round_three_of_the_review_closed():
+    worker_bad = ("xargs -IFILE ./deploy.sh FILE", "/usr/bin/env -S 'git push'", "bash -euo pipefail -c 'git push'",
+                  "bash \\\n -c 'git push'", "git -C repo \\\n push", "find . -exec ./deploy.sh {} ';'", "find . -exec git push {} \"+\"",
+                  "/usr/bin/find . -exec ./deploy.sh {} \\;", nested_evals("make release"), "export DRY_RUN=1; DRY_RUN=0; make release",
+                  "export DRY_RUN=1; DRY_RUN=0; bash -c 'make release'", "export DRY_RUN=1; env -u DRY_RUN bash -c 'make release'",
+                  "export DRY_RUN=1; env -i make release", "bash -c ./deploy.sh", "bash -c 'git'' push'")
+    worker_ok = ("bash -n -c 'make release'", "printf '%s\\n' 'Example; find . -exec rm {} \\;'", "echo 'Example; eval git push'",
+                 "env GIT_PAGER=cat git log -S foo", "xargs -IFILE echo FILE", "bash -euo pipefail -c 'echo hi'",
+                 "export DRY_RUN=1; DRY_RUN=1 make release", "DRY_RUN=1 env DRY_RUN=1 bash -c 'make release'")
+    for agent in WORKERS:
+        for bad in worker_bad:
+            assert worker_denies(agent, bad), (agent, bad)
+        for ok in worker_ok:
+            assert guard_bash(agent, ok) is None, (agent, ok)
+    reviewer_bad = ("xargs -IFILE rm FILE", "/usr/bin/env -S 'rm x'", "bash -euo pipefail -c 'rm x'", "bash \\\n -c 'rm x'",
+                    "find . -exec rm victim ';'", "find . -exec rm {} \"+\"", nested_evals("rm x"), "/usr/bin/find . -delete",
+                    "bash -c 'r''m x'", "find . \\\n -delete")
+    reviewer_ok = ("bash -n -c 'rm x'", "printf '%s\\n' 'Example; find . -exec rm {} \\;'", "find . -type f -exec grep -n -- -delete {} +",
+                   "env GIT_PAGER=cat git log -S foo", "xargs -IFILE echo FILE")
+    for agent in ("personal:plan-reviewer", "orch-spike:plan-reviewer"):
+        for bad in reviewer_bad:
+            assert "read-only" in (guard_bash(agent, bad, "reviewer_guard.py") or ""), (agent, bad)
+        for ok in reviewer_ok:
+            assert guard_bash(agent, ok, "reviewer_guard.py") is None, (agent, ok)
+
+
 @case
 def the_guards_scan_a_long_run_of_wrapper_flags_in_linear_time():
     import time

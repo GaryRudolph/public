@@ -8,24 +8,28 @@ through) and the guards set an alarm besides (see deadline()).
 - START: a command word's position: the start, after a separator, a subshell or a substitution, past the shell's
   keywords and `{`, wrappers (sudo, env, command, exec, nohup, time, eval, timeout, nice, xargs) with their flags, and
   VAR=value assignments.
+- join_continuations(): the text with each backslash-newline outside single quotes removed, as the shell reads it.
 - bare(): the command with heredoc bodies and quoted strings set aside.
-- inner_strings(): the strings a shell would run that bare() sets aside: the string after `sh|bash|zsh -c`, the
+- inner_strings(): the strings a shell would run that bare() sets aside: the argument of `sh|bash|zsh -c`, the
   arguments of an `eval`, every $(...) and backtick body (an unquoted heredoc body included), and a find's -exec
-  actions.
+  actions. Each is found at a command position of the text with its quoted strings masked, so quoted prose that merely
+  mentions a command is not one.
 - STDIN_SHELL: a shell that reads its commands from stdin, which nothing here can see.
 """
 
 import re
 import shlex
 import signal
+from collections import namedtuple
 
 # Words that sit before the command word: wrappers that run what follows, and the shell's keywords and `{` that begin a
 # command (`if make release; then ...`, `for d in a; do git push; done`, `{ git push; }`, `! git push`).
 PREFIX_WORDS = {"sudo", "env", "command", "exec", "nohup", "time", "eval", "then", "do", "else", "elif", "if", "while",
                 "until", "!", "{"}
-# The wrappers with flags of their own: the short flags that take a separate value, the long ones, and an operand
-# pattern (timeout's duration). A boolean flag takes none, so `xargs -r echo git push` prints text; -l, -i, -e and their
-# long forms take only an attached optional value. env -S runs a string, so it is denied outright (ENV_SPLIT).
+# The wrappers with flags of their own: the short flags that take a value, the long ones, and an operand pattern
+# (timeout's duration). A flag cluster's first value letter takes the rest of the word as its value, or the next word
+# when it ends the cluster (-s KILL, -rn 1; -IFILE is one word). A boolean flag takes none, so `xargs -r echo git push`
+# prints text; -l, -i, -e and their long forms take only an attached optional value.
 WRAPPER_FLAGS = {
     "timeout": ("sk", {"signal", "kill-after"}, r"\d+(?:\.\d+)?[smhd]?"),
     "nice": ("n", {"adjustment"}, None),
@@ -38,8 +42,14 @@ LOOKUP_FLAGS = {"command": "vV"}
 # Commands that may be named by path (/usr/bin/timeout); the keywords may not.
 COMMAND_WORDS = {"sudo", "env", "command", "exec", "nohup", "time", "timeout", "nice", "xargs", "eval"}
 SHELL_NAMES = r"(?:\S*/)?(?:sh|bash|zsh|dash|ksh)"
-# A shell's own flags: `-o NAME`, short clusters, long flags (and `--`). The three are disjoint, so a flag has one reading.
-SHELL_FLAG = r"(?:-[Oo]\s+\S+|-(?!-)(?![Oo](?:\s|$))[A-Za-z]+|--[A-Za-z-]*)"
+# A shell's own flags: a cluster ending in o or O takes an option name (-o pipefail, -euo pipefail), other clusters, and
+# long flags (and `--`). The three are disjoint, so a flag has one reading.
+SHELL_FLAG = r"(?:-(?!-)[A-Za-z]*[Oo]\s+\S+|-(?!-)(?![A-Za-z]*[Oo](?:\s|$))[A-Za-z]+|--[A-Za-z-]*)"
+
+
+def _letters_before(letters):
+    """A run of letters that are not value letters: the booleans ahead of a cluster's first value letter."""
+    return rf"(?:(?![{letters}])[A-Za-z])*"
 
 
 def _prefix_word(word):
@@ -47,12 +57,12 @@ def _prefix_word(word):
     names = "|".join(sorted(longs))
     lookup = LOOKUP_FLAGS.get(word)
     alts = []
-    if shorts:  # a cluster that ends in a value flag takes the next word (-s KILL, -rn 1); -n1 is one word
-        alts.append(rf"-(?!-)[A-Za-z]*[{shorts}]\s+\S+")
+    if shorts:  # a cluster whose first value letter ends it takes the next word
+        alts.append(rf"-(?!-){_letters_before(shorts)}[{shorts}]\s+\S+")
     if longs:
         alts.append(rf"--(?:{names})\s+\S+")
     # The boolean flags are what the two forms above are not, so no flag is readable both ways.
-    skip_value = rf"(?![A-Za-z]*[{shorts}](?:\s|$))" if shorts else ""
+    skip_value = rf"(?!{_letters_before(shorts)}[{shorts}](?:\s|$))" if shorts else ""
     skip_lookup = rf"(?![A-Za-z]*[{lookup}])" if lookup else ""
     alts.append(rf"-(?!-){skip_value}{skip_lookup}\S+")
     alts.append(rf"--(?!(?:{names})(?:\s|$))\S*" if longs else r"--\S*")
@@ -69,30 +79,63 @@ LEAD = r"(?:^|[;&|(`\n]|\$\()\s*"
 START = LEAD + PREFIX
 
 ASSIGN = re.compile(r"^([A-Za-z_]\w*)=(.*)$")
+SEPARATOR = re.compile(r"\|\||&&|[;|&()`\n]|\$\(")
 HEREDOC = re.compile(r"(?<!<)(<<-?[ \t]*(['\"]?)([A-Za-z_]\w*)\2)([^\n]*)\n(?:(?P<body>.*?)\n)??[ \t]*\3[ \t]*(?=\n|$)", re.S)
 QUOTED = re.compile(r"'[^']*'|\"(?:[^\"\\]|\\.)*\"")  # a $'...' string is the single-quoted one after its $
 
-SHELL_C = re.compile(START + SHELL_NAMES + r"(?:\s+" + SHELL_FLAG + r")*?\s+-[A-Za-z]*c[A-Za-z]*(?:\s+--)?\s*\$?$")
+_WORD = r"(?:'[^']*'|\"(?:[^\"\\]|\\.)*\"|[^\s;&|()<>'\"])+"  # one shell word: quoted and bare pieces side by side
+# The argument of `sh -c`, whole: quoted pieces and bare text alike. Its flags are kept to see a no-exec -n.
+SHELL_C = re.compile(START + SHELL_NAMES + r"(?P<flags>(?:\s+" + SHELL_FLAG + r")*?\s+-[A-Za-z]*c[A-Za-z]*(?:\s+--)?)\s+(?P<arg>" + _WORD + ")")
+SHELL_NO_EXEC = re.compile(r"(?:^|\s)-(?!-)[A-Za-z]*n[A-Za-z]*(?=\s|$)")
 # eval joins its arguments and runs them, so every argument counts, quoted or not.
 EVAL_ARGS = re.compile(START + r"eval\s+((?:'[^']*'|\"(?:[^\"\\]|\\.)*\"|[^;&|\n'\"])*)")
-# `env -S 'git push'` runs the string; nothing here splits it as env does.
-ENV_SPLIT = re.compile(START + r"env\b[^;&|\n]*?\s(?:-[A-Za-z]*S|--split-string)")
 # A shell that reads its commands from stdin (`... | sh`, `bash <<EOF`, `bash < file`, `sh -`, `bash -s`), --version and
 # --help aside.
 STDIN_SHELL = re.compile(START + SHELL_NAMES + r"(?!\s+(?:--version|--help|-h)(?:\s|$))(?:\s+" + SHELL_FLAG + r")*?"
                          r"(?:\s+-[A-Za-z]*s[A-Za-z]*(?=\s|$)|\s+-(?=\s|$)|\s*(?:$|[;&|)`\n<]))")
 # find's actions run in a shell of their own: its arguments (quote- and escape-aware, an escaped newline included), only
-# at a command position.
-FIND_ARGS = re.compile(START + r"find\b((?:'[^']*'|\"(?:[^\"\\]|\\.)*\"|\\[\s\S]|[^;&|\n\\'\"])*)")
-FIND_ACTION = re.compile(r"\s-(?:exec|execdir|ok|okdir)\s+([^\n]*?)(?:\s*\\;|\s+\+(?=\s|$))")
+# at a command position, the executable named by path or not.
+FIND_ARGS = re.compile(START + r"(?:\S*/)?find\b((?:'[^']*'|\"(?:[^\"\\]|\\.)*\"|\\[\s\S]|[^;&|\n\\'\"])*)")
+FIND_ACTION = re.compile(r"\s-(?:exec|execdir|ok|okdir)\s+([^\n]*?)(?:\s*\\;|\s+\+(?=\s|$)|\s+(?:';'|\";\"|'\+'|\"\+\")(?=\s|$))")
 FIND_WRITES = re.compile(r"\s-(?:delete|fprint\w*|fls)\b")
 ANSI_ESCAPE = re.compile(r"\$'[^']*\\")
-SUBSTITUTION = re.compile(r"\$\(([^()]*)\)|`([^`]*)`")
+
+PrefixInfo = namedtuple("PrefixInfo", "index env scrubbed env_split")
 
 
 def bare(command):
     """The command with heredoc bodies and quoted strings set aside."""
     return QUOTED.sub("''", HEREDOC.sub(r"\1\4", command))
+
+
+def mask_quotes(text):
+    """text with each quoted string's contents blanked, keeping every offset: a separator or command word inside quotes
+    is then not one, and a span found in the masked text slices the same bytes from the original."""
+    return QUOTED.sub(lambda m: m.group(0)[0] + "_" * (len(m.group(0)) - 2) + m.group(0)[-1], text)
+
+
+def join_continuations(text):
+    """text with each backslash-newline removed, as the shell does outside single quotes."""
+    out, i, n, single = [], 0, len(text), False
+    while i < n:
+        c = text[i]
+        if single:
+            single = c != "'"
+            out.append(c)
+            i += 1
+        elif c == "'":
+            single = True
+            out.append(c)
+            i += 1
+        elif c == "\\" and text.startswith("\n", i + 1):
+            i += 2
+        elif c == "\\":
+            out.append(text[i:i + 2])
+            i += 2
+        else:
+            out.append(c)
+            i += 1
+    return "".join(out)
 
 
 def name_of(path):
@@ -104,13 +147,14 @@ def takes_value(wrapper, word):
     shorts, longs, _ = WRAPPER_FLAGS.get(wrapper, ("", (), None))
     if word.startswith("--"):
         return word[2:] in longs
-    return bool(shorts) and re.fullmatch(rf"-[A-Za-z]*[{shorts}]", word) is not None
+    return bool(shorts) and re.fullmatch(rf"-{_letters_before(shorts)}[{shorts}]", word) is not None
 
 
 def split_prefix(words):
-    """(the index of the command word, the VAR=value assignments before it) in a command's words, past the prefix words,
-    their flags and their operands. A lookup (`command -v x`) runs nothing: the index is past the end."""
-    env, wrapper, i = {}, None, 0
+    """A PrefixInfo for a command's words, past the prefix words, their flags and their operands: index (of the command
+    word; past the end for a lookup like `command -v x`, which runs nothing), env (the VAR=value assignments that reach
+    it), scrubbed (env -i or -u removed the inherited DRY_RUN) and env_split (env -S, which runs a string)."""
+    env, wrapper, i, scrubbed, split = {}, None, 0, False, False
     while i < len(words):
         w = words[i]
         m = ASSIGN.match(w)
@@ -121,16 +165,34 @@ def split_prefix(words):
             wrapper = base
         elif wrapper and w.startswith("-") and not w.startswith("--") and wrapper in LOOKUP_FLAGS and \
                 re.fullmatch(rf"-[A-Za-z]*[{LOOKUP_FLAGS[wrapper]}][A-Za-z]*", w):
-            return len(words), env
+            return PrefixInfo(len(words), env, scrubbed, split)
         elif wrapper and w.startswith("-"):
-            i += 1 if not takes_value(wrapper, w) else 2
+            if wrapper == "env":
+                value = words[i + 1] if i + 1 < len(words) else ""
+                if w == "--split-string" or (not w.startswith("--") and "S" in w):
+                    split = True
+                if w in ("-", "--ignore-environment") or (not w.startswith("--") and re.fullmatch(r"-[A-Za-z]*i[A-Za-z]*", w)):
+                    env.clear()
+                    scrubbed = True
+                name = value if w in ("-u", "--unset") else (w[2:] if w.startswith("-u") and not w.startswith("--") else
+                                                             w.split("=", 1)[1] if w.startswith("--unset=") else None)
+                if name == "DRY_RUN":
+                    env.pop("DRY_RUN", None)
+                    scrubbed = True
+            i += 2 if takes_value(wrapper, w) else 1
             continue
         elif wrapper and WRAPPER_FLAGS.get(wrapper, (0, 0, None))[2] and re.fullmatch(WRAPPER_FLAGS[wrapper][2], w):
             pass
         else:
             break
         i += 1
-    return i, env
+    return PrefixInfo(i, env, scrubbed, split)
+
+
+def env_split(command):
+    """Whether command runs `env -S`/`--split-string` (within env's own options), which runs a string nothing here
+    splits as env does."""
+    return any(split_prefix(segment.split()).env_split for segment in SEPARATOR.split(bare(command)))
 
 
 def substitutions(text, quotes=True):
@@ -175,31 +237,43 @@ def substitutions(text, quotes=True):
     return out
 
 
+def find_args(plain):
+    """(original args, masked args, offset before them) for each find at a command position of plain."""
+    masked = mask_quotes(plain)
+    return [(plain[m.start(1):m.end(1)], masked[m.start(1):m.end(1)], m.start(1)) for m in FIND_ARGS.finditer(masked)]
+
+
 def inner_strings(command):
-    """(text, kind, before) for each string a shell would run that bare() sets aside. kind is "shell" (the string after
+    """(text, kind, before) for each string a shell would run that bare() sets aside. kind is "shell" (the argument of
     `sh -c`: its own command line, so the assignments before it count), "eval", "substitution" (only an earlier export
     reaches it), "find" (an action) or "opaque" (an ANSI-C string, which only a shell can decode). before is the
     command's text ahead of it."""
     plain = HEREDOC.sub(r"\1\4", command)
+    masked = mask_quotes(plain)
     found = []
-    for m in QUOTED.finditer(plain):
-        if SHELL_C.search(plain[:m.start()]):
-            text = m.group(0)[1:-1].replace('\\"', '"')
-            opaque = plain[m.start() - 1:m.start()] == "$" and "\\" in text
-            found.append(("", "opaque", "") if opaque else (text, "shell", plain[:m.start()]))
-    for m in EVAL_ARGS.finditer(plain):
-        if ANSI_ESCAPE.search(m.group(1)):
+    for m in SHELL_C.finditer(masked):
+        if SHELL_NO_EXEC.search(m.group("flags")):
+            continue  # bash -n -c checks syntax and runs nothing; the outer shell's substitutions are scanned below
+        arg = plain[m.start("arg"):m.end("arg")]
+        try:
+            words = shlex.split(arg.replace("$'", "'"))  # a $'...' string without an escape is the plain quoted one
+        except ValueError:
+            words = []
+        found.append(("", "opaque", "") if ANSI_ESCAPE.search(arg) or len(words) != 1 else (words[0], "shell", plain[:m.start("arg")]))
+    for m in EVAL_ARGS.finditer(masked):
+        args = plain[m.start(1):m.end(1)]
+        if ANSI_ESCAPE.search(args):
             found.append(("", "opaque", ""))
             continue
         try:
-            words = shlex.split(m.group(1))
+            words = shlex.split(args.replace("$'", "'"))
         except ValueError:
-            words = [m.group(1).replace("'", "").replace('"', "")]
+            words = [args.replace("'", "").replace('"', "")]
         if words[:1] == ["--"]:
             words = words[1:]
         found.append((" ".join(words), "eval", plain[:m.start(1)]))
-    for m in FIND_ARGS.finditer(plain):
-        found += [(a.group(1), "find", plain[:m.start(1)]) for a in FIND_ACTION.finditer(m.group(1))]
+    for original, _, at in find_args(plain):
+        found += [(a.group(1), "find", plain[:at]) for a in FIND_ACTION.finditer(original)]
     for m in HEREDOC.finditer(command):
         if not m.group(2) and m.group("body"):  # an unquoted heredoc body expands; a quoted one is inert
             found += [(body, "substitution", command[:m.start()]) for body, _ in substitutions(m.group("body"), quotes=False)]
@@ -208,8 +282,16 @@ def inner_strings(command):
 
 
 def find_writes(command):
-    """The find actions that write whatever they run: -delete, -fprint and -fls."""
-    return [m.group(0).strip() for f in FIND_ARGS.finditer(command) for m in FIND_WRITES.finditer(f.group(1))]
+    """The find actions that write whatever they run: -delete, -fprint and -fls, outside the -exec actions' own
+    arguments (those commands are checked as commands)."""
+    plain = HEREDOC.sub(r"\1\4", command)
+    hits = []
+    for original, masked, _ in find_args(plain):
+        top = list(masked)
+        for a in FIND_ACTION.finditer(original):
+            top[a.start():a.end()] = " " * (a.end() - a.start())
+        hits += [m.group(0).strip() for m in FIND_WRITES.finditer("".join(top))]
+    return hits
 
 
 class Timeout(BaseException):

@@ -44,8 +44,8 @@ import re
 import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))  # python3 -I leaves the script's folder off the path
-from shell_scan import (ASSIGN, ENV_SPLIT, START, STDIN_SHELL, Timeout, bare, deadline, inner_strings,  # noqa: E402
-                        name_of, split_prefix)
+from shell_scan import (ASSIGN, SEPARATOR, START, STDIN_SHELL, Timeout, bare, deadline, env_split, inner_strings,  # noqa: E402
+                        join_continuations, name_of, split_prefix)
 
 WORKER = re.compile(r"^[a-z][a-z0-9-]*:plan-worker$")
 
@@ -69,7 +69,6 @@ GORELEASER_SENDS = {"publish", "announce", "continue"}
 
 # The repo's own scripts and make targets, by name.
 OUTWARD_NAME = re.compile(r"publish|release|deploy", re.I)
-SEPARATOR = re.compile(r"\|\||&&|[;|&()`\n]|\$\(")
 # Redirections, removed before a command is split into words: their targets are files, not scripts or targets.
 REDIRECTION = re.compile(r"(?:\d+|&)?(?:>>?|<)(?:&\d+|&-|\s*[^\s;&|()<>`]+)")
 TRUE = {"1", "true", "yes"}
@@ -139,49 +138,56 @@ def make_targets(args):
     return targets, variables, dry
 
 
-def export_state(words, state):
-    """Whether DRY_RUN is on after an `export` or `unset` in words: the last assignment wins."""
+def command_state(words, state):
+    """DRY_RUN's exported state (None: not exported; else whether it is on) after a command's words: an `export` sets it,
+    `unset` removes it, and a bare VAR=value changes it only where it is already exported."""
     if words[:1] == ["export"]:
         for w in words[1:]:
             m = ASSIGN.match(w)
             if m and m.group(1) == "DRY_RUN":
                 state = m.group(2).lower() in TRUE
     elif words[:1] == ["unset"] and "DRY_RUN" in words[1:]:
-        state = False
-    return state
-
-
-def inherited_dry(before, kind, state):
-    """Whether DRY_RUN is on where a nested string starts: after the exports ahead of it and, for a nested shell, eval or
-    find action (which run with their command line's environment), after its own DRY_RUN=... assignments. A
-    substitution is expanded first, so only the exports reach it."""
-    segments = SEPARATOR.split(QUOTED_DRY.sub(r"DRY_RUN=\2", before))
-    for segment in segments[:-1]:
-        state = export_state(segment.split(), state)
-    if kind != "substitution":
-        for w in segments[-1].split():
+        state = None
+    elif split_prefix(words).index >= len(words):  # only assignments (and prefix words): shell variables
+        for w in words:
             m = ASSIGN.match(w)
-            if m and m.group(1) == "DRY_RUN":
+            if m and m.group(1) == "DRY_RUN" and state is not None:
                 state = m.group(2).lower() in TRUE
     return state
 
 
-def named_problem(command, dry=False):
+def inherited_dry(before, kind, state):
+    """DRY_RUN's exported state where a nested string starts: after the exports ahead of it and, for a nested shell, eval
+    or find action (which run with their command line's environment), after its own DRY_RUN=... assignments and env's
+    -i and -u. A substitution is expanded first, so only the exports reach it."""
+    segments = SEPARATOR.split(QUOTED_DRY.sub(r"DRY_RUN=\2", before))
+    for segment in segments[:-1]:
+        state = command_state(segment.split(), state)
+    if kind != "substitution":
+        info = split_prefix(segments[-1].split())
+        local = info.env.get("DRY_RUN")
+        state = (local.lower() in TRUE) if local is not None else (None if info.scrubbed else state)
+    return state
+
+
+def named_problem(command, dry=None):
     """Why a worker may not run command because it runs a repo's own publish, release or deploy script or make target
-    without a dry-run form, or None. dry is whether DRY_RUN is already on where command starts (a nested string)."""
+    without a dry-run form, or None. dry is DRY_RUN's exported state where command starts (a nested string)."""
     exported = dry
     for segment in SEPARATOR.split(REDIRECTION.sub(" ", command)):
         words = segment.split()
-        at, env = split_prefix(words)
-        words = words[at:]
+        info = split_prefix(words)
+        words = words[info.index:]
         if not words:
+            exported = command_state(segment.split(), exported)
             continue
         if words[0] in ("export", "unset"):
-            exported = export_state(words, exported)
+            exported = command_state(words, exported)
             continue
         word, args = words[0], words[1:]
-        local = env.get("DRY_RUN")  # a prefix assignment overrides what an export or the parent set
-        dry = (exported if local is None else local.lower() in TRUE) or dry_flag(args)
+        local = info.env.get("DRY_RUN")  # a prefix assignment overrides what an export or the parent set
+        inherited = exported is True and not info.scrubbed
+        dry = (local.lower() in TRUE if local is not None else inherited) or dry_flag(args)
         base = name_of(word)
         if base in MAKES:
             targets, variables, make_dry = make_targets(args)
@@ -199,19 +205,22 @@ def named_problem(command, dry=False):
     return None
 
 
-def problem(command, depth=0, dry=False):
+def problem(command, depth=0, dry=None):
     """Why a worker may not run command, or None."""
-    if depth < 3:
-        for text, kind, before in inner_strings(command):
-            if kind == "opaque":
-                return "an ANSI-C quoted command string that can't be inspected"
-            why = problem(text, depth + 1, inherited_dry(before, kind, dry))
-            if why:
-                return why
+    command = join_continuations(command)
+    nested = inner_strings(command)
+    if nested and depth >= 3:
+        return "command strings nested more than three levels deep"
+    for text, kind, before in nested:
+        if kind == "opaque":
+            return "an ANSI-C quoted command string that can't be inspected"
+        why = problem(text, depth + 1, inherited_dry(before, kind, dry))
+        if why:
+            return why
     command = bare(QUOTED_DRY.sub(r"DRY_RUN=\2", command))  # a quoted DRY_RUN='1' stays DRY_RUN=1
     if STDIN_SHELL.search(command):
         return "a shell that reads its commands from stdin"
-    if ENV_SPLIT.search(command):
+    if env_split(command):
         return "env -S, which runs a string this guard can't split"
     for rx, what in OUTWARD:
         if rx.search(command):
