@@ -1,7 +1,7 @@
 ```
 --- KICKOFF: begin execution at [deep] ---
 
-  Status: 2/2 groups done | last review: wave-1 PASS 2026-11-22 | current: review-wave-2 [deep] | updated 2026-11-22
+  Status: BLOCKED at gate review-wave-2 | 2/2 groups done | last review: wave-2 CONCERNS 2026-11-22 | updated 2026-11-22
 
   review: every-wave
 
@@ -240,6 +240,7 @@ Run `personal-ship-pr`. The PR description carries the s1 Design note, one `Fixe
 ## Review log
 
 review wave-1 (m8-s1) 4f6d337..7dec616: PASS - design note is complete and its paths check out (parents[3] and ../../../scripts reach plugins/personal/scripts through symlinked installs); the copy-install gap is acceptable given f23's one-helper decision and fail-closed masking; transport is fine as report-only. For s2-s3: read() should run `git remote get-url origin` as five of the six callers do today (config --get skips insteadOf, regressing shorthand remotes), and mask() must keep redact_url's rule exactly (any non-ssh scheme masks the whole userinfo, not only http(s)) - 2026-11-22
+review wave-2 (m8-s2-s7) 7dec616..3c19132: CONCERNS - f10 is not fixed for Claude Code on the Owner's workstation: session-doctor.py's runner signal (no `# >>> personal >>>` block in ~/.claude/CLAUDE.md, copied from session-start.sh as s6 specified) is also true on a workstation in CLAUDE_MODE=plugin, agents/Makefile's default, where `make install` removes that block; so the hook still runs trusted repos' doctors there before folder trust, the one harness the walk's f10 rationale is about. The executor saw it (f10.md: "the Owner should know") yet claims `fixed` and logged no deviation; the workstation tests fake a home with the block, so they pass. Needs the Owner's call on the signal (e.g. CLAUDE_CODE_REMOTE=true for cloud plus an explicit opt-in for self-hosted runners) before a fix-up wave. Everything else checks out: origin.py matches the design note and both wave-1 asks (get-url, redact_url rule), all six callers moved with local copies gone and fail-open paths tested, f3/f24/f15/f20/f22 claims hold, validate+test pass. Nits for the fix-up: unused `import re` in pr_state.py (ruff F401) and no blank lines before FAILED there; repo-facts.sh's IPv4 glob `[0-9]*.[0-9]*.[0-9]*.[0-9]*` is looser than the old ipaddress check - 2026-11-22
 
 ## Token log
 
@@ -254,3 +255,4 @@ tokens kickoff plan-r1-origin-doctor-heron (claude-opus-5-5): input ~45 / cache 
 tokens wave-1 m8-s1 (claude-opus-5-5): input ~35 / cache read ~2.3M / cache write ~90k 1h / output ~13k | ~$1.4 API-equiv
 tokens review-wave-1 m8-s1 (claude-opus-5-5): input ~25 / cache read ~1.2M / cache write ~120k 1h / output ~7k | ~$1.3 API-equiv
 tokens wave-2 m8-s2-s7 (claude-sonnet-5-5): input ~140 / cache read ~14M / cache write ~200k 1h / output ~62k | ~$2.9 API-equiv
+tokens review-wave-2 m8-s2-s7 (claude-opus-5-5): input ~34 / cache read ~2.6M / cache write ~110k 1h / output ~10k | ~$1.6 API-equiv
