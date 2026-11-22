@@ -182,7 +182,47 @@ class Unwrap(unittest.TestCase):
         self.assertIsNone(u("Shell(make:test*)"))
         self.assertIsNone(u("Shell(make:te?t)"))
         self.assertIsNone(u("Mcp(datadog:*)"))
-        self.assertEqual(u("make test"), "make test")
+        # A bare, unwrapped string is read by neither Cursor CLI nor Claude
+        # Code, so it covers nothing (r1.f1).
+        self.assertIsNone(u("make test"))
+        self.assertIsNone(u("pytest"))
+        self.assertIsNone(u("make test:*"))
+
+    def test_bare_entries_cover_nothing_and_the_scout_proposes_the_wrapped_rule(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = Path(tmp)
+            (repo / ".git").mkdir()
+            (repo / "Makefile").write_text("test:\n\tpytest\n")
+            (repo / ".cursor").mkdir()
+            (repo / ".claude").mkdir()
+            (repo / ".cursor" / "cli.json").write_text(
+                json.dumps({"permissions": {"allow": ["make test"]}}))
+            (repo / ".claude" / "settings.json").write_text(
+                json.dumps({"permissions": {"allow": ["make test"]}}))
+            (repo / ".cursor" / "permissions.json").write_text(
+                json.dumps({"terminalAllowlist": ["make test"]}))
+            res = scan.analyze_repo(repo, {h: [] for h in scan.HARNESSES}, repo)
+            entry = {e["segment"]: e for e in res["group1"] + res["group2"]}["make test"]
+            self.assertIn("cursor_cli", entry["missing_harnesses"])
+            self.assertIn("claude", entry["missing_harnesses"])
+            # Cursor IDE's terminalAllowlist is a raw string list, so it still counts.
+            self.assertNotIn("cursor_ide", entry["missing_harnesses"])
+
+    def test_wrapped_entries_are_covered(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = Path(tmp)
+            (repo / ".git").mkdir()
+            (repo / "Makefile").write_text("test:\n\tpytest\n")
+            (repo / ".cursor").mkdir()
+            (repo / ".claude").mkdir()
+            (repo / ".cursor" / "cli.json").write_text(
+                json.dumps({"permissions": {"allow": ["Shell(make:test)"]}}))
+            (repo / ".claude" / "settings.json").write_text(
+                json.dumps({"permissions": {"allow": ["Bash(make test:*)"]}}))
+            res = scan.analyze_repo(repo, {h: [] for h in scan.HARNESSES}, repo)
+            entry = {e["segment"]: e for e in res["group1"] + res["group2"]}["make test"]
+            self.assertNotIn("cursor_cli", entry["missing_harnesses"])
+            self.assertNotIn("claude", entry["missing_harnesses"])
 
     def test_legacy_broad_rule_still_reads_as_broad(self):
         covered, entry, kind = scan.covered_by("make release", [scan._unwrap_token("Shell(make:*)")])

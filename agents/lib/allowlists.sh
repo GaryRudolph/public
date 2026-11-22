@@ -18,6 +18,26 @@
 # writes, .history/ rotation, the WSL dual-pass, and full subcommand parity
 # (mcp / webfetch are out of scope for the Gemini policy in v1).
 #
+# Shell entries reach each target in the form that target reads (the meta holds
+# plain command prefixes, `git status`, `rm -rf /`):
+#   Cursor IDE   terminalAllowlist / terminalDenylist: the entry as written.
+#   Cursor CLI   allow: the exact command line, `Shell(<base>:<args>)` for a
+#                multi-word entry, `Shell(<word>)` for a one-word entry (any
+#                arguments), and no rule for an entry with `*` or `?` or a
+#                colon in its first word. deny: the prefix, `Shell(<base>:<args>*)`
+#                for a multi-word entry, `Shell(<word>)` for a one-word entry,
+#                and an entry whose args already hold a glob as written
+#                (`rm -rf /*` is `Shell(rm:-rf /*)`). A prefix deny also blocks
+#                longer commands (`rm -rf /tmp/x`), the safe direction.
+#   Claude Code  allow and deny: `Bash(<entry>:*)`, the prefix. An entry that
+#                holds a `*` is written `Bash(<entry>)` as it is, since a `*`
+#                before the suffix would make `<entry> *` miss the entry itself.
+#   Gemini       commandPrefix rules in the policy TOML.
+# A bare string in Cursor CLI's or Claude Code's permissions list matches
+# nothing in either tool. MCP entries are `server:tool`: Cursor IDE as written,
+# Cursor CLI `Mcp(server:tool)`, Claude Code `mcp__server__tool`
+# (`server:*` is `mcp__server__*`); Gemini gets none.
+#
 # When running under WSL, the same files are also rendered into the Windows
 # host home (%USERPROFILE%) so that native (non-WSL) Cursor and Claude Code
 # can read them. Each Windows-side target gets its own sidecars, .history/
@@ -299,16 +319,31 @@ render_target_schema() {
             }' "$meta"
             ;;
         cursor_cli)
-            jq -S '{
+            # allow: the exact command line; deny: the prefix. See the header.
+            jq -S 'def cli_parts: capture("^(?<base>\\S+)\\s+(?<args>.+)$");
+                   def cli_first_word_colon: test("^[^\\s:]*:");
+                   def cli_allow:
+                       if test("[*?]") or cli_first_word_colon then empty
+                       elif test("\\s") then cli_parts | "Shell(" + .base + ":" + .args + ")"
+                       else "Shell(" + . + ")"
+                       end;
+                   def cli_deny:
+                       if cli_first_word_colon then error("no Cursor CLI deny form for: " + .)
+                       elif test("\\s")
+                       then cli_parts | "Shell(" + .base + ":" + .args
+                            + (if .args | test("[*?]") then "" else "*" end) + ")"
+                       else "Shell(" + . + ")"
+                       end;
+                   {
                 permissions: {
                     allow: (
-                        ((.shell.allow // []) +
-                         ((.mcp.allow  // []) | map("Mcp(" + . + ")"))
+                        (((.shell.allow // []) | map(cli_allow)) +
+                         ((.mcp.allow   // []) | map("Mcp(" + . + ")"))
                         ) | unique
                     ),
                     deny: (
-                        ((.shell.deny // []) +
-                         ((.mcp.deny  // []) | map("Mcp(" + . + ")"))
+                        (((.shell.deny // []) | map(cli_deny)) +
+                         ((.mcp.deny   // []) | map("Mcp(" + . + ")"))
                         ) | unique
                     )
                 }
@@ -318,22 +353,25 @@ render_target_schema() {
             # server:tool -> mcp__server__tool, server:* -> mcp__server__*.
             # Split at the first colon (the tool part is the rest). An entry
             # with no colon, no server or no tool stops the render rather than
-            # produce a rule such as mcp____tool.
+            # produce a rule such as mcp____tool. A shell entry is a prefix,
+            # Bash(<entry>:*); one that holds a * is written as it is.
             jq -S 'def claude_mcp:
                        if test("^[^:]+:.+$")
                        then index(":") as $i | "mcp__" + .[:$i] + "__" + .[$i+1:]
                        else error("bad mcp entry: " + .)
                        end;
+                   def claude_bash:
+                       if test("[*]") then "Bash(" + . + ")" else "Bash(" + . + ":*)" end;
                    {
                 permissions: {
                     allow: (
-                        ((.shell.allow    // []) +
+                        (((.shell.allow   // []) | map(claude_bash)) +
                          ((.mcp.allow     // []) | map(claude_mcp)) +
                          ((.webfetch.allow // []) | map("WebFetch(domain:" + . + ")"))
                         ) | unique
                     ),
                     deny: (
-                        ((.shell.deny    // []) +
+                        (((.shell.deny   // []) | map(claude_bash)) +
                          ((.mcp.deny     // []) | map(claude_mcp)) +
                          ((.webfetch.deny // []) | map("WebFetch(domain:" + . + ")"))
                         ) | unique

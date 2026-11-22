@@ -268,18 +268,21 @@ def _unwrap_token(tok: str):
     args part covers only `cmd args`, so it returns an _Exact entry; with a
     glob in args it returns None (covers nothing here, so the scan keeps
     proposing the narrower command). Returns None for non-shell tokens
-    (Mcp(...), mcp__..., WebFetch(...))."""
+    (Mcp(...), mcp__..., WebFetch(...)) and for a bare, unwrapped string:
+    neither Cursor CLI nor Claude Code reads one (the installer wrote them
+    before r1.f1), so it covers nothing and the scout proposes the wrapped
+    rule."""
     tok = tok.strip()
     if not tok:
         return None
-    if tok.startswith(("Mcp(", "mcp__", "WebFetch(")):
-        return None
     m = re.match(r"^(?:(Shell)|Bash)\((.*)\)$", tok)
-    inner = (m.group(2) if m else tok).strip()
+    if not m:
+        return None
+    inner = m.group(2).strip()
     if inner.endswith(":*"):
         inner = inner[:-2].strip()
         return inner or None
-    if m and m.group(1) and ":" in inner:
+    if m.group(1) and ":" in inner:
         base, args = inner.split(":", 1)
         base, args = base.strip(), args.strip()
         if not base:

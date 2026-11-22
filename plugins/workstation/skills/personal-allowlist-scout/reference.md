@@ -146,6 +146,13 @@ mind before approving it; the scout doesn't check each variant.
 `Shell(cmd:*)` or `Bash(cmd:*)` as the prefix `cmd`. This keeps § 4 rule 2:
 no entry subsumes a command the scout would never propose.
 
+**A bare entry covers nothing.** Neither Cursor CLI nor Claude Code reads an
+unwrapped string such as `"make test"` in `permissions.allow`; the agent
+allowlist installer wrote them that way before r1.f1. `scan.py` reads one in
+either file as covering no command, so the scout proposes the wrapped rule
+for it. Cursor IDE's `terminalAllowlist` and Gemini's `commandPrefix` are raw
+strings by design and still count.
+
 All writes are **union-only**: `render.py` adds missing allow entries and never
 removes anything, never writes a `deny` / `ask_user` / `confirmationRequired`
 rule.

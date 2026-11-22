@@ -456,9 +456,12 @@ e2=$(jq -r '.editor  // empty' "$H14/.cursor/cli-config.json")
 [ "$v2" = "1.2"    ] || fail "T14: version lost from rendered cli-config.json (got: $v2)"
 [ "$e2" = "cursor" ] || fail "T14: editor lost from rendered cli-config.json (got: $e2)"
 
-# Deny entries must also appear in cli-config.json.
-has_deny=$(jq '.permissions.deny | contains(["rm -rf /"])' "$H14/.cursor/cli-config.json")
-[ "$has_deny" = "true" ] || fail "T14: deny entry missing from cli-config.json"
+# Deny entries must also appear in cli-config.json, in the prefix form Cursor
+# CLI reads (a bare "rm -rf /" is matched by nothing there).
+has_deny=$(jq '.permissions.deny | index("Shell(rm:-rf /*)") != null' "$H14/.cursor/cli-config.json")
+[ "$has_deny" = "true" ] || fail "T14: Shell(rm:-rf /*) deny missing from cli-config.json"
+bare=$(jq '[.permissions.allow[], .permissions.deny[] | select(test("^(Shell|Mcp)\\(") | not)] | length' "$H14/.cursor/cli-config.json")
+[ "$bare" = "0" ] || fail "T14: bare (unwrapped) entry in cli-config.json permissions"
 
 # ---------------------------------------------------------------------------
 # T15: Claude format translation — server:* renders mcp__server__*, server:tool
@@ -473,12 +476,16 @@ has_notion=$(jq '.permissions.allow | contains(["mcp__notion__*"])' "$H15/.claud
 has_slack=$(jq  '.permissions.allow | contains(["mcp__slack__*"])'  "$H15/.claude/settings.json")
 has_wf=$(jq     '.permissions.allow | contains(["WebFetch(domain:*.github.com)"])' \
                 "$H15/.claude/settings.json")
-has_deny=$(jq   '.permissions.deny  | contains(["rm -rf /"])'       "$H15/.claude/settings.json")
+has_deny=$(jq   '.permissions.deny  | index("Bash(rm -rf /:*)") != null' "$H15/.claude/settings.json")
 
 [ "$has_notion" = "true" ] || fail "T15: mcp__notion__* missing from settings.json"
 [ "$has_slack"  = "true" ] || fail "T15: mcp__slack__* missing from settings.json"
 [ "$has_wf"     = "true" ] || fail "T15: WebFetch(domain:*.github.com) missing from settings.json"
-[ "$has_deny"   = "true" ] || fail "T15: shell deny entry missing from settings.json"
+[ "$has_deny"   = "true" ] || fail "T15: Bash(rm -rf /:*) deny missing from settings.json"
+has_allow=$(jq  '.permissions.allow | index("Bash(git status:*)") != null' "$H15/.claude/settings.json")
+[ "$has_allow"  = "true" ] || fail "T15: Bash(git status:*) allow missing from settings.json"
+bare=$(jq '[.permissions.allow[], .permissions.deny[] | select(test("^(Bash|mcp__|WebFetch)") | not)] | length' "$H15/.claude/settings.json")
+[ "$bare" = "0" ] || fail "T15: bare (unwrapped) entry in settings.json permissions"
 
 # A named tool renders per tool in Claude Code and Cursor CLI, and keeps its
 # server:tool form in Cursor IDE; it must not widen to the whole server (r1.f9).
@@ -1000,7 +1007,7 @@ run_al "$H40B" "$META" install >/dev/null
 if [ -f "$H40B/.claude/.settings.user-managed.json" ] && grep -q 'pytest' "$H40B/.claude/.settings.user-managed.json"; then
     fail "T40b: the peer's rules were saved as user edits"
 fi
-[ "$(jq '.permissions.allow | index("Bash(pytest:*)") // index("pytest") | . != null' "$H40B/.claude/settings.json")" = "true" ] \
+[ "$(jq '.permissions.allow | index("Bash(pytest:*)") != null' "$H40B/.claude/settings.json")" = "true" ] \
     || fail "T40b: the peer's rules dropped out of the live file"
 
 printf '[T40c] a meta that renders two JSON objects: nothing written\n'
@@ -1101,6 +1108,135 @@ for bad in 'nocolon' ':tool' 'server:'; do
         || fail "T41b: a sidecar was written for mcp entry '$bad'"
     [ ! -f "$H41B/.claude/settings.json" ] || fail "T41b: settings.json written for mcp entry '$bad'"
 done
+
+# ---------------------------------------------------------------------------
+# T42 (r1.f1): shell entries reach Cursor CLI and Claude Code wrapped, in the
+# form each tool reads; Cursor IDE keeps the raw strings.
+# ---------------------------------------------------------------------------
+printf '[T42] shell forms: Cursor CLI exact allow and prefix deny, Claude Code prefix\n'
+META42="$TEST_DIR/meta/t42.json"
+cat > "$META42" <<'ENDJSON'
+{
+  "shell":    { "allow": ["git status", "pytest", "make test*", "ls ?", "./run:all now"],
+                "deny":  ["git push --force", "sudo", "rm -rf /*", "rm -rf /"] },
+  "mcp":      { "allow": [], "deny": [] },
+  "read":     { "deny": [] },
+  "write":    { "deny": [] },
+  "webfetch": { "allow": [], "deny": [] }
+}
+ENDJSON
+H42=$(mk_home t42)
+run_al "$H42" "$META42" install >/dev/null
+CLI42="$H42/.cursor/cli-config.json"
+CC42="$H42/.claude/settings.json"
+in_list() { jq -e --arg e "$3" ".permissions.$2 | index(\$e) != null" "$1" >/dev/null; }
+
+# Cursor CLI allow: Shell(<base>:<args>) for a multi-word entry, Shell(<word>)
+# for a one-word one, nothing for a glob or a colon in the first word.
+in_list "$CLI42" allow 'Shell(git:status)' || fail "T42: Cursor CLI multi-word allow is not Shell(git:status)"
+in_list "$CLI42" allow 'Shell(pytest)'     || fail "T42: Cursor CLI one-word allow is not Shell(pytest)"
+[ "$(jq '.permissions.allow | length' "$CLI42")" = "2" ] \
+    || fail "T42: Cursor CLI allow holds more than the two writable entries: $(jq -c '.permissions.allow' "$CLI42")"
+for skipped in 'make test*' 'ls ?' './run:all now' 'Shell(make:test*)' 'Shell(ls:?)' 'Shell(./run:all now)' 'Shell(./run:all:now)'; do
+    in_list "$CLI42" allow "$skipped" && fail "T42: Cursor CLI allow holds the unwritable entry $skipped"
+done
+# Cursor CLI deny: the prefix for a multi-word entry, Shell(<word>) for one
+# word, a glob in the args as written.
+in_list "$CLI42" deny 'Shell(git:push --force*)' || fail "T42: Cursor CLI multi-word deny is not the prefix Shell(git:push --force*)"
+in_list "$CLI42" deny 'Shell(sudo)'              || fail "T42: Cursor CLI one-word deny is not Shell(sudo)"
+in_list "$CLI42" deny 'Shell(rm:-rf /*)'         || fail "T42: Cursor CLI glob deny is not written as it is, Shell(rm:-rf /*)"
+in_list "$CLI42" deny 'Shell(rm:-rf /**)' && fail "T42: Cursor CLI glob deny got a second *"
+in_list "$CLI42" deny 'Shell(git:push --force)' && fail "T42: Cursor CLI deny is the exact form, which lets longer commands through"
+
+# Claude Code: Bash(<entry>:*) for allow and deny; an entry holding a * as it is.
+in_list "$CC42" allow 'Bash(git status:*)' || fail "T42: Claude Code multi-word allow is not Bash(git status:*)"
+in_list "$CC42" allow 'Bash(pytest:*)'     || fail "T42: Claude Code one-word allow is not Bash(pytest:*)"
+in_list "$CC42" allow 'Bash(./run:all now:*)' || fail "T42: Claude Code allow with a colon in the first word is not Bash(./run:all now:*)"
+in_list "$CC42" allow 'Bash(make test*)'   || fail "T42: Claude Code glob allow is not written as it is"
+in_list "$CC42" deny 'Bash(git push --force:*)' || fail "T42: Claude Code multi-word deny is not Bash(git push --force:*)"
+in_list "$CC42" deny 'Bash(sudo:*)'             || fail "T42: Claude Code one-word deny is not Bash(sudo:*)"
+in_list "$CC42" deny 'Bash(rm -rf /*)'          || fail "T42: Claude Code glob deny is not written as it is, Bash(rm -rf /*)"
+in_list "$CC42" deny 'Bash(rm -rf /:*)'         || fail "T42: Claude Code deny is not Bash(rm -rf /:*)"
+for bad in 'Bash(rm -rf /*:*)' 'Bash(make test*:*)'; do
+    in_list "$CC42" allow "$bad" && fail "T42: Claude Code allow holds $bad"
+    in_list "$CC42" deny  "$bad" && fail "T42: Claude Code deny holds $bad"
+done
+# Neither file holds a bare string.
+for f in "$CLI42" "$CC42"; do
+    [ "$(jq '[.permissions.allow[], .permissions.deny[] | select(test("^[A-Za-z]+\\(") | not)] | length' "$f")" = "0" ] \
+        || fail "T42: bare entry in $(basename "$f")"
+done
+# Cursor IDE keeps the raw strings.
+[ "$(jq '.terminalAllowlist | index("git status") != null and index("pytest") != null' "$H42/.cursor/permissions.json")" = "true" ] \
+    || fail "T42: Cursor IDE terminalAllowlist is not the raw entries"
+[ "$(jq '.terminalDenylist | index("rm -rf /") != null and index("git push --force") != null' "$H42/.cursor/permissions.json")" = "true" ] \
+    || fail "T42: Cursor IDE terminalDenylist is not the raw entries"
+
+printf '[T42b] a Cursor CLI deny with a colon in its first word stops the render, nothing written\n'
+H42B=$(mk_home t42b)
+jq '.shell.deny += ["./run:all now"]' "$META42" > "$TEST_DIR/meta/t42b.json"
+rc=0
+run_al "$H42B" "$TEST_DIR/meta/t42b.json" install >/dev/null 2>&1 || rc=$?
+[ "$rc" -ne 0 ] || fail "T42b: install exited 0 on an unwritable Cursor CLI deny"
+[ -z "$(find "$H42B/.claude" "$H42B/.cursor" -name '.*-managed.json' -print -quit)" ] || fail "T42b: a sidecar was written"
+
+# ---------------------------------------------------------------------------
+# T43 (r1.f1): upgrade from the previous render. The old installer wrote shell
+# entries bare and every MCP entry as mcp__<server>__*; install replaces them
+# with the wrapped forms, and none is promoted to a user edit.
+# ---------------------------------------------------------------------------
+printf '[T43] upgrade from bare shell strings and mcp__<server>__* wildcards\n'
+H43=$(mk_home t43)
+META43="$TEST_DIR/meta/t43.json"
+cat > "$META43" <<'ENDJSON'
+{
+  "shell":    { "allow": ["git status", "pytest"], "deny": ["rm -rf /", "sudo"] },
+  "mcp":      { "allow": ["notion:notion-search", "slack:slack_read_channel"], "deny": [] },
+  "read":     { "deny": [] },
+  "write":    { "deny": [] },
+  "webfetch": { "allow": ["docs.python.org"], "deny": [] }
+}
+ENDJSON
+# What the previous installer rendered for the old meta (seven-style wildcards).
+OLD_CLI='{"permissions":{"allow":["git status","pytest","Mcp(notion:*)","Mcp(slack:*)"],"deny":["rm -rf /","sudo"]}}'
+OLD_CC='{"permissions":{"allow":["git status","pytest","mcp__notion__*","mcp__slack__*","WebFetch(domain:docs.python.org)"],"deny":["rm -rf /","sudo"]}}'
+OLD_IDE='{"terminalAllowlist":["git status","pytest"],"terminalDenylist":["rm -rf /","sudo"],"mcpAllowlist":["notion:*","slack:*"],"mcpDenylist":[]}'
+printf '%s\n' "$OLD_CLI" | jq -S . > "$H43/.cursor/cli-config.json"
+printf '%s\n' "$OLD_CLI" | jq -S . > "$H43/.cursor/.cli-config.${ORG}-managed.json"
+printf '%s\n' "$OLD_CC"  | jq -S . > "$H43/.claude/settings.json"
+printf '%s\n' "$OLD_CC"  | jq -S . > "$H43/.claude/.settings.${ORG}-managed.json"
+printf '%s\n' "$OLD_IDE" | jq -S . > "$H43/.cursor/permissions.json"
+printf '%s\n' "$OLD_IDE" | jq -S . > "$H43/.cursor/.permissions.${ORG}-managed.json"
+run_al "$H43" "$META43" install >/dev/null || fail "T43: install failed on the previous render"
+CLI43="$H43/.cursor/cli-config.json"; CC43="$H43/.claude/settings.json"
+[ "$(jq -c '.permissions.allow' "$CLI43")" = '["Mcp(notion:notion-search)","Mcp(slack:slack_read_channel)","Shell(git:status)","Shell(pytest)"]' ] \
+    || fail "T43: Cursor CLI allow after upgrade: $(jq -c '.permissions.allow' "$CLI43")"
+[ "$(jq -c '.permissions.deny' "$CLI43")" = '["Shell(rm:-rf /*)","Shell(sudo)"]' ] \
+    || fail "T43: Cursor CLI deny after upgrade: $(jq -c '.permissions.deny' "$CLI43")"
+[ "$(jq -c '.permissions.allow' "$CC43")" = '["Bash(git status:*)","Bash(pytest:*)","WebFetch(domain:docs.python.org)","mcp__notion__notion-search","mcp__slack__slack_read_channel"]' ] \
+    || fail "T43: Claude Code allow after upgrade: $(jq -c '.permissions.allow' "$CC43")"
+[ "$(jq -c '.permissions.deny' "$CC43")" = '["Bash(rm -rf /:*)","Bash(sudo:*)"]' ] \
+    || fail "T43: Claude Code deny after upgrade: $(jq -c '.permissions.deny' "$CC43")"
+for f in "$CLI43" "$CC43"; do
+    [ "$(jq '[.permissions.allow[], .permissions.deny[] | select(test("^[A-Za-z_]+(\\(|__)") | not)] | length' "$f")" = "0" ] \
+        || fail "T43: bare string left in $(basename "$f") permissions"
+done
+for old in 'mcp__notion__*' 'mcp__slack__*' 'Mcp(notion:*)' 'Mcp(slack:*)'; do
+    for f in "$CLI43" "$CC43"; do
+        jq -e --arg o "$old" '.permissions.allow | index($o) != null' "$f" >/dev/null \
+            && fail "T43: $old still in $(basename "$f")"
+    done
+done
+# Nothing was taken for the user's own.
+[ ! -f "$H43/.cursor/.cli-config.user-managed.json" ] || fail "T43: the old render was promoted into .cli-config.user-managed.json"
+[ ! -f "$H43/.claude/.settings.user-managed.json" ] || fail "T43: the old render was promoted into .settings.user-managed.json"
+[ ! -f "$H43/.cursor/.permissions.user-managed.json" ] || fail "T43: the old render was promoted into .permissions.user-managed.json"
+# The second install is a no-op: no further backup of either file.
+n43=$(count_hist cli-config "$H43/.cursor"); m43=$(count_hist settings "$H43/.claude")
+run_al "$H43" "$META43" install >/dev/null
+[ "$(count_hist cli-config "$H43/.cursor")" = "$n43" ] && [ "$(count_hist settings "$H43/.claude")" = "$m43" ] \
+    || fail "T43: a second install rewrote the files"
+[ "$n43" = "1" ] && [ "$m43" = "1" ] || fail "T43: expected one backup of each live file, got cli-config=$n43 settings=$m43"
 
 # ---------------------------------------------------------------------------
 # Final report
