@@ -4,7 +4,7 @@ Contents:
 
 - [What to Document](#what-to-document), [Code Comments](#code-comments) (TODO format), [Filename Case Conventions](#filename-case-conventions)
 - [Product and Technical Specs](#product-and-technical-specs): the `specs/` layout; [Runbooks](#runbooks); [Shell Snippets](#shell-snippets): fish
-- [Implementation Milestones](#implementation-milestones): `m{N}` / `s{N}` naming, strikethrough when done, milestone handoffs
+- [Implementation Milestones](#implementation-milestones): `m{N}` / `s{N}` naming, ⬜/✅ markers and a trailing (done), milestone handoffs
 - [Diagrams](#diagrams): Mermaid; durable ones in docs and specs, a PR's in its description
 - [Architecture Decision Records](#architecture-decision-records)
 - [Changelog](#changelog): entries ship as `.changelog/` fragments, not edits to `CHANGELOG.md`
