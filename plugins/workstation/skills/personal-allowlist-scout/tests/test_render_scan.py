@@ -70,6 +70,13 @@ class RenderThenScan(unittest.TestCase):
     def test_extra_spaces_are_normalized(self):
         self.assertEqual(render._shell_token("make   test"), "Shell(make:test)")
 
+    def test_quoted_args_keep_their_whitespace(self):
+        seg = 'npm run "test  unit"'
+        self.assertEqual(render._shell_token(seg), 'Shell(npm:run "test  unit")')
+        render_cli(self.repo, seg)
+        self.assertTrue(covers(self.repo, seg))
+        self.assertFalse(covers(self.repo, 'npm run "test unit"'))
+
     def test_glob_segment_is_skipped_and_says_so(self):
         for seg in ("make test*", "git log ?"):
             r = render_cli(self.repo, seg)

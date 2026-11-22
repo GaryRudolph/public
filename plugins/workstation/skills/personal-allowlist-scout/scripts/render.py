@@ -140,14 +140,17 @@ def _shell_token(segment: str):
     A segment containing a glob character, or whose first word contains a
     colon, can't be written exactly, so it gets no token and the caller skips
     cursor_cli."""
-    words = segment.split()
-    if not words:
+    parts = segment.strip().split(None, 1)
+    if not parts:
         return None
-    if any(c in _GLOB_CHARS for c in segment) or ":" in words[0]:
+    if any(c in _GLOB_CHARS for c in segment) or ":" in parts[0]:
         return None
-    if len(words) == 1:
-        return "Shell(%s)" % words[0]
-    return "Shell(%s:%s)" % (words[0], " ".join(words[1:]))
+    if len(parts) == 1:
+        return "Shell(%s)" % parts[0]
+    # Keep the args substring as written: whitespace inside a quoted
+    # argument is part of the command, so collapsing it would allow a
+    # different one.
+    return "Shell(%s:%s)" % (parts[0], parts[1])
 
 
 def _add_cursor_cli(path: Path, segment: str, dry_run: bool) -> bool:

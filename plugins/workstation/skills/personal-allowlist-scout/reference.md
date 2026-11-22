@@ -123,8 +123,10 @@ exact `command:args` example, so this relies on a glob without a wildcard
 matching only itself. A segment containing `*` or `?`, or whose first word
 contains a colon, can't be written exactly, so the Cursor CLI gets no rule
 for it and `render.py` says so. A one-word segment is `Shell(<word>)`, which
-Cursor reads as any arguments; every harness prefix-matches a bare word, and
-the scout only proposes one whose subcommands are all safe (§ 4 rule 2).
+Cursor reads as the command with any arguments, so approving a bare word
+(`pytest`, which `scan.py` proposes whenever a `tests/` directory exists)
+grants every flag and argument. Review a bare-word candidate with that in
+mind before approving it; the scout doesn't check each variant.
 `scan.py` reads `Shell(cmd:args)` back as covering only `cmd args`, and
 `Shell(cmd:*)` or `Bash(cmd:*)` as the prefix `cmd`. This keeps § 4 rule 2:
 no entry subsumes a command the scout would never propose.
@@ -148,12 +150,17 @@ rule.
 
 ## 4. Prefix-Matching Safety Caveats
 
-Every harness performs **prefix matching**: an entry `X` covers any command
-whose full string starts with `X` (followed by a space, or exact match).
+Most harness entries are prefix rules: an entry `X` covers any command whose
+full string starts with `X` (followed by a space, or exact match). The Cursor
+CLI's `Shell(<base>:<args>)` with literal args is the exception: it names one
+command line (§ 3), so it covers nothing longer.
 
-This means **a short prefix subsumes longer commands**. For example:
-- Allowlisting `make test` also prefix-grants `make testflight` (which pushes
-  a release to TestFlight — Remote Write).
+For a prefix entry, **a short prefix subsumes longer commands**. For example:
+- Allowlisting `make` (as `Bash(make:*)`, a Cursor IDE `make` entry, or
+  `Shell(make:*)`) also grants `make release` and `make deploy` (Remote
+  Write). Allowlisting `make test` as a prefix also grants `make test` with any
+  arguments and, where a harness matches raw string prefixes, `make testflight`
+  (Remote Write).
 - Allowlisting `swift` covers `swift package generate-xcodeproj`, but also
   `swift run` (Long-running in some contexts).
 
