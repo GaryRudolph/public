@@ -192,6 +192,18 @@ expect_grep "changelog entries counted"              "## [Unreleased]: 2 entries
 expect_grep "surfaces: npm"                          "npm package (packages/a/package.json)"
 expect_grep "surfaces: python"                       "Python package"
 expect_grep "--next"                                 "minor: 2.4.0 -> 2.5.0"
+# From a subdirectory, the version files are still found (ls-files runs from the root).
+(cd packages/a && python3 "$facts") >"$work/out" 2>"$work/err" && pass "facts run from a subdirectory" || fail "facts from a subdirectory: exit $?"
+expect_grep "  ...finds the root's pyproject"      "Python package"
+expect_grep "  ...and the surfaces"                 "npm package (packages/a/package.json)"
+# A tracked name that isn't UTF-8 (where the filesystem allows one; APFS doesn't).
+if touch "$(printf 'caf\351.txt')" 2>/dev/null && [ -e "$(printf 'caf\351.txt')" ]; then
+    git add "$(printf 'caf\351.txt')" && git commit -qm "chore: latin-1 name"
+    expect_ok "facts with a non-UTF-8 file name"     python3 "$facts"
+    sha=$(git rev-parse --short HEAD); count=$(git rev-list --count HEAD)
+else
+    pass "non-UTF-8 file name: the filesystem refuses one, nothing to check"
+fi
 printf 'y\n' >> work.txt
 expect_ok   "facts on a dirty tree"                  python3 "$facts"
 expect_grep "  ...dirty build-version"               "2.4.0+$sha.dirty ($count)"

@@ -101,6 +101,27 @@ expect_grep "  ...owner/repo from an ssh remote"          "github_repo: acme/ord
 git remote set-url origin https://github.com/acme/orders
 expect_ok "github https origin"                          --base main --committed
 expect_grep "  ...owner/repo from an https remote"        "github_repo: acme/orders (from origin)"
+git remote set-url origin git@github.com-work:acme/orders.git
+expect_ok "ssh host alias origin"                        --base main --committed
+expect_grep "  ...owner/repo from an alias"               "github_repo: acme/orders (from origin)"
+git remote set-url origin ssh://git@ssh.github.com:443/acme/orders.git
+expect_ok "ssh over 443 origin"                          --base main --committed
+expect_grep "  ...owner/repo from ssh.github.com"         "github_repo: acme/orders (from origin)"
+git remote set-url origin http://local_proxy@127.0.0.1:41923/git/acme/orders
+expect_ok "cloud git proxy origin"                       --base main --committed
+expect_grep "  ...owner/repo from the proxy"              "github_repo: acme/orders (from origin)"
+git remote set-url origin https://gitlab.com/acme/orders.git
+expect_ok "gitlab origin"                                --base main --committed
+expect_grep "  ...is not a GitHub repo"                   "github_repo: none (from origin)"
+git remote set-url origin https://attacker.example/acme/orders.git
+expect_ok "attacker host origin"                         --base main --committed
+expect_grep "  ...is not a GitHub repo either"            "github_repo: none (from origin)"
+git remote set-url origin git@github.com:acme/orders.git
+# A copy of the script with no plugin root above it can't load origin.py: it says so and carries on.
+mkdir -p "$work/lone/scripts"; cp "$facts" "$work/lone/scripts/review_facts.py"
+python3 -I "$work/lone/scripts/review_facts.py" --base main --committed >"$work/out" 2>"$work/err" \
+    && pass "no origin.py: still runs" || fail "no origin.py: exit $?"
+expect_grep "  ...says where it looked"                   "github_repo: unknown (origin.py unavailable at "
 git remote remove origin
 
 printf 'working tree\n'

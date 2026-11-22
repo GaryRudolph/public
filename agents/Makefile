@@ -246,8 +246,8 @@ TEST_ENV = \
     LEGACY_CURSOR_GLOB="$(LEGACY_CURSOR_GLOB)" \
     LEGACY_JETBRAINS_GLOB="$(LEGACY_JETBRAINS_GLOB)"
 
-.PHONY: help install uninstall dry-run status test test-blocks test-extensions test-hooks test-allowlists \
-        test-secrets test-release test-repo-baseline test-ship-pr test-codebase-review test-media-preview test-orchestrate test-session-doctor test-session-start test-allowlist-scout clean-test \
+.PHONY: help install uninstall dry-run status doctor test test-blocks test-extensions test-hooks test-allowlists \
+        test-secrets test-release test-repo-baseline test-ship-pr test-codebase-review test-media-preview test-orchestrate test-origin test-doctor test-session-doctor test-session-start test-allowlist-scout clean-test \
         install-blocks uninstall-blocks dry-run-blocks status-blocks \
         install-extensions uninstall-extensions dry-run-extensions status-extensions \
         install-hooks uninstall-hooks dry-run-hooks status-hooks \
@@ -280,6 +280,7 @@ help:
 	@echo "  clean-test   Remove build/ test scratch dir."
 	@echo ""
 	@echo "Plugins:"
+	@echo "  doctor                     Read-only check of what validate and test need (triage; STRICT=1 fails on warnings)"
 	@echo "  validate                   Manifest checks + claude plugin validate"
 	@echo "  package                    Zip each plugin into build/plugins/"
 	@echo "  test-orchestrate           Run the plan-orchestrate kit's offline tests (part of test)"
@@ -423,10 +424,25 @@ clean-allowlists:
 	@$(ALLOWLISTS_ENV) bash "$(AGENTS_DIR)/lib/allowlists.sh" clean
 
 # ---------------------------------------------------------------------------
+# doctor
+# ---------------------------------------------------------------------------
+
+# Read-only. Errors on python3, git, jq, make or claude below the floors in
+# ../triage.yaml (each floor names its source there), warns on missing sops,
+# age and node (their tests print SKIP and pass). Only the default profile
+# exists: this installer repo has no separate release toolchain.
+MODE   ?= default
+STRICT ?=
+
+doctor:
+	@command -v triage >/dev/null 2>&1 || { printf 'triage not found - install: brew install lolay/tap/triage\n' >&2; exit 1; }
+	@cd "$(REPO_DIR)" && triage --profile $(MODE)$(if $(filter 1,$(STRICT)), --strict)
+
+# ---------------------------------------------------------------------------
 # test
 # ---------------------------------------------------------------------------
 
-test: test-blocks test-extensions test-hooks test-allowlists test-manifests test-secrets test-release test-orchestrate test-repo-baseline test-review-guide test-ship-pr test-codebase-review test-media-preview test-session-doctor test-session-start test-allowlist-scout test-roundtrip
+test: test-blocks test-extensions test-hooks test-allowlists test-manifests test-secrets test-release test-orchestrate test-repo-baseline test-review-guide test-ship-pr test-codebase-review test-media-preview test-origin test-doctor test-session-doctor test-session-start test-allowlist-scout test-roundtrip
 
 # Install + uninstall through this Makefile into a sandboxed $HOME.
 test-roundtrip:
@@ -471,6 +487,14 @@ test-media-preview:
 
 test-codebase-review:
 	@bash "$(PLUGINS_DIR)/personal/skills/personal-codebase-review/tests/test-codebase-review.sh"
+
+# origin.py: host classes, masking, and read() against fixture URLs and repos.
+test-origin:
+	@bash "$(PLUGINS_DIR)/personal/tests/test-origin.sh"
+
+# This repo's own doctor: triage.yaml's floors, the doctor target, and the session doctor picking it.
+test-doctor:
+	@bash "$(AGENTS_DIR)/tests/test-doctor.sh"
 
 # The personal plugin's session doctor hook, against fixture repos and stub tools.
 test-session-doctor:

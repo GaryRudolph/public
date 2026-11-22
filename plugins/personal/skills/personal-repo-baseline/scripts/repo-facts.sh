@@ -4,18 +4,24 @@
 # settings and makes no recommendations: the agent compares them with
 # templates/ and decides.
 #
-# Needs bash (3.2 is fine), git, and python3. gh is optional; without it, or
+# Needs bash (3.2 is fine), git, and python3 3.9 or newer (its embedded
+# scripts must compile there: no backslash inside an f-string expression,
+# no match statement, no X | Y annotations). gh is optional; without it, or
 # without access, the GitHub section prints why it couldn't read anything.
 # GitHub is read only when origin is github.com, Claude Code's cloud git
 # proxy, or an ssh alias for github.com: on any other host,
-# repos/<owner>/<name> on GitHub would be some other repo. An ssh host is
-# resolved with `ssh -G`; without ssh, a host with no dot or a
-# github.com-<ctx> alias is taken as one, unresolved.
+# repos/<owner>/<name> on GitHub would be some other repo. The origin URL is
+# parsed and masked by the plugin's scripts/origin.py (a path from this file;
+# a skill copied out of the plugin has no such file, and the origin is then
+# not shown, never printed raw). An ssh host is resolved with `ssh -G`;
+# without ssh, a host with no dot or a github.com-<ctx> alias is taken as
+# one, unresolved.
 #
 # Usage: repo-facts.sh [<repo> ...]    (default: the current directory)
 set -uo pipefail
 
 here=$(cd "$(dirname "$0")" && pwd)
+origin_py="$(cd "$(dirname "$0")" && pwd -P)/../../../scripts/origin.py"
 merge_template="$here/../templates/github-merge-settings.json"
 errf=$(mktemp)
 ghf=$(mktemp)
@@ -34,52 +40,23 @@ print("{" + ", ".join(["full_name", "default_branch", "permissions"] + keys) + "
 ' "$merge_template"
 }
 
-# owner/name from the last two path parts of a remote URL, in any form git
-# or the cloud proxy uses: https://github.com/o/r(.git), git@github.com:o/r,
-# ssh://git@github.com/o/r, http://local_proxy@127.0.0.1:1234/git/o/r
-slug_from_url() {
-    python3 -c '
-import re, sys
-m = re.search(r"[:/]([^/:]+)/([^/]+?)(?:\.git)?/?$", sys.argv[1])
-print(m.group(1) + "/" + m.group(2) if m else "")
-' "$1"
-}
-
-# "<host> <form>" for a remote URL. form is github (github.com), proxy
-# (Claude Code's cloud git proxy, http://...@127.0.0.1:<port>/git/o/r),
-# ssh (any other ssh host name, which may be a ~/.ssh/config Host alias),
-# other (including an IP address), or local (a path, a C:/ drive path, or
-# a file:// URL, printed as "- local").
-origin_host() {
-    python3 -c '
-import ipaddress, re, sys
-url = sys.argv[1]
-def is_ip(host):
-    try:
-        ipaddress.ip_address(host.strip("[]"))
-        return True
-    except ValueError:
-        return False
-m = re.match(r"^([A-Za-z][A-Za-z0-9+.-]*)://(?:[^@/]*@)?(\[[^\]]*\]|[^:/]*)(?::[0-9]*)?(/.*)?$", url)
-if m:
-    scheme, host, path = m.group(1).lower(), m.group(2).lower(), m.group(3) or ""
-    is_ssh = "ssh" in scheme
-elif re.match(r"^[A-Za-z]:[\\/]", url):
-    scheme, host, path, is_ssh = "file", "", "", False
-else:
-    m = re.match(r"^(?:[^@/:]+@)?(\[[^\]]*\]|[^/:]+):", url)
-    scheme, host, path, is_ssh = "scp", (m.group(1).lower() if m else ""), "", True
-if not host or scheme == "file":
-    print("- local")
-elif host in ("github.com", "www.github.com", "ssh.github.com"):
-    print(host, "github")
-elif scheme in ("http", "https") and host in ("127.0.0.1", "localhost") and path.startswith("/git/"):
-    print(host, "proxy")
-elif is_ssh and host != "localhost" and not is_ip(host):
-    print(host, "ssh")
-else:
-    print(host, "other")
-' "$1"
+# Parses a remote URL with origin.py into o_class (github, ssh443, alias,
+# proxy, other, local, none), o_host, o_owner, o_repo, o_transport and
+# o_masked (credentials masked; the raw URL is never printed). o_class is
+# "unavailable" when origin.py can't be run, and the rest stay empty.
+read_origin() {
+    local line
+    o_class=unavailable o_host="" o_owner="" o_repo="" o_transport="" o_masked=""
+    [ -f "$origin_py" ] || return 0
+    line=$(python3 -I "$origin_py" -- "$1" 2>/dev/null) || return 0
+    IFS=$'\t' read -r o_class o_host o_owner o_repo o_transport o_masked <<<"$line"
+    [ -n "$o_class" ] || { o_class=unavailable; return 0; }
+    [ "$o_host" = "-" ] && o_host=""
+    [ "$o_owner" = "-" ] && o_owner=""
+    [ "$o_repo" = "-" ] && o_repo=""
+    [ "$o_transport" = "-" ] && o_transport=""
+    [ "$o_masked" = "-" ] && o_masked=""
+    return 0
 }
 
 # The hostname ssh would connect to for an ssh host, after ~/.ssh/config
@@ -89,26 +66,6 @@ ssh_hostname() {
     case "$1" in -*) return 0 ;; esac
     command -v ssh >/dev/null 2>&1 || return 0
     ssh -G -- "$1" </dev/null 2>/dev/null | awk '$1 == "hostname" { print tolower($2); exit }'
-}
-
-# The remote URL with credentials masked: all of an http(s) URL's userinfo
-# (a token can sit in the user part), and the password of any other URL.
-redact_url() {
-    python3 -c '
-import re, sys
-url = sys.argv[1]
-m = re.match(r"^([A-Za-z][A-Za-z0-9+.-]*://)([^/]*)(.*)$", url, re.S)
-if m and "@" in m.group(2):
-    scheme, authority, rest = m.groups()
-    userinfo, _, hostport = authority.rpartition("@")
-    if "ssh" in scheme.lower():
-        user, colon, _ = userinfo.partition(":")
-        userinfo = user + (":***" if colon else "")
-    else:
-        userinfo = "***"
-    url = scheme + userinfo + "@" + hostport + rest
-print(url)
-' "$1"
 }
 
 # Prints "yes" or "no: <parser error>", then any duplicate keys (a later
@@ -179,15 +136,20 @@ read_github() {
         return
     fi
     printf '  gh: %s\n' "$(gh --version 2>/dev/null | head -1)" >> "$ghf"
+    if [ "$form" = unavailable ]; then
+        printf '  not read: origin.py unavailable\n' >> "$ghf"
+        return
+    fi
+    if [ "$form" = local ]; then
+        printf '  not read: origin is a local path, not GitHub\n' >> "$ghf"
+        return
+    fi
     if [ -z "$slug" ]; then
         printf '  not read: no origin remote to name the repo\n' >> "$ghf"
         return
     fi
     case "$form" in
         github|proxy|alias|unresolved) ;;
-        local)
-            printf '  not read: origin is a local path, not GitHub\n' >> "$ghf"
-            return ;;
         *)
             printf "  not read: origin host %s isn't github.com, the cloud git proxy, or an ssh alias for github.com\n" "$host" >> "$ghf"
             return ;;
@@ -201,6 +163,12 @@ read_github() {
     else
         printf '  failed (exit %s): %s\n' "$rc" "$(head -3 "$errf" | tr '\n' ' ')" >> "$ghf"
     fi
+}
+
+# True for a dotted-quad IPv4 address (four octets, 0-255, no leading zeros).
+is_ipv4() {
+    local octet='(25[0-5]|2[0-4][0-9]|1[0-9][0-9]|[1-9]?[0-9])'
+    [[ "$1" =~ ^$octet\.$octet\.$octet\.$octet$ ]]
 }
 
 # Sets form and note for an ssh host: alias when ssh -G resolves it to
@@ -244,25 +212,47 @@ facts_for() {
         is_git=yes
         origin=$(git -C "$root" remote get-url origin 2>/dev/null || true)
         if [ -n "$origin" ]; then
-            slug=$(slug_from_url "$origin")
-            read -r host form <<<"$(origin_host "$origin")"
-            case "$form" in
-                proxy) note="Claude Code cloud git proxy" ;;
-                ssh) classify_ssh_host "$host" ;;
+            read_origin "$origin"
+            host=$o_host
+            [ -n "$o_owner" ] && [ -n "$o_repo" ] && slug="$o_owner/$o_repo"
+            case "$o_class" in
+                unavailable) form=unavailable host=unknown ;;
+                github|ssh443) form=github ;;
+                proxy) form=proxy note="Claude Code cloud git proxy" ;;
+                alias) form=ssh; classify_ssh_host "$host" ;;
+                local) form=local ;;
+                *)
+                    # Another ssh host may be a ~/.ssh/config alias for GitHub;
+                    # an IP address or localhost is not.
+                    case "$host" in
+                        localhost|\[*|*:*) form=other ;;
+                        *)
+                            if is_ipv4 "$host"; then form=other
+                            elif [ "$o_transport" = ssh ]; then form=ssh; classify_ssh_host "$host"
+                            else form=other
+                            fi ;;
+                    esac ;;
             esac
         fi
         printf '  root: %s\n' "$root"
-        if [ -n "$origin" ]; then
-            printf '  origin: %s\n' "$(redact_url "$origin")"
-        else
+        if [ -z "$origin" ]; then
             printf '  origin: none\n'
+        elif [ "$form" = unavailable ]; then
+            printf '  origin: not shown (origin.py unavailable at %s)\n' "$origin_py"
+        else
+            printf '  origin: %s\n' "$o_masked"
         fi
         case "$form" in
             "") ;;
+            unavailable) printf '  origin host: unknown (origin.py unavailable)\n' ;;
             local) printf '  origin host: none (local path)\n' ;;
             *) printf '  origin host: %s%s\n' "$host" "${note:+ ($note)}" ;;
         esac
-        printf '  owner/name from origin: %s\n' "${slug:-none}"
+        if [ "$form" = unavailable ]; then
+            printf '  owner/name from origin: unknown\n'
+        else
+            printf '  owner/name from origin: %s\n' "${slug:-none}"
+        fi
         branch=$(git -C "$root" branch --show-current 2>/dev/null || true)
         printf '  branch: %s\n' "${branch:-none (detached HEAD)}"
         printf '  commits on HEAD: %s\n' "$(git -C "$root" rev-list --count HEAD 2>/dev/null || echo 0)"
@@ -357,8 +347,10 @@ folder = os.path.join(root, ".github", "PULL_REQUEST_TEMPLATE")
 for rel in found:
     text = open(os.path.join(root, rel), encoding="utf-8", errors="replace").read()
     print(f"  path: {rel}")
-    print(f"  has ## Review guide: {'yes' if re.search(r'^##[ \t]+Review guide[ \t]*$', text, re.M | re.I) else 'no'}")
-    print(f"  has Review tier: line: {'yes' if re.search(r'Review tier:', text, re.I) else 'no'}")
+    has_guide = "yes" if re.search(r"^##[ \t]+Review guide[ \t]*$", text, re.M | re.I) else "no"
+    has_tier = "yes" if re.search(r"Review tier:", text, re.I) else "no"
+    print(f"  has ## Review guide: {has_guide}")
+    print(f"  has Review tier: line: {has_tier}")
     print("  contents:")
     for line in text.splitlines():
         print(f"    | {line}")
@@ -378,8 +370,10 @@ path = os.path.join(sys.argv[1], ".github", "copilot-instructions.md")
 if os.path.isfile(path):
     text = open(path, encoding="utf-8", errors="replace").read()
     print("  path: .github/copilot-instructions.md")
-    print(f"  has Code review heading: {'yes' if re.search(r'^#+[ \t]+Code review[ \t]*$', text, re.M | re.I) else 'no'}")
-    print(f"  has blocking: label: {'yes' if 'blocking:' in text else 'no'}")
+    has_heading = "yes" if re.search(r"^#+[ \t]+Code review[ \t]*$", text, re.M | re.I) else "no"
+    has_label = "yes" if "blocking:" in text else "no"
+    print(f"  has Code review heading: {has_heading}")
+    print(f"  has blocking: label: {has_label}")
     print("  contents:")
     for line in text.splitlines():
         print(f"    | {line}")

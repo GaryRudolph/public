@@ -13,6 +13,7 @@ Usage:
 """
 
 import json
+import os
 import re
 import subprocess
 import sys
@@ -32,9 +33,13 @@ def git(*args, check=False):
 
 
 def tracked_files(root):
-    listed = git("ls-files")
+    # From the root, not the cwd: `git ls-files` lists paths relative to where it runs.
+    # Bytes, decoded per path: -z prints names raw, and one that isn't UTF-8 would fail a text decode.
+    result = subprocess.run(["git", "-C", str(root), "ls-files", "-z"], capture_output=True,
+                            stdin=subprocess.DEVNULL)
+    listed = [os.fsdecode(p) for p in result.stdout.split(b"\0") if p] if result.returncode == 0 else []
     if listed:
-        paths = [root / p for p in listed.splitlines()]
+        paths = [root / p for p in listed]
     else:
         paths = [p for p in root.rglob("*") if p.is_file()]
     return [p for p in paths if p.is_file() and not SKIP_DIRS & set(p.relative_to(root).parts)]

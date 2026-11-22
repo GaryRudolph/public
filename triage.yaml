@@ -1,0 +1,49 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/lolay/triage/main/schema/triage.schema.json
+# Toolchain floors for `make -C agents validate test` (agents/Makefile `doctor`
+# runs this from the repo root). Triage can't read these from a manifest, so
+# each floor is a literal here, with its source; change it with its source.
+# An error is a tool the build can't run without; a warning is a tool only some
+# tests need (they print SKIP and pass without it).
+
+version: 1
+
+default:
+  - group: Required
+    items:
+      # str.removesuffix in plugins/personal/scripts/origin.py and
+      # personal-plan-orchestrate/scripts/token_tally.py; tests/test-origin.sh parses origin.py as 3.9.
+      - tool: python3
+        version: ">=3.9"
+        hint: brew install python
+      # `git init -b` in the skills' tests (git 2.28); `git remote get-url`
+      # and `git -C` in the scripts are older.
+      - tool: git
+        version: ">=2.28"
+        hint: brew install git
+      # jq in agents/lib/allowlists.sh ("tested with 1.6+").
+      - tool: jq
+        version: ">=1.6"
+        hint: brew install jq
+      # agents/Makefile uses $(abspath) and $(and), added in GNU make 3.81,
+      # the make macOS ships.
+      - tool: make
+        version: ">=3.81"
+        hint: xcode-select --install
+      # `make validate` runs `claude plugin validate`; agents/runbook.md asks
+      # for 2.1.273 or later for plugin sync.
+      - tool: claude
+        version: ">=2.1.273"
+        hint: npm install -g @anthropic-ai/claude-code, or claude update
+  - group: Optional
+    items:
+      # test-secrets prints SKIP and passes without sops and age.
+      - tool: sops
+        severity: warn
+        hint: brew install sops
+      - tool: age
+        severity: warn
+        hint: brew install age
+      # The orchestrate kit's workflow tests (claude-workflows/plan-segment.js).
+      - tool: node
+        severity: warn
+        hint: brew install node

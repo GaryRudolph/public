@@ -23,11 +23,13 @@ Usage: review_facts.py [--base <ref>] [--committed] [<repo>]
 import argparse
 import fnmatch
 import hashlib
+import importlib.util
 import os
 import re
 import subprocess
 import sys
 import threading
+from pathlib import Path
 
 # First match wins. Keep in step with reference.md "Bucket table".
 BUCKETS = [
@@ -97,7 +99,18 @@ PR_TEMPLATES = [".github/pull_request_template.md", ".github/PULL_REQUEST_TEMPLA
                 "pull_request_template.md", "docs/pull_request_template.md", "docs/PULL_REQUEST_TEMPLATE.md"]
 
 
-GITHUB_REMOTE = re.compile(r"github\.com[:/]+([^/]+)/([^/]+?)(?:\.git)?/*$")
+ORIGIN_PY = Path(__file__).resolve().parents[3] / "scripts" / "origin.py"
+
+
+def load_origin():
+    """The plugin's origin.py (plugins/personal/scripts), or None when this copy of the skill has no plugin root above it."""
+    try:
+        spec = importlib.util.spec_from_file_location("origin", ORIGIN_PY)
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        return module
+    except Exception:  # noqa: BLE001 - fail open: callers report why, they never crash
+        return None
 
 
 def git(*args, check=False):
@@ -239,8 +252,12 @@ def changed_files(base, committed):
 
 
 def github_repo():
-    m = GITHUB_REMOTE.search(git("remote", "get-url", "origin"))
-    return f"{m.group(1)}/{m.group(2)}" if m else "none"
+    """origin's GitHub owner/repo through origin.py (SSH aliases, ssh.github.com and the cloud proxy included), as the report line's value."""
+    origin = load_origin()
+    if origin is None:
+        return f"unknown (origin.py unavailable at {ORIGIN_PY})"
+    found = origin.read(".")
+    return f"{found.owner}/{found.repo} (from origin)" if found.is_github else "none (from origin)"
 
 
 def diff_anchor(path):
@@ -289,7 +306,7 @@ def main():
     print(f"base_ref: {base_ref or 'none'} ({how})")
     print(f"merge_base: {git('rev-parse', '--short', merge_base) if merge_base else 'none'}")
     print(f"diff: {'merge_base..HEAD' if args.committed else 'merge_base..working tree (tracked files)'}")
-    print(f"github_repo: {github_repo()} (from origin)")
+    print(f"github_repo: {github_repo()}")
     print(f"claude_code_remote: {os.environ.get('CLAUDE_CODE_REMOTE', 'unset')}")
 
     print("\n== commits since merge_base")

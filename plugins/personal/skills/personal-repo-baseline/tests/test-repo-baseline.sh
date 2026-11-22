@@ -166,6 +166,35 @@ EOF
 chmod +x "$stub/gh" "$stub/ssh"
 export GH_ARGS_FILE="$work/gh-args" SSH_ARGS_FILE="$work/ssh-args"
 
+printf 'Python 3.9 floor\n'
+# Every python3 block embedded in repo-facts.sh must compile on 3.9, where an f-string expression can't hold a
+# backslash. Checked by walking each f-string's expressions (a newer python accepts the backslash, so compiling
+# alone proves nothing), and by compiling with python3.9 through python3.11 when one is installed.
+if python3 - "$facts" <<'PY'
+import ast, re, sys
+text = open(sys.argv[1]).read()
+blocks = re.findall(r"python3 (?:-I )?(?:-c '(.*?)'|- [^\n]*<<'PY'\n(.*?)\nPY)", text, re.S)
+bad = []
+for one_liner, heredoc in blocks:
+    src = one_liner or heredoc
+    for node in ast.walk(ast.parse(src)):
+        if isinstance(node, ast.FormattedValue) and "\\" in (ast.get_source_segment(src, node.value) or ""):
+            bad.append(ast.get_source_segment(src, node.value))
+if not blocks or bad:
+    sys.exit(f"{len(blocks)} blocks; backslash inside f-string expressions: {bad}")
+PY
+then pass "no backslash inside an f-string expression"; else fail "repo-facts.sh embeds an f-string expression with a backslash (a SyntaxError before Python 3.12)"; fi
+for old_python in python3.9 python3.10 python3.11; do
+    command -v "$old_python" >/dev/null 2>&1 || continue
+    if "$old_python" - "$facts" <<'PY'
+import re, sys
+text = open(sys.argv[1]).read()
+for one_liner, heredoc in re.findall(r"python3 (?:-I )?(?:-c '(.*?)'|- [^\n]*<<'PY'\n(.*?)\nPY)", text, re.S):
+    compile(one_liner or heredoc, "repo-facts.sh", "exec")
+PY
+    then pass "  ...every embedded script compiles on $old_python"; else fail "embedded script does not compile on $old_python"; fi
+done
+
 repo="$work/widget"
 mkdir -p "$repo/.claude"
 git -C "$repo" init -q
@@ -282,6 +311,7 @@ for case in "yes|git@github.com:acme/widget.git|github.com" \
             "yes|http://local_proxy@127.0.0.1:1234/git/acme/widget|127.0.0.1 (Claude Code cloud git proxy)" \
             "yes|git@github.com-lolay:acme/widget.git|github.com-lolay (ssh alias for github.com)" \
             "yes|ssh://git@github.com-agerpoint:22/acme/widget.git|github.com-agerpoint (ssh alias for github.com)" \
+            "yes|ssh://git@ssh.github.com:443/acme/widget.git|ssh.github.com" \
             "yes|git@gh-work:acme/widget.git|gh-work (ssh alias for github.com)" \
             "yes|git@broken:acme/widget.git|broken (ssh alias, not resolved: ssh -G gave no hostname)" \
             "no|git@github.com-agerpoint:acme/widget.git|github.com-agerpoint (ssh alias, not resolved: no ssh)" \
@@ -299,12 +329,15 @@ for case in "yes|git@github.com:acme/widget.git|github.com" \
 done
 
 for case in "yes|git@gitlab.com:acme/widget.git|gitlab.com" \
+            "yes|https://attacker.example/lolay/widget.git|attacker.example" \
             "yes|https://gitlab.com/acme/widget.git|gitlab.com" \
             "yes|git@gl-work:acme/widget.git|gl-work (ssh -G hostname gitlab.example.com)" \
             "yes|git@github.com-mirror.example.net:acme/widget.git|github.com-mirror.example.net" \
             "no|git@github.com-mirror.example.net:acme/widget.git|github.com-mirror.example.net" \
             "yes|ssh://git@[::1]/acme/widget|[::1]" \
             "yes|git@[::1]:acme/widget.git|[::1]" \
+            "yes|git@10.0.0.5:acme/widget.git|10.0.0.5" \
+            "yes|ssh://git@192.168.1.255/acme/widget|192.168.1.255" \
             "no|git@gl.example.com:acme/widget.git|gl.example.com"; do
     has_ssh=${case%%|*} rest=${case#*|}
     url=${rest%%|*} want=${rest#*|}
@@ -316,7 +349,7 @@ for case in "yes|git@gitlab.com:acme/widget.git|gitlab.com" \
     expect_grep "  ...GitHub not read"           out "not read: origin host ${want%% (*} isn't github.com, the cloud git proxy, or an ssh alias for github.com"
     expect_eq "  ...gh not called"               "$(test -e "$GH_ARGS_FILE" && echo called || echo not)" not
     case "$want" in
-        \[*) expect_eq "  ...ssh -G not run for an IP" "$(test -e "$SSH_ARGS_FILE" && echo called || echo not)" not ;;
+        \[*|[0-9]*.[0-9]*.[0-9]*.[0-9]*) expect_eq "  ...ssh -G not run for an IP" "$(test -e "$SSH_ARGS_FILE" && echo called || echo not)" not ;;
     esac
 done
 
@@ -340,6 +373,17 @@ for case in 'https://gary:ghp_s3cr3t@github.com/acme/widget.git|https://***@gith
     expect_nogrep "  ...secret not printed"      out 'ghp_s3cr3t'
     expect_grep "  ...owner/name parsed"         out 'owner/name from origin: acme/widget'
 done
+
+# A copy of the plugin without scripts/origin.py: the origin is not shown (never raw), GitHub is not read.
+cp -R "$here/../../.." "$work/plugin-copy" && rm "$work/plugin-copy/scripts/origin.py"
+git -C "$repo" remote set-url origin 'https://ghp_s3cr3t@github.com/acme/widget.git'
+rm -f "$GH_ARGS_FILE"
+expect_ok "origin.py missing"                    env PATH="$stub:$PATH" "$bash_bin" "$work/plugin-copy/skills/personal-repo-baseline/scripts/repo-facts.sh" "$repo"
+expect_grep "  ...origin not shown"              out 'origin: not shown (origin.py unavailable at '
+expect_nogrep "  ...secret not printed"          out 'ghp_s3cr3t'
+expect_grep "  ...GitHub not read"               out 'not read: origin.py unavailable'
+expect_grep "  ...owner/name unknown"            out 'owner/name from origin: unknown'
+expect_eq "  ...gh not called"                   "$(test -e "$GH_ARGS_FILE" && echo called || echo not)" not
 
 git -C "$repo" remote remove origin
 printf '{"a": 1,}\n' > "$repo/.claude/settings.json"

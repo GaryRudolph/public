@@ -44,8 +44,9 @@ plugins/
     hooks/cursor-hooks.json         <- empty; keeps Cursor off hooks.json
     cursor/rules/personal-core.mdc  <- GENERATED from core.md; Cursor's always-on core
     scripts/session-start.sh        <- prints core.md in parts
-    scripts/session-doctor.py       <- runs each repo's doctor at session start
-    tests/                          <- session-doctor tests
+    scripts/session-doctor.py       <- on a runner, runs each repo's doctor at session start; elsewhere tells the agent to
+    scripts/origin.py               <- parses origin (host class, owner, repo, masked URL); the facts scripts load it
+    tests/                          <- session-doctor and origin tests
     skills/
       personal-standards/
         SKILL.md                    <- index; loads standards on demand

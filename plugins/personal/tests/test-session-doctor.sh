@@ -36,8 +36,12 @@ EOF
     chmod +x "$bin/$tool"
 done
 
-# run_doctor <cwd> [env assignments...]: runs the hook with a SessionStart payload.
-run_doctor() {
+# run_doctor <cwd> [env assignments...]: runs the hook with a SessionStart payload,
+# as a runner (CLAUDE_CODE_REMOTE=true, which an assignment of its own can replace).
+# run_local <cwd> [env assignments...]: the same on a workstation, with no runner variable.
+# Both start from `env -i`, so CLAUDE_CODE_REMOTE, CI and GITHUB_ACTIONS never leak in
+# from the machine running the tests (CI itself sets two of them).
+run_hook() {
     local cwd="$1"; shift
     : > "$work/calls"
     printf '{"cwd": "%s", "source": "startup"}' "$cwd" \
@@ -45,6 +49,8 @@ run_doctor() {
     local rc=$?
     [ "$rc" = 0 ] || fail "hook exited $rc in $cwd"
 }
+run_doctor() { local cwd="$1"; shift; run_hook "$cwd" CLAUDE_CODE_REMOTE=true "$@"; }
+run_local() { local cwd="$1"; shift; run_hook "$cwd" "$@"; }
 
 # new_repo <dir> [origin-url]
 new_repo() {
@@ -138,6 +144,101 @@ r="$work/alias"; new_repo "$r" git@github.com-lolay:lolay/alias.git
 makefile_with_doctor "$r"
 run_doctor "$r"
 expect_grep "ssh host alias URL: owner parsed" "passed: \`make doctor\` in $r"
+
+r="$work/ssh443"; new_repo "$r" ssh://git@ssh.github.com:443/lolay/ssh443.git
+makefile_with_doctor "$r"
+run_doctor "$r"
+expect_grep "ssh.github.com on 443: owner parsed" "passed: \`make doctor\` in $r"
+
+r="$work/gitlab"; new_repo "$r" https://gitlab.com/lolay/gitlab.git
+makefile_with_doctor "$r"
+run_doctor "$r"
+expect_grep   "gitlab origin naming a trusted owner: not run" "not run: \`make doctor\` in $r: origin is not a GitHub remote (host class other: https://gitlab.com/lolay/gitlab.git)"
+expect_nocall "  ...and nothing ran" "STUB make"
+
+r="$work/attacker"; new_repo "$r" https://ghp_SECRET@attacker.example/lolay/x.git
+makefile_with_doctor "$r"
+run_doctor "$r"
+expect_grep   "attacker host naming a trusted owner: not run" "not run: \`make doctor\` in $r: origin is not a GitHub remote (host class other: https://***@attacker.example/lolay/x.git)"
+expect_nocall "  ...and nothing ran" "STUB make"
+expect_nogrep "  ...and the token isn't printed" "ghp_SECRET"
+
+r="$work/dotted-alias"; new_repo "$r" git@github.com-evil.example:lolay/x.git
+makefile_with_doctor "$r"
+run_doctor "$r"
+expect_nocall "a dotted github.com-<x> host is not an alias: nothing ran" "STUB make"
+
+r="$work/trusted-on-other-host"; new_repo "$r" https://git.example.com/GaryRudolph/x.git
+makefile_with_doctor "$r"
+run_doctor "$r" PERSONAL_DOCTOR_OWNERS="garyrudolph"
+expect_nocall "PERSONAL_DOCTOR_OWNERS doesn't make another host trusted" "STUB make"
+
+# Without origin.py beside it, the hook runs nothing and still exits 0.
+mkdir -p "$work/lone"; cp "$doctor" "$work/lone/session-doctor.py"
+r="$work/no-helper"; new_repo "$r" https://github.com/GaryRudolph/no-helper; makefile_with_doctor "$r"
+: > "$work/calls"
+printf '{"cwd": "%s"}' "$r" | env -i HOME="$work" PATH="$bin" CLAUDE_CODE_REMOTE=true "$python" -I "$work/lone/session-doctor.py" --timeout 2 >"$work/out" 2>"$work/err"
+[ "$?" = 0 ] && pass "origin.py missing: hook exits 0" || fail "origin.py missing: hook failed"
+expect_grep   "  ...and says it didn't run" "not run: \`make doctor\` in $r: origin.py unavailable"
+expect_nocall "  ...and nothing ran" "STUB make"
+
+printf 'runner or workstation\n'
+# A runner has CLAUDE_CODE_REMOTE=true, CI=true or GITHUB_ACTIONS=true; every other case is a workstation.
+# The tool's home file plays no part: `make install` writes the personal block there only in some modes.
+r="$work/make-repo"
+run_local "$r"
+expect_nocall "workstation: nothing runs" "STUB"
+expect_grep   "  ...one line telling the agent to run it" "Environment doctor: not run at session start on this machine"
+expect_grep   "  ...naming the command and repo" "Run it yourself before the first build or test: \`make doctor\` in $r."
+expect_nogrep "  ...not as a result" "passed:"
+[ "$(wc -l < "$work/out" | tr -d ' ')" = 1 ] && pass "  ...exactly one line" || fail "workstation output is not one line"
+r2="$work/stranger"
+run_local "$r2"
+expect_grep   "workstation, foreign owner: still the one line (nothing runs, so nothing to trust)" "\`make doctor\` in $r2."
+run_local "$work/empty"
+expect_empty  "workstation, nothing with a doctor: silent"
+run_local "$r" PERSONAL_DOCTOR=0
+expect_empty  "workstation, PERSONAL_DOCTOR=0: silent"
+
+for pair in CLAUDE_CODE_REMOTE=true CI=true GITHUB_ACTIONS=true; do
+    run_hook "$r" "$pair"
+    expect_called "$pair: a runner, so the doctor runs" "STUB make --no-print-directory doctor in $r"
+done
+run_hook "$r" CLAUDE_CODE_REMOTE=true CLAUDE_CODE_REMOTE_ENVIRONMENT_TYPE=self_hosted
+expect_called "a self-hosted runner (CLAUDE_CODE_REMOTE_ENVIRONMENT_TYPE=self_hosted): runs" "STUB make --no-print-directory doctor in $r"
+run_hook "$r" CLAUDE_CODE_REMOTE=true CLAUDE_CODE_REMOTE_ENVIRONMENT_TYPE=cloud_default
+expect_called "  ...and a cloud one (cloud_default): runs" "STUB make --no-print-directory doctor in $r"
+run_hook "$r" CLAUDE_CODE_REMOTE=TRUE
+expect_called "the value is matched case-insensitively" "STUB make --no-print-directory doctor in $r"
+for pair in CLAUDE_CODE_REMOTE=false CLAUDE_CODE_REMOTE=1 CLAUDE_CODE_REMOTE= CI=false GITHUB_ACTIONS=0 CLAUDE_CODE_REMOTE_ENVIRONMENT_TYPE=self_hosted; do
+    run_hook "$r" "$pair"
+    expect_nocall "$pair: not a runner, nothing runs" "STUB"
+    expect_grep   "  ...it prints the workstation line" "Environment doctor: not run at session start on this machine"
+done
+
+# A home file with the personal block, or without it, changes nothing: the block isn't the signal.
+ws_home="$work/ws-home"; mkdir -p "$ws_home/.claude" "$ws_home/.codex" "$ws_home/.gemini"
+printf 'before\n# >>> personal >>>\nstandards\n# <<< personal <<<\n' > "$ws_home/.claude/CLAUDE.md"
+run_hook "$r" HOME="$ws_home" CLAUDE_CODE_REMOTE=true
+expect_called "a runner whose home file has the block: still runs" "STUB make --no-print-directory doctor in $r"
+printf 'no block here\n' > "$ws_home/.claude/CLAUDE.md"
+run_hook "$r" HOME="$ws_home"
+expect_nocall "a workstation whose home file has no block (plugin mode): nothing runs" "STUB"
+expect_grep   "  ...it prints the workstation line" "Environment doctor: not run at session start on this machine"
+run_hook "$r" HOME="$work/bare-home"
+expect_nocall "a workstation with no home file: nothing runs" "STUB"
+printf '# >>> personal >>>\nx\n' > "$ws_home/.codex/AGENTS.md"
+run_hook "$r" HOME="$ws_home" PLUGIN_ROOT="$work"
+expect_nocall "Codex without a runner variable (PLUGIN_ROOT): nothing runs" "STUB"
+
+run_hook "$r" GEMINI_PROJECT_DIR="$r"
+if "$python" -c 'import json,sys; d=json.load(open(sys.argv[1])); assert "not run at session start" in d["hookSpecificOutput"]["additionalContext"]' "$work/out"; then
+    pass "Gemini workstation: the line rides in additionalContext"
+else
+    fail "Gemini workstation: not the expected JSON"; sed 's/^/        /' "$work/out" >&2
+fi
+run_hook "$r" GEMINI_PROJECT_DIR="$r" CLAUDE_CODE_REMOTE=true
+expect_called "Gemini with CLAUDE_CODE_REMOTE=true: runs" "STUB make --no-print-directory doctor in $r"
 
 printf 'outcomes\n'
 r="$work/make-repo"
