@@ -1,7 +1,7 @@
 ```
 --- KICKOFF: begin orchestration at [deep] ---
 
-  Status: 1/5 groups done | last review: wave-1-fix PASS | current: public m3 s2-s5 [exec] | updated 2026-11-22
+  Status: 5/5 groups done | last review: wave-2 CONCERNS | current: public m3 s2-s5 [2-fix] | updated 2026-11-22
 
   mode: unattended | proposed unattended (harness=claude-code runner=cloud; assigned branch, CLAUDE_CODE_REMOTE=true) | guard 3x min $50 | fixups 2 | confirmed 2026-11-22 session 2ec2fdaa-1eac-5814-b7c2-d7ccce5bf7da: Unattended (Recommended)
 
@@ -34,6 +34,7 @@
 | 1 [deep] m3 s1 | ~2.7M | ~$1.4 |
 | 1-fix [deep] m3 s1 | — | — |
 | 2 [exec] m3 s2-s5 | ~5.6M | ~$2.2 |
+| 2-fix [exec] m3 s2-s5 | — | — |
 | orchestrator | ~4.3M | ~$3.8 |
 | **Total** | ~13M | ~$7.4 |
 
@@ -92,7 +93,7 @@ Acceptance: the note exists and is committed under `m3.s1`; every one of the sev
 
 --- WAVE 2 [exec] ---
 
-#### ⬜ s2 - [exec] f9 apply: rewrite the seven MCP entries and render them everywhere
+#### ✅ s2 - [exec] f9 apply: rewrite the seven MCP entries and render them everywhere (done)
 
 Implement `specs/handoffs/design-r1-f9-mcp.md` (s1's note; where it says s2 differs from this text, the note wins).
 
@@ -104,17 +105,17 @@ Implement `specs/handoffs/design-r1-f9-mcp.md` (s1's note; where it says s2 diff
 
 Acceptance: `make -C agents validate test` passes; the new tests fail against the old `personal.json` entries; commit under `m3.s2`.
 
-#### ⬜ s3 - [fast] f4: drop the secret-reading and data-sending shell allows
+#### ✅ s3 - [fast] f4: drop the secret-reading and data-sending shell allows (done)
 
 In `agents/allowlists/personal.json` `shell.allow`, remove exactly `op read`, `op run`, `curl -X GET`, `curl --get`, `curl -G` and `wget --method=GET`. Keep `git log`, `git show` and `git diff` (the Owner's call). Leave the blank-line grouping tidy (drop the now-empty curl/wget group). Grep the repo (excluding `specs/reviews/`) for tests or docs that assert any removed entry and update them. Commit under `m3.s3`; `make -C agents validate test` passes.
 
-#### ⬜ s4 - [exec] f4: the scout never proposes --output, --pre or --upload-pack
+#### ✅ s4 - [exec] f4: the scout never proposes --output, --pre or --upload-pack (done)
 
 In `plugins/workstation/skills/personal-allowlist-scout/scripts/scan.py`, make `_classify_text` treat a command that passes `--output`, `--pre` or `--upload-pack` (as `--flag value` or `--flag=value`) as a class the scout never proposes, never Build & test or Inspect: `--output` writes any path, `--pre` and `--upload-pack` run any program. Pick the class from `reference.md`'s class definitions (likely Destructive) and add the flags to the table there. Match whole flags only: `--output-format`, `--prefix` and `--pre-release` must not trip it. Check the flag in both the command text and the recipe or script body, so a package.json script named `lint` running `rg --pre x` is caught. Tests in the scout's suite (`tests/`, run by `make -C agents test-allowlist-scout`): a Makefile `test` target running `git log --output=/tmp/x`, a script running `rg --pre cat`, a target running `git fetch --upload-pack=x`, each not proposed; `--output-format=json` and `--prefix` still classify as before.
 
 Then write `specs/reviews/r1/f4.md`: Change covers s3 and s4 (the six removed entries, git log/show/diff kept by the Owner's decision, the classifier rule); Evidence names the tests. Commit under `m3.s4`; `make -C agents validate test` passes.
 
-#### ⬜ s5 - [exec] f1: wrap shell allows and denies for Claude Code and Cursor CLI
+#### ✅ s5 - [exec] f1: wrap shell allows and denies for Claude Code and Cursor CLI (done)
 
 `render_target_schema` in `agents/lib/allowlists.sh` (the `cursor_cli` and `claude` cases) adds `.shell.allow` and `.shell.deny` unwrapped, so neither tool reads them. Wrap them; Cursor IDE `terminalAllowlist`/`terminalDenylist` and Gemini stay as they are.
 
@@ -134,6 +135,7 @@ Acceptance: `make -C agents validate test` passes; the new assertions fail again
 
 review wave-1 (public m3 s1) 8d34bd1..ab8298b: CONCERNS - the note says `claude_mcp` fails the render on an entry with no `:` or an empty server or tool part, but the jq it gives has no check (`nocolon` renders `mcp__nocolon__ocolon`, `:tool` renders `mcp____tool`): add an explicit guard that calls `error`, or drop the claim; minor: the per-tool record (what each tool does) is only in the gitignored wave output file, so it survives nowhere once the note becomes the PR description - 2026-11-22
 review wave-1-fix (public m3 s1) 8d34bd1..d6ba861: PASS - the guarded claude_mcp renders `notion:notion-search` and `notion:*` and errors on `nocolon`, `:tool` and `server:` as the note states; the per-tool record is the note's collapsed appendix; only the note changed - 2026-11-22
+review wave-2 (public m3 s2-s5) 8757ea0..6fff233: CONCERNS - T41's check that the six removed shell entries render nowhere works only for Claude Code, yet specs/reviews/r1/f4.md says none is rendered in any target: it tests `Shell($removed)` (e.g. `Shell(op read)`), which the renderer never writes (it writes `Shell(op:read)`, `Shell(curl:-G)`); `rendered41` never dumps Cursor IDE's `terminalAllowlist`, the one target that keeps bare strings; and `grep -qxF` on the Gemini TOML can't match a `commandPrefix = "op read"` line. Fix: test `Shell(<base>:<args>)`, add `terminalAllowlist` to rendered41, match Gemini's `commandPrefix` line, or narrow the f4 Evidence to the meta check and Claude Code (agents/lib/allowlists-test.sh:1031-1035, :1080) - 2026-11-22
 
 ## Token log
 
@@ -151,3 +153,6 @@ tokens review-wave-1 public-m3-s1 (claude-opus-5-5): input ~24 / cache read ~320
 tokens wave-1-fix public-m3-s1 (claude-opus-5-5): input ~19 / cache read ~990k / cache write ~56k / output ~5.8k | ~$0.60 API-equiv
 tokens review-wave-1-fix public-m3-s1 (claude-opus-5-5): input ~16 / cache read ~130k / cache write ~19k / output ~2.5k | ~$0.17 API-equiv
 tokens orchestrator-wave-1 public-m3-s1 (claude-opus-5-5): input ~14 / cache read ~1.8M / cache write ~0 5m + ~33k 1h / output ~7.4k | ~$0.77 API-equiv
+tokens wave-2 public-m3-s2-s5 (claude-sonnet-5-5): input ~120 / cache read ~11M / cache write ~240k / output ~53k | ~$2.19 API-equiv
+tokens review-wave-2 public-m3-s2-s5 (claude-opus-5-5): input ~46 / cache read ~1.1M / cache write ~69k / output ~13k | ~$0.81 API-equiv
+tokens orchestrator-wave-1-fix public-m3-s1 (claude-opus-5-5): input ~10 / cache read ~1.1M / cache write ~0 5m + ~12k 1h / output ~9.1k | ~$0.50 API-equiv
