@@ -281,8 +281,8 @@ ALWAYS_DENY='^rm[[:space:]]|^dd$|^mkfs$|^sudo$|get-secret|auth token|^git -C$|^d
 PROPOSE_ONLY='^databricks bundle deploy$'
 
 # Every shell operator that can start a new command becomes a line break.
-segments=$(printf '%s' "$command" \
-  | sed -e 's/[;|&(){}`]/\n/g')
+# tr, not sed: BSD sed on macOS does not expand \n in a replacement.
+segments=$(printf '%s' "$command" | tr ';|&(){}`' '\n')
 
 # Checks one candidate segment against the denylist. Emits a deny and exits,
 # or returns 0 so the next segment is still checked.
@@ -330,16 +330,20 @@ check_segment() {
 while IFS= read -r segment; do
   segment=$(printf '%s' "$segment" | sed -e 's/[[:space:]][[:space:]]*/ /g' -e 's/^ //' -e 's/ $//')
   [ -n "$segment" ] || continue
-  original="$segment"
-  # Drop leading env assignments and words that only wrap the next command.
-  while [[ "$segment" =~ ^[A-Za-z_][A-Za-z0-9_]*=[^[:space:]]*[[:space:]]+(.*)$ ]] \
-     || [[ "$segment" =~ ^(if|then|else|elif|do|while|until|time|exec|command|nohup|\!)[[:space:]]+(.*)$ ]]; do
-    segment="${BASH_REMATCH[${#BASH_REMATCH[@]}-1]}"
+  # Check every intermediate form (the line as written, then each time a
+  # leading env assignment or wrapper word comes off), so a deny on a
+  # wrapper word still applies. The final form is checked below.
+  while :; do
+    if [[ "$segment" =~ ^[A-Za-z_][A-Za-z0-9_]*=[^[:space:]]*[[:space:]]+(.*)$ ]] \
+       || [[ "$segment" =~ ^(if|then|else|elif|do|while|until|time|exec|command|nohup|\!)[[:space:]]+(.*)$ ]]; then
+      check_segment "$segment"
+      segment="${BASH_REMATCH[${#BASH_REMATCH[@]}-1]}"
+    else
+      break
+    fi
   done
   [ -n "$segment" ] || continue
 
-  # A deny on the wrapper word itself still applies.
-  [ "$original" = "$segment" ] || check_segment "$original"
   if argv_is_safe_tool "$segment"; then
     continue
   fi
