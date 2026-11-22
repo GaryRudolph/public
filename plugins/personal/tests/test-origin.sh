@@ -35,6 +35,10 @@ expect_line "dotted alias is other"     "git@github.com-evil.example:lolay/x.git
 expect_line "https alias is other"      "https://github.com-work/lolay/x.git"           other github.com-work lolay x https "https://github.com-work/lolay/x.git"
 expect_line "github.com as a path is other" "https://evil.example/github.com/lolay/x"   other evil.example lolay x https "https://evil.example/github.com/lolay/x"
 expect_line "proxy path must start /git/" "http://127.0.0.1:9/other/acme/widget"         other 127.0.0.1 acme widget http "http://127.0.0.1:9/other/acme/widget"
+expect_line "github.com needs exactly owner/repo" "https://github.com/evil/GaryRudolph/x.git" other github.com GaryRudolph x https "https://github.com/evil/GaryRudolph/x.git"
+expect_line "scp form needs exactly owner/repo" "git@github.com:evil/GaryRudolph/x.git"  other github.com GaryRudolph x ssh "git@github.com:evil/GaryRudolph/x.git"
+expect_line "proxy: no empty segment"   "http://127.0.0.1/git//acme/widget"             other 127.0.0.1 acme widget http "http://127.0.0.1/git//acme/widget"
+expect_line "proxy: no query"           "http://127.0.0.1:9/git/acme/widget?x=1"        other 127.0.0.1 acme widget http "http://127.0.0.1:9/git/acme/widget?***"
 expect_line "proxy needs exactly owner/repo" "http://127.0.0.1/git/acme"           other 127.0.0.1 git acme http "http://127.0.0.1/git/acme"
 expect_line "# ends the authority"      "https://evil.example#@github.com/GaryRudolph/x" other evil.example - - https "https://evil.example#@github.com/GaryRudolph/x"
 expect_line "? ends the authority"      "https://evil.example?@github.com/GaryRudolph/x" other evil.example - - https "https://evil.example?***"
@@ -92,6 +96,9 @@ got=$("$python" -I "$origin" --repo "$r"); want=$(printf 'github\tgithub.com\tac
 git -C "$r" config url."git@github.com-work:".insteadOf "gh:"
 git -C "$r" remote set-url origin "gh:acme/widget.git"
 got=$("$python" -I "$origin" --repo "$r" | cut -f1); [ "$got" = alias ] && pass "insteadOf shorthand is expanded" || fail "insteadOf: '$got'"
+git -C "$r" config --unset-all url."git@github.com-work:".insteadOf
+git -C "$r" remote set-url origin "$(printf 'https://github.com/caf\351/x.git')"
+got=$("$python" -I "$origin" --repo "$r" 2>&1); [ "$got" = "other$TAB-$TAB-$TAB-$TAB-$TAB-" ] && pass "an origin that isn't UTF-8: other, no crash" || fail "non-UTF-8 origin: '$got'"
 got=$("$python" -I "$origin" --repo "$work/not-a-repo"); [ "$got" = "none$TAB-$TAB-$TAB-$TAB-$TAB-" ] && pass "not a repo: none, no crash" || fail "not a repo: '$got'"
 
 printf 'Python 3.9 floor\n'

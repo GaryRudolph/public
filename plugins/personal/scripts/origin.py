@@ -122,15 +122,20 @@ def parse(url):
         if not m:
             return Origin("local", transport="local", masked=masked)
         host, path, is_ssh, transport, scheme = m.group("host").lower(), m.group("path"), True, "ssh", "scp"
-    if host in ("github.com", "www.github.com"):
+    # A GitHub class needs GitHub's own path shape, so the last two segments are
+    # really the owner and repo: exactly <owner>/<repo> (a trailing slash allowed)
+    # on a GitHub host, and exactly /git/<owner>/<repo>, no empty segment, no
+    # query or fragment, through the proxy.
+    two = len(_segments(path)) == 2
+    if host in ("github.com", "www.github.com") and two:
         host_class = "github"
-    elif host == "ssh.github.com":
+    elif host == "ssh.github.com" and two:
         host_class = "ssh443"
-    elif is_ssh and ALIAS_HOST.match(host):
+    elif is_ssh and ALIAS_HOST.match(host) and two:
         host_class = "alias"
     elif (scheme in ("http", "https") and host in ("127.0.0.1", "localhost")
-          and len(_segments(path)) == 3 and _segments(path)[0] == "git"):
-        host_class = "proxy"  # exactly /git/<owner>/<repo>
+          and re.fullmatch(r"/git/[^/?#]+/[^/?#]+", path)):
+        host_class = "proxy"
     else:
         host_class = "other"
     owner, repo = _owner_repo(path)
@@ -143,10 +148,16 @@ def read(repo_dir="."):
     or git fails; never raises."""
     try:
         r = subprocess.run(["git", "-C", str(repo_dir), "remote", "get-url", "origin"],
-                           capture_output=True, text=True, timeout=5)
+                           capture_output=True, timeout=5)
     except (OSError, subprocess.SubprocessError):
         return Origin()
-    return parse(r.stdout.strip()) if r.returncode == 0 else Origin()
+    if r.returncode != 0:
+        return Origin()
+    try:
+        url = r.stdout.decode("utf-8").strip()
+    except UnicodeDecodeError:
+        return Origin("other")  # an origin that isn't UTF-8: not GitHub, nothing to print
+    return parse(url)
 
 
 def _field(value):
