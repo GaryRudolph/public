@@ -71,7 +71,13 @@ Codex, Gemini, and Claude Code follow symlinks, so edits there are live.
 
 The Cursor IDE ignores `terminalDenylist` in `permissions.json`, so without
 this hook the denies the allowlists render (`sudo`, `rm -rf`, `dd`, `mkfs`,
-…) do nothing in the IDE. It's a copy of
+…) do nothing in the IDE. The hook is a seatbelt, not enforcement: it splits
+the command on shell operators and prefix-matches each segment, so quoting,
+`bash -c`, `eval` and wrapped or path-qualified commands (`/bin/rm`,
+`env rm`) get past it, and a quoted `(sudo)` can trip it. A segment that
+matches a protected entry (`sudo`, `rm -rf …`, `dd`, `mkfs`) is denied before
+any allowlist, and a workspace `.cursor/permissions.json` can only add denies.
+It's a copy of
 [`cursor/hooks/enforce-denylist.sh`](cursor/hooks/enforce-denylist.sh), not
 a symlink, because it runs `failClosed`. `hooks.json` is merged, never
 overwritten.

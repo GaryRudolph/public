@@ -7,9 +7,10 @@
 #             symlink mode install removes it.
 #   denylist  ~/.cursor/hooks/$ORG-enforce-denylist.sh on
 #             beforeShellExecution (failClosed) and preToolUse. The Cursor IDE
-#             ignores terminalDenylist, so this hook enforces the deny entries
-#             that allowlists.sh renders into ~/.cursor/permissions.json. It
-#             belongs with the allowlists, so it's installed in every mode.
+#             ignores terminalDenylist, so this hook is a seatbelt for the deny
+#             entries that allowlists.sh renders into ~/.cursor/permissions.json
+#             (a best-effort prefix check per command segment, not enforcement).
+#             It belongs with the allowlists, so it's installed in every mode.
 #
 # hooks.json is always merged, never overwritten: entries from other
 # installers or added by hand survive every operation. The wrappers are pure

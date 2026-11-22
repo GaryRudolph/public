@@ -1,5 +1,12 @@
 #!/bin/bash
-# Enforces terminalDenylist for the Cursor IDE, which ignores that key.
+# Seatbelt for terminalDenylist in the Cursor IDE, which ignores that key.
+# This is a best-effort backstop, not enforcement: it splits the command
+# string on shell operators and prefix-matches each segment, so quoting,
+# variable expansion, `bash -c`, eval and the like get past it. The real
+# boundary is the IDE sandbox and the approval cards. Known gaps: path-qualified
+# or wrapped commands (/bin/rm, env rm, xargs rm, timeout 5 sudo), quoting,
+# variable expansion, bash -c, eval. Known false positives: the split ignores
+# quotes, so `git commit -m "(sudo) ..."` is denied; reword the command.
 #
 # Cursor removed auto-run denylists in v1.3; permissions.json only honors
 # mcpAllowlist / terminalAllowlist / autoRun, and silently drops everything
@@ -7,22 +14,29 @@
 # still renders terminalDenylist into permissions.json, and those same deny
 # entries ARE honored in ~/.cursor/cli-config.json (Cursor CLI) and
 # ~/.claude/settings.json (Claude Code) -- the IDE is the only harness where
-# they do nothing. This hook closes that one gap.
+# they do nothing. This hook narrows that gap.
 #
 # Live path: ~/.cursor/hooks/enforce-denylist.sh (copy preferred over a
 # symlink into a git worktree). Wired from ~/.cursor/hooks.json as
 # beforeShellExecution (failClosed) and preToolUse (rewrite pytest/ruff
 # to an allowlisted prefix so native auto-run does not card).
 #
-# Deny entries are read LIVE from ~/.cursor/permissions.json (and a
-# workspace .cursor/permissions.json when the hook input has a cwd).
+# Deny entries are read LIVE from ~/.cursor/permissions.json and a
+# workspace .cursor/permissions.json when the hook input has a cwd. The
+# workspace file may only ADD denies: a cloned repo's terminalAllowlist is
+# ignored, so it cannot switch off a deny. Only the home file's
+# terminalAllowlist can waive an ordinary deny, and never an ALWAYS_DENY one.
 #
 # Gating strategy: route denylisted writes through sandbox-escalation
 # approval. sandbox=true + denylist hit -> deny with agent_message;
 # sandbox=false (engineer approved unsandboxed) -> allow.
 #
+# The command is split into segments (&&, ||, ;, |, &, newlines, parens,
+# braces, backticks, $( ) and every segment is checked on its own, so a
+# safe first word never vouches for the rest of the line.
+#
 # Argv-safe pytest/ruff (any interpreter path; pytest; uv/poetry run;
-# ruff check / format --check/--diff) is allowed immediately — it must
+# ruff check / format --check/--diff) is allowed per segment — it must
 # not wait on a denylist card. preToolUse also rewrites absolute venv
 # paths, env-var prefixes, and `cd … &&` wrappers to a prefix that is
 # already on terminalAllowlist, because Cursor auto-run is still
@@ -232,59 +246,59 @@ cwd=$(printf '%s' "$input" | jq -r '.cwd // empty' 2>/dev/null) || true
 sandboxed=$(printf '%s' "$input" | jq -r 'if .sandbox == false then "false" else "true" end' 2>/dev/null) || sandboxed=true
 [ -n "$command" ] || allow
 
-if command_is_argv_safe "$command"; then
-  allow
-fi
-
 GLOBAL_PERMS="$HOME/.cursor/permissions.json"
 WORKSPACE_PERMS=""
 if [ -n "$cwd" ] && [ -f "$cwd/.cursor/permissions.json" ]; then
   WORKSPACE_PERMS="$cwd/.cursor/permissions.json"
 fi
 
+# Collapse runs of whitespace and trim, so entries and commands compare alike.
+squeeze() { sed -e 's/[[:space:]][[:space:]]*/ /g' -e 's/^ //' -e 's/ $//'; }
+
 load_list() {
   local key="$1" f
   for f in "$GLOBAL_PERMS" "$WORKSPACE_PERMS"; do
     [ -n "$f" ] && [ -f "$f" ] && jq -r --arg k "$key" '.[$k][]? // empty' "$f" 2>/dev/null
-  done
+  done | squeeze
 }
 
+# A workspace file may only add denies; its allowlist is never read.
 denylist=$(load_list terminalDenylist)
-allowlist=$(load_list terminalAllowlist)
+allowlist=$(jq -r '.terminalAllowlist[]? // empty' "$GLOBAL_PERMS" 2>/dev/null | squeeze) || allowlist=""
 [ -n "$denylist" ] || allow
 
-matching_entry() {
-  local cmd="$1" entry
+# Prints every entry that prefix-matches the command, one per line.
+matching_entries() {
+  local cmd="$1" entry rc=1
   while IFS= read -r entry; do
     [ -z "$entry" ] && continue
     if [ "$cmd" = "$entry" ] || [[ "$cmd" == "$entry "* ]]; then
-      printf '%s' "$entry"
-      return 0
+      printf '%s\n' "$entry"
+      rc=0
     fi
   done
-  return 1
+  return $rc
 }
 
 ALWAYS_DENY='^rm[[:space:]]|^dd$|^mkfs$|^sudo$|get-secret|auth token|^git -C$|^databricks bundle destroy$'
 PROPOSE_ONLY='^databricks bundle deploy$'
 
-segments=$(printf '%s' "$command" \
-  | sed -e 's/&&/\n/g' -e 's/||/\n/g' -e 's/;/\n/g' -e 's/|/\n/g')
+# Every shell operator that can start a new command becomes a line break.
+# tr, not sed: BSD sed on macOS does not expand \n in a replacement.
+# One sed over the whole list, not one process per segment.
+segments=$(printf '%s' "$command" | tr ';|&(){}`' '\n' | squeeze)
 
-while IFS= read -r segment; do
-  segment=$(printf '%s' "$segment" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')
-  while [[ "$segment" =~ ^[A-Za-z_][A-Za-z0-9_]*=[^[:space:]]*[[:space:]]+(.*)$ ]]; do
-    segment="${BASH_REMATCH[1]}"
-  done
-  [ -n "$segment" ] || continue
+# Checks one candidate segment against the denylist. Emits a deny and exits,
+# or returns 0 so the next segment is still checked.
+check_segment() {
+  local segment="$1" hits hit
 
-  if argv_is_safe_tool "$segment"; then
-    continue
-  fi
+  hits=$(printf '%s\n' "$denylist" | matching_entries "$segment") || return 0
+  # A protected entry wins over an ordinary one that matched first.
+  hit=$(printf '%s\n' "$hits" | grep -E "$ALWAYS_DENY" | head -n 1) || true
+  [ -n "$hit" ] || hit=$(printf '%s\n' "$hits" | head -n 1)
 
-  hit=$(printf '%s\n' "$denylist" | matching_entry "$segment") || continue
-  printf '%s\n' "$allowlist" | matching_entry "$segment" >/dev/null && continue
-
+  # ALWAYS_DENY comes before any allowlist.
   if printf '%s' "$hit" | grep -qE "$ALWAYS_DENY"; then
     jq -n --arg e "$hit" --arg s "$segment" '{
       permission: "deny",
@@ -293,6 +307,12 @@ while IFS= read -r segment; do
     }'
     exit 0
   fi
+
+  # The first pass looks for protected entries only, so an ordinary
+  # approval is never requested for a command a later segment will refuse.
+  [ "$SCAN" = protected ] && return 0
+
+  printf '%s\n' "$allowlist" | matching_entries "$segment" >/dev/null && return 0
 
   if printf '%s' "$hit" | grep -qE "$PROPOSE_ONLY"; then
     jq -n --arg e "$hit" --arg s "$segment" '{
@@ -304,7 +324,7 @@ while IFS= read -r segment; do
   fi
 
   if [ "$sandboxed" = "false" ]; then
-    allow
+    return 0
   fi
 
   jq -n --arg e "$hit" --arg s "$segment" '{
@@ -313,6 +333,33 @@ while IFS= read -r segment; do
     agent_message: ("Matches the terminalDenylist entry \"" + $e + "\". This is the Cursor IDE denylist hook, not Auto-review. Parent chat: retry the SAME command with required_permissions [\"all\"] — that surfaces an approval card; on approval it runs in-session and you keep the output. Task / background subagent: do NOT retry and do not set request_smart_mode_approval (there is no approval UI; it fails the same way). Write the exact command and working_directory to the wave artifact and return; the orchestrator-parent runs it in the foreground. Sibling-root cwd also uses [\"all\"] — that is not denylist approval; still do not run this command from a Task.")
   }'
   exit 0
-done <<< "$segments"
+}
+
+scan_segments() {
+  while IFS= read -r segment; do
+    [ -n "$segment" ] || continue
+    # Check every intermediate form (the line as written, then each time a
+    # leading env assignment or wrapper word comes off), so a deny on a
+    # wrapper word still applies. The final form is checked below.
+    while :; do
+      if [[ "$segment" =~ ^[A-Za-z_][A-Za-z0-9_]*=[^[:space:]]*[[:space:]]+(.*)$ ]] \
+         || [[ "$segment" =~ ^(if|then|else|elif|do|while|until|time|exec|command|nohup|\!)[[:space:]]+(.*)$ ]]; then
+        check_segment "$segment"
+        segment="${BASH_REMATCH[${#BASH_REMATCH[@]}-1]}"
+      else
+        break
+      fi
+    done
+    [ -n "$segment" ] || continue
+
+    if argv_is_safe_tool "$segment"; then
+      continue
+    fi
+    check_segment "$segment"
+  done <<< "$segments"
+}
+
+SCAN=protected scan_segments
+SCAN=full scan_segments
 
 allow

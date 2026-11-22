@@ -303,6 +303,98 @@ assert_file_missing "$FAKE_CURSOR/.${ORG}-refresh.lock"
 assert_not_grep "${ORG}-" "$HOOKS_JSON"
 
 # ---------------------------------------------------------------------------
+# Test 15: the hook's own --self-test passes
+# ---------------------------------------------------------------------------
+
+REAL_DENY="$AGENTS_DIR/cursor/hooks/enforce-denylist.sh"
+
+printf 'T15: denylist hook --self-test\n'
+bash "$REAL_DENY" --self-test >/dev/null || fail "enforce-denylist.sh --self-test failed"
+
+# ---------------------------------------------------------------------------
+# Test 16: the real hook (not the stub) denies per segment. It is a seatbelt:
+# these are the bypasses the stub never saw.
+# ---------------------------------------------------------------------------
+
+printf 'T16: real denylist hook behavior\n'
+if ! command -v jq >/dev/null 2>&1; then
+    printf 'skip: jq not found; the denylist hook needs it\n' >&2
+else
+    DENY_HOME="$TEST_DIR/deny-home"
+    DENY_WS="$TEST_DIR/deny-ws"
+    rm -rf "$DENY_HOME" "$DENY_WS"
+    mkdir -p "$DENY_HOME/.cursor" "$DENY_WS/.cursor"
+    cat > "$DENY_HOME/.cursor/permissions.json" <<'JSON'
+{"terminalDenylist": ["rm", "rm -rf ~", "sudo", "git push", "nohup", "wget  -q"], "terminalAllowlist": ["git push", "sudo", "rm -rf ~"]}
+JSON
+    cat > "$DENY_WS/.cursor/permissions.json" <<'JSON'
+{"terminalAllowlist": ["sudo", "rm", "curl"], "terminalDenylist": ["curl"]}
+JSON
+
+    # Prints the hook's permission for a command: allow or deny.
+    hook_decision() {
+        local cmd="$1" sandbox="${2:-true}"
+        jq -n --arg c "$cmd" --arg w "$DENY_WS" --argjson s "$sandbox" \
+            '{command: $c, cwd: $w, sandbox: $s}' \
+            | HOME="$DENY_HOME" bash "$REAL_DENY" | jq -r '.permission'
+    }
+    hook_message() {
+        jq -n --arg c "$1" --arg w "$DENY_WS" '{command: $c, cwd: $w, sandbox: true}' \
+            | HOME="$DENY_HOME" bash "$REAL_DENY" | jq -r '.user_message'
+    }
+    expect_decision() {
+        local want="$1" cmd="$2" sandbox="${3:-true}" got
+        got=$(hook_decision "$cmd" "$sandbox")
+        [ "$got" = "$want" ] || fail "hook: want $want for [$cmd] (sandbox=$sandbox), got [$got]"
+    }
+
+    expect_decision allow 'pytest tests/'
+    expect_decision allow 'python -m pytest && ruff check .'
+    expect_decision deny  'pytest && rm -rf ~'
+    expect_decision deny  'python -m pytest || sudo ls'
+    expect_decision deny  '(rm -rf ~)'
+    expect_decision deny  'rm -rf  ~'
+    expect_decision deny  'echo & sudo whoami'
+    expect_decision deny  'echo hi; sudo ls'
+    expect_decision deny  'echo $(sudo id)'
+    expect_decision deny  'if true; then rm -rf ~; fi'
+    expect_decision deny  '{ rm -rf ~; }'
+    expect_decision deny  'FOO=1 sudo ls'
+    expect_decision deny  "$(printf 'echo hi\n\trm -rf ~')"
+    expect_decision deny  'echo `sudo id`'
+    expect_decision deny  'time sudo ls'
+    expect_decision allow 'pytest tests/ 2>&1'
+    # ALWAYS_DENY beats any allowlist, even unsandboxed, even a workspace one.
+    expect_decision deny  'sudo ls' false
+    expect_decision deny  'rm -rf ~' false
+    # A protected entry wins over an ordinary one listed before it ("rm" first),
+    # and over the home allowlist ("sudo", "rm -rf" are allowed there).
+    expect_decision deny  'rm -rf ~' false
+    expect_decision deny  'rm -rf  ~' false
+    # One approved segment must not exempt a later protected one.
+    expect_decision deny  '(curl example.com); sudo ls' false
+    # No approval card for an ordinary deny when a later segment is protected.
+    expect_decision deny  '(curl example.com); sudo ls'
+    case "$(hook_message '(curl example.com); sudo ls')" in
+        *'no approval path'*) ;;
+        *) fail "hook: compound with a protected segment should name no approval path" ;;
+    esac
+    # A deny on a wrapper word still applies, though the wrapped command is plain.
+    expect_decision deny  'nohup make build'
+    expect_decision allow 'nohup make build' false
+    expect_decision deny  'FOO=1 nohup make build'
+    expect_decision deny  'time nohup make build'
+    # A user-added entry with repeated whitespace still matches.
+    expect_decision deny  'wget -q example.org'
+    # A workspace file adds denies and cannot lift one.
+    expect_decision deny  'curl example.com'
+    # The home allowlist may still waive an ordinary deny.
+    expect_decision allow 'git push origin main'
+    # Unsandboxed approval still passes a non-ALWAYS_DENY hit.
+    expect_decision allow 'curl example.com' false
+fi
+
+# ---------------------------------------------------------------------------
 # Summary
 # ---------------------------------------------------------------------------
 
