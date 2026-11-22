@@ -1,9 +1,9 @@
 ```
 --- KICKOFF: begin orchestration at [deep] ---
 
-  Status: BLOCKED at gate mode | updated 2026-11-22
+  Status: 0/5 groups done | last review: — | current: public m3 s1 [deep] | updated 2026-11-22
 
-  mode: pending | proposed unattended (harness=claude-code runner=cloud; assigned branch, CLAUDE_CODE_REMOTE=true) | guard 3x min $50 | fixups 2
+  mode: unattended | proposed unattended (harness=claude-code runner=cloud; assigned branch, CLAUDE_CODE_REMOTE=true) | guard 3x min $50 | fixups 2 | confirmed 2026-11-22 session 2ec2fdaa-1eac-5814-b7c2-d7ccce5bf7da: Unattended (Recommended)
 
   review: every-wave (log-only)
 
@@ -14,6 +14,7 @@
   Prompt to paste into the next chat:
     In GaryRudolph/public, read specs/handoffs/plan-r1-rendering-kestrel.md. The plan is already tagged.
     On branch claude/charming-ramanujan-l3dgpq (task branch): subagents commit each finished step.
+    Run in unattended mode.
     Run the personal-plan-orchestrate skill from the top: walk to
     each tier boundary, dispatch subagents per the skill's
     procedure, and pause only where the recorded mode stops. Do not
