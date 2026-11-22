@@ -370,7 +370,11 @@ extract_passthrough() {
             jq -S 'del(.terminalAllowlist, .terminalDenylist, .mcpAllowlist, .mcpDenylist)' "$live"
             ;;
         cursor_cli|claude)
-            jq -S 'del(.permissions)' "$live"
+            # Only allow and deny are ours; ask, defaultMode, additionalDirectories
+            # and the rest stay in the passthrough and deep-merge back at render.
+            jq -S 'del(.permissions.allow, .permissions.deny)
+                   | if (.permissions? | type) == "object" and (.permissions | length) == 0
+                     then del(.permissions) else . end' "$live"
             ;;
     esac
 }
@@ -518,10 +522,18 @@ promote_user_edits() {
     rm -f "$new_pt"
 
     # 2) Compute what live WOULD be without user-managed entries.
-    local our_render expected_no_user
+    # Baseline is what this org rendered last time (its on-disk sidecar), so an
+    # entry removed from the meta is not mistaken for a user edit. Only on
+    # first install, with no sidecar yet, does the meta render stand in.
+    local our_render expected_no_user our_sidecar
     our_render=$(mktemp)
     expected_no_user=$(mktemp)
-    render_target_schema "$kind" "$ALLOWLISTS_SRC" > "$our_render"
+    our_sidecar=$(org_sidecar "$stem" "$dir")
+    if [ -f "$our_sidecar" ]; then
+        cp -- "$our_sidecar" "$our_render"
+    else
+        render_target_schema "$kind" "$ALLOWLISTS_SRC" > "$our_render"
+    fi
 
     local args=("$our_render")
     local other
@@ -652,12 +664,15 @@ atomic_write() {
 
 guardrail_first_install() {
     local stem="$1" dir="$2"
-    local hist1 sidecar
+    local hist1 live
     hist1=$(history_file "$stem" "$dir" 1)
-    sidecar=$(org_sidecar "$stem" "$dir")
-    if [ -f "$hist1" ] && [ ! -f "$sidecar" ]; then
-        printf 'error: %s exists but %s does not.\n' \
-            "$(pretty_path "$hist1")" "$(pretty_path "$sidecar")" >&2
+    live=$(target_path "$stem" "$dir")
+    # Trip only on a live file that no sidecar explains (any org's, the
+    # user-managed one, or the passthrough). History alone does not count:
+    # uninstall keeps .history/, and it is shared between orgs.
+    if [ -f "$hist1" ] && [ -f "$live" ] && ! has_any_sidecar "$stem" "$dir"; then
+        printf 'error: %s exists with history %s but no sidecar explains it.\n' \
+            "$(pretty_path "$live")" "$(pretty_path "$hist1")" >&2
         printf '       refusing to overwrite a live file we did not install previously.\n' >&2
         printf '       to proceed: remove %s and re-run, or restore the previous\n' \
             "$(pretty_path "$hist1")" >&2
@@ -666,6 +681,38 @@ guardrail_first_install() {
         return 1
     fi
     return 0
+}
+
+has_any_sidecar() {
+    local stem="$1" dir="$2"
+    [ -d "$dir" ] || return 1
+    [ -n "$(find "$dir" -maxdepth 1 -type f -name ".$stem.*.json" -print -quit 2>/dev/null)" ]
+}
+
+# ---------------------------------------------------------------------------
+# Input validation: nothing is written unless every live file and sidecar parses
+# ---------------------------------------------------------------------------
+
+validate_inputs() {
+    local stem dir kind f bad=0
+    while IFS='|' read -r stem dir kind; do
+        [ -d "$dir" ] || continue
+        while IFS= read -r -d '' f; do
+            if [ ! -s "$f" ]; then
+                printf 'error: %s is empty (0 bytes); nothing was written.\n' "$(pretty_path "$f")" >&2
+                bad=1
+            elif ! jq empty "$f" >/dev/null 2>&1; then
+                printf 'error: %s is not valid JSON; nothing was written.\n' "$(pretty_path "$f")" >&2
+                jq empty "$f" >&2 2>&1 || true
+                bad=1
+            fi
+        done < <({ [ -f "$(target_path "$stem" "$dir")" ] && printf '%s\0' "$(target_path "$stem" "$dir")"
+                   find "$dir" -maxdepth 1 -type f -name ".$stem.*.json" -print0 2>/dev/null; } || true)
+    done < <(all_targets)
+    if [ "$bad" = "1" ]; then
+        ABORTED=1
+        return 1
+    fi
 }
 
 # ---------------------------------------------------------------------------
@@ -721,6 +768,15 @@ apply_one_target() {
     our_render=$(mktemp)
     render_target_schema "$kind" "$ALLOWLISTS_SRC" > "$our_render"
 
+    # `|| ABORTED=1` in the caller turns off errexit in here, so check the
+    # render by hand: a failed jq must never reach a sidecar or the live file.
+    if [ ! -s "$our_render" ] || ! jq empty "$our_render" >/dev/null 2>&1; then
+        printf 'error: rendering %s from %s failed; nothing was written.\n' \
+            "$pretty" "$(pretty_path "$ALLOWLISTS_SRC")" >&2
+        rm -f "$our_render"
+        return 1
+    fi
+
     # Refresh our org sidecar on disk so peer installers see our contribution.
     sidecar=$(org_sidecar "$stem" "$dir")
     if [ ! -f "$sidecar" ] || ! cmp -s "$our_render" "$sidecar"; then
@@ -735,6 +791,11 @@ apply_one_target() {
     proposed=$(mktemp)
     render_one_target "$stem" "$dir" "$kind" "$proposed" "$our_render"
     rm -f "$our_render"
+    if [ ! -s "$proposed" ] || ! jq empty "$proposed" >/dev/null 2>&1; then
+        printf 'error: merging %s failed; left untouched.\n' "$pretty" >&2
+        rm -f "$proposed"
+        return 1
+    fi
 
     if [ -f "$live" ] && cmp -s "$proposed" "$live"; then
         printf '%-50s = no change (idempotent)%s\n' "$pretty" "$label"
@@ -1287,8 +1348,9 @@ cmd_install() {
     acquire_lock
     print_header "install-allowlists"
     local stem dir kind gdir
+    validate_inputs || exit 1
     while IFS='|' read -r stem dir kind; do
-        apply_one_target "$stem" "$dir" "$kind" || true
+        apply_one_target "$stem" "$dir" "$kind" || ABORTED=1
         [ "$ABORTED" = "1" ] && break
     done < <(all_targets)
     if [ "$ABORTED" != "1" ]; then
@@ -1327,8 +1389,9 @@ cmd_dry_run() {
     acquire_lock
     print_header "dry-run-allowlists"
     local stem dir kind gdir
+    validate_inputs || exit 1
     while IFS='|' read -r stem dir kind; do
-        apply_one_target "$stem" "$dir" "$kind" || true
+        apply_one_target "$stem" "$dir" "$kind" || ABORTED=1
         [ "$ABORTED" = "1" ] && break
     done < <(all_targets)
     if [ "$ABORTED" != "1" ]; then
