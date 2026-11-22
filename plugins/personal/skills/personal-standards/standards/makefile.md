@@ -150,10 +150,11 @@ A leaf's `triage.yaml` lists every tool `make ci` needs, so a passing
 `make doctor` means `make ci` can run; its version checks follow
 [architecture.md](architecture.md#toolchain-floor-and-pin). The
 `personal` plugin runs `make doctor` at the start of an agent session on a
-runner, cloud or self-hosted (`task doctor` or `triage` where there's no
-Makefile target), in repos whose GitHub origin it trusts, and reports the
-result. On a workstation it runs nothing and tells the agent to run the
-doctor itself, so the run goes through Claude Code's folder trust and
+runner (`CLAUDE_CODE_REMOTE=true`, `CI=true` or `GITHUB_ACTIONS=true`: Claude
+Code cloud and self-hosted sessions, CI; `task doctor` or `triage` where
+there's no Makefile target), in repos whose GitHub origin it trusts, and
+reports the result. Anywhere else it runs nothing and tells the agent to run
+the doctor itself, so the run goes through Claude Code's folder trust and
 permissions.
 
 A repo with a triage config ignores `.triage/`, its log directory (git.md

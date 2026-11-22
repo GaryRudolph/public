@@ -13,11 +13,12 @@ repos beneath. Each repo gets the first doctor it has:
 
 A doctor is the repo's own code, and a personal plugin's hooks run before
 the harness asks whether to trust the folder. So the hook runs one only on a
-runner (a Claude Code cloud or self-hosted runner session, told apart as
-session-start.sh does: no `# >>> personal >>>` block in the tool's home file,
-which `make install` writes on the Owner's workstation). On a workstation it
-runs nothing and prints one line telling the agent to run each doctor itself,
-so the run goes through Claude Code's folder trust and permissions.
+runner: CLAUDE_CODE_REMOTE=true (Claude Code cloud and self-hosted runner
+sessions), CI=true or GITHUB_ACTIONS=true. Anywhere else it runs nothing and
+prints one line telling the agent to run each doctor itself, so the run goes
+through Claude Code's folder trust and permissions. It doesn't read the
+tool's home file: `make install` writes the personal block there only in
+some modes, so the block can't tell a workstation from a runner.
 
 On a runner, a repo's doctor runs only when its `origin` is a GitHub remote
 (origin.py: github.com, an ssh alias for it, ssh.github.com, or the cloud git
@@ -141,21 +142,17 @@ def load_origin():
         return None
 
 
-HOME_BLOCK = "# >>> personal >>>"
-
-
-def home_file():
-    """The tool's home file, chosen as session-start.sh chooses it."""
-    if os.environ.get("PLUGIN_ROOT"):
-        return Path(os.environ.get("CODEX_HOME") or Path.home() / ".codex") / "AGENTS.md"
-    if os.environ.get("GEMINI_PROJECT_DIR") and not os.environ.get("CLAUDE_PLUGIN_ROOT"):
-        return Path.home() / ".gemini" / "GEMINI.md"
-    return Path(os.environ.get("CLAUDE_CONFIG_DIR") or Path.home() / ".claude") / "CLAUDE.md"
+RUNNER_VARS = ("CLAUDE_CODE_REMOTE", "CI", "GITHUB_ACTIONS")
 
 
 def on_runner():
-    """True on a runner: the home file has no block from `make install`, as session-start.sh decides."""
-    return HOME_BLOCK not in read_text(home_file())
+    """True on a runner: CLAUDE_CODE_REMOTE, CI or GITHUB_ACTIONS is "true".
+
+    Claude Code cloud and self-hosted runner sessions set CLAUDE_CODE_REMOTE=true
+    (CLAUDE_CODE_REMOTE_ENVIRONMENT_TYPE tells them apart, which nothing here needs);
+    CI systems set CI=true, and GitHub Actions sets GITHUB_ACTIONS=true.
+    """
+    return any(os.environ.get(name, "").strip().lower() == "true" for name in RUNNER_VARS)
 
 
 def is_trusted(owner):
