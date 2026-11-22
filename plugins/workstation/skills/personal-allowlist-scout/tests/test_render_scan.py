@@ -121,6 +121,12 @@ class Unwrap(unittest.TestCase):
         covered, entry, kind = scan.covered_by("make release", [scan._unwrap_token("Shell(make:*)")])
         self.assertEqual((covered, entry, kind), (True, "make", "broad"))
 
+    def test_broad_rule_is_reported_beside_its_exact_twin(self):
+        ents = [scan._unwrap_token("Shell(make:test)"),
+                scan._unwrap_token("Shell(make:*)")]
+        self.assertEqual(scan.covered_by("make test", ents), (True, "make", "broad"))
+        self.assertEqual(scan.covered_by("make test", list(reversed(ents)))[2], "broad")
+
     def test_exact_entry_covers_only_itself(self):
         ents = [scan._unwrap_token("Shell(make:test)")]
         self.assertEqual(scan.covered_by("make test", ents)[2], "exact")

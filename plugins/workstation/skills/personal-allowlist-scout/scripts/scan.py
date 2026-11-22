@@ -342,13 +342,18 @@ def gemini_prefixes_from_dir(dirpath):
 def covered_by(segment: str, prefixes):
     """Return (covered, matching_entry, kind) where kind is 'exact' or 'broad'.
     A candidate is covered when an existing entry equals it or is a true token
-    prefix of it (entry + ' ' is a prefix of the candidate)."""
+    prefix of it (entry + ' ' is a prefix of the candidate). Every entry is
+    checked: when a broad entry matches, that is the one reported, even if an
+    exact entry is also present, so a broad grant is never hidden behind its
+    narrower twin."""
     broad = None
+    exact = None
     for p in prefixes:
         if not p:
             continue
         if segment == p:
-            return True, p, "exact"
+            exact = p
+            continue
         if isinstance(p, _Exact):
             continue
         if segment.startswith(p + " "):
@@ -356,6 +361,8 @@ def covered_by(segment: str, prefixes):
                 broad = p
     if broad is not None:
         return True, broad, "broad"
+    if exact is not None:
+        return True, exact, "exact"
     return False, None, None
 
 
