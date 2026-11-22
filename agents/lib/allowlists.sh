@@ -116,6 +116,7 @@ LOCK_ACQUIRED=0
 DRY_RUN=0
 MODE="install"            # install | uninstall | dry-run | status | diff | restore | clean
 ABORTED=0
+PT_DROPPED=0              # dry-run: promotion decided the passthrough is stale
 
 # Cross-target accumulators printed at the end of every run.
 CONFLICTS=()
@@ -481,7 +482,7 @@ render_one_target() {
     # should be no conflict; merged-wins is the defensive choice).
     local pt
     pt=$(passthrough_path "$stem" "$dir")
-    if [ -f "$pt" ]; then
+    if [ -f "$pt" ] && [ "$PT_DROPPED" != "1" ]; then
         jq -s -S '.[0] * .[1]' "$pt" "$merged" > "$out"
     else
         jq -S '.' "$merged" > "$out"
@@ -501,6 +502,7 @@ promote_user_edits() {
     local stem="$1" dir="$2" kind="$3"
     local live
     live=$(target_path "$stem" "$dir")
+    PT_DROPPED=0
     [ -f "$live" ] || return 0
 
     # 1) Refresh the passthrough sidecar from live (idempotent).
@@ -518,14 +520,18 @@ promote_user_edits() {
         # The live file (already validated) holds nothing unmanaged, so a
         # passthrough from an earlier run is stale: drop it, or a setting the
         # engineer removed (say defaultMode: bypassPermissions) comes back.
-        if [ -f "$pt" ] && [ "$DRY_RUN" != "1" ]; then
-            rm -f -- "$pt"
+        if [ -f "$pt" ]; then
+            if [ "$DRY_RUN" = "1" ]; then
+                PT_DROPPED=1     # preview as if it were gone; touch nothing
+            else
+                rm -f -- "$pt" || { rm -f "$new_pt"; return 1; }
+            fi
         fi
     elif [ ! -f "$pt" ] || ! cmp -s "$new_pt" "$pt"; then
         should_write_pt=1
     fi
     if [ "$should_write_pt" = "1" ] && [ "$DRY_RUN" != "1" ]; then
-        atomic_write "$pt" "$new_pt"
+        atomic_write "$pt" "$new_pt" || { rm -f "$new_pt"; return 1; }
     fi
     rm -f "$new_pt"
 
@@ -621,7 +627,11 @@ promote_user_edits() {
     if [ "$total" != "0" ]; then
         if [ "$DRY_RUN" != "1" ]; then
             if [ ! -f "$user_file" ] || ! cmp -s "$user_out" "$user_file"; then
-                atomic_write "$user_file" "$user_out"
+                atomic_write "$user_file" "$user_out" || {
+                    printf 'error: could not write %s; left untouched.\n' "$(pretty_path "$user_file")" >&2
+                    rm -f "$user_out"
+                    return 1
+                }
             fi
         fi
     fi
@@ -671,9 +681,14 @@ rotate_history() {
 atomic_write() {
     local target="$1" source="$2"
     local tmp="${target}.tmp.$$"
-    mkdir -p "$(dirname "$target")"
-    cp -- "$source" "$tmp"
-    mv -- "$tmp" "$target"
+    mkdir -p "$(dirname "$target")" || return 1
+    # Callers run with errexit off, so check each step: rename only a
+    # complete copy, and never leave a partial temp file behind.
+    if cp -- "$source" "$tmp" && cmp -s "$source" "$tmp" && mv -- "$tmp" "$target"; then
+        return 0
+    fi
+    rm -f -- "$tmp"
+    return 1
 }
 
 # ---------------------------------------------------------------------------
@@ -711,7 +726,7 @@ guardrail_first_install() {
 list_consumed_sidecars() {
     local stem="$1" dir="$2"
     [ -d "$dir" ] || return 0
-    find "$dir" -maxdepth 1 -type f \( -name ".$stem.*-managed.json" -o -name ".$stem.passthrough.json" \) -print0 2>/dev/null
+    find "$dir" -maxdepth 1 \( -type f -o -type l \) \( -name ".$stem.*-managed.json" -o -name ".$stem.passthrough.json" \) -print0 2>/dev/null
 }
 
 has_any_sidecar() {
@@ -847,7 +862,11 @@ apply_one_target() {
     fi
 
     if [ -f "$live" ] && cmp -s "$proposed" "$live"; then
-        write_org_sidecar "$sidecar" "$our_render"
+        if ! write_org_sidecar "$sidecar" "$our_render"; then
+            printf 'error: could not update sidecar %s; rerun install.\n' "$(pretty_path "$sidecar")" >&2
+            rm -f "$proposed" "$our_render"
+            return 1
+        fi
         printf '%-50s = no change (idempotent)%s\n' "$pretty" "$label"
         rm -f "$proposed" "$our_render"
         return 0
@@ -921,7 +940,7 @@ remove_one_target() {
     proposed=$(mktemp)
     render_one_target "$stem" "$dir" "$kind" "$proposed" "" "1"
 
-    if [ -f "$live" ] && ! ls "$dir/.$stem."*.json >/dev/null 2>&1 && render_is_empty "$proposed"; then
+    if [ -f "$live" ] && ! has_any_sidecar "$stem" "$dir" && render_is_empty "$proposed"; then
         rm -f "$proposed"
         if [ "$DRY_RUN" = "1" ]; then
             printf '%-50s - would remove (only held %s entries)%s\n' "$pretty" "$ORG" "$label"
@@ -1435,6 +1454,7 @@ cmd_uninstall() {
     acquire_lock
     print_header "uninstall-allowlists"
     local stem dir kind gdir
+    validate_inputs || exit 1
     while IFS='|' read -r stem dir kind; do
         remove_one_target "$stem" "$dir" "$kind"
     done < <(all_targets)

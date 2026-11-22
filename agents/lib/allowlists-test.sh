@@ -917,6 +917,51 @@ cmp -s "$TEST_DIR/t38.before" "$H38/.claude/settings.json" || fail "T38: setting
 [ -z "$(find "$H38/.claude" -name '.settings.*' -print -quit)" ] || fail "T38: a sidecar was written"
 
 # ---------------------------------------------------------------------------
+# T39 (review round 2): uninstall validates first, and a stray backup does not block reinstall.
+# ---------------------------------------------------------------------------
+printf '[T39] uninstall refuses a live file with two JSON values, untouched\n'
+H39=$(mk_home t39)
+run_al "$H39" "$META" install >/dev/null
+printf '{"a":1}{"b":2}\n' > "$H39/.claude/settings.json"
+cp "$H39/.claude/settings.json" "$TEST_DIR/t39.before"
+rc=0
+run_al "$H39" "$META" uninstall >/dev/null 2>&1 || rc=$?
+[ "$rc" -ne 0 ] || fail "T39: uninstall exited 0 on a malformed live file"
+cmp -s "$TEST_DIR/t39.before" "$H39/.claude/settings.json" || fail "T39: settings.json changed"
+[ -f "$H39/.claude/.settings.${ORG}-managed.json" ] || fail "T39: org sidecar removed despite the abort"
+
+printf '[T39b] stray backup file: install, uninstall, reinstall succeeds\n'
+H39B=$(mk_home t39b)
+run_al "$H39B" "$META" install >/dev/null
+printf '{}\n' > "$H39B/.cursor/.permissions.backup.json"
+run_al "$H39B" "$META" install >/dev/null
+REMOVE_HISTORY=no run_al "$H39B" "$META" uninstall >/dev/null
+rc=0
+run_al "$H39B" "$META" install >/dev/null 2>&1 || rc=$?
+[ "$rc" -eq 0 ] || fail "T39b: reinstall failed with a stray backup present (exit $rc)"
+
+printf '[T39c] empty symlinked sidecar is caught before any write\n'
+H39C=$(mk_home t39c)
+run_al "$H39C" "$META" install >/dev/null
+: > "$TEST_DIR/t39c.empty"
+ln -sf "$TEST_DIR/t39c.empty" "$H39C/.claude/.settings.user-managed.json"
+snap39() { (cd "$H39C" && find . -type f -print | LC_ALL=C sort | while IFS= read -r p; do printf '%s %s\n' "$p" "$(cksum < "$p")"; done); }
+snap39 > "$TEST_DIR/t39c.before"
+rc=0
+run_al "$H39C" "$META2" install >/dev/null 2>&1 || rc=$?
+[ "$rc" -ne 0 ] || fail "T39c: install exited 0 with an empty symlinked sidecar"
+snap39 > "$TEST_DIR/t39c.after"
+cmp -s "$TEST_DIR/t39c.before" "$TEST_DIR/t39c.after" || fail "T39c: a file changed despite the abort"
+
+printf '[T39d] dry-run previews the stale passthrough as gone\n'
+H39D=$(mk_home t39d)
+printf '{"permissions":{"defaultMode":"bypassPermissions"}}\n' > "$H39D/.claude/settings.json"
+run_al "$H39D" "$META" install >/dev/null
+jq 'del(.permissions.defaultMode)' "$H39D/.claude/settings.json" > "$H39D/s.tmp" && mv "$H39D/s.tmp" "$H39D/.claude/settings.json"
+run_al "$H39D" "$META" dry-run 2>&1 | grep -F 'settings.json' | grep -q 'no change' \
+    || fail "T39d: dry-run previews a rewrite that install would not make"
+
+# ---------------------------------------------------------------------------
 # Final report
 # ---------------------------------------------------------------------------
 if [ "$FAILED" -eq 0 ]; then
