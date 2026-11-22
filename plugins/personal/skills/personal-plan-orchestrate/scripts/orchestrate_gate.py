@@ -491,13 +491,34 @@ def check(inp):
     why = unpushed(last.get("groups") or [], local)  # both modes
     if why:
         deny(f"per-wave handoff: {why}")
-    segs = [u for u in launched if is_segment(u.get("name") or "")]
-    prior = (((segs[-1].get("args") or {}).get("state") or {}).get("mode") or {}) if segs else {}
+    here = str(Path(path).resolve())  # the baseline is this plan's last launch; another plan in the session has its own spend
+    segs = [u for u in launched if is_segment(u.get("name") or "")
+            and str(Path(((u.get("args") or {}).get("plan") or {}).get("path") or "").resolve()) == here]
+    prior_state = ((segs[-1].get("args") or {}).get("state") or {}) if segs else {}
+    prior = prior_state.get("mode") or {}
     before, floor = prior.get("guard"), prior.get("guard_min")
+    cost_before, cost_now = prior_state.get("cost") or {}, fresh.get("cost") or {}
+    limit_before, limit_now = cost_before.get("limit"), cost_now.get("limit")
+    # The trip point is max(guard x Total, floor): raising the multiple or the floor moves it, and so does raising the
+    # Total row, so the limit itself is compared, not only its two inputs.
     rose = (before is not None and (mode.get("guard") or 0) > before) or \
-        (floor is not None and (mode.get("guard_min") or 0) > floor)
-    if rose and "gate-guard" not in given:
-        deny(f"the cost guard rose from {before:g}x min ${floor or 0:g} to {mode.get('guard') or 0:g}x min ${mode.get('guard_min') or 0:g} since the last launch; approve gate-guard with the human's answer")
+        (floor is not None and (mode.get("guard_min") or 0) > floor) or \
+        (limit_before is not None and cost_now and (limit_now is None or limit_now > limit_before))  # a vanished Total removes the cap
+    wave_now = (fresh.get("next") or {}).get("wave")
+    # plan-segment.js ignores an approval for another wave, so the guard's must name the wave being launched.
+    guard_ok = any(a.get("gate") == "gate-guard" and a.get("wave") == wave_now
+                   for a in args.get("approved") or [] if isinstance(a, dict))
+    if rose and not guard_ok:
+        if (before, floor) == (mode.get("guard"), mode.get("guard_min")):
+            deny(f"the cost limit rose from ${limit_before or 0:g} to {'none (no Cost Total)' if limit_now is None else '$%g' % limit_now} "
+                 "since the last launch with the guard and floor unchanged, so the Cost table's Total row moved; approve gate-guard with the human's answer")
+        deny(f"the cost guard rose from {before or 0:g}x min ${floor or 0:g} (limit ${limit_before or 0:g}) to {mode.get('guard') or 0:g}x min ${mode.get('guard_min') or 0:g} (limit ${limit_now or 0:g}) since the last launch; approve gate-guard with the human's answer")
+    spent_before, spent_now = cost_before.get("actual"), cost_now.get("actual")
+    if spent_before is not None and spent_now is not None and spent_now < spent_before and not guard_ok:
+        # A better-source line replaces the lines it covers (plan-execution.md "Token log"), so a fall is allowed on the
+        # human's word, as a rise in the limit is; otherwise a deleted or lowered line moves the guard unseen.
+        deny(f"the Token log's total fell from ${spent_before:g} to ${spent_now:g} since the last launch: a line was deleted or lowered; "
+             "approve gate-guard with the human's answer if a better-source line replaced it, else restore it")
     cap = prior.get("fixups")
     if cap is not None and (mode.get("fixups") or 0) > cap and "gate-1" not in given:
         deny(f"the fix-up cap rose from {cap} to {mode.get('fixups')} since the last launch; approve gate-1 with the human's answer")

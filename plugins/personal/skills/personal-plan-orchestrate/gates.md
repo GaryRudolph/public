@@ -93,6 +93,13 @@ next whole one above the projection, or to what the Owner names; the raise needs
 their approval of `gate-guard`. Unplanned premium work stops whatever the
 spend.
 
+The hook compares the limit itself with the previous launch's
+(`plan_state.py`'s `cost.limit`), not only the multiple and the floor: a rise
+needs `gate-guard` approved for the wave being launched, so editing the Cost table's Total row to lift the trip
+point is a raise too. A fall in `cost.actual` needs the same approval: the Token
+log grows, but a better-source line replaces the lines it covers
+(`plan-execution.md` "Token log") and can lower the total, so the human says so.
+
 **Over expected, a note.** Once `plan_state.py`'s `cost.actual` passes
 `cost.expected_total`, add `| over expected: ~$<actual> of ~$<total>` to
 Status, say so in the handoff and in the next message the Owner sees, and carry

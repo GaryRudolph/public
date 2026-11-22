@@ -22,8 +22,13 @@ and quoted strings are set aside before the checks, so
 """
 
 import json
+import os
 import re
 import sys
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))  # python3 -I leaves the script's folder off the path
+from shell_scan import (START, STDIN_SHELL, Timeout, bare, deadline, env_split, find_writes,  # noqa: E402
+                        inner_strings, join_continuations)
 
 REVIEWER = re.compile(r"^[a-z][a-z0-9-]*:plan-reviewer$")
 
@@ -32,24 +37,31 @@ GIT_WRITE = re.compile(
     r"\bgit\b" + GIT_OPTS + r"\s+"
     r"(commit|push|add|rm|mv|reset|checkout|switch|restore|rebase|merge|cherry-pick|revert|stash|tag|branch\s+-[dDmMcC]|"
     r"clean|apply|am|pull|fetch|worktree|update-ref|update-index|config|remote|gc|prune|notes|replace|filter-branch)\b")
-WRITERS = re.compile(r"(?:^|[;&|(`\n]\s*|\$\(\s*|\bsudo\s+|\bxargs\s+)(rm|rmdir|mv|cp|touch|mkdir|tee|truncate|chmod|chown|ln|dd|install|gh|patch)\b")
+WRITERS = re.compile(START + r"(?:\S*/)?(rm|rmdir|mv|cp|touch|mkdir|tee|truncate|chmod|chown|ln|dd|install|gh|patch)\b")
 SED_IN_PLACE = re.compile(r"\b(?:sed|perl)\b[^;&|\n]*\s-[a-zA-Z]*i")
 REDIRECT = re.compile(r"(?<![0-9&])>>?\s*(?!&|/dev/null\b)\S|\b[0-9]>>?\s*(?!&|/dev/null\b)[^\s&]")
 
-HEREDOC = re.compile(r"(<<-?[ \t]*(['\"]?)([A-Za-z_]\w*)\2)([^\n]*)\n.*?\n[ \t]*\3[ \t]*(?=\n|$)", re.S)
-QUOTED = re.compile(r"'[^']*'|\"(?:[^\"\\]|\\.)*\"")
-
-
-def bare(command):
-    """The command with heredoc bodies and quoted strings set aside."""
-    return QUOTED.sub("''", HEREDOC.sub(r"\1\4", command))
-
-
-def problem(command):
+def problem(command, depth=0):
     """Why a reviewer may not run command, or None."""
+    command = join_continuations(command)
+    nested = inner_strings(command)
+    if nested and depth >= 3:
+        return "command strings nested more than three levels deep"
+    for text, kind, _ in nested:
+        if kind == "opaque":
+            return "an ANSI-C quoted command string that can't be inspected"
+        why = problem(text, depth + 1)
+        if why:
+            return why
+    found = find_writes(command)
+    if found:
+        return f"a find that deletes or writes ({found[0]!r})"
+    if env_split(command):
+        return "env -S, which runs a string this guard can't split"
     command = bare(command)
-    for rx, what in ((GIT_WRITE, "a git command that writes"), (WRITERS, "a command that writes files or acts outward"),
-                     (SED_IN_PLACE, "an in-place edit"), (REDIRECT, "output redirected to a file")):
+    for rx, what in ((STDIN_SHELL, "a shell that reads its commands from stdin"), (GIT_WRITE, "a git command that writes"),
+                     (WRITERS, "a command that writes files or acts outward"), (SED_IN_PLACE, "an in-place edit"),
+                     (REDIRECT, "output redirected to a file")):
         m = rx.search(command)
         if m:
             return f"{what} ({m.group(0).strip()[:40]!r})"
@@ -64,7 +76,14 @@ def main():
     if not isinstance(inp, dict) or not REVIEWER.match(str(inp.get("agent_type") or "")):
         return
     command = (inp.get("tool_input") or {}).get("command")
-    why = problem(command) if isinstance(command, str) else "a Bash call with no command string"
+    if isinstance(command, str):
+        deadline()  # a command too slow to analyse is denied, not left to time the hook out
+        try:
+            why = problem(command)
+        except Timeout:
+            why = "a command too tangled to analyse in time"
+    else:
+        why = "a Bash call with no command string"
     if why:
         print(json.dumps({"hookSpecificOutput": {"hookEventName": "PreToolUse", "permissionDecision": "deny",
                                                  "permissionDecisionReason": "personal-plan-orchestrate reviewer: read-only; "

@@ -39,14 +39,16 @@ are set aside before the checks, so a heredoc that writes "git push" or
 """
 
 import json
+import os
 import re
 import sys
 
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))  # python3 -I leaves the script's folder off the path
+from shell_scan import (ASSIGN, SEPARATOR, START, STDIN_SHELL, Timeout, bare, deadline, env_split, inner_strings,  # noqa: E402
+                        join_continuations, name_of, split_prefix)
+
 WORKER = re.compile(r"^[a-z][a-z0-9-]*:plan-worker$")
 
-# A command word's position: the start, or after a separator, a subshell or a substitution, past sudo/env and
-# VAR=value prefixes.
-START = r"(?:^|[;&|(`\n]|\$\()\s*(?:(?:sudo|env|command|exec|nohup|time)\s+|[A-Za-z_]\w*=\S*\s+)*"
 GIT_OPTS = r"(?:\s+-[Cc]\s+\S+|\s+--?[\w-]+(?:=\S+)?)*"
 # docker's global options before the subcommand (--context prod, --config dir, -H host), so a push that names its
 # context or config, as security.md "Explicit CLI Identity" asks, is still a push.
@@ -67,13 +69,9 @@ GORELEASER_SENDS = {"publish", "announce", "continue"}
 
 # The repo's own scripts and make targets, by name.
 OUTWARD_NAME = re.compile(r"publish|release|deploy", re.I)
-SEPARATOR = re.compile(r"\|\||&&|[;|&()`\n]|\$\(")
 # Redirections, removed before a command is split into words: their targets are files, not scripts or targets.
 REDIRECTION = re.compile(r"(?:\d+|&)?(?:>>?|<)(?:&\d+|&-|\s*[^\s;&|()<>`]+)")
-PREFIX_WORDS = {"sudo", "env", "command", "exec", "nohup", "time", "then", "do", "else", "elif", "if", "while", "until", "!", "{"}
-ASSIGN = re.compile(r"^([A-Za-z_]\w*)=(.*)$")
 TRUE = {"1", "true", "yes"}
-DRY_EXPORT = re.compile(r"\bexport\s+(?:[A-Za-z_]\w*=\S*\s+)*DRY_RUN=(?:1|true|yes)\b")
 QUOTED_DRY = re.compile(r"\bDRY_RUN=(['\"])(1|true|yes)\1")
 SCRIPT_EXT = re.compile(r"\.(?:sh|bash|zsh|py|rb|pl|js|mjs|cjs|ts)$")
 SHELLS = {"sh", "bash", "zsh", "dash", "ksh", "source", "."}
@@ -84,19 +82,6 @@ MAKE_VALUE_OPTS = {"-C", "-f", "-I", "-o", "-W", "--directory", "--file", "--mak
                    "--new-file", "--what-if", "--assume-old", "--assume-new"}
 MAKE_DRY = {"-n", "--dry-run", "--just-print", "--recon"}
 RUNNERS = {"npm", "pnpm", "yarn", "bun"}
-
-HEREDOC = re.compile(r"(<<-?[ \t]*(['\"]?)([A-Za-z_]\w*)\2)([^\n]*)\n.*?\n[ \t]*\3[ \t]*(?=\n|$)", re.S)
-QUOTED = re.compile(r"'[^']*'|\"(?:[^\"\\]|\\.)*\"")
-
-
-def bare(command):
-    """The command with heredoc bodies and quoted strings set aside (a quoted DRY_RUN=1 kept as DRY_RUN=1)."""
-    return QUOTED.sub("''", HEREDOC.sub(r"\1\4", QUOTED_DRY.sub(r"DRY_RUN=\2", command)))
-
-
-def name_of(path):
-    return path.rstrip("/").rsplit("/", 1)[-1]
-
 
 def dry_flag(words):
     return any(w == "--dry-run" or (w.startswith("--dry-run=") and w.split("=", 1)[1].lower() in TRUE) for w in words)
@@ -153,28 +138,56 @@ def make_targets(args):
     return targets, variables, dry
 
 
-def named_problem(command):
+def command_state(words, state):
+    """DRY_RUN's exported state (None: not exported; else whether it is on) after a command's words: an `export` sets it,
+    `unset` removes it, and a bare VAR=value changes it only where it is already exported."""
+    if words[:1] == ["export"]:
+        for w in words[1:]:
+            m = ASSIGN.match(w)
+            if m and m.group(1) == "DRY_RUN":
+                state = m.group(2).lower() in TRUE
+    elif words[:1] == ["unset"] and "DRY_RUN" in words[1:]:
+        state = None
+    elif split_prefix(words).index >= len(words):  # only assignments (and prefix words): shell variables
+        for w in words:
+            m = ASSIGN.match(w)
+            if m and m.group(1) == "DRY_RUN" and state is not None:
+                state = m.group(2).lower() in TRUE
+    return state
+
+
+def inherited_dry(before, kind, state):
+    """DRY_RUN's exported state where a nested string starts: after the exports ahead of it and, for a nested shell, eval
+    or find action (which run with their command line's environment), after its own DRY_RUN=... assignments and env's
+    -i and -u. A substitution is expanded first, so only the exports reach it."""
+    segments = SEPARATOR.split(QUOTED_DRY.sub(r"DRY_RUN=\2", before))
+    for segment in segments[:-1]:
+        state = command_state(segment.split(), state)
+    if kind != "substitution":
+        info = split_prefix(segments[-1].split())
+        local = info.env.get("DRY_RUN")
+        state = (local.lower() in TRUE) if local is not None else (None if info.scrubbed else state)
+    return state
+
+
+def named_problem(command, dry=None):
     """Why a worker may not run command because it runs a repo's own publish, release or deploy script or make target
-    without a dry-run form, or None."""
-    exported = False
+    without a dry-run form, or None. dry is DRY_RUN's exported state where command starts (a nested string)."""
+    exported = dry
     for segment in SEPARATOR.split(REDIRECTION.sub(" ", command)):
-        words, env, prefixed = segment.split(), {}, False
-        while words:  # past sudo/env (and their flags) and VAR=value prefixes, to the command word
-            m = ASSIGN.match(words[0])
-            if m:
-                env[m.group(1)] = m.group(2)
-            elif words[0] in PREFIX_WORDS:
-                prefixed = True
-            elif not (prefixed and words[0].startswith("-")):
-                break
-            words = words[1:]
+        words = segment.split()
+        info = split_prefix(words)
+        words = words[info.index:]
         if not words:
+            exported = command_state(segment.split(), exported)
             continue
-        if words[0] == "export":
-            exported = exported or bool(DRY_EXPORT.search(segment))
+        if words[0] in ("export", "unset"):
+            exported = command_state(words, exported)
             continue
         word, args = words[0], words[1:]
-        dry = exported or env.get("DRY_RUN", "").lower() in TRUE or dry_flag(args)
+        local = info.env.get("DRY_RUN")  # a prefix assignment overrides what an export or the parent set
+        inherited = exported is True and not info.scrubbed
+        dry = (local.lower() in TRUE if local is not None else inherited) or dry_flag(args)
         base = name_of(word)
         if base in MAKES:
             targets, variables, make_dry = make_targets(args)
@@ -192,9 +205,23 @@ def named_problem(command):
     return None
 
 
-def problem(command):
+def problem(command, depth=0, dry=None):
     """Why a worker may not run command, or None."""
-    command = bare(command)
+    command = join_continuations(command)
+    nested = inner_strings(command)
+    if nested and depth >= 3:
+        return "command strings nested more than three levels deep"
+    for text, kind, before in nested:
+        if kind == "opaque":
+            return "an ANSI-C quoted command string that can't be inspected"
+        why = problem(text, depth + 1, inherited_dry(before, kind, dry))
+        if why:
+            return why
+    command = bare(QUOTED_DRY.sub(r"DRY_RUN=\2", command))  # a quoted DRY_RUN='1' stays DRY_RUN=1
+    if STDIN_SHELL.search(command):
+        return "a shell that reads its commands from stdin"
+    if env_split(command):
+        return "env -S, which runs a string this guard can't split"
     for rx, what in OUTWARD:
         if rx.search(command):
             return what
@@ -212,14 +239,20 @@ def problem(command):
                 continue
         if not GORELEASER_SAFE.search(m.group(1)):
             return "a goreleaser release that isn't --snapshot or --skip=publish"
-    return named_problem(command)
+    return named_problem(command, dry)
 
 
 def decide(inp):
     if not isinstance(inp, dict) or not WORKER.match(str(inp.get("agent_type") or "")):
         return None
     command = (inp.get("tool_input") or {}).get("command")
-    return problem(command) if isinstance(command, str) else "a Bash call with no command string"
+    if not isinstance(command, str):
+        return "a Bash call with no command string"
+    deadline()  # a command too slow to analyse is denied, not left to time the hook out
+    try:
+        return problem(command)
+    except Timeout:
+        return "a command too tangled to analyse in time"
 
 
 def main():
