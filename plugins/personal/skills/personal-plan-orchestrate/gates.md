@@ -95,7 +95,7 @@ spend.
 
 The hook compares the limit itself with the previous launch's
 (`plan_state.py`'s `cost.limit`), not only the multiple and the floor: a rise
-needs `gate-guard`, so editing the Cost table's Total row to lift the trip
+needs `gate-guard` approved for the wave being launched, so editing the Cost table's Total row to lift the trip
 point is a raise too. A fall in `cost.actual` is denied outright: the Token
 log only grows, so a deleted or lowered line is restored, not approved.
 

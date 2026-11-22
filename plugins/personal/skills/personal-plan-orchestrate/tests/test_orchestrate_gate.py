@@ -464,6 +464,9 @@ def a_raised_cost_total_or_a_lowered_token_log_cannot_move_the_guard_unseen():
     assert "cost limit rose from $50 to $160" in hook(seg(args(state=st3, canaryDone=True)), t, done)
     ok = args(state=st3, canaryDone=True, approved=[{"gate": "gate-guard", "wave": 1}], approval="yes, keep going")
     assert hook(seg(ok), t + [human("yes, keep going")], done) is None
+    # An approval that names another wave does not count: plan-segment.js ignores it.
+    other = args(state=st3, canaryDone=True, approved=[{"gate": "gate-guard", "wave": 2}], approval="yes, keep going")
+    assert "cost limit rose" in hook(seg(other), t + [human("yes, keep going")], done)
     # Deleting a Token log line lowers cost.actual: denied, and a gate-guard approval does not excuse it.
     st4 = write_plan(UN + "unattended", status="0/1 groups done | updated 2026-10-08")
     assert "Token log's total fell" in hook(seg(args(state=st4, canaryDone=True)), t, done)
@@ -1081,6 +1084,35 @@ def a_workers_run_of_the_repos_publish_release_or_deploy_script_needs_its_dry_ru
     assert "scripts/publish-formula.sh without DRY_RUN=1" in guard_bash(WORKERS[0], near_miss)
     for agent in (None, "Explore", "personal:plan-reviewer"):  # the parent and other agents run what their rules allow
         assert guard_bash(agent, "make release", "worker_guard.py") is None, agent
+
+
+@case
+def the_guards_follow_wrappers_substitutions_eval_stdin_and_find_actions():
+    worker_bad = ("/usr/bin/timeout 5 make release", "/usr/bin/nice ./deploy.sh", "xargs -l ./deploy.sh", "xargs --eof make release",
+                  "cat <<< EOF\ngit push\nEOF", "cat <<EOF\n$(git push)\nEOF", "env bash <<'EOF'\ngit push\nEOF",
+                  "echo 'git push' | timeout 5 sh", "sh -", "echo 'git push' | bash -s -- a", 'echo "$(git -C "$repo" push)"',
+                  'echo "$(rm $(pwd)/x; git push)"', "eval 'git' 'push'", "eval git 'push'",
+                  "echo \"it's $(git push)\"")
+    worker_ok = ("xargs -r echo git push", "timeout --verbose echo git push", "DRY_RUN=1 bash -c 'make release'",
+                 "export DRY_RUN=1; bash -c './deploy.sh'", "cat <<'EOF'\n$(git push)\nEOF", "echo \"\\$(git push)\"",
+                 "echo '$(git push)'", "bash -n scripts/release.sh", "bash scripts/test.sh", "eval 'echo' 'ok'")
+    for agent in WORKERS:
+        for bad in worker_bad:
+            assert worker_denies(agent, bad), (agent, bad)
+        for ok in worker_ok:
+            assert guard_bash(agent, ok) is None, (agent, ok)
+        assert worker_denies(agent, "DRY_RUN=1 bash -c 'git push'"), "a dry run does not excuse git push"
+    reviewer_bad = ("find . -exec env rm {} +", "find . -exec timeout 5 rm {} \\;", "find . -type f -exec grep -q x {} \\; -delete",
+                    "cat <<< EOF\nrm x\nEOF", "cat <<EOF\n$(rm x)\nEOF", "env bash <<'EOF'\nrm x\nEOF", "echo x | timeout 5 sh",
+                    "sh -", 'echo "$(rm $(pwd)/x)"', "eval 'git' 'commit -am x'", "eval rm 'x'")
+    reviewer_ok = ("find . -name '*.py' -exec sed -n '1,20p' {} \\;", "find . -name x -exec grep -l y {} \\; -print",
+                   "xargs -r echo rm x", "timeout --verbose echo rm x", "cat <<'EOF'\n$(rm x)\nEOF", "echo \"\\$(rm x)\"",
+                   "eval 'echo' 'ok'", "bash scripts/test.sh")
+    for agent in ("personal:plan-reviewer", "orch-spike:plan-reviewer"):
+        for bad in reviewer_bad:
+            assert "read-only" in (guard_bash(agent, bad, "reviewer_guard.py") or ""), (agent, bad)
+        for ok in reviewer_ok:
+            assert guard_bash(agent, ok, "reviewer_guard.py") is None, (agent, ok)
 
 
 @case

@@ -502,7 +502,11 @@ def check(inp):
     rose = (before is not None and (mode.get("guard") or 0) > before) or \
         (floor is not None and (mode.get("guard_min") or 0) > floor) or \
         (limit_before is not None and cost_now and (limit_now is None or limit_now > limit_before))  # a vanished Total removes the cap
-    if rose and "gate-guard" not in given:
+    wave_now = (fresh.get("next") or {}).get("wave")
+    # plan-segment.js ignores an approval for another wave, so the guard's must name the wave being launched.
+    guard_ok = any(a.get("gate") == "gate-guard" and a.get("wave") == wave_now
+                   for a in args.get("approved") or [] if isinstance(a, dict))
+    if rose and not guard_ok:
         if (before, floor) == (mode.get("guard"), mode.get("guard_min")):
             deny(f"the cost limit rose from ${limit_before or 0:g} to {'none (no Cost Total)' if limit_now is None else '$%g' % limit_now} "
                  "since the last launch with the guard and floor unchanged, so the Cost table's Total row moved; approve gate-guard with the human's answer")

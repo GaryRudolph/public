@@ -40,6 +40,7 @@ are set aside before the checks, so a heredoc that writes "git push" or
 
 import json
 import re
+import shlex
 import sys
 
 WORKER = re.compile(r"^[a-z][a-z0-9-]*:plan-worker$")
@@ -48,18 +49,32 @@ WORKER = re.compile(r"^[a-z][a-z0-9-]*:plan-worker$")
 # begin a command (`if make release; then ...`, `for d in a; do git push; done`, `{ git push; }`, `! git push`).
 PREFIX_WORDS = {"sudo", "env", "command", "exec", "nohup", "time", "eval", "then", "do", "else", "elif", "if", "while",
                 "until", "!", "{"}
-# Wrappers with their own flags and operands: `timeout -k 5 120 git push`, `nice -n 5 npm publish`,
-# `xargs -I{} git -C {} push`. A flag may take a value (-n 5, -I X); a duration or a {} placeholder is an operand.
-WRAPPERS = {"timeout", "nice", "xargs"}
-LONG_VALUE_FLAGS = {"--signal", "--kill-after", "--delimiter", "--max-args", "--max-procs", "--max-lines", "--replace", "--arg-file",
-                    "--eof", "--adjustment", "--user", "--group", "--unset", "--chdir", "--process-slot-var", "--host"}
-VALUE_FLAGS = {"timeout": set("sk"), "nice": set("n"), "xargs": set("aEIJLnPsdRlS"), "sudo": set("ugCUhpRrT"), "env": set("uCS")}
-WRAP_VALUE = re.compile(r"[+-]?\d+(?:\.\d+)?[smhd]?|[{%@]\S*")
-_WORDS = "|".join(re.escape(w) for w in sorted(PREFIX_WORDS | WRAPPERS, key=len, reverse=True))
-_WRAP_ARG = r"(?:-[A-Za-z]\s+\S+|--[\w-]+\s+\S+|-\S+|[+-]?\d+(?:\.\d+)?[smhd]?|[{%@]\S*)"
-# A command word's position: the start, or after a separator, a subshell or a substitution, past the prefix words and
-# their flags and VAR=value prefixes.
-START = r"(?:^|[;&|(`\n]|\$\()\s*(?:(?:\S*/)?(?:" + _WORDS + r")(?:\s+" + _WRAP_ARG + r")*\s+|[A-Za-z_]\w*=\S*\s+)*"
+# The wrappers with flags of their own: the short flags that take a separate value, the long ones, and an operand
+# pattern (timeout's duration). A boolean flag takes none, so `xargs -r echo git push` prints text. -l, -i, -e and
+# their long forms take only an attached optional value.
+WRAPPER_FLAGS = {
+    "timeout": ("sk", {"signal", "kill-after"}, r"[+-]?\d+(?:\.\d+)?[smhd]?"),
+    "nice": ("n", {"adjustment"}, None),
+    "xargs": ("aEIJLnPsdRS", {"arg-file", "delimiter", "max-args", "max-chars", "max-procs", "process-slot-var"}, None),
+    "sudo": ("ugCUhpRrT", {"user", "group", "chdir", "host", "prompt", "role", "type", "chroot", "other-user", "close-from"}, None),
+    "env": ("uCS", {"unset", "chdir", "split-string"}, None),
+}
+# Commands that may be named by path (/usr/bin/timeout); the keywords may not.
+COMMAND_WORDS = {"sudo", "env", "command", "exec", "nohup", "time", "timeout", "nice", "xargs", "eval"}
+
+
+def _prefix_word(word):
+    shorts, longs, operand = WRAPPER_FLAGS.get(word, ("", (), None))
+    alts = ([rf"-[{shorts}]\s+\S+"] if shorts else []) + ([r"--(?:" + "|".join(sorted(longs)) + r")\s+\S+"] if longs else [])
+    alts += [r"-\S+"] + ([operand] if operand else [])
+    path = r"(?:\S*/)?" if word in COMMAND_WORDS else ""
+    return path + re.escape(word) + r"(?:\s+(?:" + "|".join(alts) + r"))*\s+"
+
+
+# What may sit between a separator and the command word: prefix words with their flags, and VAR=value assignments.
+PREFIX = r"(?:" + "|".join(_prefix_word(w) for w in sorted(PREFIX_WORDS | set(WRAPPER_FLAGS), key=len, reverse=True)) + r"|[A-Za-z_]\w*=\S*\s+)*"
+# A command word's position: the start, or after a separator, a subshell or a substitution, past the prefix.
+START = r"(?:^|[;&|(`\n]|\$\()\s*" + PREFIX
 GIT_OPTS = r"(?:\s+-[Cc]\s+\S+|\s+--?[\w-]+(?:=\S+)?)*"
 # docker's global options before the subcommand (--context prod, --config dir, -H host), so a push that names its
 # context or config, as security.md "Explicit CLI Identity" asks, is still a push.
@@ -97,7 +112,7 @@ MAKE_VALUE_OPTS = {"-C", "-f", "-I", "-o", "-W", "--directory", "--file", "--mak
 MAKE_DRY = {"-n", "--dry-run", "--just-print", "--recon"}
 RUNNERS = {"npm", "pnpm", "yarn", "bun"}
 
-HEREDOC = re.compile(r"(<<-?[ \t]*(['\"]?)([A-Za-z_]\w*)\2)([^\n]*)\n(?:.*?\n)??[ \t]*\3[ \t]*(?=\n|$)", re.S)
+HEREDOC = re.compile(r"(?<!<)(<<-?[ \t]*(['\"]?)([A-Za-z_]\w*)\2)([^\n]*)\n(?:(?P<body>.*?)\n)??[ \t]*\3[ \t]*(?=\n|$)", re.S)
 QUOTED = re.compile(r"'[^']*'|\"(?:[^\"\\]|\\.)*\"")  # a $'...' string is the single-quoted one after its $
 
 
@@ -165,22 +180,25 @@ def make_targets(args):
     return targets, variables, dry
 
 
-def named_problem(command):
+def named_problem(command, dry=False):
     """Why a worker may not run command because it runs a repo's own publish, release or deploy script or make target
     without a dry-run form, or None."""
-    exported = False
+    exported = dry  # a nested shell inherits the DRY_RUN of the command that started it
     for segment in SEPARATOR.split(REDIRECTION.sub(" ", command)):
         words, env, prefixed, wrapper, skip = segment.split(), {}, False, None, False
         while words:  # past the prefix words and their flags and VAR=value prefixes, to the command word
             w, m = words[0], ASSIGN.match(words[0])
+            base = name_of(w) if name_of(w) in COMMAND_WORDS else w
             if skip:
                 skip = False
             elif m:
                 env[m.group(1)] = m.group(2)
-            elif w in PREFIX_WORDS or w in WRAPPERS:
-                prefixed, wrapper = True, w
-            elif prefixed and (w.startswith("-") or WRAP_VALUE.fullmatch(w)):
-                skip = (len(w) == 2 and w[0] == "-" and w[1] in VALUE_FLAGS.get(wrapper, ())) or w in LONG_VALUE_FLAGS
+            elif base in PREFIX_WORDS or base in WRAPPER_FLAGS:
+                prefixed, wrapper = True, base
+            elif prefixed and (w.startswith("-") or (WRAPPER_FLAGS.get(wrapper, ("", (), None))[2] and
+                                                     re.fullmatch(WRAPPER_FLAGS[wrapper][2], w))):
+                shorts, longs, _ = WRAPPER_FLAGS.get(wrapper, ("", (), None))
+                skip = (len(w) == 2 and w[0] == "-" and w[1] in shorts) or (w.startswith("--") and w[2:] in longs)
             else:
                 break
             words = words[1:]
@@ -209,33 +227,83 @@ def named_problem(command):
 
 
 SHELL_C = re.compile(START + r"(?:\S*/)?(?:sh|bash|zsh|dash|ksh)(?:\s+(?:-[Oo]\s+\S+|-[A-Za-z-]+|--))*?\s+-[A-Za-z]*c[A-Za-z]*(?:\s+--)?\s*\$?$")
-EVAL = re.compile(START + r"eval\s*\$?$")
-# A shell that reads its commands from stdin (`... | sh`, `bash <<EOF`, `bash <<< '...'`): nothing here can see them.
-STDIN_SHELL = re.compile(r"(?:^|[|;&(`\n]|\$\()\s*(?:\S*/)?(?:sh|bash|zsh|dash|ksh)(?:\s+-[A-Za-z]+)*\s*(?:$|[;&|)`\n]|<<)")
+# eval joins its arguments and runs them, so every argument counts, quoted or not.
+EVAL_ARGS = re.compile(START + r"eval\s+((?:'[^']*'|\"(?:[^\"\\]|\\.)*\"|[^;&|\n'\"])*)")
+# A shell that reads its commands from stdin (`... | sh`, `bash <<EOF`, `bash <<< '...'`, `sh -`, `bash -s`): nothing here
+# can see them.
+STDIN_SHELL = re.compile(START + r"(?:\S*/)?(?:sh|bash|zsh|dash|ksh)(?:\s+-[A-Za-z-]+)*?"
+                         r"(?:\s+-[A-Za-z]*s[A-Za-z]*(?=\s|$)|\s+-(?=\s|$)|\s*(?:$|[;&|)`\n]|<<))")
 
 
-SUBSTITUTION = re.compile(r"\$\(([^()]*)\)|`([^`]*)`")
+def substitutions(text):
+    """The bodies of the $(...) and `...` substitutions the shell would run in text: outside single quotes (but inside
+    double ones), with escapes honoured and parentheses balanced across nested quotes."""
+    out, i, n, dq = [], 0, len(text), False
+    while i < n:
+        c = text[i]
+        if c == "\\":
+            i += 2
+        elif c == '"':
+            dq, i = not dq, i + 1
+        elif c == "'" and not dq:
+            j = text.find("'", i + 1)
+            i = n if j < 0 else j + 1
+        elif text.startswith("$(", i) and not text.startswith("$((", i):
+            depth, j, quote = 1, i + 2, None
+            while j < n and depth:
+                d = text[j]
+                if d == "\\":
+                    j += 1
+                elif quote:
+                    quote = None if d == quote else quote
+                elif d in "'\"":
+                    quote = d
+                elif d == "(":
+                    depth += 1
+                elif d == ")":
+                    depth -= 1
+                j += 1
+            out.append(text[i + 2:j - 1] if depth == 0 else text[i + 2:j])
+            i = j
+        elif c == "`":
+            j = i + 1
+            while j < n and text[j] != "`":
+                j += 2 if text[j] == "\\" else 1
+            out.append(text[i + 1:j])
+            i = j + 1
+        else:
+            i += 1
+    return out
 
 
 def inner_strings(command):
-    """The strings a shell runs that bare() would set aside: the quoted string after `sh|bash|zsh -c` or `eval`, and
-    the body of a $(...) or backtick substitution inside double quotes (the shell runs it)."""
-    command = HEREDOC.sub(r"\1\4", command)
-    found = []
-    for m in QUOTED.finditer(command):
-        text = m.group(0)[1:-1]
-        if SHELL_C.search(command[:m.start()]) or EVAL.search(command[:m.start()]):
-            found.append(text.replace('\\"', '"'))
-        if m.group(0)[0] == '"':
-            found += [x or y for x, y in SUBSTITUTION.findall(text)]
+    """The (string, text before it) pairs a shell would run that bare() sets aside: the quoted string after
+    `sh|bash|zsh -c`, the joined arguments of an `eval`, and every substitution, in double quotes or an unquoted
+    heredoc body included. A quoted heredoc body is inert."""
+    plain = HEREDOC.sub(r"\1\4", command)
+    found = [(m.group(0)[1:-1].replace('\\"', '"'), plain[:m.start()]) for m in QUOTED.finditer(plain)
+             if SHELL_C.search(plain[:m.start()])]
+    for m in EVAL_ARGS.finditer(plain):
+        try:
+            joined = " ".join(shlex.split(m.group(1)))
+        except ValueError:
+            joined = m.group(1).replace("'", "").replace('"', "")
+        found.append((joined, plain[:m.start()]))
+    live = HEREDOC.sub(lambda m: m.group(1) + m.group(4) + ("" if m.group(2) else "\n" + (m.group("body") or "")), command)
+    found += [(body, live) for body in substitutions(live)]
     return found
 
 
-def problem(command, depth=0):
+def inherits_dry_run(before):
+    """Whether a nested shell's text starts under DRY_RUN=1: exported earlier, or set on its own command line."""
+    return bool(DRY_EXPORT.search(before) or re.search(r"(?:^|[;&|(`\n])\s*(?:[A-Za-z_]\w*=\S*\s+)*DRY_RUN=(?:1|true|yes)\s+[^;&|\n]*$", before))
+
+
+def problem(command, depth=0, dry=False):
     """Why a worker may not run command, or None."""
     if depth < 3:
-        for inner in inner_strings(command):
-            why = problem(inner, depth + 1)
+        for text, before in inner_strings(command):
+            why = problem(text, depth + 1, dry or inherits_dry_run(before))
             if why:
                 return why
     command = bare(command)
@@ -258,7 +326,7 @@ def problem(command, depth=0):
                 continue
         if not GORELEASER_SAFE.search(m.group(1)):
             return "a goreleaser release that isn't --snapshot or --skip=publish"
-    return named_problem(command)
+    return named_problem(command, dry)
 
 
 def decide(inp):
