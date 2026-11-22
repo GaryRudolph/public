@@ -27,7 +27,7 @@ another (see § Project tool-use preference below).
 
 | Class | Meaning | Examples |
 |---|---|---|
-| **Inspect** | Reads state only, no side effects — **including read-only remote access** | `git status`, `git fetch`, `git remote -v`, `make help`, `swift package describe`, `xcodebuild -list`, `gh pr view`, `kubectl get`, `databricks … list`, `curl -X GET`, `terraform plan`, `terraform fmt -check`, `cargo fmt --check`, `go vet ./…`, `dotnet format --verify-no-changes` |
+| **Inspect** | Reads state only, no side effects — **including read-only remote access** | `git status`, `git fetch`, `git remote -v`, `make help`, `swift package describe`, `xcodebuild -list`, `gh pr view`, `kubectl get`, `databricks … list`, `terraform plan`, `terraform fmt -check`, `cargo fmt --check`, `go vet ./…`, `dotnet format --verify-no-changes` |
 | **Build & test** | Compiles, tests, lints, formats (check mode), or produces a **local** artifact — no remote distribution | `make build`, `make test`, `make lint`, `swift build`, `swift test`, `xcodebuild build`, `xcodebuild test`, `go build ./…`, `go test ./…`, `cargo build`, `cargo test`, `cargo clippy`, `pytest`, `ruff check`, `mypy`, `dotnet build`, `dotnet test`, `./gradlew test`, **`make archive`**, **`make sign`** |
 
 **Read-only remote access is Inspect, not Remote Write.** Fetching refs,

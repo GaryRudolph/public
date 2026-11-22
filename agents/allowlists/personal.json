@@ -106,11 +106,6 @@
       "uv lock --check",
       "uv export --check",
 
-      "curl -X GET",
-      "curl --get",
-      "curl -G",
-      "wget --method=GET",
-
       "terraform plan",
       "terraform validate",
       "terraform fmt -check",
@@ -177,8 +172,6 @@
       "op vault list",
       "op item list",
       "op plugin list",
-      "op read",
-      "op run",
 
       "direnv --version",
       "direnv status",
