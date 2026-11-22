@@ -1,7 +1,7 @@
 ```
 --- KICKOFF: begin execution at [deep] ---
 
-  Status: 1/2 groups done | last review: wave-1 PASS 2026-11-22 | current: wave-2 [exec] | updated 2026-11-22
+  Status: 2/2 groups done | last review: wave-1 PASS 2026-11-22 | current: review-wave-2 [deep] | updated 2026-11-22
 
   review: every-wave
 
@@ -171,27 +171,27 @@ Output: a `### Design note` subsection appended under this step, short enough to
 ---
 
 --- WAVE 2 [exec] ---
-### s2 - [exec] Write origin.py with tests
+### s2 - [exec] Write origin.py with tests (done)
 
 Implement `plugins/personal/scripts/origin.py` per the s1 Design note, with tests (`plugins/personal/tests/test-origin.sh`, wired into `agents/Makefile`'s `test`). Cases: https; https with a token in userinfo (masked, never printed); the proxy form; SSH aliases (`git@github.com-work:o/r.git`); `ssh://git@ssh.github.com:443/o/r.git`; gitlab (`other`); an attacker host whose path names a trusted owner (`https://attacker.example/lolay/x.git` is `other`).
 
-### s3 - [exec] f23, f24, f3: move every origin reader onto origin.py
+### s3 - [exec] f23, f24, f3: move every origin reader onto origin.py (done)
 
 Move onto origin.py, by the s1 Design note's loading rule: `personal-review-guide/scripts/review_facts.py` (`GITHUB_REMOTE`, about lines 100 and 242 at head), `personal-ship-pr/scripts/pr_state.py` (line 44, added by #78), `personal-codebase-review/scripts/review_log_facts.py` `origin_owner` (134), `personal-repo-baseline/scripts/repo-facts.sh` `origin_host` and `redact_url`, `personal-secrets/scripts/secrets-facts.sh` (line 36 prints the masked URL; line 114's name), and `plugins/personal/scripts/session-doctor.py` `origin_owner` (122-135), which now checks the host class too. Delete each local copy. Add the non-GitHub host cases (gitlab with a trusted owner; an attacker host) to `plugins/personal/tests/test-session-doctor.sh`, each proving the doctor doesn't run. Update each caller's existing tests where they assert origin output.
 
-### s4 - [fast] f15: release_facts.py lists files from the repo root
+### s4 - [fast] f15: release_facts.py lists files from the repo root (done)
 
 `plugins/personal/skills/personal-release/scripts/release_facts.py` line 35: run `git -C <root> ls-files -z` and split on NUL. Add a test that runs it from a subdirectory and finds the version files.
 
-### s5 - [fast] f20: repo-facts.sh compiles on Python 3.9
+### s5 - [fast] f20: repo-facts.sh compiles on Python 3.9 (done)
 
 `plugins/personal/skills/personal-repo-baseline/scripts/repo-facts.sh` line 360: compute the yes/no outside the f-string (no backslash inside an f-string expression). State the 3.9 floor in the script's header.
 
-### s6 - [exec] f10: the session doctor runs only on runners
+### s6 - [exec] f10: the session doctor runs only on runners (done)
 
 `plugins/personal/scripts/session-doctor.py` runs a repo's doctor only on a runner (cloud or self-hosted, by the same signal `session-start.sh` uses; read it); locally it runs nothing and prints one line telling the agent to run the doctor itself, so the run goes through Claude Code's folder trust and permissions. Update its docstring, core.md "Read the doctor before trusting a build" (then `make -C agents cursor-core-rule`), makefile.md "Common tooling", and `test-session-doctor.sh` (a local case that runs nothing and prints the line; runner cases keep running it).
 
-### s7 - [exec] f22: a doctor for this repo
+### s7 - [exec] f22: a doctor for this repo (done)
 
 Add a `doctor` target to `agents/Makefile` and a root `triage.yaml`. Errors on python3 below 3.9, and on git, jq, make and claude below their floors (read each floor from what `make -C agents validate test` needs; name the source in a comment); warnings on missing sops, age and node. Follow makefile.md's `doctor` vocabulary and the triage format the session doctor already reads. Then write the seven claim files `specs/reviews/r1/f23.md`, `f24.md`, `f3.md`, `f15.md`, `f20.md`, `f10.md`, `f22.md` (Finding, Claim, Change, Evidence; Evidence names the test that proves it) and run `make -C agents validate test` until it passes.
 
@@ -253,3 +253,4 @@ review wave-1 (m8-s1) 4f6d337..7dec616: PASS - design note is complete and its p
 tokens kickoff plan-r1-origin-doctor-heron (claude-opus-5-5): input ~45 / cache read ~3.5M / cache write ~150k 1h / output ~15k | ~$2.2 API-equiv
 tokens wave-1 m8-s1 (claude-opus-5-5): input ~35 / cache read ~2.3M / cache write ~90k 1h / output ~13k | ~$1.4 API-equiv
 tokens review-wave-1 m8-s1 (claude-opus-5-5): input ~25 / cache read ~1.2M / cache write ~120k 1h / output ~7k | ~$1.3 API-equiv
+tokens wave-2 m8-s2-s7 (claude-sonnet-5-5): input ~140 / cache read ~14M / cache write ~200k 1h / output ~62k | ~$2.9 API-equiv
