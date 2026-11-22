@@ -176,6 +176,45 @@ printf '{"cwd": "%s"}' "$r" | env -i HOME="$work" PATH="$bin" "$python" -I "$wor
 expect_grep   "  ...and says it didn't run" "not run: \`make doctor\` in $r: origin.py unavailable"
 expect_nocall "  ...and nothing ran" "STUB make"
 
+printf 'runner or workstation\n'
+# A workstation is a home whose tool file holds the block `make install` writes (session-start.sh's signal);
+# every other case above ran with a bare HOME, which is a runner.
+ws_home="$work/ws-home"; mkdir -p "$ws_home/.claude" "$ws_home/.codex" "$ws_home/.gemini" "$work/empty"
+printf 'before\n# >>> personal >>>\nstandards\n# <<< personal <<<\n' > "$ws_home/.claude/CLAUDE.md"
+r="$work/make-repo"
+run_doctor "$r" HOME="$ws_home"
+expect_nocall "workstation: nothing runs" "STUB"
+expect_grep   "  ...one line telling the agent to run it" "Environment doctor: not run at session start on this machine"
+expect_grep   "  ...naming the command and repo" "Run it yourself before the first build or test: \`make doctor\` in $r."
+expect_nogrep "  ...not as a result" "passed:"
+[ "$(wc -l < "$work/out" | tr -d ' ')" = 1 ] && pass "  ...exactly one line" || fail "workstation output is not one line"
+r2="$work/stranger"
+run_doctor "$r2" HOME="$ws_home"
+expect_grep   "workstation, foreign owner: still the one line (nothing runs, so nothing to trust)" "\`make doctor\` in $r2."
+run_doctor "$work/empty" HOME="$ws_home"
+expect_empty  "workstation, nothing with a doctor: silent"
+run_doctor "$r" HOME="$ws_home" PERSONAL_DOCTOR=0
+expect_empty  "workstation, PERSONAL_DOCTOR=0: silent"
+run_doctor "$r" HOME="$work/bare-home"
+expect_called "a home with no tool file is a runner: runs" "STUB make --no-print-directory doctor in $r"
+printf 'no block here\n' > "$ws_home/.claude/CLAUDE.md"
+run_doctor "$r" HOME="$ws_home"
+expect_called "a home file without the block is a runner: runs" "STUB make --no-print-directory doctor in $r"
+printf '# >>> personal >>>\nx\n' > "$ws_home/.claude/CLAUDE.md"
+mkdir -p "$work/cfg"; printf 'no block\n' > "$work/cfg/CLAUDE.md"
+run_doctor "$r" HOME="$ws_home" CLAUDE_CONFIG_DIR="$work/cfg"
+expect_called "CLAUDE_CONFIG_DIR picks the file, as session-start.sh does" "STUB make --no-print-directory doctor in $r"
+printf '# >>> personal >>>\nx\n' > "$ws_home/.gemini/GEMINI.md"
+run_doctor "$r" HOME="$ws_home" GEMINI_PROJECT_DIR="$r"
+if "$python" -c 'import json,sys; d=json.load(open(sys.argv[1])); assert "not run at session start" in d["hookSpecificOutput"]["additionalContext"]' "$work/out"; then
+    pass "Gemini workstation: the line rides in additionalContext"
+else
+    fail "Gemini workstation: not the expected JSON"; sed 's/^/        /' "$work/out" >&2
+fi
+printf '# >>> personal >>>\nx\n' > "$ws_home/.codex/AGENTS.md"
+run_doctor "$r" HOME="$ws_home" PLUGIN_ROOT="$work"
+expect_nocall "Codex workstation (PLUGIN_ROOT, ~/.codex/AGENTS.md): nothing runs" "STUB"
+
 printf 'outcomes\n'
 r="$work/make-repo"
 run_doctor "$r" STUB_RC=2

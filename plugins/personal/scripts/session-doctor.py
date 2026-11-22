@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""SessionStart hook for the `personal` plugin: run each repo's doctor so a session starts knowing what the machine lacks.
+"""SessionStart hook for the `personal` plugin: on a runner, run each repo's doctor so a session starts knowing what the machine lacks.
 
 It looks at the session's repo (the working directory's git root) or, when
 the working directory isn't in a repo and has no doctor of its own, at each
@@ -12,16 +12,23 @@ repos beneath. Each repo gets the first doctor it has:
   triage.yml, .triage.yaml or .triage.yml, triage's own discovery list).
 
 A doctor is the repo's own code, and a personal plugin's hooks run before
-the harness asks whether to trust the folder. So a repo's doctor runs only
-when its `origin` is a GitHub remote (origin.py: github.com, an ssh alias
-for it, ssh.github.com, or the cloud git proxy) whose owner is a default
-owner or one named in PERSONAL_DOCTOR_OWNERS (space-separated; both
-case-insensitive), which adds owners that shouldn't be named in this public
-repo. Any other repo, one with no origin, or one on another host that merely
-names a trusted owner in its path, gets a "not run" line instead (with the
-origin masked), as does every repo when origin.py can't be loaded. Targets are found
-by reading the files, never with `make -n` or `task --list`: both evaluate
-the file, and GNU make runs `$(shell ...)` while it parses.
+the harness asks whether to trust the folder. So the hook runs one only on a
+runner (a Claude Code cloud or self-hosted runner session, told apart as
+session-start.sh does: no `# >>> personal >>>` block in the tool's home file,
+which `make install` writes on the Owner's workstation). On a workstation it
+runs nothing and prints one line telling the agent to run each doctor itself,
+so the run goes through Claude Code's folder trust and permissions.
+
+On a runner, a repo's doctor runs only when its `origin` is a GitHub remote
+(origin.py: github.com, an ssh alias for it, ssh.github.com, or the cloud git
+proxy) whose owner is a default owner or one named in PERSONAL_DOCTOR_OWNERS
+(space-separated; both case-insensitive), which adds owners that shouldn't be
+named in this public repo. Any other repo, one with no origin, or one on
+another host that merely names a trusted owner in its path, gets a "not run"
+line instead (with the origin masked), as does every repo when origin.py
+can't be loaded. Targets are found by reading the files, never with
+`make -n` or `task --list`: both evaluate the file, and GNU make runs
+`$(shell ...)` while it parses.
 
 The doctors run in parallel, each with a timeout. The output is facts only,
 for the agent to judge: one line naming the repos that passed and, for each
@@ -134,6 +141,23 @@ def load_origin():
         return None
 
 
+HOME_BLOCK = "# >>> personal >>>"
+
+
+def home_file():
+    """The tool's home file, chosen as session-start.sh chooses it."""
+    if os.environ.get("PLUGIN_ROOT"):
+        return Path(os.environ.get("CODEX_HOME") or Path.home() / ".codex") / "AGENTS.md"
+    if os.environ.get("GEMINI_PROJECT_DIR") and not os.environ.get("CLAUDE_PLUGIN_ROOT"):
+        return Path.home() / ".gemini" / "GEMINI.md"
+    return Path(os.environ.get("CLAUDE_CONFIG_DIR") or Path.home() / ".claude") / "CLAUDE.md"
+
+
+def on_runner():
+    """True on a runner: the home file has no block from `make install`, as session-start.sh decides."""
+    return HOME_BLOCK not in read_text(home_file())
+
+
 def is_trusted(owner):
     owners = f"{DEFAULT_OWNERS} {os.environ.get('PERSONAL_DOCTOR_OWNERS', '')}".lower().split()
     return bool(owner) and owner.lower() in owners
@@ -205,6 +229,13 @@ def report(results, timeout):
     return "\n".join(lines)[:OUTPUT_BUDGET]
 
 
+def workstation_note(jobs):
+    """The one line a workstation gets: run each doctor yourself, so Claude Code's trust and permissions apply."""
+    commands = "; ".join(f"`{label(argv)}` in {repo}" for repo, argv in jobs)
+    return ("Environment doctor: not run at session start on this machine (the personal plugin runs a repo's "
+            f"doctor only on runners). Run it yourself before the first build or test: {commands}.")[:OUTPUT_BUDGET]
+
+
 def not_run_reason(argv, outcome, found):
     if outcome == "missing":
         return f"{argv[0]} is not on PATH"
@@ -245,6 +276,9 @@ def main():
         emit("")
         return
     jobs = [(repo, argv) for repo in repos_to_check(session_cwd()) if (argv := doctor_command(repo))]
+    if jobs and not on_runner():
+        emit(workstation_note(jobs))
+        return
     with ThreadPoolExecutor(max_workers=MAX_PARALLEL) as pool:
         results = list(pool.map(lambda job: run_doctor(*job, args.timeout), jobs))
     timeout = f"{args.timeout:g}"
