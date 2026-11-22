@@ -1,7 +1,7 @@
 ```
 --- KICKOFF: begin orchestration at [deep] ---
 
-  Status: 0/5 groups done | last review: — | current: public m3 s1 [deep] | updated 2026-11-22
+  Status: 1/5 groups done | last review: wave-1 CONCERNS | current: public m3 s1 [1-fix] | updated 2026-11-22
 
   mode: unattended | proposed unattended (harness=claude-code runner=cloud; assigned branch, CLAUDE_CODE_REMOTE=true) | guard 3x min $50 | fixups 2 | confirmed 2026-11-22 session 2ec2fdaa-1eac-5814-b7c2-d7ccce5bf7da: Unattended (Recommended)
 
@@ -74,7 +74,7 @@ Every step reads this section. m3 of the r1 remediation plan: fix r1.f1, r1.f4 a
 
 ### m3 - Rendering (f1, f4, f9)
 
-#### ⬜ s1 - [deep] f9 design: how "allow writes with a rollback, prompt on sends" renders
+#### ✅ s1 - [deep] f9 design: how "allow writes with a rollback, prompt on sends" renders (done)
 
 The Owner's f9 decision: allow MCP writes that have a rollback (version history) or are creates the Owner deletes afterward; prompt on anything that sends to people, changes sharing, or can't be recovered. Notion, Google Docs, Figma and Miro keep their wildcards minus the sharing and permission tools. Slack and Google Workspace allow reads and prompt on send. Firebase allows reads and prompts on writes, deletes and deploys.
 
@@ -131,6 +131,8 @@ Acceptance: `make -C agents validate test` passes; the new assertions fail again
 
 ## Review log
 
+review wave-1 (public m3 s1) 8d34bd1..ab8298b: CONCERNS - the note says `claude_mcp` fails the render on an entry with no `:` or an empty server or tool part, but the jq it gives has no check (`nocolon` renders `mcp__nocolon__ocolon`, `:tool` renders `mcp____tool`): add an explicit guard that calls `error`, or drop the claim; minor: the per-tool record (what each tool does) is only in the gitignored wave output file, so it survives nowhere once the note becomes the PR description - 2026-11-22
+
 ## Token log
 
 **Counting header (Claude Code)**
@@ -140,3 +142,7 @@ Acceptance: `make -C agents validate test` passes; the new assertions fail again
 - Rates by `<model>`, $ per Mtok input / cached / output: `claude-opus-5-5` 4.00 / 0.20 / 20.00; `claude-sonnet-5-5` 2.00 / 0.10 / 10.00.
 - `$C` = (input × in + cache read × cached + 5m write × in × 1.25 + 1h write × in × 2.00 + output × out) / 1M.
 - In another harness, or on a model not listed here, count and price per plan-execution.md "Token accounting" and "Model price table" instead.
+
+tokens orchestrator-kickoff plan-r1-rendering-kestrel (claude-opus-5-5): input ~73 / cache read ~6.7M / cache write ~0 5m + ~180k 1h / output ~30k | ~$3.38 API-equiv
+tokens wave-1 public-m3-s1 (claude-opus-5-5): input ~69 / cache read ~5.3M / cache write ~210k / output ~48k | ~$3.06 API-equiv
+tokens review-wave-1 public-m3-s1 (claude-opus-5-5): input ~24 / cache read ~320k / cache write ~37k / output ~9.1k | ~$0.43 API-equiv
