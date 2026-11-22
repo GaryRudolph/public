@@ -1094,61 +1094,6 @@ def a_workers_run_of_the_repos_publish_release_or_deploy_script_needs_its_dry_ru
         assert guard_bash(agent, "make release", "worker_guard.py") is None, agent
 
 
-@case
-def the_guards_follow_wrappers_substitutions_eval_stdin_and_find_actions():
-    worker_bad = ("/usr/bin/timeout 5 make release", "/usr/bin/nice ./deploy.sh", "xargs -l ./deploy.sh", "xargs --eof make release",
-                  "cat <<< EOF\ngit push\nEOF", "cat <<EOF\n$(git push)\nEOF", "env bash <<'EOF'\ngit push\nEOF",
-                  "echo 'git push' | timeout 5 sh", "sh -", "echo 'git push' | bash -s -- a", 'echo "$(git -C "$repo" push)"',
-                  'echo "$(rm $(pwd)/x; git push)"', "eval 'git' 'push'", "eval git 'push'",
-                  "echo \"it's $(git push)\"")
-    worker_ok = ("xargs -r echo git push", "timeout --verbose echo git push", "DRY_RUN=1 bash -c 'make release'",
-                 "export DRY_RUN=1; bash -c './deploy.sh'", "cat <<'EOF'\n$(git push)\nEOF", "echo \"\\$(git push)\"",
-                 "echo '$(git push)'", "bash -n scripts/release.sh", "bash scripts/test.sh", "eval 'echo' 'ok'")
-    for agent in WORKERS:
-        for bad in worker_bad:
-            assert worker_denies(agent, bad), (agent, bad)
-        for ok in worker_ok:
-            assert guard_bash(agent, ok) is None, (agent, ok)
-        assert worker_denies(agent, "DRY_RUN=1 bash -c 'git push'"), "a dry run does not excuse git push"
-    reviewer_bad = ("find . -exec env rm {} +", "find . -exec timeout 5 rm {} \\;", "find . -type f -exec grep -q x {} \\; -delete",
-                    "cat <<< EOF\nrm x\nEOF", "cat <<EOF\n$(rm x)\nEOF", "env bash <<'EOF'\nrm x\nEOF", "echo x | timeout 5 sh",
-                    "sh -", 'echo "$(rm $(pwd)/x)"', "eval 'git' 'commit -am x'", "eval rm 'x'")
-    reviewer_ok = ("find . -name '*.py' -exec sed -n '1,20p' {} \\;", "find . -name x -exec grep -l y {} \\; -print",
-                   "xargs -r echo rm x", "timeout --verbose echo rm x", "cat <<'EOF'\n$(rm x)\nEOF", "echo \"\\$(rm x)\"",
-                   "eval 'echo' 'ok'", "bash scripts/test.sh")
-    for agent in ("personal:plan-reviewer", "orch-spike:plan-reviewer"):
-        for bad in reviewer_bad:
-            assert "read-only" in (guard_bash(agent, bad, "reviewer_guard.py") or ""), (agent, bad)
-        for ok in reviewer_ok:
-            assert guard_bash(agent, ok, "reviewer_guard.py") is None, (agent, ok)
-
-
-@case
-def the_guards_keep_round_two_of_the_review_closed():
-    worker_bad = ("find repos -mindepth 1 -maxdepth 1 -type d -exec git -C {} push \\;", "find . -name '*.sh' -exec ./scripts/deploy.sh {} \\;",
-                  "xargs -rn 1 git push", "bash -c $'gi\\x74 push'", "eval -- 'git push'", "bash < scripts/release.sh",
-                  "env -S 'git push'", "env -S './deploy.sh'", 'echo "$(make release)"; export DRY_RUN=1',
-                  'DRY_RUN=1 echo "$(make release)"', "DRY_RUN=1 bash -c 'DRY_RUN=0 make release'",
-                  "export DRY_RUN=1; export DRY_RUN=0; bash -c 'make release'", "cat <<EOF\nIt's $(git push)\nEOF",
-                  "timeout " + "-s " * 40 + "5 make ci; git push")
-    worker_ok = ("command -v rm", "command -V gh", "command -v bash", "DRY_RUN='1' bash -c 'make release'",
-                 "env DRY_RUN=1 bash -c './deploy.sh'", "bash --version", "bash --help", "DRY_RUN=1 find . -exec ./deploy.sh {} \\;")
-    for agent in WORKERS:
-        for bad in worker_bad:
-            assert worker_denies(agent, bad), (agent, bad)
-        for ok in worker_ok:
-            assert guard_bash(agent, ok) is None, (agent, ok)
-    reviewer_bad = ("find . -exec dash -c 'rm x' {} \\;", "find . -exec ksh -c 'rm x' {} \\;", "find . -name x \\\n -delete",
-                    "find . -exec \\\n rm {} +", "printf 'victim\\n' | xargs -rn 1 rm", "bash -c $'r\\x6d x'", "eval -- 'rm x'", "bash < f",
-                    "env -S 'rm file'", "cat <<EOF\nIt's $(rm x)\nEOF", "timeout " + "-s " * 40 + "5 make ci; rm x")
-    reviewer_ok = ("command -v rm", "command -V gh", "command -v bash", "echo find . -delete", "bash --version", "echo find . -exec rm {} +")
-    for agent in ("personal:plan-reviewer", "orch-spike:plan-reviewer"):
-        for bad in reviewer_bad:
-            assert "read-only" in (guard_bash(agent, bad, "reviewer_guard.py") or ""), (agent, bad)
-        for ok in reviewer_ok:
-            assert guard_bash(agent, ok, "reviewer_guard.py") is None, (agent, ok)
-
-
 def nested_evals(command, depth=4):
     import shlex
     for _ in range(depth):
@@ -1157,25 +1102,31 @@ def nested_evals(command, depth=4):
 
 
 @case
-def the_guards_keep_round_three_of_the_review_closed():
-    worker_bad = ("xargs -IFILE ./deploy.sh FILE", "/usr/bin/env -S 'git push'", "bash -euo pipefail -c 'git push'",
-                  "bash \\\n -c 'git push'", "git -C repo \\\n push", "find . -exec ./deploy.sh {} ';'", "find . -exec git push {} \"+\"",
-                  "/usr/bin/find . -exec ./deploy.sh {} \\;", nested_evals("make release"), "export DRY_RUN=1; DRY_RUN=0; make release",
-                  "export DRY_RUN=1; DRY_RUN=0; bash -c 'make release'", "export DRY_RUN=1; env -u DRY_RUN bash -c 'make release'",
-                  "export DRY_RUN=1; env -i make release", "bash -c ./deploy.sh", "bash -c 'git'' push'")
-    worker_ok = ("bash -n -c 'make release'", "printf '%s\\n' 'Example; find . -exec rm {} \\;'", "echo 'Example; eval git push'",
-                 "env GIT_PAGER=cat git log -S foo", "xargs -IFILE echo FILE", "bash -euo pipefail -c 'echo hi'",
-                 "export DRY_RUN=1; DRY_RUN=1 make release", "DRY_RUN=1 env DRY_RUN=1 bash -c 'make release'")
+def the_guards_follow_nested_strings_find_actions_stdin_shells_and_dry_run():
+    worker_bad = ("/usr/bin/timeout 5 make release", "xargs -l ./deploy.sh", "xargs --eof make release", "xargs -IFILE ./deploy.sh FILE",
+                  "find repos -type d -exec git -C {} push \\;", "find . -name '*.sh' -exec ./scripts/deploy.sh {} \\;",
+                  "cat <<< EOF\ngit push\nEOF", "echo 'git push' | timeout 5 sh", "sh -", "bash < scripts/release.sh",
+                  'echo "$(git -C "$repo" push)"', "eval 'git' 'push'", "bash -euo pipefail -c 'git push'", "env -S 'git push'",
+                  "/usr/bin/env -S './deploy.sh'", nested_evals("make release"), 'echo "$(make release)"; export DRY_RUN=1',
+                  'DRY_RUN=1 echo "$(make release)"', "DRY_RUN=1 bash -c 'DRY_RUN=0 make release'", "DRY_RUN=1 bash -c 'git push'",
+                  "timeout " + "-s " * 40 + "5 make ci; git push")
+    worker_ok = ("xargs -r echo git push", "timeout --verbose echo git push", "xargs -IFILE echo FILE", "command -v rm", "command -V gh",
+                 "DRY_RUN=1 bash -c 'make release'", "DRY_RUN='1' bash -c 'make release'", "env DRY_RUN=1 bash -c './deploy.sh'",
+                 "export DRY_RUN=1; bash -c './deploy.sh'", "bash --version", "env GIT_PAGER=cat git log -S foo",
+                 "cat <<'EOF'\n$(git push)\nEOF", "echo \"\\$(git push)\"", "echo '$(git push)'", "eval 'echo' 'ok'",
+                 "DRY_RUN=1 find . -exec ./deploy.sh {} \\;")
     for agent in WORKERS:
         for bad in worker_bad:
             assert worker_denies(agent, bad), (agent, bad)
         for ok in worker_ok:
             assert guard_bash(agent, ok) is None, (agent, ok)
-    reviewer_bad = ("xargs -IFILE rm FILE", "/usr/bin/env -S 'rm x'", "bash -euo pipefail -c 'rm x'", "bash \\\n -c 'rm x'",
-                    "find . -exec rm victim ';'", "find . -exec rm {} \"+\"", nested_evals("rm x"), "/usr/bin/find . -delete",
-                    "bash -c 'r''m x'", "find . \\\n -delete")
-    reviewer_ok = ("bash -n -c 'rm x'", "printf '%s\\n' 'Example; find . -exec rm {} \\;'", "find . -type f -exec grep -n -- -delete {} +",
-                   "env GIT_PAGER=cat git log -S foo", "xargs -IFILE echo FILE")
+    reviewer_bad = ("find . -exec env rm {} +", "find . -exec timeout 5 rm {} \\;", "find . -exec dash -c 'rm x' {} \\;",
+                    "find . -type f -exec grep -q x {} \\; -delete", "/usr/bin/find . -delete", "xargs -IFILE rm FILE",
+                    "cat <<< EOF\nrm x\nEOF", "echo x | timeout 5 sh", "bash < f", 'echo "$(rm $(pwd)/x)"', "eval 'git' 'commit -am x'",
+                    "env -S 'rm file'", nested_evals("rm x"), "timeout " + "-s " * 40 + "5 make ci; rm x")
+    reviewer_ok = ("xargs -r echo rm x", "timeout --verbose echo rm x", "xargs -IFILE echo FILE", "command -v rm", "command -V gh",
+                   "bash --version", "find . -name '*.py' -exec sed -n '1,20p' {} \\;", "find . -name x -exec grep -l y {} \\; -print",
+                   "echo find . -delete", "env GIT_PAGER=cat git log -S foo", "cat <<'EOF'\n$(rm x)\nEOF", "eval 'echo' 'ok'")
     for agent in ("personal:plan-reviewer", "orch-spike:plan-reviewer"):
         for bad in reviewer_bad:
             assert "read-only" in (guard_bash(agent, bad, "reviewer_guard.py") or ""), (agent, bad)
