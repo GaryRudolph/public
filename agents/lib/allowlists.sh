@@ -507,13 +507,20 @@ promote_user_edits() {
     local pt new_pt
     pt=$(passthrough_path "$stem" "$dir")
     new_pt=$(mktemp)
-    extract_passthrough "$kind" "$live" > "$new_pt"
+    if ! extract_passthrough "$kind" "$live" > "$new_pt" || [ ! -s "$new_pt" ]; then
+        printf 'error: could not read %s; left untouched.\n' "$(pretty_path "$live")" >&2
+        rm -f "$new_pt"
+        return 1
+    fi
 
     local should_write_pt=0
     if is_empty_object "$new_pt"; then
-        # Nothing to preserve. Leave a stale passthrough alone (engineer may
-        # be mid-edit) but don't create an empty one.
-        :
+        # The live file (already validated) holds nothing unmanaged, so a
+        # passthrough from an earlier run is stale: drop it, or a setting the
+        # engineer removed (say defaultMode: bypassPermissions) comes back.
+        if [ -f "$pt" ] && [ "$DRY_RUN" != "1" ]; then
+            rm -f -- "$pt"
+        fi
     elif [ ! -f "$pt" ] || ! cmp -s "$new_pt" "$pt"; then
         should_write_pt=1
     fi
@@ -533,7 +540,12 @@ promote_user_edits() {
     if [ -f "$our_sidecar" ]; then
         cp -- "$our_sidecar" "$our_render"
     else
-        render_target_schema "$kind" "$ALLOWLISTS_SRC" > "$our_render"
+        if ! render_target_schema "$kind" "$ALLOWLISTS_SRC" > "$our_render" || [ ! -s "$our_render" ]; then
+            printf 'error: rendering %s failed; %s left untouched.\n' \
+                "$(pretty_path "$ALLOWLISTS_SRC")" "$(pretty_path "$live")" >&2
+            rm -f "$our_render" "$expected_no_user"
+            return 1
+        fi
     fi
 
     local args=("$our_render")
@@ -542,7 +554,11 @@ promote_user_edits() {
         [ -n "$other" ] && args+=("$other")
     done < <(list_other_org_sidecars "$stem" "$dir")
 
-    union_target_schema "$kind" "${args[@]}" > "$expected_no_user"
+    if ! union_target_schema "$kind" "${args[@]}" > "$expected_no_user" || [ ! -s "$expected_no_user" ]; then
+        printf 'error: could not merge sidecars for %s; left untouched.\n' "$(pretty_path "$live")" >&2
+        rm -f "$our_render" "$expected_no_user"
+        return 1
+    fi
     rm -f "$our_render"
 
     # 3) Diff live against expected; merge new entries into user sidecar.
@@ -585,6 +601,11 @@ promote_user_edits() {
             ;;
     esac
     rm -f "$expected_no_user" "$user_in"
+    if [ ! -s "$user_out" ] || ! jq -e 'type == "object"' "$user_out" >/dev/null 2>&1; then
+        printf 'error: could not compute user edits for %s; left untouched.\n' "$(pretty_path "$live")" >&2
+        rm -f "$user_out"
+        return 1
+    fi
 
     # 4) Persist user-sidecar iff it has any content (skip empty {}/empty arrays).
     local total
@@ -684,10 +705,21 @@ guardrail_first_install() {
     return 0
 }
 
-has_any_sidecar() {
+# The sidecars the renderer reads: every org's and the user-managed one
+# (`.<stem>.*-managed.json`) plus the passthrough. Backups or stray files that
+# happen to match `.<stem>.*.json` are not ours and explain nothing.
+list_consumed_sidecars() {
     local stem="$1" dir="$2"
-    [ -d "$dir" ] || return 1
-    [ -n "$(find "$dir" -maxdepth 1 -type f -name ".$stem.*.json" -print -quit 2>/dev/null)" ]
+    [ -d "$dir" ] || return 0
+    find "$dir" -maxdepth 1 -type f \( -name ".$stem.*-managed.json" -o -name ".$stem.passthrough.json" \) -print0 2>/dev/null
+}
+
+has_any_sidecar() {
+    local stem="$1" dir="$2" f
+    while IFS= read -r -d '' f; do
+        return 0
+    done < <(list_consumed_sidecars "$stem" "$dir")
+    return 1
 }
 
 # ---------------------------------------------------------------------------
@@ -695,9 +727,16 @@ has_any_sidecar() {
 # ---------------------------------------------------------------------------
 
 validate_inputs() {
-    local stem dir kind f bad=0
+    local stem dir kind f bad=0 live shape
     while IFS='|' read -r stem dir kind; do
         [ -d "$dir" ] || continue
+        live=$(target_path "$stem" "$dir")
+        case "$kind" in
+            cursor_ide)
+                shape='(.terminalAllowlist, .terminalDenylist, .mcpAllowlist, .mcpDenylist) | select(. != null and type != "array")' ;;
+            *)
+                shape='(.permissions | select(. != null and type != "object")), (.permissions.allow?, .permissions.deny? | select(. != null and type != "array"))' ;;
+        esac
         while IFS= read -r -d '' f; do
             if [ ! -s "$f" ]; then
                 printf 'error: %s is empty (0 bytes); nothing was written.\n       delete it, or restore the last good copy with `make restore-allowlists N=1`.\n' "$(pretty_path "$f")" >&2
@@ -706,9 +745,14 @@ validate_inputs() {
                 printf 'error: %s is not valid JSON; nothing was written.\n' "$(pretty_path "$f")" >&2
                 jq empty "$f" >&2 2>&1 || true
                 bad=1
+            elif ! jq -s -e 'length == 1 and (.[0] | type) == "object"' "$f" >/dev/null 2>&1; then
+                printf 'error: %s must hold exactly one JSON object; nothing was written.\n' "$(pretty_path "$f")" >&2
+                bad=1
+            elif [ "$f" = "$live" ] && [ -n "$(jq -c "$shape" "$f" 2>/dev/null)" ]; then
+                printf 'error: %s has a permission list that is not an array; nothing was written.\n' "$(pretty_path "$f")" >&2
+                bad=1
             fi
-        done < <({ [ -f "$(target_path "$stem" "$dir")" ] && printf '%s\0' "$(target_path "$stem" "$dir")"
-                   find "$dir" -maxdepth 1 -type f -name ".$stem.*.json" -print0 2>/dev/null; } || true)
+        done < <({ [ -f "$live" ] && printf '%s\0' "$live"; list_consumed_sidecars "$stem" "$dir"; } || true)
     done < <(all_targets)
     if [ "$bad" = "1" ]; then
         ABORTED=1
@@ -769,19 +813,22 @@ apply_one_target() {
 
     guardrail_first_install "$stem" "$dir" || return 1
 
-    # Promote user manual edits before re-rendering.
-    promote_user_edits "$stem" "$dir" "$kind"
-
-    # Compute our canonical render from the meta-source.
+    # Render from the meta first, and by exit status: a meta with valid JSON
+    # followed by garbage can print a render and still fail. Nothing, promotion
+    # included, may write before this passes. (`|| ABORTED=1` in the caller
+    # turns errexit off in here, so every step is checked by hand.)
     local our_render sidecar
     our_render=$(mktemp)
-    render_target_schema "$kind" "$ALLOWLISTS_SRC" > "$our_render"
-
-    # `|| ABORTED=1` in the caller turns off errexit in here, so check the
-    # render by hand: a failed jq must never reach a sidecar or the live file.
-    if [ ! -s "$our_render" ] || ! jq empty "$our_render" >/dev/null 2>&1; then
+    if ! render_target_schema "$kind" "$ALLOWLISTS_SRC" > "$our_render" \
+        || [ ! -s "$our_render" ] || ! jq empty "$our_render" >/dev/null 2>&1; then
         printf 'error: rendering %s from %s failed; %s left untouched.\n' \
             "$pretty" "$(pretty_path "$ALLOWLISTS_SRC")" "$pretty" >&2
+        rm -f "$our_render"
+        return 1
+    fi
+
+    # Promote user manual edits before re-rendering.
+    if ! promote_user_edits "$stem" "$dir" "$kind"; then
         rm -f "$our_render"
         return 1
     fi
@@ -817,13 +864,23 @@ apply_one_target() {
         return 0
     fi
 
-    if [ -f "$live" ]; then
-        rotate_history "$stem" "$dir"
+    # A failed backup or write returns before the sidecar moves, so the
+    # baseline still describes what the live file holds.
+    if { [ ! -f "$live" ] || rotate_history "$stem" "$dir"; } \
+        && atomic_write "$live" "$proposed"; then
+        :
+    else
+        printf 'error: could not write %s; sidecar not updated.\n' "$pretty" >&2
+        rm -f "$proposed" "$our_render"
+        return 1
     fi
-    atomic_write "$live" "$proposed"
     # The sidecar is the next run's baseline for "what we rendered": record it
     # only once the live file it describes is in place.
-    write_org_sidecar "$sidecar" "$our_render"
+    if ! write_org_sidecar "$sidecar" "$our_render"; then
+        printf 'error: wrote %s but not its sidecar %s; rerun install.\n' "$pretty" "$(pretty_path "$sidecar")" >&2
+        rm -f "$proposed" "$our_render"
+        return 1
+    fi
     rm -f "$proposed" "$our_render"
 
     if [ -f "$live" ]; then
@@ -845,7 +902,7 @@ remove_one_target() {
     fi
 
     # Promote any pending user edits before we drop our sidecar.
-    promote_user_edits "$stem" "$dir" "$kind"
+    promote_user_edits "$stem" "$dir" "$kind" || return 1
 
     if [ -f "$sidecar" ]; then
         if [ "$DRY_RUN" = "1" ]; then

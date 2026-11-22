@@ -854,6 +854,69 @@ run_al "$H34B" "$META" install >/dev/null 2>&1 || fail "T34b: install failed on 
     || fail "T34b: allow not rendered over permissions:null"
 
 # ---------------------------------------------------------------------------
+# T35 (review): a setting the engineer removes does not come back from a stale passthrough.
+# ---------------------------------------------------------------------------
+printf '[T35] removing the last unmanaged setting clears the passthrough\n'
+H35=$(mk_home t35)
+printf '{"permissions":{"defaultMode":"bypassPermissions"}}\n' > "$H35/.claude/settings.json"
+run_al "$H35" "$META" install >/dev/null
+[ "$(jq -r '.permissions.defaultMode' "$H35/.claude/settings.json")" = "bypassPermissions" ] || fail "T35: setup, defaultMode not kept"
+jq 'del(.permissions.defaultMode)' "$H35/.claude/settings.json" > "$H35/s.tmp" && mv "$H35/s.tmp" "$H35/.claude/settings.json"
+run_al "$H35" "$META" install >/dev/null
+[ "$(jq -r '.permissions.defaultMode // "gone"' "$H35/.claude/settings.json")" = "gone" ] \
+    || fail "T35: defaultMode came back after the engineer removed it"
+
+# ---------------------------------------------------------------------------
+# T36 (review): a backup that looks like a sidecar does not satisfy the guard.
+# ---------------------------------------------------------------------------
+printf '[T36] stray .permissions.backup.json does not explain a hand-written live file\n'
+H36=$(mk_home t36)
+mkdir -p "$H36/.cursor/.history"
+printf '{"terminalAllowlist":["old"]}\n' > "$H36/.cursor/.history/permissions.json.1"
+printf '{"terminalAllowlist":["hand-written"]}\n' > "$H36/.cursor/permissions.json"
+printf '{}\n' > "$H36/.cursor/.permissions.backup.json"
+rc=0
+run_al "$H36" "$META" install >/dev/null 2>&1 || rc=$?
+[ "$rc" -ne 0 ] || fail "T36: guard bypassed by a stray backup file"
+[ "$(jq -r '.terminalAllowlist[0]' "$H36/.cursor/permissions.json")" = "hand-written" ] || fail "T36: live file was rewritten"
+
+# ---------------------------------------------------------------------------
+# T37 (review): live files that are not exactly one object with array lists are refused untouched.
+# ---------------------------------------------------------------------------
+printf '[T37] whitespace, two values, a top-level array, string lists: refused, untouched\n'
+n=0
+for content in '   ' '{"a":1}{"b":2}' '[1,2]' '{"permissions":{"allow":"Bash(x)"}}'; do
+    n=$((n + 1))
+    H37=$(mk_home "t37-$n")
+    printf '%s\n' "$content" > "$H37/.claude/settings.json"
+    cp "$H37/.claude/settings.json" "$TEST_DIR/t37.before"
+    rc=0
+    run_al "$H37" "$META" install >/dev/null 2>&1 || rc=$?
+    [ "$rc" -ne 0 ] || fail "T37.$n: install exited 0"
+    cmp -s "$TEST_DIR/t37.before" "$H37/.claude/settings.json" || fail "T37.$n: settings.json changed"
+    [ -z "$(find "$H37/.claude" -name '.settings.*' -print -quit)" ] || fail "T37.$n: a sidecar was written"
+done
+H37C=$(mk_home t37-cursor)
+printf '{"terminalAllowlist":"git"}\n' > "$H37C/.cursor/permissions.json"
+rc=0
+run_al "$H37C" "$META" install >/dev/null 2>&1 || rc=$?
+[ "$rc" -ne 0 ] || fail "T37c: install exited 0 on a string terminalAllowlist"
+
+# ---------------------------------------------------------------------------
+# T38 (review): a meta that prints a render and then fails writes nothing, promotion included.
+# ---------------------------------------------------------------------------
+printf '[T38] meta with trailing garbage: nothing written\n'
+H38=$(mk_home t38)
+{ cat "$META"; printf 'garbage\n'; } > "$TEST_DIR/meta/t38.json"
+printf '{"model":"opus"}\n' > "$H38/.claude/settings.json"
+cp "$H38/.claude/settings.json" "$TEST_DIR/t38.before"
+rc=0
+run_al "$H38" "$TEST_DIR/meta/t38.json" install >/dev/null 2>&1 || rc=$?
+[ "$rc" -ne 0 ] || fail "T38: install exited 0 on a bad meta"
+cmp -s "$TEST_DIR/t38.before" "$H38/.claude/settings.json" || fail "T38: settings.json changed"
+[ -z "$(find "$H38/.claude" -name '.settings.*' -print -quit)" ] || fail "T38: a sidecar was written"
+
+# ---------------------------------------------------------------------------
 # Final report
 # ---------------------------------------------------------------------------
 if [ "$FAILED" -eq 0 ]; then
