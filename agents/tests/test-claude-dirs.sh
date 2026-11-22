@@ -125,6 +125,12 @@ else
     check "relative path named in the error" grep -q "absolute paths, got 'relative/dir'" "$SB/bad.out"
 fi
 
+if mk status-modes CLAUDE_HOME="$A" > "$SB/old.out" 2>&1; then
+    fail "the retired CLAUDE_HOME should be refused, not ignored"
+else
+    check "retired CLAUDE_HOME names its replacement" grep -q "CLAUDE_HOME is gone; set CLAUDE_CONFIG_DIRS" "$SB/old.out"
+fi
+
 if [ "$FAILED" = "0" ]; then
     printf 'test-claude-dirs: all checks passed\n'
     exit 0

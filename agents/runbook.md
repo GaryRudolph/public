@@ -181,6 +181,8 @@ sidecars and `.history/`, and local marketplace and plugin installs.
 starts with the managed dirs and names any other `~/.claude*` directory it
 finds (`? not managed`), which is the sign the list is missing a profile.
 Nothing is ever written to a dir that isn't listed.
+`CLAUDE_HOME`, `CLAUDE_DATA_HOME`, `CLAUDE_SKILLS_HOME` and `CLAUDE_COMMANDS_HOME`
+no longer exist; `make` stops with an error if `local.mk` still sets one.
 
 #### s6 - Verify
 

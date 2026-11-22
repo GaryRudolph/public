@@ -56,6 +56,10 @@ CLAUDE_CONFIG_DIRS ?= $(HOME)/.claude
 CLAUDE_CONFIG_DIRS := $(strip $(CLAUDE_CONFIG_DIRS))
 claude_uniq = $(if $(1),$(firstword $(1)) $(call claude_uniq,$(filter-out $(firstword $(1)),$(1))))
 CLAUDE_CONFIG_DIRS := $(strip $(call claude_uniq,$(patsubst %/,%,$(CLAUDE_CONFIG_DIRS))))
+# The single-dir variables this list replaced: refuse them rather than ignore them.
+$(foreach v,CLAUDE_HOME CLAUDE_DATA_HOME CLAUDE_SKILLS_HOME CLAUDE_COMMANDS_HOME,\
+  $(if $(filter file command line,$(origin $(v))),\
+    $(error $(v) is gone; set CLAUDE_CONFIG_DIRS (one or more dirs) in agents/local.mk instead)))
 $(if $(CLAUDE_CONFIG_DIRS),,$(error CLAUDE_CONFIG_DIRS is empty; it needs at least one directory))
 $(foreach d,$(CLAUDE_CONFIG_DIRS),\
   $(if $(filter /%,$(d)),,$(error CLAUDE_CONFIG_DIRS entries must be absolute paths, got '$(d)')))
