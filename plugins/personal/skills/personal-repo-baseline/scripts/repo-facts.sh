@@ -4,7 +4,9 @@
 # settings and makes no recommendations: the agent compares them with
 # templates/ and decides.
 #
-# Needs bash (3.2 is fine), git, and python3. gh is optional; without it, or
+# Needs bash (3.2 is fine), git, and python3 3.9 or newer (its embedded
+# scripts must compile there: no backslash inside an f-string expression,
+# no match statement, no X | Y annotations). gh is optional; without it, or
 # without access, the GitHub section prints why it couldn't read anything.
 # GitHub is read only when origin is github.com, Claude Code's cloud git
 # proxy, or an ssh alias for github.com: on any other host,
@@ -338,8 +340,10 @@ folder = os.path.join(root, ".github", "PULL_REQUEST_TEMPLATE")
 for rel in found:
     text = open(os.path.join(root, rel), encoding="utf-8", errors="replace").read()
     print(f"  path: {rel}")
-    print(f"  has ## Review guide: {'yes' if re.search(r'^##[ \t]+Review guide[ \t]*$', text, re.M | re.I) else 'no'}")
-    print(f"  has Review tier: line: {'yes' if re.search(r'Review tier:', text, re.I) else 'no'}")
+    has_guide = "yes" if re.search(r"^##[ \t]+Review guide[ \t]*$", text, re.M | re.I) else "no"
+    has_tier = "yes" if re.search(r"Review tier:", text, re.I) else "no"
+    print(f"  has ## Review guide: {has_guide}")
+    print(f"  has Review tier: line: {has_tier}")
     print("  contents:")
     for line in text.splitlines():
         print(f"    | {line}")
@@ -359,8 +363,10 @@ path = os.path.join(sys.argv[1], ".github", "copilot-instructions.md")
 if os.path.isfile(path):
     text = open(path, encoding="utf-8", errors="replace").read()
     print("  path: .github/copilot-instructions.md")
-    print(f"  has Code review heading: {'yes' if re.search(r'^#+[ \t]+Code review[ \t]*$', text, re.M | re.I) else 'no'}")
-    print(f"  has blocking: label: {'yes' if 'blocking:' in text else 'no'}")
+    has_heading = "yes" if re.search(r"^#+[ \t]+Code review[ \t]*$", text, re.M | re.I) else "no"
+    has_label = "yes" if "blocking:" in text else "no"
+    print(f"  has Code review heading: {has_heading}")
+    print(f"  has blocking: label: {has_label}")
     print("  contents:")
     for line in text.splitlines():
         print(f"    | {line}")

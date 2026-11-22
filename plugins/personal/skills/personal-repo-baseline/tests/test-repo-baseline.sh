@@ -166,6 +166,35 @@ EOF
 chmod +x "$stub/gh" "$stub/ssh"
 export GH_ARGS_FILE="$work/gh-args" SSH_ARGS_FILE="$work/ssh-args"
 
+printf 'Python 3.9 floor\n'
+# Every python3 block embedded in repo-facts.sh must compile on 3.9, where an f-string expression can't hold a
+# backslash. Checked by walking each f-string's expressions (a newer python accepts the backslash, so compiling
+# alone proves nothing), and by compiling with python3.9 through python3.11 when one is installed.
+if python3 - "$facts" <<'PY'
+import ast, re, sys
+text = open(sys.argv[1]).read()
+blocks = re.findall(r"python3 (?:-I )?(?:-c '(.*?)'|- [^\n]*<<'PY'\n(.*?)\nPY)", text, re.S)
+bad = []
+for one_liner, heredoc in blocks:
+    src = one_liner or heredoc
+    for node in ast.walk(ast.parse(src)):
+        if isinstance(node, ast.FormattedValue) and "\\" in (ast.get_source_segment(src, node.value) or ""):
+            bad.append(ast.get_source_segment(src, node.value))
+if not blocks or bad:
+    sys.exit(f"{len(blocks)} blocks; backslash inside f-string expressions: {bad}")
+PY
+then pass "no backslash inside an f-string expression"; else fail "repo-facts.sh embeds an f-string expression with a backslash (a SyntaxError before Python 3.12)"; fi
+for old_python in python3.9 python3.10 python3.11; do
+    command -v "$old_python" >/dev/null 2>&1 || continue
+    if "$old_python" - "$facts" <<'PY'
+import re, sys
+text = open(sys.argv[1]).read()
+for one_liner, heredoc in re.findall(r"python3 (?:-I )?(?:-c '(.*?)'|- [^\n]*<<'PY'\n(.*?)\nPY)", text, re.S):
+    compile(one_liner or heredoc, "repo-facts.sh", "exec")
+PY
+    then pass "  ...every embedded script compiles on $old_python"; else fail "embedded script does not compile on $old_python"; fi
+done
+
 repo="$work/widget"
 mkdir -p "$repo/.claude"
 git -C "$repo" init -q
