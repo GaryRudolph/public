@@ -5,7 +5,11 @@
 #   no KEY           KEY=VALUE lines for every env file this key can open
 #                    (or just FILE)
 #   KEY, no FORMAT   the raw value only, for one-command inline use
-#   KEY + dotenv     one KEY=VALUE line, for >> "$GITHUB_ENV"
+#   KEY + dotenv     one KEY=VALUE line
+#
+# Under GitHub Actions (GITHUB_ACTIONS=true) every value printed is first
+# registered with ::add-mask:: on stderr, so capture stdout freely. Decrypt
+# in the step that needs the value; never append it to $GITHUB_ENV.
 #
 # env: SOPS_AGE_KEY (required). Files this key can't open are skipped with a
 # note on stderr; that's expected, since each key opens only its own files.
@@ -41,7 +45,38 @@ value_of() {
     printf '%s\n' "$1" | awk -v k="$want_key" 'index($0, k "=") == 1 { print substr($0, length(k) + 2); exit }'
 }
 
+# Under GitHub Actions, register every value with the runner's log masker
+# before printing it. The mask goes to stderr: callers capture stdout
+# ($(...)) or redirect it, so a mask there would never reach the runner and
+# would end up inside the value. The runner reads workflow commands from the
+# step's stderr as well as its stdout. Each value is masked as printed and,
+# since dotenv escapes newlines as \n, also line by line as it reads once
+# unescaped, and without surrounding quotes. The runner percent-decodes
+# command data, so % and CR are encoded or the wrong string gets masked.
+# usage: mask_values "$value"; mask_values dotenv "$dotenv_lines". Takes
+# arguments, not stdin, so nothing writes into a pipe it may not read.
+mask_values() {
+    [ "${GITHUB_ACTIONS:-}" = true ] || return 0
+    local dotenv=0
+    if [ "$1" = dotenv ]; then dotenv=1; shift; fi
+    printf '%s\n' "$1" | awk -v dotenv="$dotenv" '
+        function esc(s) { gsub(/%/, "%25", s); gsub(/\r/, "%0D", s); return s }
+        function emit(s) { if (s ~ /[^[:space:]]/) print "::add-mask::" esc(s) }
+        function one(s,   n, i, p, q) {
+            emit(s)
+            q = substr(s, 1, 1)
+            if (length(s) > 1 && (q == "\"" || q == "\047") && substr(s, length(s)) == q) { s = substr(s, 2, length(s) - 2); emit(s) }
+            n = split(s, p, /\\n/)
+            if (n > 1) for (i = 1; i <= n; i++) emit(p[i])
+        }
+        dotenv && /^[[:space:]]*(#|$)/ { next }
+        dotenv { if (index($0, "=") == 0) next; one(substr($0, index($0, "=") + 1)); next }
+        { one($0) }
+    ' >&2
+}
+
 print_value() {
+    mask_values "$1"
     if [ "$format" = dotenv ]; then
         printf '%s=%s\n' "$want_key" "$1"
     else
@@ -81,14 +116,23 @@ if [ -n "$want_key" ]; then
     exit 0
 fi
 
+# A whole file: mask its values, then print it.
+print_env() {
+    [ -n "$1" ] || return 0
+    mask_values dotenv "$1"
+    printf '%s\n' "$1"
+}
+
 if [ -n "$sel_file" ]; then
     [ -f "$root/$sel_file.sops" ] || { echo "missing $root/$sel_file.sops" >&2; exit 1; }
-    emit_file "$root/$sel_file.sops"
+    content=$(emit_file "$root/$sel_file.sops") || exit 1
+    print_env "$content"
     exit 0
 fi
 
 files=$(env_files) || exit 1
 while read -r f; do
     [ -n "$f" ] || continue
-    emit_file "$f" || true
+    content=$(emit_file "$f") || continue
+    print_env "$content"
 done <<< "$files"

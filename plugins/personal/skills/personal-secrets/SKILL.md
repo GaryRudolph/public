@@ -146,7 +146,8 @@ When one CI job needs permissions the others mustn't have, such as
 
 Start from [`templates/single-repo/ci-steps.yml`](templates/single-repo/ci-steps.yml)
 and keep the narrowest step that works: one value for one command
-(`make -s secrets-env FILE= KEY=`), then `FORMAT=dotenv >> "$GITHUB_ENV"`, then
+(`make -s secrets-env FILE= KEY=`), then one value for one step (decrypt into
+a shell variable and `export` it inside that step), then
 `make secrets-decrypt FILE=` for a tool that needs a file, with
 `make secrets-clean` in an `if: always()` step. `SOPS_AGE_KEY` goes on the
 step, never the job.
@@ -253,10 +254,15 @@ anyone can decrypt a file they aren't granted.
 Start from [`templates/consumer/secrets-steps.yml`](templates/consumer/secrets-steps.yml)
 and keep only the narrowest decrypt step that works:
 
-1. One key for one command: `make -C _secrets dist-decrypt-env KEY=NAME`
-2. Export to the job environment: `... KEY=NAME FORMAT=dotenv >> "$GITHUB_ENV"`
-   (or all env files the key can open)
+1. One key for one command: `NAME="$(make -s -C _secrets dist-decrypt-env KEY=NAME)" <cmd>`
+2. One key for one step: decrypt it into a shell variable at the top of the
+   `run:` script and `export` it there; a later step decrypts it again
 3. Files on disk, only when a tool needs a file: `make -C _secrets dist-decrypt FILE=<f>`
+
+Never append a value to `$GITHUB_ENV`. Under Actions the kit masks every value
+it prints. A repo still on the old template (which appended to `$GITHUB_ENV`)
+rotates every value it exported
+([secrets/README.md](../personal-standards/standards/secrets/README.md#least-privilege-consumption)).
 
 The repo needs `vars.SECRETS_APP_CLIENT_ID`, `secrets.SECRETS_APP_PRIVATE_KEY`, and
 its own `SOPS_AGE_KEY` in each store it uses. A job that reads an

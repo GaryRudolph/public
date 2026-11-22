@@ -19,7 +19,8 @@
 # A consumer's dotenv is read on top of its scope's shared.env, if there is
 # one: shared.env first, then <consumer>.env, and the last value for a key wins.
 # Written for bash 3.2 (macOS /bin/bash): no associative arrays, no mapfile.
-# Never prints a secret value except where `env` is asked for one.
+# Never prints a secret value except where `env` is asked for one, and under
+# GitHub Actions masks each value it prints (see mask_values).
 set -euo pipefail
 
 root=$(cd "$(dirname "$0")/.." && pwd)
@@ -220,18 +221,51 @@ layered() {
     } | merge_last_wins
 }
 
+# Under GitHub Actions, register every value with the runner's log masker
+# before printing it. The mask goes to stderr: callers capture stdout
+# ($(...)) or redirect it, so a mask there would never reach the runner and
+# would end up inside the value. The runner reads workflow commands from the
+# step's stderr as well as its stdout. Each value is masked as printed and,
+# since dotenv escapes newlines as \n, also line by line as it reads once
+# unescaped, and without surrounding quotes. The runner percent-decodes
+# command data, so % and CR are encoded or the wrong string gets masked.
+# usage: mask_values "$value"; mask_values dotenv "$dotenv_lines". Takes
+# arguments, not stdin, so nothing writes into a pipe it may not read.
+mask_values() {
+    [ "${GITHUB_ACTIONS:-}" = true ] || return 0
+    local dotenv=0
+    if [ "$1" = dotenv ]; then dotenv=1; shift; fi
+    printf '%s\n' "$1" | awk -v dotenv="$dotenv" '
+        function esc(s) { gsub(/%/, "%25", s); gsub(/\r/, "%0D", s); return s }
+        function emit(s) { if (s ~ /[^[:space:]]/) print "::add-mask::" esc(s) }
+        function one(s,   n, i, p, q) {
+            emit(s)
+            q = substr(s, 1, 1)
+            if (length(s) > 1 && (q == "\"" || q == "\047") && substr(s, length(s)) == q) { s = substr(s, 2, length(s) - 2); emit(s) }
+            n = split(s, p, /\\n/)
+            if (n > 1) for (i = 1; i <= n; i++) emit(p[i])
+        }
+        dotenv && /^[[:space:]]*(#|$)/ { next }
+        dotenv { if (index($0, "=") == 0) next; one(substr($0, index($0, "=") + 1)); next }
+        { one($0) }
+    ' >&2
+}
+
 cmd_env() {
     local f k="${2:-}" merged v
     [ -n "${1:-}" ] || die "FILE is required, e.g. FILE=prod/api.env"
     f=$(logical "$1")
     merged=$(layered "$f") || exit 1
     if [ -z "$k" ]; then
-        [ -z "$merged" ] || printf '%s\n' "$merged"
+        [ -n "$merged" ] || return 0
+        mask_values dotenv "$merged"
+        printf '%s\n' "$merged"
         return
     fi
     printf '%s' "$k" | grep -Eq '^[A-Z][A-Z0-9_]*$' || die "KEY '$k' isn't an UPPER_SNAKE name"
     printf '%s\n' "$merged" | grep -q "^$k=" || die "$k isn't in $f or its shared.env"
     v=$(printf '%s\n' "$merged" | sed -n "s/^$k=//p" | tail -1)
+    mask_values "$v"
     if [ "${FORMAT:-}" = dotenv ]; then printf '%s=%s\n' "$k" "$v"; else printf '%s\n' "$v"; fi
 }
 

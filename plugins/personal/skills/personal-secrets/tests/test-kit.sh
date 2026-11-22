@@ -46,6 +46,8 @@ export GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_NOSYSTEM=1
 # would print "Entering directory" into captured output.
 unset MAKEFLAGS MAKELEVEL MFLAGS
 unset SOPS_AGE_KEY SOPS_AGE_KEY_CMD
+# Masking is tested explicitly below; elsewhere run as a workstation would.
+unset GITHUB_ACTIONS
 printf 'bash under test: %s\n' "$(bash -c 'echo $BASH_VERSION')"
 
 age-keygen -o "$work/keys/maint.txt" 2>/dev/null
@@ -98,7 +100,9 @@ prod/email.env:  @prod
 EOF
 mkdir -p src/ios src/prod
 printf 'RESEND_API_KEY=re_prod_test\n' > src/prod/email.env
-printf 'AUTH_TOKEN=token_oss_test\nSHARED=oss\n' > src/oss.env
+# MULTI is a two-line value as dotenv stores it (\n escaped), with a %0A the
+# runner would decode if the mask weren't percent-encoded.
+printf 'AUTH_TOKEN=token_oss_test\nSHARED=oss\nMULTI=l1\\nl2%%0Aend\n' > src/oss.env
 printf 'STRIPE_KEY=sk_live_x\nSHARED=commercial\n' > src/commercial.env
 head -c 512 /dev/urandom > src/ios/AuthKey.p8
 cp src/ios/AuthKey.p8 "$work/p8.orig"
@@ -130,6 +134,30 @@ expect_fail "env-prod key can't read ci files"     as_consumer "$envprod" make -
 expect_fail "actions key can't read prod/"         as_consumer "$app" make -s dist-decrypt-env FILE=prod/email.env
 expect_ok   "all-env export skips what it can't open" as_consumer "$site" make -s dist-decrypt-env
 expect_grep "  ...and emits only oss.env"          "AUTH_TOKEN="
+
+printf '\nmasking under Actions\n'
+gha() { local key="$1"; shift; as_consumer "$key" env GITHUB_ACTIONS=true "$@"; }
+masks() { grep '^::add-mask::' || true; }
+expect_eq   "raw value: stdout is the value alone"  "$(gha "$site" make -s dist-decrypt-env KEY=AUTH_TOKEN 2>/dev/null)" "token_oss_test"
+expect_eq   "  ...and the mask is on stderr"        "$(gha "$site" make -s dist-decrypt-env KEY=AUTH_TOKEN 2>&1 >/dev/null | masks)" "::add-mask::token_oss_test"
+expect_eq   "  ...before the value"                 "$(gha "$site" make -s dist-decrypt-env KEY=AUTH_TOKEN FORMAT=dotenv 2>&1 | tr '\n' ' ')" "::add-mask::token_oss_test AUTH_TOKEN=token_oss_test "
+expect_eq   "dotenv line: stdout unchanged"         "$(gha "$site" make -s dist-decrypt-env KEY=AUTH_TOKEN FORMAT=dotenv 2>/dev/null)" "AUTH_TOKEN=token_oss_test"
+expect_eq   "FILE= + KEY masks too"                 "$(gha "$app" make -s dist-decrypt-env FILE=commercial.env KEY=SHARED 2>&1 >/dev/null | masks)" "::add-mask::commercial"
+expect_eq   "multi-line value: whole, then each line, %-encoded" \
+    "$(gha "$site" make -s dist-decrypt-env KEY=MULTI 2>&1 >/dev/null | masks | tr '\n' ' ')" \
+    '::add-mask::l1\nl2%250Aend ::add-mask::l1 ::add-mask::l2%250Aend '
+expect_eq   "  ...stdout still the stored value"    "$(gha "$site" make -s dist-decrypt-env KEY=MULTI 2>/dev/null)" 'l1\nl2%0Aend'
+gha "$site" make -s dist-decrypt-env >"$work/all.out" 2>"$work/all.err"
+unmasked=""
+while IFS= read -r line; do
+    v=${line#*=}
+    grep -qxF "::add-mask::$(printf '%s' "$v" | sed 's/%/%25/g')" "$work/all.err" || unmasked="$unmasked ${line%%=*}"
+done < "$work/all.out"
+expect_eq   "export-all: every value printed is masked" "$unmasked" ""
+expect_eq   "  ...and it printed values"            "$(grep -c '=' "$work/all.out")" "3"
+gha "$site" make -s dist-decrypt-env FILE=oss.env >"$work/out" 2>&1
+expect_grep "FILE= export masks"                    "^::add-mask::token_oss_test$"
+expect_eq   "no masks outside Actions"              "$(as_consumer "$site" make -s dist-decrypt-env KEY=AUTH_TOKEN 2>&1 >/dev/null | masks)" ""
 make -s clean >/dev/null
 
 printf '\ncommits\n'

@@ -97,10 +97,27 @@ Prefer the narrowest form the toolchain allows:
 
 1. **One value, one command:** the value goes inline to the command that needs
    it, and nothing lands in the job environment.
-2. **Export to the job environment:** dotenv appended to `$GITHUB_ENV`, only
-   for the keys later steps use.
+2. **One value, one step:** when several commands in a step need it, decrypt
+   it into a shell variable at the top of the `run:` script and `export` it
+   there; it ends with the step. A later step that needs it decrypts it again.
 3. **Decrypt files to disk:** only when the toolchain needs a file (a `.p8` or
    `.p12`), mode `0600`, removed when the job ends.
+
+Never append a value to `$GITHUB_ENV`. Every later step gets it, third-party
+actions included, and each step's log prints its `env:` block. A `uses:`
+action that needs a value gets it through that step's `env:` or `with:` from
+an output of the step that decrypted it, never from the job environment.
+
+Under GitHub Actions the kits register every value they print with
+`::add-mask::` on stderr before printing it, so capturing stdout with `$(...)`
+is safe. Leave stderr alone: `2>/dev/null` drops the mask, and `2>&1` puts it
+inside the value.
+
+**Repos on the old template rotate.** The consumer template and these
+snippets used to append values to `$GITHUB_ENV`, unmasked. Any repo that ran
+that form has the values in its job logs, public for a public repo: rotate
+every value it exported at its issuer, update its encrypted file, move the workflow to the
+forms above, and delete the old runs' logs.
 
 Target names for each tier: [makefile.md](makefile.md).
 
