@@ -10,8 +10,8 @@ version: 1
 default:
   - group: Required
     items:
-      # str.removesuffix in plugins/personal/scripts/session-doctor.py and
-      # origin.py; tests/test-origin.sh parses origin.py as 3.9.
+      # str.removesuffix in plugins/personal/scripts/origin.py and
+      # personal-plan-orchestrate/scripts/token_tally.py; tests/test-origin.sh parses origin.py as 3.9.
       - tool: python3
         version: ">=3.9"
         hint: brew install python

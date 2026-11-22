@@ -40,9 +40,6 @@ print("{" + ", ".join(["full_name", "default_branch", "permissions"] + keys) + "
 ' "$merge_template"
 }
 
-# owner/name from the last two path parts of a remote URL, in any form git
-# or the cloud proxy uses: https://github.com/o/r(.git), git@github.com:o/r,
-# ssh://git@github.com/o/r, http://local_proxy@127.0.0.1:1234/git/o/r
 # Parses a remote URL with origin.py into o_class (github, ssh443, alias,
 # proxy, other, local, none), o_host, o_owner, o_repo, o_transport and
 # o_masked (credentials masked; the raw URL is never printed). o_class is

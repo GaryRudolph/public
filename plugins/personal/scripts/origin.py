@@ -37,7 +37,9 @@ import subprocess
 import sys
 from dataclasses import dataclass, asdict
 
-SCHEME_URL = re.compile(r"^(?P<scheme>[A-Za-z][A-Za-z0-9+.-]*)://(?P<authority>[^/]*)(?P<path>/.*)?$", re.S)
+# The authority ends at the first `/`, `?` or `#`, as git and curl read it, so
+# `https://evil.example#@github.com/o/r` is evil.example, not github.com.
+SCHEME_URL = re.compile(r"^(?P<scheme>[A-Za-z][A-Za-z0-9+.-]*)://(?P<authority>[^/?#]*)(?P<path>[/?#].*)?$", re.S)
 HOSTPORT = re.compile(r"^(?P<host>\[[^\]]*\]|[^:]*)(?::(?P<port>[0-9]*))?$")
 SCP_FORM = re.compile(r"^(?:[^@/:]+@)?(?P<host>\[[^\]]*\]|[^/:]+):(?P<path>.*)$", re.S)
 WINDOWS_PATH = re.compile(r"^[A-Za-z]:[\\/]")
@@ -62,23 +64,32 @@ class Origin:
 
 def mask(url):
     """The URL with credentials masked: all of a non-ssh scheme URL's userinfo
-    (a token can sit in the user part), and the password of an ssh one.
-    A URL with no `scheme://` is returned as is."""
-    m = re.match(r"^([A-Za-z][A-Za-z0-9+.-]*://)([^/]*)(.*)$", url, re.S)
-    if m and "@" in m.group(2):
-        scheme, authority, rest = m.groups()
+    (a token can sit in the user part), the password of an ssh one, and any
+    query string (`?***`). A URL with no `scheme://` is returned as is."""
+    m = re.match(r"^([A-Za-z][A-Za-z0-9+.-]*://)([^/?#]*)(.*)$", url, re.S)
+    if not m:
+        return url
+    scheme, authority, rest = m.groups()
+    if "@" in authority:
         userinfo, _, hostport = authority.rpartition("@")
         if "ssh" in scheme.lower():
             user, colon, _ = userinfo.partition(":")
             userinfo = user + (":***" if colon else "")
         else:
             userinfo = "***"
-        url = scheme + userinfo + "@" + hostport + rest
-    return url
+        authority = userinfo + "@" + hostport
+    if "?" in rest:
+        rest = rest.partition("?")[0] + "?***"
+    return scheme + authority + rest
+
+
+def _segments(path):
+    """The path's non-empty segments, with any query or fragment dropped."""
+    return [s for s in re.split(r"[?#]", path, maxsplit=1)[0].split("/") if s]
 
 
 def _owner_repo(path):
-    segments = [s for s in path.split("/") if s]
+    segments = _segments(path)
     if segments:
         segments[-1] = segments[-1].removesuffix(".git")
     return (segments[-2], segments[-1]) if len(segments) >= 2 and segments[-1] else ("", "")
@@ -117,8 +128,9 @@ def parse(url):
         host_class = "ssh443"
     elif is_ssh and ALIAS_HOST.match(host):
         host_class = "alias"
-    elif scheme in ("http", "https") and host in ("127.0.0.1", "localhost") and path.startswith("/git/"):
-        host_class = "proxy"
+    elif (scheme in ("http", "https") and host in ("127.0.0.1", "localhost")
+          and len(_segments(path)) == 3 and _segments(path)[0] == "git"):
+        host_class = "proxy"  # exactly /git/<owner>/<repo>
     else:
         host_class = "other"
     owner, repo = _owner_repo(path)

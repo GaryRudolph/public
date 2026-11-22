@@ -241,7 +241,7 @@ else
   fail "no origin.py: exit $?"
 fi
 expect_grep "  ...no owner" "(owner: unknown)"
-if grep -qF "origin.py not found at" "$work/err"; then pass "  ...says why on stderr"; else fail "  ...no reason on stderr"; fi
+if grep -qF "origin.py unavailable at" "$work/err"; then pass "  ...says why on stderr"; else fail "  ...no reason on stderr"; fi
 git remote remove origin
 
 echo "github lookup that fails"

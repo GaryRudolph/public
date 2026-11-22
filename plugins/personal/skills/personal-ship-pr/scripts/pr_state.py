@@ -90,8 +90,10 @@ def api_list(path, key=None):
 def default_repo():
     origin = load_origin()
     if origin is None:
-        raise Unavailable(f"can't read origin (origin.py not found at {ORIGIN_PY}); pass --repo OWNER/REPO")
+        raise Unavailable(f"can't read origin (origin.py unavailable at {ORIGIN_PY}); pass --repo OWNER/REPO")
     found = origin.read(".")
+    if found.host_class == "none":
+        raise Unavailable("no origin remote here (or not in a git repo); pass --repo OWNER/REPO")
     if not found.is_github:
         raise Unavailable("origin is not a GitHub remote; pass --repo OWNER/REPO")
     return f"{found.owner}/{found.repo}"

@@ -121,7 +121,7 @@ git remote set-url origin git@github.com:acme/orders.git
 mkdir -p "$work/lone/scripts"; cp "$facts" "$work/lone/scripts/review_facts.py"
 python3 -I "$work/lone/scripts/review_facts.py" --base main --committed >"$work/out" 2>"$work/err" \
     && pass "no origin.py: still runs" || fail "no origin.py: exit $?"
-expect_grep "  ...says where it looked"                   "github_repo: unknown (origin.py not found at "
+expect_grep "  ...says where it looked"                   "github_repo: unknown (origin.py unavailable at "
 git remote remove origin
 
 printf 'working tree\n'

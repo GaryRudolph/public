@@ -255,7 +255,7 @@ def github_repo():
     """origin's GitHub owner/repo through origin.py (SSH aliases, ssh.github.com and the cloud proxy included), as the report line's value."""
     origin = load_origin()
     if origin is None:
-        return f"unknown (origin.py not found at {ORIGIN_PY})"
+        return f"unknown (origin.py unavailable at {ORIGIN_PY})"
     found = origin.read(".")
     return f"{found.owner}/{found.repo} (from origin)" if found.is_github else "none (from origin)"
 

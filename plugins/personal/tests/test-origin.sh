@@ -35,6 +35,9 @@ expect_line "dotted alias is other"     "git@github.com-evil.example:lolay/x.git
 expect_line "https alias is other"      "https://github.com-work/lolay/x.git"           other github.com-work lolay x https "https://github.com-work/lolay/x.git"
 expect_line "github.com as a path is other" "https://evil.example/github.com/lolay/x"   other evil.example lolay x https "https://evil.example/github.com/lolay/x"
 expect_line "proxy path must start /git/" "http://127.0.0.1:9/other/acme/widget"         other 127.0.0.1 acme widget http "http://127.0.0.1:9/other/acme/widget"
+expect_line "proxy needs exactly owner/repo" "http://127.0.0.1/git/acme"           other 127.0.0.1 git acme http "http://127.0.0.1/git/acme"
+expect_line "# ends the authority"      "https://evil.example#@github.com/GaryRudolph/x" other evil.example - - https "https://evil.example#@github.com/GaryRudolph/x"
+expect_line "? ends the authority"      "https://evil.example?@github.com/GaryRudolph/x" other evil.example - - https "https://evil.example?***"
 expect_line "ssh to an IP"              "ssh://git@10.0.0.5/acme/widget.git"            other 10.0.0.5 acme widget ssh "ssh://git@10.0.0.5/acme/widget.git"
 expect_line "local path"                "/srv/git/widget.git"                           local - - - local "/srv/git/widget.git"
 expect_line "file URL"                  "file:///srv/git/widget.git"                    local - - - file "file:///srv/git/widget.git"
@@ -47,8 +50,13 @@ expect_line "https user and password"   "https://bob:hunter2@github.com/acme/wid
 expect_line "ssh url with a password"   "ssh://bob:hunter2@host.example/acme/widget.git" other host.example acme widget ssh "ssh://bob:***@host.example/acme/widget.git"
 expect_line "ssh url, user only"        "ssh://git@host.example/acme/widget.git"        other host.example acme widget ssh "ssh://git@host.example/acme/widget.git"
 expect_line "git+ssh counts as ssh"     "git+ssh://bob:hunter2@host.example/a/b"        other host.example a b ssh "git+ssh://bob:***@host.example/a/b"
-out=$("$python" -I "$origin" -- "https://ghp_SECRET@github.com/acme/widget.git" --json 2>&1)
-case "$out" in *ghp_SECRET*) fail "--json prints the token: $out" ;; *) pass "--json never prints the token" ;; esac
+expect_line "a query string is masked"  "https://github.com/acme/widget.git?access_token=ghp_SECRET" github github.com acme widget https "https://github.com/acme/widget.git?***"
+out=$("$python" -I "$origin" --json -- "https://ghp_SECRET@github.com/acme/widget.git" 2>&1); rc=$?
+case "$out" in
+    *ghp_SECRET*) fail "--json prints the token: $out" ;;
+    *'"masked": "https://***@github.com/acme/widget.git"'*) [ "$rc" = 0 ] && pass "--json masks the token" || fail "--json exited $rc" ;;
+    *) fail "--json: unexpected output: $out" ;;
+esac
 
 printf 'hostile input\n'
 got=$("$python" -I "$origin" -- "$(printf 'https://github.com/lo\nlay/x')" 2>&1)

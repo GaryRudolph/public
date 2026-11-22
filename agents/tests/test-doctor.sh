@@ -5,7 +5,7 @@
 set -uo pipefail
 
 here=$(cd "$(dirname "$0")" && pwd)
-repo=$(cd "$here/../../.." && pwd -P)
+repo=$(cd "$here/../.." && pwd -P)
 work=$(cd "$(mktemp -d)" && pwd -P)
 trap 'rm -rf "$work"' EXIT
 failures=0
@@ -54,7 +54,7 @@ else
 fi
 
 printf 'session doctor\n'
-if python3 -I - "$here/../scripts/session-doctor.py" "$repo" <<'PY'
+if python3 -I - "$repo/plugins/personal/scripts/session-doctor.py" "$repo" <<'PY'
 import importlib.util, sys
 from pathlib import Path
 spec = importlib.util.spec_from_file_location("session_doctor", sys.argv[1])

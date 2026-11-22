@@ -494,7 +494,7 @@ test-origin:
 
 # This repo's own doctor: triage.yaml's floors, the doctor target, and the session doctor picking it.
 test-doctor:
-	@bash "$(PLUGINS_DIR)/personal/tests/test-doctor.sh"
+	@bash "$(AGENTS_DIR)/tests/test-doctor.sh"
 
 # The personal plugin's session doctor hook, against fixture repos and stub tools.
 test-session-doctor:

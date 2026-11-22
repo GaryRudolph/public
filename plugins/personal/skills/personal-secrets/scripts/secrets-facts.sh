@@ -131,7 +131,13 @@ else
     fi
 
     section "consumer wiring"
-    name=${o_repo:-$(basename "$root")}
+    # origin.py names no repo for a local-path or one-segment origin: take the
+    # URL's last path part, as before, and the clone's folder only without one.
+    name=$o_repo
+    if [ -z "$name" ] && [ "$o_state" = ok ] && [ -n "$o_masked" ] && [ "$o_masked" != "-" ]; then
+        name=$(basename "${o_masked%%[?#]*}" .git)
+    fi
+    name=${name:-$(basename "$root")}
     printf '  repo name: %s (identities would be %s__<context>)\n' "$name" "$name"
     if [ -d .github/workflows ]; then
         for f in .github/workflows/*.y*ml; do

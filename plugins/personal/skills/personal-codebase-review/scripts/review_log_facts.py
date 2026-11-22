@@ -148,7 +148,7 @@ def origin_owner(repo):
     """origin's GitHub owner through origin.py, or "" (the reason on stderr) so --members asks for --owner."""
     origin = load_origin()
     if origin is None:
-        print(f"can't read origin (origin.py not found at {ORIGIN_PY})", file=sys.stderr)
+        print(f"can't read origin (origin.py unavailable at {ORIGIN_PY})", file=sys.stderr)
         return ""
     found = origin.read(repo)
     return found.owner if found.is_github else ""

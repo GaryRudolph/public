@@ -370,6 +370,9 @@ expect_grep "  ...names the repo from origin"                    'repo name: wid
 git remote set-url origin 'git@github.com-work:acme/gadget.git'
 expect_ok   "secrets-facts with an ssh alias origin"             bash "$here/../scripts/secrets-facts.sh"
 expect_grep "  ...names the repo from the alias"                 'repo name: gadget'
+git remote set-url origin '/srv/git/gizmo.git'
+expect_ok   "secrets-facts with a local-path origin"             bash "$here/../scripts/secrets-facts.sh"
+expect_grep "  ...names the repo from the path"                  'repo name: gizmo'
 # A copy of the plugin without scripts/origin.py: the remote is not shown, the name falls back to the folder.
 cp -R "$here/../../.." "$work/plugin-copy" && rm "$work/plugin-copy/scripts/origin.py"
 git remote set-url origin 'https://ghp_s3cr3t@github.com/acme/widget.git'

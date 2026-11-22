@@ -278,16 +278,19 @@ for url in (f"git@github.com-work:{REPO}.git", f"ssh://git@ssh.github.com:443/{R
             f"http://local_proxy@127.0.0.1:41923/git/{REPO}", f"https://github.com/{REPO}"):
     rc, s, err = run_without_repo(Fake(), url)
     check(f"origin {url.split('@')[-1]}: owner/repo found", rc == 0 and s and s["head_sha"] == HEAD, (rc, err))
-for url in (f"https://gitlab.com/{REPO}.git", f"https://attacker.example/{REPO}.git", None):
+for url in (f"https://gitlab.com/{REPO}.git", f"https://attacker.example/{REPO}.git"):
     rc, s, err = run_without_repo(Fake(), url)
     check(f"origin {url}: not a GitHub remote, asks for --repo",
           rc != 0 and "origin is not a GitHub remote; pass --repo OWNER/REPO" in err, (rc, err))
+rc, s, err = run_without_repo(Fake(), None)
+check("no origin remote: says so, asks for --repo",
+      rc != 0 and "no origin remote here" in err and "pass --repo OWNER/REPO" in err, (rc, err))
 with tempfile.TemporaryDirectory() as lone:
     os.makedirs(os.path.join(lone, "scripts"))
     shutil.copy(STATE, os.path.join(lone, "scripts", "pr_state.py"))
     rc, s, err = run_without_repo(Fake(), f"https://github.com/{REPO}", os.path.join(lone, "scripts", "pr_state.py"))
     check("no origin.py beside the plugin root: says where it looked, asks for --repo",
-          rc != 0 and "origin.py not found at" in err and "pass --repo OWNER/REPO" in err, (rc, err))
+          rc != 0 and "origin.py unavailable at" in err and "pass --repo OWNER/REPO" in err, (rc, err))
 
 
 print("ship_pr_hook.py")
