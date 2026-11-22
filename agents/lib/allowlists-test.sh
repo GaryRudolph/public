@@ -186,11 +186,15 @@ H4=$(mk_home t04)
 mkdir -p "$H4/.cursor/.history"
 printf '{"terminalAllowlist":["foreign-entry"]}\n' \
     > "$H4/.cursor/.history/permissions.json.1"
-# No agerpoint sidecar → installer should refuse and exit non-zero.
+# A hand-written live file that no sidecar explains → refuse, exit non-zero,
+# leave the file byte-identical.
+printf '{"terminalAllowlist":["hand-written"]}\n' > "$H4/.cursor/permissions.json"
+cp "$H4/.cursor/permissions.json" "$TEST_DIR/t04.before"
 rc=0
 run_al "$H4" "$META" install >/dev/null 2>/dev/null || rc=$?
 [ "$rc" -ne 0 ] || fail "T04: install should have aborted (got exit 0)"
-[ ! -f "$H4/.cursor/permissions.json" ] || fail "T04: permissions.json must not be written after abort"
+cmp -s "$TEST_DIR/t04.before" "$H4/.cursor/permissions.json" \
+    || fail "T04: hand-written permissions.json must be left untouched after abort"
 
 # ---------------------------------------------------------------------------
 # T05: .N rotation across gaps — deleting an intermediate backup doesn't
@@ -755,6 +759,241 @@ run_al "$H30" "$TEST_DIR/meta/v2.json" install >/dev/null
 run_al "$H30" "$META" clean >/dev/null
 [ ! -d "$H30/.gemini/policies/.history" ] || fail "T30: gemini .history not removed by clean"
 [ -f "$H30/.gemini/policies/${ORG}-managed.toml" ] || fail "T30: clean removed the live managed .toml (must not)"
+
+# ---------------------------------------------------------------------------
+# T31 (r1.f12): a malformed live file halts install before anything is written.
+# ---------------------------------------------------------------------------
+printf '[T31] malformed live settings.json: nothing written, exit non-zero\n'
+H31=$(mk_home t31)
+run_al "$H31" "$META" install >/dev/null
+printf '{"model":"opus","permissions":{"allow":["x"],},}\n' > "$H31/.claude/settings.json"
+snap31() { (cd "$H31" && find . -type f -print | LC_ALL=C sort | while IFS= read -r p; do printf '%s %s\n' "$p" "$(cksum < "$p")"; done); }
+snap31 > "$TEST_DIR/t31.before"
+rc=0
+out31=$(run_al "$H31" "$META" install 2>&1) || rc=$?
+[ "$rc" -ne 0 ] || fail "T31: install exited 0 on a malformed live file"
+snap31 > "$TEST_DIR/t31.after"
+cmp -s "$TEST_DIR/t31.before" "$TEST_DIR/t31.after" || fail "T31: a file changed despite the malformed input"
+case "$out31" in *"settings.json"*) ;; *) fail "T31: output does not name settings.json" ;; esac
+
+printf '[T31b] 0-byte sidecar: nothing written, exit non-zero\n'
+H31B=$(mk_home t31b)
+run_al "$H31B" "$META" install >/dev/null
+: > "$H31B/.claude/.settings.passthrough.json"
+rc=0
+run_al "$H31B" "$META" install >/dev/null 2>&1 || rc=$?
+[ "$rc" -ne 0 ] || fail "T31b: install exited 0 with a 0-byte sidecar"
+[ -s "$H31B/.claude/settings.json" ] || fail "T31b: settings.json was emptied"
+
+# ---------------------------------------------------------------------------
+# T32 (r1.f11): an entry removed from the meta leaves the live file.
+# ---------------------------------------------------------------------------
+printf '[T32] removing an entry from the meta removes it from the live file\n'
+H32=$(mk_home t32)
+META32A="$TEST_DIR/meta/t32a.json"; META32B="$TEST_DIR/meta/t32b.json"
+printf '{"shell":{"allow":["git status","rm"],"deny":[]},"mcp":{"allow":[],"deny":[]},"read":{"deny":[]},"write":{"deny":[]},"webfetch":{"allow":[],"deny":[]}}\n' > "$META32A"
+printf '{"shell":{"allow":["git status"],"deny":[]},"mcp":{"allow":[],"deny":[]},"read":{"deny":[]},"write":{"deny":[]},"webfetch":{"allow":[],"deny":[]}}\n' > "$META32B"
+run_al "$H32" "$META32A" install >/dev/null
+[ "$(jq '.permissions.allow | index("Bash(rm:*)") // index("rm") | . != null' "$H32/.claude/settings.json")" = "true" ] \
+    || fail "T32: setup, rm not in settings.json"
+run_al "$H32" "$META32B" install >/dev/null
+for f in "$H32/.claude/settings.json" "$H32/.cursor/permissions.json" "$H32/.cursor/cli-config.json"; do
+    grep -q '"rm"\|rm:\*\|Shell(rm' "$f" && fail "T32: rm still live in $(basename "$f")"
+done
+if [ -f "$H32/.claude/.settings.user-managed.json" ] && grep -q 'rm' "$H32/.claude/.settings.user-managed.json"; then
+    fail "T32: rm was saved as a user edit"
+fi
+[ "$(run_al "$H32" "$META32B" status 2>&1 | grep -c 'json OK current')" = "3" ] \
+    || fail "T32: status is not OK current on all three JSON targets after the removal"
+
+# ---------------------------------------------------------------------------
+# T33 (r1.f13): reinstall after uninstall with history kept, and a second org.
+# ---------------------------------------------------------------------------
+printf '[T33] install, uninstall (history kept), install succeeds\n'
+H33=$(mk_home t33)
+printf '{"model":"opus"}\n' > "$H33/.claude/settings.json"
+run_al "$H33" "$META" install >/dev/null
+run_al "$H33" "$META" install >/dev/null
+REMOVE_HISTORY=no run_al "$H33" "$META" uninstall >/dev/null
+rc=0
+run_al "$H33" "$META" install >/dev/null 2>&1 || rc=$?
+[ "$rc" -eq 0 ] || fail "T33: reinstall after uninstall failed (exit $rc)"
+
+printf '[T33b] second org first install after the first org re-rendered\n'
+H33B=$(mk_home t33b)
+run_al "$H33B" "$META" install >/dev/null
+run_al "$H33B" "$TEST_DIR/meta/v1.json" install >/dev/null 2>&1 || true
+run_al "$H33B" "$META" install >/dev/null
+[ -f "$H33B/.cursor/.history/permissions.json.1" ] || fail "T33b: setup, no history written"
+rc=0
+run_al_org "testpeer" "$H33B" "$META2" install >/dev/null 2>&1 || rc=$?
+[ "$rc" -eq 0 ] || fail "T33b: second org's first install failed (exit $rc)"
+
+# ---------------------------------------------------------------------------
+# T34 (r1.f2): permission keys we don't manage survive install.
+# ---------------------------------------------------------------------------
+printf '[T34] ask, defaultMode, disableBypassPermissionsMode, additionalDirectories survive\n'
+H34=$(mk_home t34)
+cat > "$H34/.claude/settings.json" <<'ENDJSON'
+{"model":"opus","permissions":{"allow":[],"ask":["Bash(git push:*)"],"defaultMode":"acceptEdits","disableBypassPermissionsMode":"disable","additionalDirectories":["/tmp/extra"]}}
+ENDJSON
+run_al "$H34" "$META" install >/dev/null
+run_al "$H34" "$META" install >/dev/null
+S34="$H34/.claude/settings.json"
+[ "$(jq -c '.permissions.ask' "$S34")" = '["Bash(git push:*)"]' ] || fail "T34: ask lost"
+[ "$(jq -r '.permissions.defaultMode' "$S34")" = "acceptEdits" ] || fail "T34: defaultMode lost"
+[ "$(jq -r '.permissions.disableBypassPermissionsMode' "$S34")" = "disable" ] || fail "T34: disableBypassPermissionsMode lost"
+[ "$(jq -c '.permissions.additionalDirectories' "$S34")" = '["/tmp/extra"]' ] || fail "T34: additionalDirectories lost"
+[ "$(jq '.permissions.allow | length > 0' "$S34")" = "true" ] || fail "T34: allow was not rendered"
+
+printf '[T34b] a non-object permissions value is dropped, not merged back\n'
+H34B=$(mk_home t34b)
+printf '{"model":"opus","permissions":null}\n' > "$H34B/.claude/settings.json"
+run_al "$H34B" "$META" install >/dev/null 2>&1 || fail "T34b: install failed on permissions:null"
+[ "$(jq '.permissions.allow | length > 0' "$H34B/.claude/settings.json")" = "true" ] \
+    || fail "T34b: allow not rendered over permissions:null"
+
+# ---------------------------------------------------------------------------
+# T35 (review): a setting the engineer removes does not come back from a stale passthrough.
+# ---------------------------------------------------------------------------
+printf '[T35] removing the last unmanaged setting clears the passthrough\n'
+H35=$(mk_home t35)
+printf '{"permissions":{"defaultMode":"bypassPermissions"}}\n' > "$H35/.claude/settings.json"
+run_al "$H35" "$META" install >/dev/null
+[ "$(jq -r '.permissions.defaultMode' "$H35/.claude/settings.json")" = "bypassPermissions" ] || fail "T35: setup, defaultMode not kept"
+jq 'del(.permissions.defaultMode)' "$H35/.claude/settings.json" > "$H35/s.tmp" && mv "$H35/s.tmp" "$H35/.claude/settings.json"
+run_al "$H35" "$META" install >/dev/null
+[ "$(jq -r '.permissions.defaultMode // "gone"' "$H35/.claude/settings.json")" = "gone" ] \
+    || fail "T35: defaultMode came back after the engineer removed it"
+
+# ---------------------------------------------------------------------------
+# T36 (review): a backup that looks like a sidecar does not satisfy the guard.
+# ---------------------------------------------------------------------------
+printf '[T36] stray .permissions.backup.json does not explain a hand-written live file\n'
+H36=$(mk_home t36)
+mkdir -p "$H36/.cursor/.history"
+printf '{"terminalAllowlist":["old"]}\n' > "$H36/.cursor/.history/permissions.json.1"
+printf '{"terminalAllowlist":["hand-written"]}\n' > "$H36/.cursor/permissions.json"
+printf '{}\n' > "$H36/.cursor/.permissions.backup.json"
+rc=0
+run_al "$H36" "$META" install >/dev/null 2>&1 || rc=$?
+[ "$rc" -ne 0 ] || fail "T36: guard bypassed by a stray backup file"
+[ "$(jq -r '.terminalAllowlist[0]' "$H36/.cursor/permissions.json")" = "hand-written" ] || fail "T36: live file was rewritten"
+
+# ---------------------------------------------------------------------------
+# T37 (review): live files that are not exactly one object with array lists are refused untouched.
+# ---------------------------------------------------------------------------
+printf '[T37] whitespace, two values, a top-level array, string lists: refused, untouched\n'
+n=0
+for content in '   ' '{"a":1}{"b":2}' '[1,2]' '{"permissions":{"allow":"Bash(x)"}}'; do
+    n=$((n + 1))
+    H37=$(mk_home "t37-$n")
+    printf '%s\n' "$content" > "$H37/.claude/settings.json"
+    cp "$H37/.claude/settings.json" "$TEST_DIR/t37.before"
+    rc=0
+    run_al "$H37" "$META" install >/dev/null 2>&1 || rc=$?
+    [ "$rc" -ne 0 ] || fail "T37.$n: install exited 0"
+    cmp -s "$TEST_DIR/t37.before" "$H37/.claude/settings.json" || fail "T37.$n: settings.json changed"
+    [ -z "$(find "$H37/.claude" -name '.settings.*' -print -quit)" ] || fail "T37.$n: a sidecar was written"
+done
+H37C=$(mk_home t37-cursor)
+printf '{"terminalAllowlist":"git"}\n' > "$H37C/.cursor/permissions.json"
+rc=0
+run_al "$H37C" "$META" install >/dev/null 2>&1 || rc=$?
+[ "$rc" -ne 0 ] || fail "T37c: install exited 0 on a string terminalAllowlist"
+
+# ---------------------------------------------------------------------------
+# T38 (review): a meta that prints a render and then fails writes nothing, promotion included.
+# ---------------------------------------------------------------------------
+printf '[T38] meta with trailing garbage: nothing written\n'
+H38=$(mk_home t38)
+{ cat "$META"; printf 'garbage\n'; } > "$TEST_DIR/meta/t38.json"
+printf '{"model":"opus"}\n' > "$H38/.claude/settings.json"
+cp "$H38/.claude/settings.json" "$TEST_DIR/t38.before"
+rc=0
+run_al "$H38" "$TEST_DIR/meta/t38.json" install >/dev/null 2>&1 || rc=$?
+[ "$rc" -ne 0 ] || fail "T38: install exited 0 on a bad meta"
+cmp -s "$TEST_DIR/t38.before" "$H38/.claude/settings.json" || fail "T38: settings.json changed"
+[ -z "$(find "$H38/.claude" -name '.settings.*' -print -quit)" ] || fail "T38: a sidecar was written"
+
+# ---------------------------------------------------------------------------
+# T39 (review round 2): uninstall validates first, and a stray backup does not block reinstall.
+# ---------------------------------------------------------------------------
+printf '[T39] uninstall refuses a live file with two JSON values, untouched\n'
+H39=$(mk_home t39)
+run_al "$H39" "$META" install >/dev/null
+printf '{"a":1}{"b":2}\n' > "$H39/.claude/settings.json"
+cp "$H39/.claude/settings.json" "$TEST_DIR/t39.before"
+rc=0
+run_al "$H39" "$META" uninstall >/dev/null 2>&1 || rc=$?
+[ "$rc" -ne 0 ] || fail "T39: uninstall exited 0 on a malformed live file"
+cmp -s "$TEST_DIR/t39.before" "$H39/.claude/settings.json" || fail "T39: settings.json changed"
+[ -f "$H39/.claude/.settings.${ORG}-managed.json" ] || fail "T39: org sidecar removed despite the abort"
+
+printf '[T39b] stray backup file: install, uninstall, reinstall succeeds\n'
+H39B=$(mk_home t39b)
+run_al "$H39B" "$META" install >/dev/null
+printf '{}\n' > "$H39B/.cursor/.permissions.backup.json"
+run_al "$H39B" "$META" install >/dev/null
+REMOVE_HISTORY=no run_al "$H39B" "$META" uninstall >/dev/null
+rc=0
+run_al "$H39B" "$META" install >/dev/null 2>&1 || rc=$?
+[ "$rc" -eq 0 ] || fail "T39b: reinstall failed with a stray backup present (exit $rc)"
+
+printf '[T39c] empty symlinked sidecar is caught before any write\n'
+H39C=$(mk_home t39c)
+run_al "$H39C" "$META" install >/dev/null
+: > "$TEST_DIR/t39c.empty"
+ln -sf "$TEST_DIR/t39c.empty" "$H39C/.claude/.settings.user-managed.json"
+snap39() { (cd "$H39C" && find . -type f -print | LC_ALL=C sort | while IFS= read -r p; do printf '%s %s\n' "$p" "$(cksum < "$p")"; done); }
+snap39 > "$TEST_DIR/t39c.before"
+rc=0
+run_al "$H39C" "$META2" install >/dev/null 2>&1 || rc=$?
+[ "$rc" -ne 0 ] || fail "T39c: install exited 0 with an empty symlinked sidecar"
+snap39 > "$TEST_DIR/t39c.after"
+cmp -s "$TEST_DIR/t39c.before" "$TEST_DIR/t39c.after" || fail "T39c: a file changed despite the abort"
+
+printf '[T39d] dry-run previews the stale passthrough as gone\n'
+H39D=$(mk_home t39d)
+printf '{"permissions":{"defaultMode":"bypassPermissions"}}\n' > "$H39D/.claude/settings.json"
+run_al "$H39D" "$META" install >/dev/null
+jq 'del(.permissions.defaultMode)' "$H39D/.claude/settings.json" > "$H39D/s.tmp" && mv "$H39D/s.tmp" "$H39D/.claude/settings.json"
+run_al "$H39D" "$META" dry-run 2>&1 | grep -F 'settings.json' | grep -q 'no change' \
+    || fail "T39d: dry-run previews a rewrite that install would not make"
+
+# ---------------------------------------------------------------------------
+# T40 (review round 3)
+# ---------------------------------------------------------------------------
+printf '[T40] dry-run previews a changed, non-empty passthrough, not the stale one\n'
+H40=$(mk_home t40)
+printf '{"model":"opus","permissions":{"defaultMode":"bypassPermissions"}}\n' > "$H40/.claude/settings.json"
+run_al "$H40" "$META" install >/dev/null
+jq 'del(.permissions.defaultMode)' "$H40/.claude/settings.json" > "$H40/s.tmp" && mv "$H40/s.tmp" "$H40/.claude/settings.json"
+run_al "$H40" "$META" dry-run 2>&1 | grep -F 'settings.json' | grep -q 'no change' \
+    || fail "T40: dry-run previews a rewrite install would not make"
+[ "$(jq -r '.permissions.defaultMode // "gone"' "$H40/.claude/.settings.passthrough.json")" = "bypassPermissions" ] \
+    || fail "T40: dry-run changed the passthrough on disk"
+
+printf '[T40b] a symlinked peer sidecar is part of the baseline and the union\n'
+H40B=$(mk_home t40b)
+run_al     "$H40B" "$META"  install >/dev/null
+run_al_org "testpeer" "$H40B" "$META2" install >/dev/null
+mv "$H40B/.claude/.settings.testpeer-managed.json" "$TEST_DIR/t40b.peer.json"
+ln -s "$TEST_DIR/t40b.peer.json" "$H40B/.claude/.settings.testpeer-managed.json"
+run_al "$H40B" "$META" install >/dev/null
+if [ -f "$H40B/.claude/.settings.user-managed.json" ] && grep -q 'pytest' "$H40B/.claude/.settings.user-managed.json"; then
+    fail "T40b: the peer's rules were saved as user edits"
+fi
+[ "$(jq '.permissions.allow | index("Bash(pytest:*)") // index("pytest") | . != null' "$H40B/.claude/settings.json")" = "true" ] \
+    || fail "T40b: the peer's rules dropped out of the live file"
+
+printf '[T40c] a meta that renders two JSON objects: nothing written\n'
+H40C=$(mk_home t40c)
+{ cat "$META"; cat "$META2"; } > "$TEST_DIR/meta/t40c.json"
+rc=0
+run_al "$H40C" "$TEST_DIR/meta/t40c.json" install >/dev/null 2>&1 || rc=$?
+[ "$rc" -ne 0 ] || fail "T40c: install exited 0 on a two-object meta"
+[ -z "$(find "$H40C/.claude" "$H40C/.cursor" -name '.*-managed.json' -print -quit)" ] || fail "T40c: a sidecar was written"
 
 # ---------------------------------------------------------------------------
 # Final report
