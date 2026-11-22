@@ -61,12 +61,15 @@ claude_sp    := $(claude_empty) $(claude_empty)
 claude_tok   := @SP@
 # sort drops duplicates and, unlike filter-out, takes every word literally (a
 # path may contain a '%'); the order of the dirs doesn't matter.
-claude_words := $(sort $(patsubst %/,%,$(subst :,$(claude_sp),$(subst $(claude_sp),$(claude_tok),$(CLAUDE_CONFIG_DIRS)))))
+# claude_trim drops every trailing slash but keeps a lone '/'.
+claude_trim   = $(if $(filter %/,$(1)),$(if $(patsubst %/,%,$(1)),$(call claude_trim,$(patsubst %/,%,$(1))),/),$(1))
+claude_words := $(sort $(foreach w,$(subst :,$(claude_sp),$(subst $(claude_sp),$(claude_tok),$(CLAUDE_CONFIG_DIRS))),$(call claude_trim,$(w))))
 
 # The single-dir variables this list replaced: refuse them rather than ignore them.
 $(foreach v,CLAUDE_HOME CLAUDE_DATA_HOME CLAUDE_SKILLS_HOME CLAUDE_COMMANDS_HOME,\
   $(if $(filter file command line,$(origin $(v))),\
     $(error $(v) is gone; set CLAUDE_CONFIG_DIRS (one or more dirs) in agents/local.mk instead)))
+$(if $(findstring $(claude_tok),$(CLAUDE_CONFIG_DIRS)),$(error CLAUDE_CONFIG_DIRS can't contain '$(claude_tok)'; it stands in for a space while the list is checked))
 $(if $(claude_words),,$(error CLAUDE_CONFIG_DIRS is empty; it needs at least one directory))
 $(foreach d,$(claude_words),\
   $(if $(filter /%,$(d)),,$(error CLAUDE_CONFIG_DIRS entries must be absolute paths, got '$(subst $(claude_tok),$(claude_sp),$(d))')))

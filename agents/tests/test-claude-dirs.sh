@@ -104,6 +104,11 @@ check "a repeated dir is listed once" test "$(grep -c '\.claude-a ' "$SB/status-
 mk status-claude-dirs CLAUDE_CONFIG_DIRS="/tmp/a%:/tmp/abc" > "$SB/status-pct.out" 2>&1
 check "a '%' in one path doesn't drop another dir" \
     test "$(grep -c 'listed but not found' "$SB/status-pct.out")" = 2
+mk status-claude-dirs CLAUDE_CONFIG_DIRS="$A///:$A:$B//" > "$SB/status-slash.out" 2>&1
+check "repeated trailing slashes are trimmed and deduplicated" \
+    test "$(grep -c 'OK managed' "$SB/status-slash.out")" = 2
+mk status-claude-dirs CLAUDE_CONFIG_DIRS="///" > "$SB/status-root.out" 2>&1
+check "a lone / stays /" grep -qE '^/ +OK managed' "$SB/status-root.out"
 check "a trailing colon adds no dir" test "$(grep -c 'OK managed' "$SB/status-dup.out")" = 2
 ln -s "$A" "$H/.claude-link"
 mk status-claude-dirs CLAUDE_CONFIG_DIRS="$A:$B" > "$SB/status-link.out" 2>&1
@@ -158,6 +163,12 @@ if mk status-modes CLAUDE_CONFIG_DIRS="relative/dir" > "$SB/bad.out" 2>&1; then
     fail "a relative path should be refused"
 else
     check "relative path named in the error" grep -q "absolute paths, got 'relative/dir'" "$SB/bad.out"
+fi
+
+if mk status-modes CLAUDE_CONFIG_DIRS="/tmp/@SP@foo:/tmp/bar" > "$SB/tok.out" 2>&1; then
+    fail "the space placeholder in a path should be refused"
+else
+    check "the placeholder is named in the error" grep -q "can't contain '@SP@'" "$SB/tok.out"
 fi
 
 if mk status-modes CLAUDE_HOME="$A" > "$SB/old.out" 2>&1; then
