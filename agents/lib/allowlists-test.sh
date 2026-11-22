@@ -846,6 +846,13 @@ S34="$H34/.claude/settings.json"
 [ "$(jq -c '.permissions.additionalDirectories' "$S34")" = '["/tmp/extra"]' ] || fail "T34: additionalDirectories lost"
 [ "$(jq '.permissions.allow | length > 0' "$S34")" = "true" ] || fail "T34: allow was not rendered"
 
+printf '[T34b] a non-object permissions value is dropped, not merged back\n'
+H34B=$(mk_home t34b)
+printf '{"model":"opus","permissions":null}\n' > "$H34B/.claude/settings.json"
+run_al "$H34B" "$META" install >/dev/null 2>&1 || fail "T34b: install failed on permissions:null"
+[ "$(jq '.permissions.allow | length > 0' "$H34B/.claude/settings.json")" = "true" ] \
+    || fail "T34b: allow not rendered over permissions:null"
+
 # ---------------------------------------------------------------------------
 # Final report
 # ---------------------------------------------------------------------------

@@ -372,9 +372,10 @@ extract_passthrough() {
         cursor_cli|claude)
             # Only allow and deny are ours; ask, defaultMode, additionalDirectories
             # and the rest stay in the passthrough and deep-merge back at render.
-            jq -S 'del(.permissions.allow, .permissions.deny)
-                   | if (.permissions? | type) == "object" and (.permissions | length) == 0
-                     then del(.permissions) else . end' "$live"
+            jq -S 'if (.permissions? | type) == "object"
+                   then del(.permissions.allow, .permissions.deny)
+                        | if (.permissions | length) == 0 then del(.permissions) else . end
+                   else del(.permissions) end' "$live"
             ;;
     esac
 }
@@ -699,7 +700,7 @@ validate_inputs() {
         [ -d "$dir" ] || continue
         while IFS= read -r -d '' f; do
             if [ ! -s "$f" ]; then
-                printf 'error: %s is empty (0 bytes); nothing was written.\n' "$(pretty_path "$f")" >&2
+                printf 'error: %s is empty (0 bytes); nothing was written.\n       delete it, or restore the last good copy with `make restore-allowlists N=1`.\n' "$(pretty_path "$f")" >&2
                 bad=1
             elif ! jq empty "$f" >/dev/null 2>&1; then
                 printf 'error: %s is not valid JSON; nothing was written.\n' "$(pretty_path "$f")" >&2
@@ -751,6 +752,14 @@ note_foreign_history_files() {
 # Per-target install/uninstall/dry-run
 # ---------------------------------------------------------------------------
 
+write_org_sidecar() {
+    local sidecar="$1" render="$2"
+    [ "$DRY_RUN" = "1" ] && return 0
+    if [ ! -f "$sidecar" ] || ! cmp -s "$render" "$sidecar"; then
+        atomic_write "$sidecar" "$render"
+    fi
+}
+
 apply_one_target() {
     local stem="$1" dir="$2" kind="$3"
     local live pretty label
@@ -771,39 +780,34 @@ apply_one_target() {
     # `|| ABORTED=1` in the caller turns off errexit in here, so check the
     # render by hand: a failed jq must never reach a sidecar or the live file.
     if [ ! -s "$our_render" ] || ! jq empty "$our_render" >/dev/null 2>&1; then
-        printf 'error: rendering %s from %s failed; nothing was written.\n' \
-            "$pretty" "$(pretty_path "$ALLOWLISTS_SRC")" >&2
+        printf 'error: rendering %s from %s failed; %s left untouched.\n' \
+            "$pretty" "$(pretty_path "$ALLOWLISTS_SRC")" "$pretty" >&2
         rm -f "$our_render"
         return 1
     fi
 
-    # Refresh our org sidecar on disk so peer installers see our contribution.
     sidecar=$(org_sidecar "$stem" "$dir")
-    if [ ! -f "$sidecar" ] || ! cmp -s "$our_render" "$sidecar"; then
-        if [ "$DRY_RUN" != "1" ]; then
-            atomic_write "$sidecar" "$our_render"
-        fi
-    fi
 
     # Render the full union for the live file (pass our_render as extra so
     # dry-run sees our contribution even when the sidecar isn't on disk yet).
     local proposed
     proposed=$(mktemp)
     render_one_target "$stem" "$dir" "$kind" "$proposed" "$our_render"
-    rm -f "$our_render"
     if [ ! -s "$proposed" ] || ! jq empty "$proposed" >/dev/null 2>&1; then
         printf 'error: merging %s failed; left untouched.\n' "$pretty" >&2
-        rm -f "$proposed"
+        rm -f "$proposed" "$our_render"
         return 1
     fi
 
     if [ -f "$live" ] && cmp -s "$proposed" "$live"; then
+        write_org_sidecar "$sidecar" "$our_render"
         printf '%-50s = no change (idempotent)%s\n' "$pretty" "$label"
-        rm -f "$proposed"
+        rm -f "$proposed" "$our_render"
         return 0
     fi
 
     if [ "$DRY_RUN" = "1" ]; then
+        rm -f "$our_render"
         if [ -f "$live" ]; then
             printf '%-50s ~ would re-render (%d bytes)%s\n' "$pretty" "$(wc -c < "$proposed" | tr -d ' ')" "$label"
         else
@@ -817,7 +821,10 @@ apply_one_target() {
         rotate_history "$stem" "$dir"
     fi
     atomic_write "$live" "$proposed"
-    rm -f "$proposed"
+    # The sidecar is the next run's baseline for "what we rendered": record it
+    # only once the live file it describes is in place.
+    write_org_sidecar "$sidecar" "$our_render"
+    rm -f "$proposed" "$our_render"
 
     if [ -f "$live" ]; then
         printf '%-50s + wrote (%d bytes)%s\n' "$pretty" "$(wc -c < "$live" | tr -d ' ')" "$label"
