@@ -257,3 +257,4 @@ tokens wave-1 m8-s1 (claude-opus-5-5): input ~35 / cache read ~2.3M / cache writ
 tokens review-wave-1 m8-s1 (claude-opus-5-5): input ~25 / cache read ~1.2M / cache write ~120k 1h / output ~7k | ~$1.3 API-equiv
 tokens wave-2 m8-s2-s7 (claude-sonnet-5-5): input ~140 / cache read ~14M / cache write ~200k 1h / output ~62k | ~$2.9 API-equiv
 tokens review-wave-2 m8-s2-s7 (claude-opus-5-5): input ~34 / cache read ~2.6M / cache write ~110k 1h / output ~10k | ~$1.6 API-equiv
+tokens wave-2-fix m8-s6 (claude-sonnet-5-5): input ~46 / cache read ~3.3M / cache write ~160k 1h / output ~14k | ~$1.1 API-equiv
