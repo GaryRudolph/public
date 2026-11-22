@@ -217,3 +217,4 @@ Run `personal-ship-pr`. The PR description carries the s1 Design note, one `Fixe
 - Rates by `<model>`, $ per Mtok input / cached / output: `claude-opus-5-5` 4.00 / 0.20 / 20.00; `claude-sonnet-5-5` 2.00 / 0.10 / 10.00.
 - `$C` = (input × in + cache read × cached + 5m write × in × 1.25 + 1h write × in × 2.00 + output × out) / 1M.
 - In another harness, or on a model not listed here, count and price per plan-execution.md "Token accounting" and "Model price table" instead.
+tokens kickoff plan-r1-origin-doctor-heron (claude-opus-5-5): input ~45 / cache read ~3.5M / cache write ~150k 1h / output ~15k | ~$2.2 API-equiv
