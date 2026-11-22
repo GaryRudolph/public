@@ -23,3 +23,6 @@ __pycache__/
 
 # Scratch / handoffs / ephemeral plans
 .scratch/
+
+# triage --command-log output (git.md ".gitignore Essentials")
+.triage/
