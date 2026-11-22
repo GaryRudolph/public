@@ -108,9 +108,23 @@ The four first-class harness targets and the token format each uses:
 | Harness | File | Array / key | Token format |
 |---|---|---|---|
 | **Cursor IDE** | `<repo>/.cursor/permissions.json` | `terminalAllowlist` | Raw prefix string: `"make test"` |
-| **Cursor CLI** | `<repo>/.cursor/cli.json` | `permissions.allow` | `"Shell(<base>:*)"` for multi-word; `"Shell(<word>)"` for bare word |
+| **Cursor CLI** | `<repo>/.cursor/cli.json` | `permissions.allow` | `"Shell(<base>:<args>)"` for a multi-word segment, args literal (`Shell(make:test)`); `"Shell(<word>)"` for a one-word segment; no token for a segment containing `*` or `?` |
 | **Claude Code** | `<repo>/.claude/settings.json` | `permissions.allow` | `"Bash(<cmd>:*)"` |
 | **Gemini** | `<repo>/.gemini/policies/<name>.toml` | additive `[[rule]]` blocks | `toolName = "run_shell_command"`, `commandPrefix = "<segment>"`, `decision = "allow"`, `priority = 100` |
+
+**Cursor CLI rule.** Cursor's permissions docs define `Shell(commandBase)`
+(the command's first token, any arguments: `Shell(git)` allows every `git`
+subcommand) and the `command:args` form, whose args part is a glob
+(`Shell(curl:*)` is `curl` with anything). A `command:args` rule with no glob
+character in args names one command line, so `render.py` writes
+`Shell(make:test)` for `make test` and never `Shell(make:*)`, which would
+also grant `make release`. The docs state the glob rule but never show an
+exact `command:args` example, so this relies on a glob without a wildcard
+matching only itself. A segment containing `*` or `?` can't be written
+exactly, so the Cursor CLI gets no rule for it and `render.py` says so.
+`scan.py` reads `Shell(cmd:args)` back as covering only `cmd args`, and
+`Shell(cmd:*)` or `Bash(cmd:*)` as the prefix `cmd`. This keeps § 4 rule 2:
+no entry subsumes a command the scout would never propose.
 
 All writes are **union-only**: `render.py` adds missing allow entries and never
 removes anything, never writes a `deny` / `ask_user` / `confirmationRequired`

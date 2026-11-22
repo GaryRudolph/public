@@ -236,22 +236,40 @@ def load_json_lenient(path):
 # Harness allowlist parsing -> plain shell command prefixes (allow only)
 # ---------------------------------------------------------------------------
 
+class _Exact(str):
+    """An allow entry that covers only this exact command (a Cursor CLI
+    Shell(cmd:args) rule), never a longer one. covered_by honors it."""
+
+
 def _unwrap_token(tok: str):
-    """Normalize one permissions.allow token to a bare shell prefix.
-    Handles Cursor CLI Shell(...) and Claude Bash(...) wrappers and the
-    trailing :* argument wildcard. Returns None for non-shell tokens
+    """Normalize one permissions.allow token to a shell prefix.
+    Handles Cursor CLI Shell(...) and Claude Bash(...) wrappers.
+
+    Bash(cmd:*) and Shell(cmd:*) are prefixes. Shell(cmd:args) with a literal
+    args part covers only `cmd args`, so it returns an _Exact entry; with a
+    glob in args it returns None (covers nothing here, so the scan keeps
+    proposing the narrower command). Returns None for non-shell tokens
     (Mcp(...), mcp__..., WebFetch(...))."""
     tok = tok.strip()
     if not tok:
         return None
     if tok.startswith(("Mcp(", "mcp__", "WebFetch(")):
         return None
-    m = re.match(r"^(?:Shell|Bash)\((.*)\)$", tok)
-    inner = m.group(1) if m else tok
-    inner = inner.strip()
+    m = re.match(r"^(?:(Shell)|Bash)\((.*)\)$", tok)
+    inner = (m.group(2) if m else tok).strip()
     if inner.endswith(":*"):
-        inner = inner[:-2]
-    inner = inner.strip()
+        inner = inner[:-2].strip()
+        return inner or None
+    if m and m.group(1) and ":" in inner:
+        base, args = inner.split(":", 1)
+        base, args = base.strip(), args.strip()
+        if not base:
+            return None
+        if not args:
+            return base
+        if any(c in args for c in "*?"):
+            return None
+        return _Exact("%s %s" % (base, args))
     return inner or None
 
 
@@ -331,6 +349,8 @@ def covered_by(segment: str, prefixes):
             continue
         if segment == p:
             return True, p, "exact"
+        if isinstance(p, _Exact):
+            continue
         if segment.startswith(p + " "):
             if broad is None or len(p) > len(broad):
                 broad = p

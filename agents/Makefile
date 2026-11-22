@@ -247,7 +247,7 @@ TEST_ENV = \
     LEGACY_JETBRAINS_GLOB="$(LEGACY_JETBRAINS_GLOB)"
 
 .PHONY: help install uninstall dry-run status test test-blocks test-extensions test-hooks test-allowlists \
-        test-secrets test-release test-repo-baseline test-ship-pr test-codebase-review test-media-preview test-orchestrate test-session-doctor test-session-start clean-test \
+        test-secrets test-release test-repo-baseline test-ship-pr test-codebase-review test-media-preview test-orchestrate test-session-doctor test-session-start test-allowlist-scout clean-test \
         install-blocks uninstall-blocks dry-run-blocks status-blocks \
         install-extensions uninstall-extensions dry-run-extensions status-extensions \
         install-hooks uninstall-hooks dry-run-hooks status-hooks \
@@ -426,7 +426,7 @@ clean-allowlists:
 # test
 # ---------------------------------------------------------------------------
 
-test: test-blocks test-extensions test-hooks test-allowlists test-manifests test-secrets test-release test-orchestrate test-repo-baseline test-review-guide test-ship-pr test-codebase-review test-media-preview test-session-doctor test-session-start test-roundtrip
+test: test-blocks test-extensions test-hooks test-allowlists test-manifests test-secrets test-release test-orchestrate test-repo-baseline test-review-guide test-ship-pr test-codebase-review test-media-preview test-session-doctor test-session-start test-allowlist-scout test-roundtrip
 
 # Install + uninstall through this Makefile into a sandboxed $HOME.
 test-roundtrip:
@@ -478,6 +478,10 @@ test-session-doctor:
 
 test-session-start:
 	@bash "$(PLUGINS_DIR)/personal/tests/test-session-start.sh"
+
+# The allowlist scout's render-then-scan tests (workstation plugin).
+test-allowlist-scout:
+	@bash "$(PLUGINS_DIR)/workstation/skills/personal-allowlist-scout/tests/test-allowlist-scout.sh"
 
 clean-test:
 	@rm -rf "$(AGENTS_DIR)/build"

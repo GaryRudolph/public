@@ -12,7 +12,7 @@ writes a deny rule, never touches a harness that already covers the command.
 Supported targets
 -----------------
   cursor_ide  <repo>/.cursor/permissions.json  ->  terminalAllowlist  (raw prefix strings)
-  cursor_cli  <repo>/.cursor/cli.json          ->  permissions.allow  (Shell(<base>) tokens)
+  cursor_cli  <repo>/.cursor/cli.json          ->  permissions.allow  (Shell(<base>) / Shell(<base>:<args>) tokens)
   claude      <repo>/.claude/settings.json     ->  permissions.allow  (Bash(<cmd>:*) tokens)
   gemini      <repo>/.gemini/policies/<name>.toml  additive [[rule]] blocks
                   toolName = "run_shell_command"
@@ -125,22 +125,40 @@ def _add_cursor_ide(path: Path, segment: str, dry_run: bool) -> bool:
         return False
 
 
-def _shell_token(segment: str) -> str:
-    """Return the Shell(…) token for a segment.
+_GLOB_CHARS = set("*?")
 
-    If the segment contains a space (i.e. has arguments), use Shell(<base>:*)
-    so the wildcard grants any arguments to that command.  If it's a bare word
-    with no spaces, Shell(<word>) covers exact invocations.  Both are safe
-    prefix-matching tokens; the :* form is more permissive but matches the
-    Cursor CLI convention for multi-word commands."""
-    if " " in segment.strip():
-        base = segment.strip().split()[0]
-        return "Shell(%s:*)" % base
-    return "Shell(%s)" % segment.strip()
+
+def _shell_token(segment: str):
+    """Return the Cursor CLI token that allows exactly *segment*, or None when
+    no such token exists.
+
+    A bare word is Shell(<word>): Cursor reads it as the command base, any
+    arguments (reference.md section 3). A multi-word segment is
+    Shell(<base>:<args>), the command:args form with a glob-free args part,
+    so Shell(make:test) allows `make test` and not `make release`. Never
+    Shell(<base>:*) for a multi-word segment: that grants every subcommand.
+    A segment whose text contains a glob character can't be written exactly,
+    so it gets no token and the caller skips cursor_cli."""
+    words = segment.split()
+    if not words:
+        return None
+    if any(c in _GLOB_CHARS for c in segment):
+        return None
+    if len(words) == 1:
+        return "Shell(%s)" % words[0]
+    return "Shell(%s:%s)" % (words[0], " ".join(words[1:]))
 
 
 def _add_cursor_cli(path: Path, segment: str, dry_run: bool) -> bool:
-    """Add Shell(…) token to .cursor/cli.json permissions.allow."""
+    """Add Shell(...) token to .cursor/cli.json permissions.allow, or skip
+    (returning True) when the segment has no exact Cursor CLI form."""
+    token = _shell_token(segment)
+    if token is None:
+        sys.stderr.write(
+            "skip:   cursor_cli has no exact form for %r (glob character); "
+            "not written\n" % segment)
+        return True
+
     data = _load_json(path) or {}
     perms = data.setdefault("permissions", {})
     arr   = perms.setdefault("allow", [])
@@ -148,8 +166,7 @@ def _add_cursor_cli(path: Path, segment: str, dry_run: bool) -> bool:
         arr = []
         perms["allow"] = arr
 
-    token = _shell_token(segment)
-    if token in arr or segment in arr:
+    if token in arr:
         return True
     arr.append(token)
     try:
