@@ -476,6 +476,12 @@ def a_raised_cost_total_or_a_lowered_token_log_cannot_move_the_guard_unseen():
     st6 = write_plan(UN + "unattended", tokens=TOKENS, cost=COST.replace("| **Total** | ~3M | ~$2.0 |\n", ""),
                      status="0/1 groups done | updated 2026-10-10")
     assert "cost limit rose from $50 to none" in hook(seg(args(state=st6, canaryDone=True)), t, done)
+    # Another plan's earlier launch is not this plan's baseline: its spend does not make this plan's log look shorter.
+    st7 = write_plan(UN + "unattended", tokens=TOKENS + TOKENS + TOKENS, status="0/1 groups done | updated 2026-10-11")
+    elsewhere = args(state=st7, plan={"name": "plan-z", "path": str(tmp / "elsewhere" / "plan-z.md")})
+    t_other = [human("orchestrate"), QUESTION, human("unattended")] + launch(elsewhere, "t9") + [NOTIFY]
+    st8 = write_plan(UN + "unattended", tokens=TOKENS, status="0/1 groups done | updated 2026-10-12")
+    assert hook(seg(args(state=st8, canaryDone=True)), t_other, [{"rid": "wf_1"}]) is None
     # A lowered Total (a smaller limit) and a growing log pass.
     st5 = write_plan(UN + "unattended", tokens=TOKENS + TOKENS, status="0/1 groups done | updated 2026-10-09")
     assert hook(seg(args(state=st5, canaryDone=True)), t, done) is None
@@ -1113,6 +1119,42 @@ def the_guards_follow_wrappers_substitutions_eval_stdin_and_find_actions():
             assert "read-only" in (guard_bash(agent, bad, "reviewer_guard.py") or ""), (agent, bad)
         for ok in reviewer_ok:
             assert guard_bash(agent, ok, "reviewer_guard.py") is None, (agent, ok)
+
+
+@case
+def the_guards_keep_round_two_of_the_review_closed():
+    worker_bad = ("find repos -mindepth 1 -maxdepth 1 -type d -exec git -C {} push \\;", "find . -name '*.sh' -exec ./scripts/deploy.sh {} \\;",
+                  "xargs -rn 1 git push", "bash -c $'gi\\x74 push'", "eval -- 'git push'", "bash < scripts/release.sh",
+                  "env -S 'git push'", "env -S './deploy.sh'", 'echo "$(make release)"; export DRY_RUN=1',
+                  'DRY_RUN=1 echo "$(make release)"', "DRY_RUN=1 bash -c 'DRY_RUN=0 make release'",
+                  "export DRY_RUN=1; export DRY_RUN=0; bash -c 'make release'", "cat <<EOF\nIt's $(git push)\nEOF",
+                  "timeout " + "-s " * 40 + "5 make ci; git push")
+    worker_ok = ("command -v rm", "command -V gh", "command -v bash", "DRY_RUN='1' bash -c 'make release'",
+                 "env DRY_RUN=1 bash -c './deploy.sh'", "bash --version", "bash --help", "DRY_RUN=1 find . -exec ./deploy.sh {} \\;")
+    for agent in WORKERS:
+        for bad in worker_bad:
+            assert worker_denies(agent, bad), (agent, bad)
+        for ok in worker_ok:
+            assert guard_bash(agent, ok) is None, (agent, ok)
+    reviewer_bad = ("find . -exec dash -c 'rm x' {} \\;", "find . -exec ksh -c 'rm x' {} \\;", "find . -name x \\\n -delete",
+                    "find . -exec \\\n rm {} +", "printf 'victim\\n' | xargs -rn 1 rm", "bash -c $'r\\x6d x'", "eval -- 'rm x'", "bash < f",
+                    "env -S 'rm file'", "cat <<EOF\nIt's $(rm x)\nEOF", "timeout " + "-s " * 40 + "5 make ci; rm x")
+    reviewer_ok = ("command -v rm", "command -V gh", "command -v bash", "echo find . -delete", "bash --version", "echo find . -exec rm {} +")
+    for agent in ("personal:plan-reviewer", "orch-spike:plan-reviewer"):
+        for bad in reviewer_bad:
+            assert "read-only" in (guard_bash(agent, bad, "reviewer_guard.py") or ""), (agent, bad)
+        for ok in reviewer_ok:
+            assert guard_bash(agent, ok, "reviewer_guard.py") is None, (agent, ok)
+
+
+@case
+def the_guards_scan_a_long_run_of_wrapper_flags_in_linear_time():
+    import time
+    for agent, name in (("personal:plan-worker", "worker_guard.py"), ("personal:plan-reviewer", "reviewer_guard.py")):
+        for flags in ("-s " * 2000, "-s KILL " * 2000, "-rn 1 " * 2000):
+            began = time.time()
+            guard_bash(agent, "timeout " + flags + "5 make ci", name)
+            assert time.time() - began < 5, (name, flags[:8])
 
 
 @case

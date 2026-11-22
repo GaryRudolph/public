@@ -39,42 +39,16 @@ are set aside before the checks, so a heredoc that writes "git push" or
 """
 
 import json
+import os
 import re
-import shlex
 import sys
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))  # python3 -I leaves the script's folder off the path
+from shell_scan import (ASSIGN, ENV_SPLIT, START, STDIN_SHELL, Timeout, bare, deadline, inner_strings,  # noqa: E402
+                        name_of, split_prefix)
 
 WORKER = re.compile(r"^[a-z][a-z0-9-]*:plan-worker$")
 
-# Words that sit before the command word: wrappers that run what follows, and the shell's keywords and `{` that
-# begin a command (`if make release; then ...`, `for d in a; do git push; done`, `{ git push; }`, `! git push`).
-PREFIX_WORDS = {"sudo", "env", "command", "exec", "nohup", "time", "eval", "then", "do", "else", "elif", "if", "while",
-                "until", "!", "{"}
-# The wrappers with flags of their own: the short flags that take a separate value, the long ones, and an operand
-# pattern (timeout's duration). A boolean flag takes none, so `xargs -r echo git push` prints text. -l, -i, -e and
-# their long forms take only an attached optional value.
-WRAPPER_FLAGS = {
-    "timeout": ("sk", {"signal", "kill-after"}, r"[+-]?\d+(?:\.\d+)?[smhd]?"),
-    "nice": ("n", {"adjustment"}, None),
-    "xargs": ("aEIJLnPsdRS", {"arg-file", "delimiter", "max-args", "max-chars", "max-procs", "process-slot-var"}, None),
-    "sudo": ("ugCUhpRrT", {"user", "group", "chdir", "host", "prompt", "role", "type", "chroot", "other-user", "close-from"}, None),
-    "env": ("uCS", {"unset", "chdir", "split-string"}, None),
-}
-# Commands that may be named by path (/usr/bin/timeout); the keywords may not.
-COMMAND_WORDS = {"sudo", "env", "command", "exec", "nohup", "time", "timeout", "nice", "xargs", "eval"}
-
-
-def _prefix_word(word):
-    shorts, longs, operand = WRAPPER_FLAGS.get(word, ("", (), None))
-    alts = ([rf"-[{shorts}]\s+\S+"] if shorts else []) + ([r"--(?:" + "|".join(sorted(longs)) + r")\s+\S+"] if longs else [])
-    alts += [r"-\S+"] + ([operand] if operand else [])
-    path = r"(?:\S*/)?" if word in COMMAND_WORDS else ""
-    return path + re.escape(word) + r"(?:\s+(?:" + "|".join(alts) + r"))*\s+"
-
-
-# What may sit between a separator and the command word: prefix words with their flags, and VAR=value assignments.
-PREFIX = r"(?:" + "|".join(_prefix_word(w) for w in sorted(PREFIX_WORDS | set(WRAPPER_FLAGS), key=len, reverse=True)) + r"|[A-Za-z_]\w*=\S*\s+)*"
-# A command word's position: the start, or after a separator, a subshell or a substitution, past the prefix.
-START = r"(?:^|[;&|(`\n]|\$\()\s*" + PREFIX
 GIT_OPTS = r"(?:\s+-[Cc]\s+\S+|\s+--?[\w-]+(?:=\S+)?)*"
 # docker's global options before the subcommand (--context prod, --config dir, -H host), so a push that names its
 # context or config, as security.md "Explicit CLI Identity" asks, is still a push.
@@ -98,9 +72,7 @@ OUTWARD_NAME = re.compile(r"publish|release|deploy", re.I)
 SEPARATOR = re.compile(r"\|\||&&|[;|&()`\n]|\$\(")
 # Redirections, removed before a command is split into words: their targets are files, not scripts or targets.
 REDIRECTION = re.compile(r"(?:\d+|&)?(?:>>?|<)(?:&\d+|&-|\s*[^\s;&|()<>`]+)")
-ASSIGN = re.compile(r"^([A-Za-z_]\w*)=(.*)$")
 TRUE = {"1", "true", "yes"}
-DRY_EXPORT = re.compile(r"\bexport\s+(?:[A-Za-z_]\w*=\S*\s+)*DRY_RUN=(?:1|true|yes)\b")
 QUOTED_DRY = re.compile(r"\bDRY_RUN=(['\"])(1|true|yes)\1")
 SCRIPT_EXT = re.compile(r"\.(?:sh|bash|zsh|py|rb|pl|js|mjs|cjs|ts)$")
 SHELLS = {"sh", "bash", "zsh", "dash", "ksh", "source", "."}
@@ -111,19 +83,6 @@ MAKE_VALUE_OPTS = {"-C", "-f", "-I", "-o", "-W", "--directory", "--file", "--mak
                    "--new-file", "--what-if", "--assume-old", "--assume-new"}
 MAKE_DRY = {"-n", "--dry-run", "--just-print", "--recon"}
 RUNNERS = {"npm", "pnpm", "yarn", "bun"}
-
-HEREDOC = re.compile(r"(?<!<)(<<-?[ \t]*(['\"]?)([A-Za-z_]\w*)\2)([^\n]*)\n(?:(?P<body>.*?)\n)??[ \t]*\3[ \t]*(?=\n|$)", re.S)
-QUOTED = re.compile(r"'[^']*'|\"(?:[^\"\\]|\\.)*\"")  # a $'...' string is the single-quoted one after its $
-
-
-def bare(command):
-    """The command with heredoc bodies and quoted strings set aside (a quoted DRY_RUN=1 kept as DRY_RUN=1)."""
-    return QUOTED.sub("''", HEREDOC.sub(r"\1\4", QUOTED_DRY.sub(r"DRY_RUN=\2", command)))
-
-
-def name_of(path):
-    return path.rstrip("/").rsplit("/", 1)[-1]
-
 
 def dry_flag(words):
     return any(w == "--dry-run" or (w.startswith("--dry-run=") and w.split("=", 1)[1].lower() in TRUE) for w in words)
@@ -180,35 +139,49 @@ def make_targets(args):
     return targets, variables, dry
 
 
+def export_state(words, state):
+    """Whether DRY_RUN is on after an `export` or `unset` in words: the last assignment wins."""
+    if words[:1] == ["export"]:
+        for w in words[1:]:
+            m = ASSIGN.match(w)
+            if m and m.group(1) == "DRY_RUN":
+                state = m.group(2).lower() in TRUE
+    elif words[:1] == ["unset"] and "DRY_RUN" in words[1:]:
+        state = False
+    return state
+
+
+def inherited_dry(before, kind, state):
+    """Whether DRY_RUN is on where a nested string starts: after the exports ahead of it and, for a nested shell, eval or
+    find action (which run with their command line's environment), after its own DRY_RUN=... assignments. A
+    substitution is expanded first, so only the exports reach it."""
+    segments = SEPARATOR.split(QUOTED_DRY.sub(r"DRY_RUN=\2", before))
+    for segment in segments[:-1]:
+        state = export_state(segment.split(), state)
+    if kind != "substitution":
+        for w in segments[-1].split():
+            m = ASSIGN.match(w)
+            if m and m.group(1) == "DRY_RUN":
+                state = m.group(2).lower() in TRUE
+    return state
+
+
 def named_problem(command, dry=False):
     """Why a worker may not run command because it runs a repo's own publish, release or deploy script or make target
-    without a dry-run form, or None."""
-    exported = dry  # a nested shell inherits the DRY_RUN of the command that started it
+    without a dry-run form, or None. dry is whether DRY_RUN is already on where command starts (a nested string)."""
+    exported = dry
     for segment in SEPARATOR.split(REDIRECTION.sub(" ", command)):
-        words, env, prefixed, wrapper, skip = segment.split(), {}, False, None, False
-        while words:  # past the prefix words and their flags and VAR=value prefixes, to the command word
-            w, m = words[0], ASSIGN.match(words[0])
-            base = name_of(w) if name_of(w) in COMMAND_WORDS else w
-            if skip:
-                skip = False
-            elif m:
-                env[m.group(1)] = m.group(2)
-            elif base in PREFIX_WORDS or base in WRAPPER_FLAGS:
-                prefixed, wrapper = True, base
-            elif prefixed and (w.startswith("-") or (WRAPPER_FLAGS.get(wrapper, ("", (), None))[2] and
-                                                     re.fullmatch(WRAPPER_FLAGS[wrapper][2], w))):
-                shorts, longs, _ = WRAPPER_FLAGS.get(wrapper, ("", (), None))
-                skip = (len(w) == 2 and w[0] == "-" and w[1] in shorts) or (w.startswith("--") and w[2:] in longs)
-            else:
-                break
-            words = words[1:]
+        words = segment.split()
+        at, env = split_prefix(words)
+        words = words[at:]
         if not words:
             continue
-        if words[0] == "export":
-            exported = exported or bool(DRY_EXPORT.search(segment))
+        if words[0] in ("export", "unset"):
+            exported = export_state(words, exported)
             continue
         word, args = words[0], words[1:]
-        dry = exported or env.get("DRY_RUN", "").lower() in TRUE or dry_flag(args)
+        local = env.get("DRY_RUN")  # a prefix assignment overrides what an export or the parent set
+        dry = (exported if local is None else local.lower() in TRUE) or dry_flag(args)
         base = name_of(word)
         if base in MAKES:
             targets, variables, make_dry = make_targets(args)
@@ -226,89 +199,20 @@ def named_problem(command, dry=False):
     return None
 
 
-SHELL_C = re.compile(START + r"(?:\S*/)?(?:sh|bash|zsh|dash|ksh)(?:\s+(?:-[Oo]\s+\S+|-[A-Za-z-]+|--))*?\s+-[A-Za-z]*c[A-Za-z]*(?:\s+--)?\s*\$?$")
-# eval joins its arguments and runs them, so every argument counts, quoted or not.
-EVAL_ARGS = re.compile(START + r"eval\s+((?:'[^']*'|\"(?:[^\"\\]|\\.)*\"|[^;&|\n'\"])*)")
-# A shell that reads its commands from stdin (`... | sh`, `bash <<EOF`, `bash <<< '...'`, `sh -`, `bash -s`): nothing here
-# can see them.
-STDIN_SHELL = re.compile(START + r"(?:\S*/)?(?:sh|bash|zsh|dash|ksh)(?:\s+-[A-Za-z-]+)*?"
-                         r"(?:\s+-[A-Za-z]*s[A-Za-z]*(?=\s|$)|\s+-(?=\s|$)|\s*(?:$|[;&|)`\n]|<<))")
-
-
-def substitutions(text):
-    """The bodies of the $(...) and `...` substitutions the shell would run in text: outside single quotes (but inside
-    double ones), with escapes honoured and parentheses balanced across nested quotes."""
-    out, i, n, dq = [], 0, len(text), False
-    while i < n:
-        c = text[i]
-        if c == "\\":
-            i += 2
-        elif c == '"':
-            dq, i = not dq, i + 1
-        elif c == "'" and not dq:
-            j = text.find("'", i + 1)
-            i = n if j < 0 else j + 1
-        elif text.startswith("$(", i) and not text.startswith("$((", i):
-            depth, j, quote = 1, i + 2, None
-            while j < n and depth:
-                d = text[j]
-                if d == "\\":
-                    j += 1
-                elif quote:
-                    quote = None if d == quote else quote
-                elif d in "'\"":
-                    quote = d
-                elif d == "(":
-                    depth += 1
-                elif d == ")":
-                    depth -= 1
-                j += 1
-            out.append(text[i + 2:j - 1] if depth == 0 else text[i + 2:j])
-            i = j
-        elif c == "`":
-            j = i + 1
-            while j < n and text[j] != "`":
-                j += 2 if text[j] == "\\" else 1
-            out.append(text[i + 1:j])
-            i = j + 1
-        else:
-            i += 1
-    return out
-
-
-def inner_strings(command):
-    """The (string, text before it) pairs a shell would run that bare() sets aside: the quoted string after
-    `sh|bash|zsh -c`, the joined arguments of an `eval`, and every substitution, in double quotes or an unquoted
-    heredoc body included. A quoted heredoc body is inert."""
-    plain = HEREDOC.sub(r"\1\4", command)
-    found = [(m.group(0)[1:-1].replace('\\"', '"'), plain[:m.start()]) for m in QUOTED.finditer(plain)
-             if SHELL_C.search(plain[:m.start()])]
-    for m in EVAL_ARGS.finditer(plain):
-        try:
-            joined = " ".join(shlex.split(m.group(1)))
-        except ValueError:
-            joined = m.group(1).replace("'", "").replace('"', "")
-        found.append((joined, plain[:m.start()]))
-    live = HEREDOC.sub(lambda m: m.group(1) + m.group(4) + ("" if m.group(2) else "\n" + (m.group("body") or "")), command)
-    found += [(body, live) for body in substitutions(live)]
-    return found
-
-
-def inherits_dry_run(before):
-    """Whether a nested shell's text starts under DRY_RUN=1: exported earlier, or set on its own command line."""
-    return bool(DRY_EXPORT.search(before) or re.search(r"(?:^|[;&|(`\n])\s*(?:[A-Za-z_]\w*=\S*\s+)*DRY_RUN=(?:1|true|yes)\s+[^;&|\n]*$", before))
-
-
 def problem(command, depth=0, dry=False):
     """Why a worker may not run command, or None."""
     if depth < 3:
-        for text, before in inner_strings(command):
-            why = problem(text, depth + 1, dry or inherits_dry_run(before))
+        for text, kind, before in inner_strings(command):
+            if kind == "opaque":
+                return "an ANSI-C quoted command string that can't be inspected"
+            why = problem(text, depth + 1, inherited_dry(before, kind, dry))
             if why:
                 return why
-    command = bare(command)
+    command = bare(QUOTED_DRY.sub(r"DRY_RUN=\2", command))  # a quoted DRY_RUN='1' stays DRY_RUN=1
     if STDIN_SHELL.search(command):
         return "a shell that reads its commands from stdin"
+    if ENV_SPLIT.search(command):
+        return "env -S, which runs a string this guard can't split"
     for rx, what in OUTWARD:
         if rx.search(command):
             return what
@@ -333,7 +237,13 @@ def decide(inp):
     if not isinstance(inp, dict) or not WORKER.match(str(inp.get("agent_type") or "")):
         return None
     command = (inp.get("tool_input") or {}).get("command")
-    return problem(command) if isinstance(command, str) else "a Bash call with no command string"
+    if not isinstance(command, str):
+        return "a Bash call with no command string"
+    deadline()  # a command too slow to analyse is denied, not left to time the hook out
+    try:
+        return problem(command)
+    except Timeout:
+        return "a command too tangled to analyse in time"
 
 
 def main():

@@ -491,7 +491,9 @@ def check(inp):
     why = unpushed(last.get("groups") or [], local)  # both modes
     if why:
         deny(f"per-wave handoff: {why}")
-    segs = [u for u in launched if is_segment(u.get("name") or "")]
+    here = str(Path(path).resolve())  # the baseline is this plan's last launch; another plan in the session has its own spend
+    segs = [u for u in launched if is_segment(u.get("name") or "")
+            and str(Path(((u.get("args") or {}).get("plan") or {}).get("path") or "").resolve()) == here]
     prior_state = ((segs[-1].get("args") or {}).get("state") or {}) if segs else {}
     prior = prior_state.get("mode") or {}
     before, floor = prior.get("guard"), prior.get("guard_min")
