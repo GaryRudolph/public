@@ -325,7 +325,7 @@ else
     rm -rf "$DENY_HOME" "$DENY_WS"
     mkdir -p "$DENY_HOME/.cursor" "$DENY_WS/.cursor"
     cat > "$DENY_HOME/.cursor/permissions.json" <<'JSON'
-{"terminalDenylist": ["rm", "rm -rf ~", "sudo", "git push", "nohup"], "terminalAllowlist": ["git push", "sudo", "rm -rf ~"]}
+{"terminalDenylist": ["rm", "rm -rf ~", "sudo", "git push", "nohup", "wget  -q"], "terminalAllowlist": ["git push", "sudo", "rm -rf ~"]}
 JSON
     cat > "$DENY_WS/.cursor/permissions.json" <<'JSON'
 {"terminalAllowlist": ["sudo", "rm", "curl"], "terminalDenylist": ["curl"]}
@@ -384,6 +384,8 @@ JSON
     expect_decision allow 'nohup make build' false
     expect_decision deny  'FOO=1 nohup make build'
     expect_decision deny  'time nohup make build'
+    # A user-added entry with repeated whitespace still matches.
+    expect_decision deny  'wget -q example.org'
     # A workspace file adds denies and cannot lift one.
     expect_decision deny  'curl example.com'
     # The home allowlist may still waive an ordinary deny.

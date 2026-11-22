@@ -252,16 +252,19 @@ if [ -n "$cwd" ] && [ -f "$cwd/.cursor/permissions.json" ]; then
   WORKSPACE_PERMS="$cwd/.cursor/permissions.json"
 fi
 
+# Collapse runs of whitespace and trim, so entries and commands compare alike.
+squeeze() { sed -e 's/[[:space:]][[:space:]]*/ /g' -e 's/^ //' -e 's/ $//'; }
+
 load_list() {
   local key="$1" f
   for f in "$GLOBAL_PERMS" "$WORKSPACE_PERMS"; do
     [ -n "$f" ] && [ -f "$f" ] && jq -r --arg k "$key" '.[$k][]? // empty' "$f" 2>/dev/null
-  done
+  done | squeeze
 }
 
 # A workspace file may only add denies; its allowlist is never read.
 denylist=$(load_list terminalDenylist)
-allowlist=$(jq -r '.terminalAllowlist[]? // empty' "$GLOBAL_PERMS" 2>/dev/null) || allowlist=""
+allowlist=$(jq -r '.terminalAllowlist[]? // empty' "$GLOBAL_PERMS" 2>/dev/null | squeeze) || allowlist=""
 [ -n "$denylist" ] || allow
 
 # Prints every entry that prefix-matches the command, one per line.
@@ -282,7 +285,8 @@ PROPOSE_ONLY='^databricks bundle deploy$'
 
 # Every shell operator that can start a new command becomes a line break.
 # tr, not sed: BSD sed on macOS does not expand \n in a replacement.
-segments=$(printf '%s' "$command" | tr ';|&(){}`' '\n')
+# One sed over the whole list, not one process per segment.
+segments=$(printf '%s' "$command" | tr ';|&(){}`' '\n' | squeeze)
 
 # Checks one candidate segment against the denylist. Emits a deny and exits,
 # or returns 0 so the next segment is still checked.
@@ -333,7 +337,6 @@ check_segment() {
 
 scan_segments() {
   while IFS= read -r segment; do
-    segment=$(printf '%s' "$segment" | sed -e 's/[[:space:]][[:space:]]*/ /g' -e 's/^ //' -e 's/ $//')
     [ -n "$segment" ] || continue
     # Check every intermediate form (the line as written, then each time a
     # leading env assignment or wrapper word comes off), so a deny on a
