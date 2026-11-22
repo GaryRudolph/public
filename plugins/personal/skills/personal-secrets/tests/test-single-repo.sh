@@ -149,7 +149,7 @@ gha() { local who="$1"; shift; as "$who" env GITHUB_ACTIONS=true "$@"; }
 masks() { grep '^::add-mask::' || true; }
 # A two-line value as dotenv stores it (\n escaped), with a %0A the runner
 # would decode if the mask weren't percent-encoded.
-printf 'MULTI_KEY=l1\\nl2%%0Aend\n' > secrets/ci/mask.env
+printf 'MULTI_KEY=line1\\n{\\nline2%%0Aend\nWORD=dotenv\n' > secrets/ci/mask.env
 make -s secrets-encrypt FILE=ci/mask.env 2>/dev/null
 expect_eq   "raw value: stdout is the value alone"               "$(gha envprod make -s secrets-env FILE=prod/api.env KEY=DATABASE_PASSWORD 2>/dev/null)" "db_prod"
 expect_eq   "  ...and the mask is on stderr, before it"          "$(gha envprod make -s secrets-env FILE=prod/api.env KEY=DATABASE_PASSWORD 2>&1 | tr '\n' ' ')" "::add-mask::db_prod db_prod "
@@ -157,10 +157,11 @@ expect_eq   "FORMAT=dotenv: stdout unchanged"                    "$(gha envprod 
 expect_eq   "  ...and masked"                                    "$(gha envprod make -s secrets-env FILE=prod/api.env KEY=RESEND_API_KEY FORMAT=dotenv 2>&1 >/dev/null | masks)" "::add-mask::re_prod"
 expect_eq   "full dotenv: shared and own values masked"          "$(gha envprod make -s secrets-env FILE=prod/api.env 2>&1 >/dev/null | masks | tr '\n' ' ')" "::add-mask::re_prod ::add-mask::db_prod "
 expect_eq   "  ...stdout unchanged"                              "$(gha envprod make -s secrets-env FILE=prod/api.env 2>/dev/null | tr '\n' ' ')" "RESEND_API_KEY=re_prod DATABASE_PASSWORD=db_prod "
-expect_eq   "multi-line value: whole, then each line, %-encoded" \
+expect_eq   "multi-line value: whole, then each long line, %-encoded" \
     "$(gha actions make -s secrets-env FILE=ci/mask.env KEY=MULTI_KEY 2>&1 >/dev/null | masks | tr '\n' ' ')" \
-    '::add-mask::l1\nl2%250Aend ::add-mask::l1 ::add-mask::l2%250Aend '
-expect_eq   "  ...stdout still the stored value"                 "$(gha actions make -s secrets-env FILE=ci/mask.env KEY=MULTI_KEY 2>/dev/null)" 'l1\nl2%0Aend'
+    '::add-mask::line1\n{\nline2%250Aend ::add-mask::line1 ::add-mask::line2%250Aend '
+expect_eq   "  ...stdout still the stored value"                 "$(gha actions make -s secrets-env FILE=ci/mask.env KEY=MULTI_KEY 2>/dev/null)" 'line1\n{\nline2%0Aend'
+expect_eq   "a value that names the mask mode"                   "$(gha actions make -s secrets-env FILE=ci/mask.env KEY=WORD 2>&1 | tr '\n' ' ')" "::add-mask::dotenv dotenv "
 expect_eq   "no masks outside Actions"                           "$(as envprod make -s secrets-env FILE=prod/api.env KEY=DATABASE_PASSWORD 2>&1 >/dev/null | masks)" ""
 rm -f secrets/ci/mask.env.sops
 

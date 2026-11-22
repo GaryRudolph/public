@@ -276,7 +276,11 @@ new data key (`sops rotate`) ([Rotation](#rotation-and-leaks)).
   a value to `$GITHUB_ENV`, and a repo that did rotates every value it
   exported ([README.md](README.md#least-privilege-consumption)).
 - Under Actions, `secrets-env` masks each value it prints (`::add-mask::` on
-  stderr), so capture stdout freely and leave stderr alone.
+  stderr). Capture stdout, never let it reach the log directly, and leave
+  stderr alone ([README.md](README.md#least-privilege-consumption)).
+- Decrypt on its own line, then pass the value to the command; a prefix
+  assignment (`X="$(...)" cmd`) runs the command with an empty value when the
+  decrypt fails.
 - A decrypted file is mode `0600`, sits next to its ciphertext or under
   `$RUNNER_TEMP`, and is removed in an `if: always()` step.
 - A job that needs a privileged scope declares its environment, and gets its

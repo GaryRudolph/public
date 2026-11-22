@@ -139,7 +139,9 @@ environment's key ([single-repo.md](single-repo.md#ci)).
 - name: Use required secret for one command only
   env:
     SOPS_AGE_KEY: ${{ secrets.SOPS_AGE_KEY }}
-  run: SENTRY_AUTH_TOKEN="$(make -s -C _secrets dist-decrypt-env FILE=ci/sentry.env KEY=SENTRY_AUTH_TOKEN)" make release
+  run: |
+    SENTRY_AUTH_TOKEN="$(make -s -C _secrets dist-decrypt-env FILE=ci/sentry.env KEY=SENTRY_AUTH_TOKEN)"
+    SENTRY_AUTH_TOKEN="$SENTRY_AUTH_TOKEN" make release
 
 # 2. One key for several commands in one step; a later step decrypts again.
 #    Never append a value to $GITHUB_ENV (README.md, Least-privilege consumption).

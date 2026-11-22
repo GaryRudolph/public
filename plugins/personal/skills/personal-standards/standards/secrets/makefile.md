@@ -89,7 +89,7 @@ Decrypts `*.env.sops` files only. Never writes plaintext env files to disk.
 
 | Invocation | Stdout | Notes |
 |------------|--------|-------|
-| `make dist-decrypt-env` | All decryptable env files as dotenv `KEY=VALUE` lines | For a tool that reads dotenv on stdin; never `$GITHUB_ENV` |
+| `make dist-decrypt-env` | All decryptable env files as dotenv `KEY=VALUE` lines | For a tool that reads dotenv and doesn't echo it; never `$GITHUB_ENV` |
 | `make dist-decrypt-env FILE=ci/sentry.env` | One env file as dotenv lines | Logical name, no `.sops` suffix |
 | `make dist-decrypt-env KEY=AUTH_TOKEN` | Raw value only | Scans all decryptable env files; errors if key appears in more than one file |
 | `make dist-decrypt-env FILE=ci/sentry.env KEY=AUTH_TOKEN` | Raw value only | Disambiguates or avoids scanning |
@@ -99,7 +99,8 @@ Decrypts `*.env.sops` files only. Never writes plaintext env files to disk.
 
 **Under Actions** (`GITHUB_ACTIONS=true`) it prints `::add-mask::` on stderr
 for every value, and for each line of a multi-line one, before printing the
-value. Capture stdout freely; leave stderr alone (no `2>/dev/null`, no `2>&1`).
+value. Capture stdout in a variable, file or step output, never straight to
+the log; leave stderr alone (no `2>/dev/null`, no `2>&1`).
 
 **Script:** `dist-decrypt-env.sh` (repo root, shipped with cone-mode checkout).
 
@@ -127,7 +128,9 @@ Use the narrowest target that satisfies the job:
    - name: Use required secret for one command only
      env:
        SOPS_AGE_KEY: ${{ secrets.SOPS_AGE_KEY }}
-     run: AUTH_TOKEN="$(make -s -C _secrets dist-decrypt-env KEY=AUTH_TOKEN)" npm run build
+     run: |
+       AUTH_TOKEN="$(make -s -C _secrets dist-decrypt-env KEY=AUTH_TOKEN)"
+       AUTH_TOKEN="$AUTH_TOKEN" npm run build
    ```
 
 2. **One key, one step** (when several commands in the step need it):

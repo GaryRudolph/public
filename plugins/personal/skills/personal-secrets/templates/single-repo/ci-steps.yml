@@ -17,8 +17,8 @@ jobs:
           SOPS_AGE_KEY: ${{ secrets.SOPS_AGE_KEY }}
         run: |
           make secrets-decrypt FILE=ci/apple-distribution.p12
-          APPLE_DISTRIBUTION_P12_PASSWORD="$(make -s secrets-env FILE=ci/deskhound.env KEY=APPLE_DISTRIBUTION_P12_PASSWORD)" \
-            make keychain-import
+          APPLE_DISTRIBUTION_P12_PASSWORD="$(make -s secrets-env FILE=ci/deskhound.env KEY=APPLE_DISTRIBUTION_P12_PASSWORD)"
+          APPLE_DISTRIBUTION_P12_PASSWORD="$APPLE_DISTRIBUTION_P12_PASSWORD" make keychain-import
       - name: Remove cleartext
         if: always()
         run: make secrets-clean
@@ -34,7 +34,9 @@ jobs:
       - name: Plan
         env:
           SOPS_AGE_KEY: ${{ secrets.SOPS_AGE_KEY }}
-        run: CLOUDFLARE_API_TOKEN="$(make -s secrets-env FILE=ci/terraform-plan.env KEY=CLOUDFLARE_API_TOKEN)" make plan
+        run: |
+          CLOUDFLARE_API_TOKEN="$(make -s secrets-env FILE=ci/terraform-plan.env KEY=CLOUDFLARE_API_TOKEN)"
+          CLOUDFLARE_API_TOKEN="$CLOUDFLARE_API_TOKEN" make plan
 
   # terraform-prod/ scope: apply runs only where the environment's branch
   # policy allows, with a write token the plan job can't read.
@@ -50,7 +52,9 @@ jobs:
       - name: Apply
         env:
           SOPS_AGE_KEY: ${{ secrets.SOPS_AGE_KEY }}
-        run: CLOUDFLARE_API_TOKEN="$(make -s secrets-env FILE=terraform-prod/terraform.env KEY=CLOUDFLARE_API_TOKEN)" make apply
+        run: |
+          CLOUDFLARE_API_TOKEN="$(make -s secrets-env FILE=terraform-prod/terraform.env KEY=CLOUDFLARE_API_TOKEN)"
+          CLOUDFLARE_API_TOKEN="$CLOUDFLARE_API_TOKEN" make apply
 
   # prod/ scope, a deploy environment: sync one service's file to Secret
   # Manager and deploy it pinned to the versions just written.

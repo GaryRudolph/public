@@ -254,7 +254,8 @@ anyone can decrypt a file they aren't granted.
 Start from [`templates/consumer/secrets-steps.yml`](templates/consumer/secrets-steps.yml)
 and keep only the narrowest decrypt step that works:
 
-1. One key for one command: `NAME="$(make -s -C _secrets dist-decrypt-env KEY=NAME)" <cmd>`
+1. One key for one command: `NAME="$(make -s -C _secrets dist-decrypt-env KEY=NAME)"` on its own
+   line, then `NAME="$NAME" <cmd>` (a prefix decrypt's failure wouldn't stop the step)
 2. One key for one step: decrypt it into a shell variable at the top of the
    `run:` script and `export` it there; a later step decrypts it again
 3. Files on disk, only when a tool needs a file: `make -C _secrets dist-decrypt FILE=<f>`

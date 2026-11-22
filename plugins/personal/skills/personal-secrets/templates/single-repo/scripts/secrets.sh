@@ -229,13 +229,16 @@ layered() {
 # since dotenv escapes newlines as \n, also line by line as it reads once
 # unescaped, and without surrounding quotes. The runner percent-decodes
 # command data, so % and CR are encoded or the wrong string gets masked.
-# usage: mask_values "$value"; mask_values dotenv "$dotenv_lines". Takes
-# arguments, not stdin, so nothing writes into a pipe it may not read.
+# usage: mask_values raw "$value"; mask_values dotenv "$dotenv_lines". The
+# mode is always given, so a value can't be taken for it. Takes arguments,
+# not stdin, so nothing writes into a pipe it may not read. A line split out
+# of a multi-line value is masked only from 4 characters, so a `{` or `}`
+# line doesn't blank every brace in the log; the whole value is always masked.
 mask_values() {
     [ "${GITHUB_ACTIONS:-}" = true ] || return 0
     local dotenv=0
-    if [ "$1" = dotenv ]; then dotenv=1; shift; fi
-    printf '%s\n' "$1" | awk -v dotenv="$dotenv" '
+    case "$1" in raw) ;; dotenv) dotenv=1 ;; *) echo "mask_values: mode must be raw or dotenv" >&2; return 1 ;; esac
+    printf '%s\n' "$2" | awk -v dotenv="$dotenv" '
         function esc(s) { gsub(/%/, "%25", s); gsub(/\r/, "%0D", s); return s }
         function emit(s) { if (s ~ /[^[:space:]]/) print "::add-mask::" esc(s) }
         function one(s,   n, i, p, q) {
@@ -243,7 +246,7 @@ mask_values() {
             q = substr(s, 1, 1)
             if (length(s) > 1 && (q == "\"" || q == "\047") && substr(s, length(s)) == q) { s = substr(s, 2, length(s) - 2); emit(s) }
             n = split(s, p, /\\n/)
-            if (n > 1) for (i = 1; i <= n; i++) emit(p[i])
+            if (n > 1) for (i = 1; i <= n; i++) if (length(p[i]) >= 4) emit(p[i])
         }
         dotenv && /^[[:space:]]*(#|$)/ { next }
         dotenv { if (index($0, "=") == 0) next; one(substr($0, index($0, "=") + 1)); next }
@@ -265,7 +268,7 @@ cmd_env() {
     printf '%s' "$k" | grep -Eq '^[A-Z][A-Z0-9_]*$' || die "KEY '$k' isn't an UPPER_SNAKE name"
     printf '%s\n' "$merged" | grep -q "^$k=" || die "$k isn't in $f or its shared.env"
     v=$(printf '%s\n' "$merged" | sed -n "s/^$k=//p" | tail -1)
-    mask_values "$v"
+    mask_values raw "$v"
     if [ "${FORMAT:-}" = dotenv ]; then printf '%s=%s\n' "$k" "$v"; else printf '%s\n' "$v"; fi
 }
 
