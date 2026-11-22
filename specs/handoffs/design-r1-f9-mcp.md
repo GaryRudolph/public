@@ -42,7 +42,7 @@ Every page was read on 2026-11-22; Miro's page shows a last update of 2026-11-13
 
 ## Per-server classes
 
-Classes: read, rollback (a write with version history or Trash), create, send (to people, or delegates to an agent that acts), share (sharing or access change, or a bearer download link), unrecoverable (delete, deploy, spend, or undocumented). The per-tool record, with what each tool does, is in the wave's output file. The table lists the prompted tools by name; every other tool on the server is allowed (the exact names are under "New entries").
+Classes: read, rollback (a write with version history or Trash), create, send (to people, or delegates to an agent that acts), share (sharing or access change, or a bearer download link), unrecoverable (delete, deploy, spend, or undocumented). The per-tool record, with what each tool does, is in the appendix at the end of this note. The table lists the prompted tools by name; every other tool on the server is allowed (the exact names are under "New entries").
 
 | key | allowed | prompted |
 |---|---|---|
@@ -86,7 +86,25 @@ Counts: notion 54, slack 14, miro-mcp 34, firebase 38, figma 39, googledocs 2, g
 | Claude Code `permissions.allow` | `mcp__notion__notion-search` | `mcp__server__*` | split at the first `:`; today it keeps only the server and appends `__*` |
 | Gemini policy | none | none | none (MCP is out of scope there) |
 
-The Claude Code change in `render_target_schema`, for both `mcp.allow` and `mcp.deny`: a small jq function, `def claude_mcp: index(":") as $i | "mcp__" + .[:$i] + "__" + .[$i+1:];`. A `*` tool part yields `mcp__<server>__*` as before. An entry with no `:`, or an empty server or tool part, fails the render instead of producing `mcp____`.
+The Claude Code change in `render_target_schema`, for both `mcp.allow` and `mcp.deny`, is this jq function:
+
+```jq
+def claude_mcp:
+  if test("^[^:]+:.+$")
+  then index(":") as $i | "mcp__" + .[:$i] + "__" + .[$i+1:]
+  else error("bad mcp entry: " + .)
+  end;
+```
+
+An entry needs a non-empty server before the first `:` and a non-empty tool part after it; `*` is a valid tool part. Anything else stops the render with an error instead of producing a rule such as `mcp____tool`. Checked with jq 1.7:
+
+| entry | result |
+|---|---|
+| `notion:notion-search` | `mcp__notion__notion-search` |
+| `notion:*` | `mcp__notion__*` |
+| `nocolon` | error `bad mcp entry: nocolon` (exit 5) |
+| `:tool` | error `bad mcp entry: :tool` (exit 5) |
+| `server:` | error `bad mcp entry: server:` (exit 5) |
 
 ## What s2 does differently from its text
 
@@ -104,3 +122,144 @@ The Claude Code change in `render_target_schema`, for both `mcp.allow` and `mcp.
 - Cursor's `permissions.json` reference documents `mcpAllowlist` but not the `mcpDenylist` the installer writes. `mcp.deny` is empty, so nothing depends on it today.
 - Claude Code names tools from claude.ai connectors `mcp__claude_ai_<server>__<tool>`. The meta doesn't cover them, so they prompt.
 - Re-check the names when a server's docs change. A renamed read tool prompts until someone adds it, which is the safe direction.
+
+## Appendix: per-tool record
+
+<details>
+<summary>Every tool on the seven servers: what it does, class, allowed or prompted</summary>
+
+A = allowed, P = prompted. Sources are in the Sources table above; every page was read on 2026-11-22. Each line gives the tool, what it does where the name doesn't say, its class and whether it is allowed or prompted.
+
+### notion (Notion hosted MCP; each name below drops the `notion-` prefix)
+Read, A: search (pages and databases); connector-search (connected apps); fetch (open a page, database or connected result); list-private-pages, list-shared-pages, list-favorite-pages, list-recent-pages, list-page-backlinks; query-meeting-notes; get-self; get-teams; get-groups; get-users; get-tool-access; get-async-task (status of a create or update); get-version-changes; view-version; get-comments; get-suggested-edit; query-data-sources; query-multiple-data-sources; download-attachment; get-enabled-skills; download-skill; memory-search; search-agents; query-sessions; search-sessions; get-session-status; wait-session; list-session-events; read-session-event; calendar-list-calendars; calendar-list-events; calendar-list-coworkers-events; calendar-list-calendar-resources; calendar-list-contacts.
+Rollback, A:
+- update-page (content and properties; version history)
+- restore-version (revert a page to a past version)
+- restore-pages (recover pages from Trash)
+- delete-pages and delete-databases (move to Trash)
+- update-data-source (fields and layout)
+- create-view, update-view
+- upload-skill (replaces a page's content; version history)
+- update-enabled-skills (own settings)
+- set-discussion-resolved (can be reopened)
+
+Create, A: create-pages, duplicate-page, create-database, create-file-upload, create-attachment, create-folder.
+Send, P:
+- create-comment (notifies people)
+- update-comment (others see it; no history)
+- create-suggested-edit (teammates review it)
+- resolve-suggested-edit (accepting or rejecting a teammate's suggestion)
+- set-comment-reaction
+- calendar-create-events, calendar-update-events, calendar-cancel-events (notify attendees)
+- spawn-session, send-message-to-session (hand work to a Custom Agent that acts with its own access)
+
+Share, P: move-pages (moving into a teamspace can change who sees a page); get-file-download-urls (temporary bearer links).
+Unrecoverable or undocumented, P:
+- delete-comment
+- update-folder (can remove files; recovery not documented)
+- convert-page-to-skill (rollback not documented)
+- stop-session
+
+### slack (Slack hosted MCP)
+Read, A:
+- search_public, search_public_and_private (messages and files)
+- search_channels, search_users, search_emojis
+- read_channel, read_thread, read_canvas (as markdown), read_file, read_list, read_user_profile
+- list_channel_members, list_user_channels, get_reactions
+
+Send, P:
+- send_message, schedule_message, add_reaction
+- create_conversation (channel, group DM or IM)
+- complete_file_upload (can share to a channel)
+
+Write, P (the Owner's Slack rule allows reads only): send_message_draft, create_canvas, update_canvas, create_list, update_list, add_list_record, update_list_record, get_file_upload_url.
+
+### miro-mcp (Miro hosted MCP)
+Read, A:
+- canvas_read_as_svg, canvas_search
+- canvas_get_canvas_composer_skill, canvas_load_format_skill (authoring instructions)
+- canvas_get_html_upload_url (reserves upload slots; part of a create)
+- board_search_boards (deprecated), content_search, board_show, board_get_space
+- content_item_list_roles (who has access)
+- space_list, space_list_boards, space_list_children
+- blog_post_list, table_get_latest_update_history, comment_list_comments
+- image_get_data, image_get_upload_url
+- user_who_am_i, user_search_organization_users, get_brand_context
+
+Rollback, A: canvas_update_from_svg (board diff; board history); board_update_metadata, space_update_metadata, section_update_metadata (rename); board_restore (from trash); comment_resolve (can be undone).
+Create, A: canvas_create_from_svg, board_create, board_create_format, space_create, section_create, image_create, import-claude-design-from-url.
+Share, P: board_share, board_role_update, space_share, space_role_update, board_move (into a space or folder whose members differ), board_move_to_team, image_get_url (bearer link).
+Send, P: comment_create, comment_reply, blog_post_create, blog_post_update (space feed).
+Unrecoverable, P: section_delete.
+
+### firebase (`firebase-tools@latest mcp`)
+Read, A:
+- firebase_get_project, firebase_list_apps, firebase_list_projects, firebase_get_sdk_config, firebase_get_environment
+- firebase_get_security_rules, firebase_validate_security_rules (syntax check)
+- firebase_read_resources (built-in docs), firebase_deploy_status
+- apphosting_fetch_logs, apphosting_list_backends
+- auth_get_users
+- crashlytics_get_issue, crashlytics_list_events, crashlytics_batch_get_events, crashlytics_list_notes, crashlytics_get_report
+- realtimedatabase_get_data, dataconnect_list_services
+- functions_get_logs, functions_list_functions, remoteconfig_get_template
+- firestore get, list and query: document, documents, collections, aggregation query, database(s), index(es), backup(s), backup schedule(s)
+- developerknowledge_search_documents, developerknowledge_answer_query, developerknowledge_get_documents
+
+Write, P:
+- firebase_login, firebase_logout
+- firebase_update_environment (switches the active project)
+- firebase_init (writes local files)
+- firebase_create_project, firebase_create_app, firebase_create_android_sha
+- auth_update_user, auth_set_sms_region_policy
+- crashlytics_create_note, crashlytics_update_issue
+- realtimedatabase_set_data
+- dataconnect_build (compiles and may write generated files), dataconnect_execute (can run mutations)
+- remoteconfig_update_template (publish or roll back)
+- firestore_add_document, firestore_update_document
+- firestore_create_database, firestore_update_database, firestore_create_index
+- firestore_create_backup_schedule, firestore_update_backup_schedule
+
+Delete, P: crashlytics_delete_note, firestore_delete_document, firestore_delete_database, firestore_delete_index, firestore_delete_backup, firestore_delete_backup_schedule.
+Deploy, P: firebase_deploy. Send, P: messaging_send_message (push notification). Share, P: storage_get_object_download_url (long-lived token URL).
+
+### figma (Figma MCP, remote and desktop)
+Read, A:
+- download_assets, export_video, get_comments
+- get_design_context, get_figjam, get_metadata, get_motion_context, get_screenshot, get_variable_defs
+- get_code_connect_map, get_code_connect_suggestions, get_context_for_code_connect
+- get_libraries, search_design_system
+- list_generative_plugins, get_generative_plugin, list_shaders, get_shader, list_file_shaders
+- whoami
+- weave_list_tools, weave_get_tool_inputs, weave_get_tool_run_output, weave_find_model, weave_get_model_run_output
+
+Rollback, A: use_figma (edits files; version history); upload_assets; add_code_connect_map and send_code_connect_mappings (can be edited or removed).
+Create, A: create_new_file (in drafts), generate_diagram, generate_figma_design, generate_image, generate_vector_illustration, html_to_figma, send_code_to_figma, create_generative_plugin, create_shader, weave_upload_asset.
+Unrecoverable, P: update_generative_plugin and update_shader (overwrite source; no history documented); weave_run_tool and weave_run_model (spend credits); weave_cancel_tool_run.
+
+### googledocs (Google Docs MCP)
+- read_doc (JSON of a document): read, A.
+- update_doc (`documents.batchUpdate`: text, styles, tables, tabs, suggestions; no sharing): rollback through Docs version history, A.
+
+### googleworkspace (Google Workspace MCP endpoint, unconfirmed)
+Read, A:
+- Gmail: search_threads, get_thread, get_message, get_draft, list_drafts, list_labels, download_gmail_attachment
+- Drive: search_files, list_recent_files, read_file_content, download_file_content, get_file_metadata, get_file_permissions, list_file_revisions, list_shared_drives, get_shared_drive_metadata
+- Calendar: list_calendars, list_events, get_event, search_events, suggest_time
+- Chat: list_messages, search_conversations, search_messages, list_memberships, get_notification_settings
+- People: search_directory_people, search_contacts, get_user_profile
+- Sheets: get_spreadsheet, get_values
+- Slides: read_presentation, read_slide_page, read_slide_page_thumbnail
+- Docs: read_doc
+- Universal Search: search_corpus
+
+P, everything else:
+- Gmail: create_draft, update_draft, delete_draft, send_message, reply, forward, labels, trash and untrash, spam, sensitive labels
+- Drive: create_file, copy_file, update_file, share_file, trash_file, request_access
+- Calendar: create_event, update_event, delete_event, respond_to_event
+- Chat: send_message, mark_as_read, mark_as_unread, update_notification_settings
+- Sheets: update_spreadsheet, update_values, update_formulas, insert_dimension, append_values, batch_clear_values, copy_sheet_to_another_spreadsheet
+- Slides: update_presentation
+- Docs: update_doc (the Owner's Workspace rule allows reads only)
+- Classroom: every tool
+
+</details>
