@@ -95,12 +95,53 @@ Rules that apply only to public repos:
 
 Prefer the narrowest form the toolchain allows:
 
-1. **One value, one command:** the value goes inline to the command that needs
-   it, and nothing lands in the job environment.
-2. **Export to the job environment:** dotenv appended to `$GITHUB_ENV`, only
-   for the keys later steps use.
+1. **One value, one command:** decrypt into an unexported shell variable,
+   then pass it to the one command that needs it (`X="$X" cmd`), so nothing
+   lands in the job environment. Decrypt on its own line, not as a prefix
+   (`X="$(...)" cmd`): a prefix assignment's failure doesn't stop the step,
+   and the command runs with an empty value.
+2. **One value, one step:** when several commands in a step need it, decrypt
+   it into a shell variable at the top of the `run:` script and `export` it
+   there; it ends with the step. A later step that needs it decrypts it again.
 3. **Decrypt files to disk:** only when the toolchain needs a file (a `.p8` or
    `.p12`), mode `0600`, removed when the job ends.
+
+Once the step has decrypted what it needs, `unset SOPS_AGE_KEY` before running
+anything else, so the commands that follow don't inherit the key.
+
+Never append a value to `$GITHUB_ENV`. Every later step gets it, third-party
+actions included, and each step's log prints its `env:` block. A `uses:`
+action that needs a value takes it as a `with:` input from an output of the
+step that decrypted it, so only that step sees it. The decrypting step's mask
+covers the output wherever it appears:
+
+```yaml
+- id: token
+  env:
+    SOPS_AGE_KEY: ${{ secrets.SOPS_AGE_KEY }}
+  run: |
+    exec 2>&1
+    v="$(make -s -C _secrets dist-decrypt-env KEY=NPM_TOKEN)"
+    echo "value=$v" >> "$GITHUB_OUTPUT"
+- uses: some/publish-action@v1
+  with:
+    token: ${{ steps.token.outputs.value }}
+```
+
+Under GitHub Actions the kits register every value they print with
+`::add-mask::` on stderr, on a fresh line, before printing it. The runner
+reads stdout and stderr separately, so start every `run:` that decrypts with
+`exec 2>&1`: the masks and everything the step prints then share one pipe and
+reach the runner in order. Capture the value in a variable, a file or a step
+output; never let the kit's stdout reach the log directly, or through a tool
+that echoes it. Don't redirect the kit's own stderr: `2>/dev/null` drops the
+mask, and `2>&1` inside the `$(...)` puts it in the value.
+
+**Repos on the old template rotate.** The consumer template and these
+snippets used to append values to `$GITHUB_ENV`, unmasked. Any repo that ran
+that form has the values in its job logs, public for a public repo: rotate
+every value it exported at its issuer, update its encrypted file, move the workflow to the
+forms above, and delete the old runs' logs.
 
 Target names for each tier: [makefile.md](makefile.md).
 

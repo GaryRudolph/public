@@ -68,6 +68,8 @@ export GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_NOSYSTEM=1
 # would print "Entering directory" into captured output.
 unset MAKEFLAGS MAKELEVEL MFLAGS
 unset SOPS_AGE_KEY SOPS_AGE_KEY_CMD SOPS_AGE_KEY_FILE GOOGLE_CLOUD_PROJECT
+# Masking is tested explicitly below; elsewhere run as a workstation would.
+unset GITHUB_ACTIONS
 printf 'bash under test: %s\n' "$(bash -c 'echo $BASH_VERSION')"
 
 for n in maint bg actions envdev envprod tfprod; do age-keygen -o "$work/keys/$n.txt" 2>/dev/null; done
@@ -141,6 +143,34 @@ expect_fail "env prod key can't read ci/"                        as envprod make
 expect_fail "env prod key can't read terraform-prod/"            as envprod make -s secrets-env FILE=terraform-prod/terraform.env
 expect_eq   "terraform-prod key reads the write token"           "$(as tfprod make -s secrets-env FILE=terraform-prod/terraform.env KEY=CLOUDFLARE_API_TOKEN)" "cf_write"
 expect_fail "secrets-env refuses a bad KEY"                      as envprod make -s secrets-env FILE=prod/api.env 'KEY=a"]'
+
+printf '\nmasking under Actions\n'
+gha() { local who="$1"; shift; as "$who" env GITHUB_ACTIONS=true "$@"; }
+masks() { grep '^::add-mask::' || true; }
+# A two-line value as dotenv stores it (\n escaped), with a %0A the runner
+# would decode if the mask weren't percent-encoded.
+printf 'MULTI_KEY=line1\\n{\\nline2%%0Aend\nWORD=dotenv\nSPACED= "quoted-secret"\nCRLF=first-line\r\\nsecond-line\n' > secrets/ci/mask.env
+make -s secrets-encrypt FILE=ci/mask.env 2>/dev/null
+expect_eq   "raw value: stdout is the value alone"               "$(gha envprod make -s secrets-env FILE=prod/api.env KEY=DATABASE_PASSWORD 2>/dev/null)" "db_prod"
+expect_eq   "  ...and the mask is on stderr, a fresh line, before it" "$(gha envprod make -s secrets-env FILE=prod/api.env KEY=DATABASE_PASSWORD 2>&1 | tr '\n' ' ')" " ::add-mask::db_prod db_prod "
+expect_eq   "  ...even after an unterminated line"               "$( { printf 'progress' >&2; gha envprod make -s secrets-env FILE=prod/api.env KEY=DATABASE_PASSWORD; } 2>&1 >/dev/null | masks)" "::add-mask::db_prod"
+expect_eq   "FORMAT=dotenv: stdout unchanged"                    "$(gha envprod make -s secrets-env FILE=prod/api.env KEY=RESEND_API_KEY FORMAT=dotenv 2>/dev/null)" "RESEND_API_KEY=re_prod"
+expect_eq   "  ...and masked"                                    "$(gha envprod make -s secrets-env FILE=prod/api.env KEY=RESEND_API_KEY FORMAT=dotenv 2>&1 >/dev/null | masks)" "::add-mask::re_prod"
+expect_eq   "full dotenv: shared and own values masked"          "$(gha envprod make -s secrets-env FILE=prod/api.env 2>&1 >/dev/null | masks | tr '\n' ' ')" "::add-mask::re_prod ::add-mask::db_prod "
+expect_eq   "  ...stdout unchanged"                              "$(gha envprod make -s secrets-env FILE=prod/api.env 2>/dev/null | tr '\n' ' ')" "RESEND_API_KEY=re_prod DATABASE_PASSWORD=db_prod "
+expect_eq   "multi-line value: whole, then each long line, %-encoded" \
+    "$(gha actions make -s secrets-env FILE=ci/mask.env KEY=MULTI_KEY 2>&1 >/dev/null | masks | tr '\n' ' ')" \
+    '::add-mask::line1\n{\nline2%250Aend ::add-mask::line1 ::add-mask::line2%250Aend '
+expect_eq   "  ...stdout still the stored value"                 "$(gha actions make -s secrets-env FILE=ci/mask.env KEY=MULTI_KEY 2>/dev/null)" 'line1\n{\nline2%0Aend'
+expect_eq   "a value that names the mask mode"                   "$(gha actions make -s secrets-env FILE=ci/mask.env KEY=WORD 2>&1 | tr '\n' ' ')" " ::add-mask::dotenv dotenv "
+expect_eq   "a spaced, quoted value: as printed, trimmed, unquoted" \
+    "$(gha actions make -s secrets-env FILE=ci/mask.env KEY=SPACED 2>&1 >/dev/null | masks | tr '\n' '|')" \
+    '::add-mask:: "quoted-secret"|::add-mask::"quoted-secret"|::add-mask::quoted-secret|'
+expect_eq   "a CRLF value: each line without its CR" \
+    "$(gha actions make -s secrets-env FILE=ci/mask.env KEY=CRLF 2>&1 >/dev/null | masks | tr '\n' '|')" \
+    '::add-mask::first-line%0D\nsecond-line|::add-mask::first-line|::add-mask::second-line|'
+expect_eq   "no masks outside Actions"                           "$(as envprod make -s secrets-env FILE=prod/api.env KEY=DATABASE_PASSWORD 2>&1 >/dev/null | masks)" ""
+rm -f secrets/ci/mask.env.sops
 
 printf '\ndecrypt\n'
 expect_fail "decrypt of a .env needs CONFIRM=1 off a tty"        make secrets-decrypt FILE=prod/api.env </dev/null

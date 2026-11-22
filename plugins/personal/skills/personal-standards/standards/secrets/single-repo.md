@@ -270,9 +270,18 @@ new data key (`sops rotate`) ([Rotation](#rotation-and-leaks)).
 ## CI
 
 - Put `SOPS_AGE_KEY` on the steps that decrypt, never on the job.
-- Prefer one value for one command (`secrets-env KEY=`). Append dotenv to
-  `$GITHUB_ENV` only when later steps need it, and never a value a later step
-  doesn't use.
+- Prefer one value for one command (`secrets-env KEY=`). When several
+  commands in a step need it, decrypt it into a shell variable at the top of
+  the step and `export` it there; a later step decrypts it again. Never append
+  a value to `$GITHUB_ENV`, and a repo that did rotates every value it
+  exported ([README.md](README.md#least-privilege-consumption)).
+- Under Actions, `secrets-env` masks each value it prints (`::add-mask::` on
+  stderr). Start each step that decrypts with `exec 2>&1`, capture stdout,
+  never let it reach the log directly, and don't redirect the kit's stderr
+  ([README.md](README.md#least-privilege-consumption)).
+- Decrypt on its own line, then pass the value to the command; a prefix
+  assignment (`X="$(...)" cmd`) runs the command with an empty value when the
+  decrypt fails.
 - A decrypted file is mode `0600`, sits next to its ciphertext or under
   `$RUNNER_TEMP`, and is removed in an `if: always()` step.
 - A job that needs a privileged scope declares its environment, and gets its

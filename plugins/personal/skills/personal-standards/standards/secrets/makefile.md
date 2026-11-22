@@ -89,13 +89,20 @@ Decrypts `*.env.sops` files only. Never writes plaintext env files to disk.
 
 | Invocation | Stdout | Notes |
 |------------|--------|-------|
-| `make dist-decrypt-env` | All decryptable env files as dotenv `KEY=VALUE` lines | Append to `$GITHUB_ENV` in Actions |
+| `make dist-decrypt-env` | All decryptable env files as dotenv `KEY=VALUE` lines | For a tool that reads dotenv and doesn't echo it; never `$GITHUB_ENV` |
 | `make dist-decrypt-env FILE=ci/sentry.env` | One env file as dotenv lines | Logical name, no `.sops` suffix |
 | `make dist-decrypt-env KEY=AUTH_TOKEN` | Raw value only | Scans all decryptable env files; errors if key appears in more than one file |
 | `make dist-decrypt-env FILE=ci/sentry.env KEY=AUTH_TOKEN` | Raw value only | Disambiguates or avoids scanning |
-| `make dist-decrypt-env KEY=AUTH_TOKEN FORMAT=dotenv` | `AUTH_TOKEN=value` | For `$GITHUB_ENV` export of one key |
+| `make dist-decrypt-env KEY=AUTH_TOKEN FORMAT=dotenv` | `AUTH_TOKEN=value` | One dotenv line, for a tool that reads dotenv |
 
 **Environment:** `SOPS_AGE_KEY` (required).
+
+**Under Actions** (`GITHUB_ACTIONS=true`) it prints `::add-mask::` on stderr
+for every value, and for each line of a multi-line one (lines of 4 or more
+characters; the whole value is always masked), before printing the value. Start the step with `exec 2>&1` so masks and output share one pipe,
+capture stdout in a variable, file or step output, never straight to the
+log, and don't redirect the kit's stderr inside the `$(...)`
+([README.md](README.md#least-privilege-consumption)).
 
 **Script:** `dist-decrypt-env.sh` (repo root, shipped with cone-mode checkout).
 
@@ -123,22 +130,31 @@ Use the narrowest target that satisfies the job:
    - name: Use required secret for one command only
      env:
        SOPS_AGE_KEY: ${{ secrets.SOPS_AGE_KEY }}
-     run: AUTH_TOKEN="$(make -C _secrets dist-decrypt-env KEY=AUTH_TOKEN)" npm run build
+     run: |
+       exec 2>&1
+       AUTH_TOKEN="$(make -s -C _secrets dist-decrypt-env KEY=AUTH_TOKEN)"
+       unset SOPS_AGE_KEY
+       AUTH_TOKEN="$AUTH_TOKEN" npm run build
    ```
 
-2. **Export to job environment** (when later steps need env vars):
+2. **One key, one step** (when several commands in the step need it):
 
    ```yaml
-   - name: Export one required secret for later steps
+   - name: Use required secret for one step
      env:
        SOPS_AGE_KEY: ${{ secrets.SOPS_AGE_KEY }}
-     run: make -C _secrets dist-decrypt-env KEY=AUTH_TOKEN FORMAT=dotenv >> "$GITHUB_ENV"
-
-   - name: Export all decryptable env secrets for later steps
-     env:
-       SOPS_AGE_KEY: ${{ secrets.SOPS_AGE_KEY }}
-     run: make -C _secrets dist-decrypt-env >> "$GITHUB_ENV"
+     run: |
+       exec 2>&1
+       AUTH_TOKEN="$(make -s -C _secrets dist-decrypt-env KEY=AUTH_TOKEN)"
+       unset SOPS_AGE_KEY
+       export AUTH_TOKEN
+       npm run build
+       npm run upload-sourcemaps
    ```
+
+   A later step that needs the value decrypts it again. Never append a value
+   to `$GITHUB_ENV`: every later step gets it, and repos that did rotate
+   ([README.md](README.md#least-privilege-consumption)).
 
 3. **Decrypt files to disk** (binary secrets, signing material):
 

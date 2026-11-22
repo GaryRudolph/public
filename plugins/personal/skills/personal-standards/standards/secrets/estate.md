@@ -139,13 +139,24 @@ environment's key ([single-repo.md](single-repo.md#ci)).
 - name: Use required secret for one command only
   env:
     SOPS_AGE_KEY: ${{ secrets.SOPS_AGE_KEY }}
-  run: SENTRY_AUTH_TOKEN="$(make -C _secrets dist-decrypt-env FILE=ci/sentry.env KEY=SENTRY_AUTH_TOKEN)" make release
+  run: |
+    exec 2>&1   # masks and output on one pipe, in order
+    SENTRY_AUTH_TOKEN="$(make -s -C _secrets dist-decrypt-env FILE=ci/sentry.env KEY=SENTRY_AUTH_TOKEN)"
+    unset SOPS_AGE_KEY
+    SENTRY_AUTH_TOKEN="$SENTRY_AUTH_TOKEN" make release
 
-# 2. Export one key to the job environment for later steps
-- name: Export one required secret for later steps
+# 2. One key for several commands in one step; a later step decrypts again.
+#    Never append a value to $GITHUB_ENV (README.md, Least-privilege consumption).
+- name: Use required secret for one step
   env:
     SOPS_AGE_KEY: ${{ secrets.SOPS_AGE_KEY }}
-  run: make -C _secrets dist-decrypt-env KEY=SENTRY_AUTH_TOKEN FORMAT=dotenv >> "$GITHUB_ENV"
+  run: |
+    exec 2>&1
+    SENTRY_AUTH_TOKEN="$(make -s -C _secrets dist-decrypt-env FILE=ci/sentry.env KEY=SENTRY_AUTH_TOKEN)"
+    unset SOPS_AGE_KEY
+    export SENTRY_AUTH_TOKEN
+    make release
+    make upload-symbols
 
 # 3. Decrypt a binary file to disk (signing material, certificates)
 - name: Decrypt signing file to disk
