@@ -5,7 +5,7 @@
 - Queue: r1-fixes-lantern 3, after 1 (#90) and 2 (#89), both merged
 - Mode: unattended, confirmed 2026-11-22 in this session (dialog: Unattended, This session)
 - Done: wave 1 [deep] m3 s1, 8d34bd1..ab8298b, review CONCERNS (renderer guard claim; per-tool record not durable); fix-up 1-fix 8d34bd1..d6ba861, review PASS; wave 2 [exec] m3 s2-s5, 8757ea0..6fff233 (6359f57 s2, d6c1c0d s3, 84e1680 s4, 6fff233 s5), review CONCERNS (T41 checks the removed f4 entries only in Claude Code); fix-up 2-fix 8757ea0..58c4451, review PASS
-- Next unit: none; plan complete. Next: personal-ship-pr (draft PR, then #45 ticks)
+- Next unit: none; plan complete. Draft PR https://github.com/GaryRudolph/public/pull/98 open, CI green; #45 ticked for f1, f4, f9
 - Expected total: ~$7.4 API-equiv; guard $50
 - Spend: ~$14.5 API-equiv (Token log), against ~$7.4 expected; guard $50 never neared
 - Resume: the plan is complete; the PR carries the state from here
@@ -40,3 +40,9 @@
 
 - `personal-ship-pr`: PR description gets s1's design note, one `Fixes r1.f<K>` line each for f1, f4, f9, `Part of #45`, and `Queue: r1-fixes-lantern 3`. Remove this handoff, the plan and the design note before marking ready.
 - Then re-read #45's body, tick only f1, f4, f9 and append the PR link to each.
+
+## Pending question (verbatim)
+
+Security call on r1.f1 (both /code-review and /security-review): `Bash(<entry>:*)` makes ~160 shell prefixes live in Claude Code for the first time, including ones that run programs or write any path (`git fetch --upload-pack=`, `rg --pre`, `make test x --eval=`, `git log --output=`, `sort -o`, `uniq IN OUT`, `tree -o`) and network-capable ones (`git fetch <url>`, `helm template`, `kubectl`). Cursor CLI one-word rules (`Shell(rg)`, `Shell(sort)`, ...) take any arguments. Options: (a) exact allows in both tools: Claude Code `Bash(<entry>)`, Cursor CLI exact multi-word, no Cursor CLI rule for one-word entries; denies stay prefixes; (b) keep prefixes and prune the meta of exec/write/network entries; (c) render only denies for Claude Code and Cursor CLI in this PR and decide allows separately. Recommended: (a).
+
+Review tally so far: /code-review high: 2 important (1 to the Owner, 1 fixed), 4 nits (2 fixed, 1 declined: no bok port per the walk; 1 at ready: handoffs removed), 1 pre-existing (fixed). /security-review: 3 findings, same cause as the Owner's question.
