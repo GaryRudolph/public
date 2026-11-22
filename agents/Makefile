@@ -44,6 +44,22 @@ MAKEFILE_LABEL    ?= ~/Projects/personal/public/agents/Makefile
 # Put per-machine choices in agents/local.mk (gitignored), e.g. CURSOR_MODE := plugin
 
 -include $(AGENTS_DIR)/local.mk
+
+# Claude Code config dirs the Claude targets manage: space-separated absolute
+# paths, none containing a space. Each gets its own CLAUDE.md block, skills and
+# commands, allowlist (settings.json, sidecars, history) and local marketplace.
+# Set it in agents/local.mk to match the CLAUDE_CONFIG_DIR your shell and
+# launchers route to, e.g.
+#   CLAUDE_CONFIG_DIRS := $(HOME)/.claude-lolay $(HOME)/.claude-agerpoint
+# `make status` names any ~/.claude* dir that isn't listed.
+CLAUDE_CONFIG_DIRS ?= $(HOME)/.claude
+CLAUDE_CONFIG_DIRS := $(strip $(CLAUDE_CONFIG_DIRS))
+claude_uniq = $(if $(1),$(firstword $(1)) $(call claude_uniq,$(filter-out $(firstword $(1)),$(1))))
+CLAUDE_CONFIG_DIRS := $(strip $(call claude_uniq,$(patsubst %/,%,$(CLAUDE_CONFIG_DIRS))))
+$(if $(CLAUDE_CONFIG_DIRS),,$(error CLAUDE_CONFIG_DIRS is empty; it needs at least one directory))
+$(foreach d,$(CLAUDE_CONFIG_DIRS),\
+  $(if $(filter /%,$(d)),,$(error CLAUDE_CONFIG_DIRS entries must be absolute paths, got '$(d)')))
+
 CLAUDE_MODE       ?= plugin
 CODEX_MODE        ?= home
 GEMINI_MODE       ?= home
@@ -68,7 +84,6 @@ AGENTS_SKILLS_MODE := $(if $(and $(filter plugin,$(CODEX_MODE)),$(filter plugin,
 # Home-file targets (blocks pass)
 # ---------------------------------------------------------------------------
 
-CLAUDE_HOME       ?= $(HOME)/.claude
 GEMINI_HOME       ?= $(HOME)/.gemini
 CODEX_HOME        ?= $(HOME)/.codex
 CURSOR_GLOBAL_FILE ?= $(HOME)/AGENTS.md
@@ -119,8 +134,6 @@ LEGACY_COMMANDS_SRC ?=
 # CLI; the old per-tool ~/.gemini/skills and ~/.codex/skills are swept.
 CURSOR_SKILLS_HOME        ?= $(HOME)/.cursor/skills
 AGENTS_SKILLS_HOME        ?= $(HOME)/.agents/skills
-CLAUDE_SKILLS_HOME        ?= $(CLAUDE_HOME)/skills
-CLAUDE_COMMANDS_HOME      ?= $(CLAUDE_HOME)/commands
 LEGACY_SKILLS_HOMES       ?= $(GEMINI_HOME)/skills:$(CODEX_HOME)/skills
 
 # Windows-side destinations (copies, under $(WIN_HOME)). Left empty when
@@ -138,7 +151,7 @@ BLOCKS_ENV = \
     ORG="$(ORG)" \
     SOURCE_AGENTS="$(SOURCE_AGENTS)" \
     MAKEFILE_LABEL="$(MAKEFILE_LABEL)" \
-    CLAUDE_HOME="$(CLAUDE_HOME)" \
+    CLAUDE_CONFIG_DIRS="$(CLAUDE_CONFIG_DIRS)" \
     GEMINI_HOME="$(GEMINI_HOME)" \
     CODEX_HOME="$(CODEX_HOME)" \
     CURSOR_GLOBAL_FILE="$(CURSOR_GLOBAL_FILE)" \
@@ -173,8 +186,7 @@ EXTENSIONS_ENV = \
     CLAUDE_SKILLS_MODE="$(CLAUDE_SKILLS_MODE)" \
     CURSOR_SKILLS_HOME="$(CURSOR_SKILLS_HOME)" \
     AGENTS_SKILLS_HOME="$(AGENTS_SKILLS_HOME)" \
-    CLAUDE_SKILLS_HOME="$(CLAUDE_SKILLS_HOME)" \
-    CLAUDE_COMMANDS_HOME="$(CLAUDE_COMMANDS_HOME)" \
+    CLAUDE_CONFIG_DIRS="$(CLAUDE_CONFIG_DIRS)" \
     LEGACY_SKILLS_HOMES="$(LEGACY_SKILLS_HOMES)" \
     WIN_HOME="$(WIN_HOME)" \
     WIN_CURSOR_SKILLS_HOME="$(WIN_CURSOR_SKILLS_HOME)" \
@@ -204,6 +216,7 @@ PLUGINS      ?= personal workstation
 CLAUDE_BIN   ?= claude
 MARKETPLACE_ENV = \
     CLAUDE_BIN="$(CLAUDE_BIN)" \
+    CLAUDE_CONFIG_DIRS="$(CLAUDE_CONFIG_DIRS)" \
     REPO_DIR="$(REPO_DIR)" \
     MARKETPLACE="$(ORG)" \
     PLUGINS="$(PLUGINS)"
@@ -215,7 +228,6 @@ MARKETPLACE_ENV = \
 
 ALLOWLISTS_SRC    ?= $(AGENTS_DIR)/allowlists/personal.json
 CURSOR_DATA_HOME  ?= $(HOME)/.cursor
-CLAUDE_DATA_HOME  ?= $(HOME)/.claude
 GEMINI_DATA_HOME  ?= $(GEMINI_HOME)
 
 # ---------------------------------------------------------------------------
@@ -226,7 +238,7 @@ ALLOWLISTS_ENV = \
     ORG="$(ORG)" \
     ALLOWLISTS_SRC="$(ALLOWLISTS_SRC)" \
     CURSOR_DATA_HOME="$(CURSOR_DATA_HOME)" \
-    CLAUDE_DATA_HOME="$(CLAUDE_DATA_HOME)" \
+    CLAUDE_CONFIG_DIRS="$(CLAUDE_CONFIG_DIRS)" \
     GEMINI_DATA_HOME="$(GEMINI_DATA_HOME)" \
     WIN_HOME="$(WIN_HOME)" \
     WIN_CURSOR_DATA_HOME="$(WIN_CURSOR_DATA_HOME)" \
@@ -247,14 +259,15 @@ TEST_ENV = \
     LEGACY_JETBRAINS_GLOB="$(LEGACY_JETBRAINS_GLOB)"
 
 .PHONY: help install uninstall dry-run status doctor test test-blocks test-extensions test-hooks test-allowlists \
-        test-secrets test-release test-repo-baseline test-ship-pr test-codebase-review test-media-preview test-orchestrate test-origin test-doctor test-session-doctor test-session-start test-allowlist-scout clean-test \
+        test-secrets test-release test-repo-baseline test-ship-pr test-codebase-review test-media-preview test-orchestrate test-origin test-doctor test-session-doctor test-session-start test-allowlist-scout test-claude-dirs clean-test \
         install-blocks uninstall-blocks dry-run-blocks status-blocks \
         install-extensions uninstall-extensions dry-run-extensions status-extensions \
         install-hooks uninstall-hooks dry-run-hooks status-hooks \
         install-allowlists uninstall-allowlists dry-run-allowlists status-allowlists \
         diff-allowlists restore-allowlists clean-allowlists \
         test-manifests test-roundtrip cursor-core-rule validate package status-modes \
-        install-local-marketplace uninstall-local-marketplace status-local-marketplace
+        install-local-marketplace uninstall-local-marketplace status-local-marketplace \
+        status-claude-dirs
 
 # ---------------------------------------------------------------------------
 # help (default target)
@@ -275,7 +288,8 @@ help:
 	@echo "  uninstall    Remove everything this installer ever wrote locally, whatever"
 	@echo "               the modes, then print how to remove the plugins."
 	@echo "  dry-run      Preview install actions, no disk writes."
-	@echo "  status       Modes, then blocks, extensions, hooks, allowlists, marketplace."
+	@echo "  status       Modes, Claude config dirs (managed and not), then blocks, extensions,"
+	@echo "               hooks, allowlists, marketplace."
 	@echo "  test         Sandboxed tests of every installer, skill scripts, manifests."
 	@echo "  clean-test   Remove build/ test scratch dir."
 	@echo ""
@@ -300,11 +314,11 @@ help:
 	@echo ""
 	@echo "Overridable variables (defaults shown):"
 	@echo "  PROJECTS_DIR=$(PROJECTS_DIR)   (v1 cleanup only)"
-	@echo "  CLAUDE_HOME=$(CLAUDE_HOME)  GEMINI_HOME=$(GEMINI_HOME)  CODEX_HOME=$(CODEX_HOME)"
+	@echo "  CLAUDE_CONFIG_DIRS=$(CLAUDE_CONFIG_DIRS)   (one or more; set in agents/local.mk)"
+	@echo "  GEMINI_HOME=$(GEMINI_HOME)  CODEX_HOME=$(CODEX_HOME)"
 	@echo "  CURSOR_GLOBAL_FILE=$(CURSOR_GLOBAL_FILE)"
 	@echo "  CURSOR_SKILLS_HOME=$(CURSOR_SKILLS_HOME)"
 	@echo "  AGENTS_SKILLS_HOME=$(AGENTS_SKILLS_HOME)   (Codex, Gemini, Copilot CLI)"
-	@echo "  CLAUDE_SKILLS_HOME=$(CLAUDE_SKILLS_HOME)  CLAUDE_COMMANDS_HOME=$(CLAUDE_COMMANDS_HOME)"
 	@echo "  WIN_HOME=$(WIN_HOME)   (auto-detected under WSL; triggers the Windows-side pass)"
 	@echo "  ALLOWLISTS_SRC=$(ALLOWLISTS_SRC)"
 	@echo ""
@@ -331,11 +345,15 @@ uninstall: uninstall-allowlists uninstall-hooks uninstall-extensions uninstall-b
 
 dry-run: dry-run-blocks dry-run-extensions dry-run-hooks dry-run-allowlists
 
-status: status-modes status-blocks status-extensions status-hooks status-allowlists status-local-marketplace
+status: status-modes status-claude-dirs status-blocks status-extensions status-hooks status-allowlists status-local-marketplace
 
 status-modes:
 	@echo "modes: CLAUDE_MODE=$(CLAUDE_MODE) CODEX_MODE=$(CODEX_MODE) GEMINI_MODE=$(GEMINI_MODE) CURSOR_MODE=$(CURSOR_MODE)"
 	@echo ""
+
+# Names the Claude config dirs this installer manages and any ~/.claude* it doesn't.
+status-claude-dirs:
+	@CLAUDE_CONFIG_DIRS="$(CLAUDE_CONFIG_DIRS)" bash "$(AGENTS_DIR)/lib/claude-dirs.sh" status
 
 # ---------------------------------------------------------------------------
 # Local marketplace (optional; live edits)
@@ -442,11 +460,15 @@ doctor:
 # test
 # ---------------------------------------------------------------------------
 
-test: test-blocks test-extensions test-hooks test-allowlists test-manifests test-secrets test-release test-orchestrate test-repo-baseline test-review-guide test-ship-pr test-codebase-review test-media-preview test-origin test-doctor test-session-doctor test-session-start test-allowlist-scout test-roundtrip
+test: test-blocks test-extensions test-hooks test-allowlists test-manifests test-secrets test-release test-orchestrate test-repo-baseline test-review-guide test-ship-pr test-codebase-review test-media-preview test-origin test-doctor test-session-doctor test-session-start test-allowlist-scout test-claude-dirs test-roundtrip
 
 # Install + uninstall through this Makefile into a sandboxed $HOME.
 test-roundtrip:
 	@ORG="$(ORG)" AGENTS_DIR="$(AGENTS_DIR)" bash "$(AGENTS_DIR)/lib/roundtrip-test.sh"
+
+# CLAUDE_CONFIG_DIRS through the Makefile: two dirs install and uninstall together; status names an unlisted one.
+test-claude-dirs:
+	@ORG="$(ORG)" AGENTS_DIR="$(AGENTS_DIR)" bash "$(AGENTS_DIR)/tests/test-claude-dirs.sh"
 
 test-blocks: clean-test
 	@$(TEST_ENV) bash "$(AGENTS_DIR)/lib/blocks-test.sh"

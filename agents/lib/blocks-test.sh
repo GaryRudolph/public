@@ -113,7 +113,7 @@ run_blocks() {
     ORG="$ORG" \
     SOURCE_AGENTS="$FAKE_SOURCE" \
     MAKEFILE_LABEL="$AGENTS_DIR/Makefile (test)" \
-    CLAUDE_HOME="$home/.claude" \
+    CLAUDE_CONFIG_DIRS="$home/.claude" \
     GEMINI_HOME="$home/.gemini" \
     CODEX_HOME="$home/.codex" \
     CURSOR_GLOBAL_FILE="$home/AGENTS.md" \

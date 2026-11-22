@@ -15,7 +15,8 @@
 #   MAKEFILE_LABEL    human-readable label for the "managed by" line
 #
 # Home-file locations (Makefile passes its preferred defaults):
-#   CLAUDE_HOME, GEMINI_HOME, CODEX_HOME
+#   CLAUDE_CONFIG_DIRS (space-separated absolute paths; each gets its own CLAUDE.md),
+#   GEMINI_HOME, CODEX_HOME
 #   CURSOR_GLOBAL_FILE
 #   XCODE_CLAUDE_DIR, XCODE_CODEX_DIR
 #
@@ -58,7 +59,7 @@ set -euo pipefail
 : "${SOURCE_AGENTS:?SOURCE_AGENTS must be set}"
 : "${MAKEFILE_LABEL:=${SOURCE_AGENTS%/*}/Makefile}"
 
-: "${CLAUDE_HOME:=$HOME/.claude}"
+: "${CLAUDE_CONFIG_DIRS:=$HOME/.claude}"
 : "${GEMINI_HOME:=$HOME/.gemini}"
 : "${CODEX_HOME:=$HOME/.codex}"
 : "${CURSOR_GLOBAL_FILE:=$HOME/AGENTS.md}"
@@ -284,8 +285,12 @@ keep_or_remove() {
 
 # Block mode for a home file, for status output.
 block_mode_for() {
+    local claude_dir
+    for claude_dir in $CLAUDE_CONFIG_DIRS; do
+        if [ "$1" = "$claude_dir/CLAUDE.md" ]; then printf '%s' "$CLAUDE_BLOCK"; return; fi
+    done
     case "$1" in
-        "$CLAUDE_HOME/CLAUDE.md"|*/.claude/CLAUDE.md) printf '%s' "$CLAUDE_BLOCK" ;;
+        */.claude/CLAUDE.md)                          printf '%s' "$CLAUDE_BLOCK" ;;
         "$CODEX_HOME/AGENTS.md"|*/.codex/AGENTS.md)   printf '%s' "$CODEX_BLOCK" ;;
         "$GEMINI_HOME/GEMINI.md"|*/.gemini/GEMINI.md) printf '%s' "$GEMINI_BLOCK" ;;
         "$CURSOR_GLOBAL_FILE"|*/AGENTS.md)            printf '%s' "$CURSOR_BLOCK" ;;
@@ -467,7 +472,7 @@ run_pass() {
     local mode="$3"
 
     # Files that vary by mode (import vs inline): Claude and Gemini.
-    local claude_file="$home_base/.claude/CLAUDE.md"
+    local claude_files=("$home_base/.claude/CLAUDE.md") claude_file claude_dir
     local gemini_file="$home_base/.gemini/GEMINI.md"
 
     # Files that are always inlined (Cursor, Codex, Xcode Codex).
@@ -479,7 +484,10 @@ run_pass() {
     # Native-pass overrides (the Makefile sets these for the canonical pass; we
     # honor them only when the home_base IS the native $HOME).
     if [ "$home_base" = "$HOME" ]; then
-        claude_file="$CLAUDE_HOME/CLAUDE.md"
+        claude_files=()
+        for claude_dir in $CLAUDE_CONFIG_DIRS; do
+            claude_files+=("$claude_dir/CLAUDE.md")
+        done
         gemini_file="$GEMINI_HOME/GEMINI.md"
         cursor_file="$CURSOR_GLOBAL_FILE"
         codex_file="$CODEX_HOME/AGENTS.md"
@@ -491,7 +499,9 @@ run_pass() {
     [ -d "$home_base/Library/Developer/Xcode/CodingAssistant" ] && has_xcode=1
 
     if [ "$action" = "remove" ]; then
-        remove_block_from "$claude_file"
+        for claude_file in "${claude_files[@]}"; do
+            remove_block_from "$claude_file"
+        done
         remove_block_from "$gemini_file"
         remove_block_from "$cursor_file"
         remove_block_from "$codex_file"
@@ -513,11 +523,15 @@ run_pass() {
 
     if [ "$mode" = "inline" ]; then
         # All home files inlined (Windows-host pass).
-        keep_or_remove "$CLAUDE_BLOCK" "$claude_file" "$inline_content" "$source_label"
+        for claude_file in "${claude_files[@]}"; do
+            keep_or_remove "$CLAUDE_BLOCK" "$claude_file" "$inline_content" "$source_label"
+        done
         keep_or_remove "$GEMINI_BLOCK" "$gemini_file" "$inline_content" "$source_label"
     else
         # @-imports for Claude/Gemini (native pass).
-        keep_or_remove "$CLAUDE_BLOCK" "$claude_file" "$import_content"
+        for claude_file in "${claude_files[@]}"; do
+            keep_or_remove "$CLAUDE_BLOCK" "$claude_file" "$import_content"
+        done
         keep_or_remove "$GEMINI_BLOCK" "$gemini_file" "$import_content"
     fi
 
@@ -702,8 +716,11 @@ cmd_status() {
 
     # Read-only summary per home file.
     local pretty
-    local files=(
-        "$CLAUDE_HOME/CLAUDE.md"
+    local files=() claude_dir
+    for claude_dir in $CLAUDE_CONFIG_DIRS; do
+        files+=("$claude_dir/CLAUDE.md")
+    done
+    files+=(
         "$GEMINI_HOME/GEMINI.md"
         "$CURSOR_GLOBAL_FILE"
         "$CODEX_HOME/AGENTS.md"

@@ -106,6 +106,16 @@ Put per-machine choices in `agents/local.mk` (git ignores it), such as
 `make status` prints the modes first. Switch a tool to `plugin` only after
 its plugin is installed; the runbook (m7) covers each one.
 
+`CLAUDE_CONFIG_DIRS` lists the Claude Code config dirs to manage
+(space-separated absolute paths, default `~/.claude`). Set it in `local.mk`
+when your sessions run from routed dirs, for example
+`CLAUDE_CONFIG_DIRS := $(HOME)/.claude-lolay $(HOME)/.claude-agerpoint`.
+Every `~/.claude/...` path in the tables above is then one per listed dir:
+the `CLAUDE.md` block, skills and commands, the `settings.json` allowlist with
+its sidecars and `.history/`, and the local marketplace. `make status` names
+any `~/.claude*` directory the list doesn't cover. The Windows-side copies
+(WSL) stay single, at `%USERPROFILE%\.claude`.
+
 `make install` also sweeps what earlier versions wrote: links into the old
 `agents/skills/`, and anything of ours in the retired per-tool skill dirs.
 All managed skills are prefixed `personal-`. Copies are ours when they carry
@@ -137,7 +147,7 @@ cycle leaves a sandboxed `$HOME` unchanged.
 ```bash
 cd ~/Projects/personal/public/agents
 make install      # per tool mode: write, or remove, blocks and skill entries; hooks; allowlists
-make status       # modes, then blocks, extensions, hooks, allowlists, local marketplace
+make status       # modes, Claude config dirs, then blocks, extensions, hooks, allowlists, local marketplace
 make uninstall    # remove everything this installer ever wrote locally
 make dry-run      # preview all install actions, no disk writes
 make test         # sandboxed tests, including an install/uninstall round trip
