@@ -94,7 +94,8 @@ heading has no separator, the tag goes immediately after the heading marker.
 A leading status emoji (`⬜` open, `✅` done; see [Marking steps
 done](#marking-steps-done)) comes first, between the heading marker and the
 ID, and is not part of the ID or the title: `#### ⬜ s2 - [exec] Wire search
-results`. The tag still follows the separator.
+results`. The tag still follows the separator, and with no separator it goes
+after the emoji (`#### ⬜ [exec] Wire Redis client`), never ahead of it.
 
 Do not rewrite IDs, renumber, change casing, add separators, or coin new
 identifiers. This convention works with any plan structure — `m{N}`/`s{N}`
@@ -539,7 +540,7 @@ Template (a `[deep] -> [exec]` transition):
         Read <absolute path to the plan file>. Execute <next group>.
         On branch <name> (task branch): commit each finished step.
         Before you stop, update plan progress: append ` (done)` to the
-        headings you finished (⬜ to ✅), update the Kickoff Status line, and flip the
+        headings you finished and flip ⬜ to ✅, update the Kickoff Status line, and flip the
         matching todos. Append one line per model this chat ran to the
         plan's "## Token log", counted and priced per its counting header:
           tokens wave-<n> <group-id> (<model>): input ~X / cache read ~R / cache write ~W / output ~Y | ~$C API-equiv
@@ -564,8 +565,8 @@ For an `[exec] -> [fast]` transition, the prompt should also remind the model no
         On branch <name> (task branch): commit each finished step.
         These are mechanical edits -- apply exactly what the plan
         specifies; do not refactor, rename, or generalize. Before you
-        stop, update plan progress (mark the headings you finished (⬜ to ✅)
-        ` (done)`, update the Status line, flip the matching todos). Append
+        stop, update plan progress (mark the headings you finished
+        ` (done)` and flip ⬜ to ✅, update the Status line, flip the matching todos). Append
         one line per model this chat ran to the plan's "## Token log",
         counted and priced per its counting header:
           tokens wave-<n> <group-id> (<model>): input ~X / cache read ~R / cache write ~W / output ~Y | ~$C API-equiv
@@ -589,8 +590,8 @@ For an escalation back to `[deep]` (after `[exec]` or `[fast]`):
         implement). The previous wave is reviewed in its own REVIEW beat
         (see the Review beat section), so do not re-review it here.
         On branch <name> (task branch): commit each finished step.
-        Before you stop, update plan progress (mark the headings you finished (⬜ to ✅)
-        ` (done)`, update the Status line, flip the matching todos). Append
+        Before you stop, update plan progress (mark the headings you finished
+        ` (done)` and flip ⬜ to ✅, update the Status line, flip the matching todos). Append
         one line per model this chat ran to the plan's "## Token log",
         counted and priced per its counting header:
           tokens wave-<n> <group-id> (<model>): input ~X / cache read ~R / cache write ~W / output ~Y | ~$C API-equiv
@@ -766,7 +767,7 @@ Passive variant — `[exec]` first wave (the most common shape):
         of the plan.
         On branch <name> (task branch): commit each finished step.
         Before you stop, update plan progress: append ` (done)` to the
-        headings you finished (⬜ to ✅), update the Kickoff Status line, and flip the
+        headings you finished and flip ⬜ to ✅, update the Kickoff Status line, and flip the
         matching todos. Append one line per model this chat ran to the
         plan's "## Token log", counted and priced per its counting header:
           tokens wave-1 <group-id> (<model>): input ~X / cache read ~R / cache write ~W / output ~Y | ~$C API-equiv
@@ -795,8 +796,8 @@ Passive variant — `[fast]` first wave (prompt body adds the "no refactor" remi
         On branch <name> (task branch): commit each finished step.
         These are mechanical edits -- apply exactly what the
         plan specifies; do not refactor, rename, or generalize. Before you
-        stop, update plan progress (mark the headings you finished (⬜ to ✅)
-        ` (done)`, update the Status line, flip the matching todos). Append
+        stop, update plan progress (mark the headings you finished
+        ` (done)` and flip ⬜ to ✅, update the Status line, flip the matching todos). Append
         one line per model this chat ran to the plan's "## Token log",
         counted and priced per its counting header:
           tokens wave-1 <group-id> (<model>): input ~X / cache read ~R / cache write ~W / output ~Y | ~$C API-equiv
@@ -1015,7 +1016,7 @@ When re-entering a plan in a fresh chat, re-derive the native todo list from thi
 Final completion runs once the last group finishes and its review passes: in the passive flow, in the last wave's [review beat](#review-beat) on `PASS` (in the last wave's own chat when `review:` is off), and in orchestrate, in the parent after the last wave's review (it ends the run, so it also writes the final handoff, below). It does:
 
 1. Flip all remaining native todos to `completed`.
-2. Ensure every executable heading carries ` (done)` and a leading `✅`.
+2. Ensure every executable heading carries ` (done)` and, where it has a leading `⬜`, that it reads `✅`.
 3. Replace the Kickoff marker line with the terminal form:
 
        --- KICKOFF: plan complete ---
