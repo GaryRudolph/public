@@ -27,8 +27,7 @@ import re
 import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))  # python3 -I leaves the script's folder off the path
-from shell_scan import (START, STDIN_SHELL, Timeout, bare, deadline, env_split, find_writes,  # noqa: E402
-                        inner_strings, join_continuations)
+from shell_scan import START, STDIN_SHELL, Timeout, bare, deadline, env_split, find_writes, inner_strings  # noqa: E402
 
 REVIEWER = re.compile(r"^[a-z][a-z0-9-]*:plan-reviewer$")
 
@@ -43,13 +42,10 @@ REDIRECT = re.compile(r"(?<![0-9&])>>?\s*(?!&|/dev/null\b)\S|\b[0-9]>>?\s*(?!&|/
 
 def problem(command, depth=0):
     """Why a reviewer may not run command, or None."""
-    command = join_continuations(command)
     nested = inner_strings(command)
     if nested and depth >= 3:
         return "command strings nested more than three levels deep"
-    for text, kind, _ in nested:
-        if kind == "opaque":
-            return "an ANSI-C quoted command string that can't be inspected"
+    for text, _, _ in nested:
         why = problem(text, depth + 1)
         if why:
             return why
