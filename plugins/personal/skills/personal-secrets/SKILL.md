@@ -261,7 +261,8 @@ and keep only the narrowest decrypt step that works:
 3. Files on disk, only when a tool needs a file: `make -C _secrets dist-decrypt FILE=<f>`
 
 Never append a value to `$GITHUB_ENV`. Under Actions the kit masks every value
-it prints. A repo still on the old template (which appended to `$GITHUB_ENV`)
+it prints; start each step that decrypts with `exec 2>&1` so the masks reach
+the runner before anything the step prints. A repo still on the old template (which appended to `$GITHUB_ENV`)
 rotates every value it exported
 ([secrets/README.md](../personal-standards/standards/secrets/README.md#least-privilege-consumption)).
 

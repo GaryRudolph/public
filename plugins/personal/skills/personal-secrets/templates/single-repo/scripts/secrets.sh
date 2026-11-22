@@ -232,21 +232,27 @@ layered() {
 # usage: mask_values raw "$value"; mask_values dotenv "$dotenv_lines". The
 # mode is always given, so a value can't be taken for it. Takes arguments,
 # not stdin, so nothing writes into a pipe it may not read. A line split out
-# of a multi-line value is masked only from 4 characters, so a `{` or `}`
-# line doesn't blank every brace in the log; the whole value is always masked.
+# of a multi-line value (trailing CR dropped) is masked only from 4
+# characters, so a `{` or `}` line doesn't blank every brace in the log; the
+# whole value is always masked, as printed and trimmed of whitespace. The
+# masks start on a fresh line, since stderr may hold an unterminated line
+# (a progress bar) that would swallow the command.
 mask_values() {
     [ "${GITHUB_ACTIONS:-}" = true ] || return 0
     local dotenv=0
     case "$1" in raw) ;; dotenv) dotenv=1 ;; *) echo "mask_values: mode must be raw or dotenv" >&2; return 1 ;; esac
     printf '%s\n' "$2" | awk -v dotenv="$dotenv" '
+        BEGIN { print "" }
         function esc(s) { gsub(/%/, "%25", s); gsub(/\r/, "%0D", s); return s }
-        function emit(s) { if (s ~ /[^[:space:]]/) print "::add-mask::" esc(s) }
+        function emit(s) { if (s ~ /[^[:space:]]/ && !(s in seen)) { seen[s] = 1; print "::add-mask::" esc(s) } }
         function one(s,   n, i, p, q) {
+            emit(s)
+            gsub(/^[[:space:]]+|[[:space:]]+$/, "", s)
             emit(s)
             q = substr(s, 1, 1)
             if (length(s) > 1 && (q == "\"" || q == "\047") && substr(s, length(s)) == q) { s = substr(s, 2, length(s) - 2); emit(s) }
             n = split(s, p, /\\n/)
-            if (n > 1) for (i = 1; i <= n; i++) if (length(p[i]) >= 4) emit(p[i])
+            if (n > 1) for (i = 1; i <= n; i++) { sub(/\r$/, "", p[i]); if (length(p[i]) >= 4) emit(p[i]) }
         }
         dotenv && /^[[:space:]]*(#|$)/ { next }
         dotenv { if (index($0, "=") == 0) next; one(substr($0, index($0, "=") + 1)); next }

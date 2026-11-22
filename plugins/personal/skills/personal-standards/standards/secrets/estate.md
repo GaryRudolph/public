@@ -140,6 +140,7 @@ environment's key ([single-repo.md](single-repo.md#ci)).
   env:
     SOPS_AGE_KEY: ${{ secrets.SOPS_AGE_KEY }}
   run: |
+    exec 2>&1   # masks and output on one pipe, in order
     SENTRY_AUTH_TOKEN="$(make -s -C _secrets dist-decrypt-env FILE=ci/sentry.env KEY=SENTRY_AUTH_TOKEN)"
     SENTRY_AUTH_TOKEN="$SENTRY_AUTH_TOKEN" make release
 
@@ -149,6 +150,7 @@ environment's key ([single-repo.md](single-repo.md#ci)).
   env:
     SOPS_AGE_KEY: ${{ secrets.SOPS_AGE_KEY }}
   run: |
+    exec 2>&1
     SENTRY_AUTH_TOKEN="$(make -s -C _secrets dist-decrypt-env FILE=ci/sentry.env KEY=SENTRY_AUTH_TOKEN)"
     export SENTRY_AUTH_TOKEN
     make release

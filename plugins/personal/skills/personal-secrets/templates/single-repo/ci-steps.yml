@@ -16,6 +16,7 @@ jobs:
         env:
           SOPS_AGE_KEY: ${{ secrets.SOPS_AGE_KEY }}
         run: |
+          exec 2>&1                  # masks and output on one pipe, in order
           make secrets-decrypt FILE=ci/apple-distribution.p12
           APPLE_DISTRIBUTION_P12_PASSWORD="$(make -s secrets-env FILE=ci/deskhound.env KEY=APPLE_DISTRIBUTION_P12_PASSWORD)"
           APPLE_DISTRIBUTION_P12_PASSWORD="$APPLE_DISTRIBUTION_P12_PASSWORD" make keychain-import
@@ -35,6 +36,7 @@ jobs:
         env:
           SOPS_AGE_KEY: ${{ secrets.SOPS_AGE_KEY }}
         run: |
+          exec 2>&1
           CLOUDFLARE_API_TOKEN="$(make -s secrets-env FILE=ci/terraform-plan.env KEY=CLOUDFLARE_API_TOKEN)"
           CLOUDFLARE_API_TOKEN="$CLOUDFLARE_API_TOKEN" make plan
 
@@ -53,6 +55,7 @@ jobs:
         env:
           SOPS_AGE_KEY: ${{ secrets.SOPS_AGE_KEY }}
         run: |
+          exec 2>&1
           CLOUDFLARE_API_TOKEN="$(make -s secrets-env FILE=terraform-prod/terraform.env KEY=CLOUDFLARE_API_TOKEN)"
           CLOUDFLARE_API_TOKEN="$CLOUDFLARE_API_TOKEN" make apply
 

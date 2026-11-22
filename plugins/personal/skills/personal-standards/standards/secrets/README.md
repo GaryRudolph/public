@@ -117,6 +117,7 @@ covers the output wherever it appears:
   env:
     SOPS_AGE_KEY: ${{ secrets.SOPS_AGE_KEY }}
   run: |
+    exec 2>&1
     v="$(make -s -C _secrets dist-decrypt-env KEY=NPM_TOKEN)"
     echo "value=$v" >> "$GITHUB_OUTPUT"
 - uses: some/publish-action@v1
@@ -125,11 +126,13 @@ covers the output wherever it appears:
 ```
 
 Under GitHub Actions the kits register every value they print with
-`::add-mask::` on stderr before printing it. That protects a value captured
-in a variable, a file or a step output. Never let the kit's stdout reach the
-step log directly, or through a tool that echoes it: the runner reads stdout
-and stderr separately, so the value can land before its mask. Leave stderr
-alone: `2>/dev/null` drops the mask, and `2>&1` puts it inside the value.
+`::add-mask::` on stderr, on a fresh line, before printing it. The runner
+reads stdout and stderr separately, so start every `run:` that decrypts with
+`exec 2>&1`: the masks and everything the step prints then share one pipe and
+reach the runner in order. Capture the value in a variable, a file or a step
+output; never let the kit's stdout reach the log directly, or through a tool
+that echoes it. Don't redirect the kit's own stderr: `2>/dev/null` drops the
+mask, and `2>&1` inside the `$(...)` puts it in the value.
 
 **Repos on the old template rotate.** The consumer template and these
 snippets used to append values to `$GITHUB_ENV`, unmasked. Any repo that ran

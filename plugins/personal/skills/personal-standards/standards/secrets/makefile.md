@@ -99,8 +99,10 @@ Decrypts `*.env.sops` files only. Never writes plaintext env files to disk.
 
 **Under Actions** (`GITHUB_ACTIONS=true`) it prints `::add-mask::` on stderr
 for every value, and for each line of a multi-line one, before printing the
-value. Capture stdout in a variable, file or step output, never straight to
-the log; leave stderr alone (no `2>/dev/null`, no `2>&1`).
+value. Start the step with `exec 2>&1` so masks and output share one pipe,
+capture stdout in a variable, file or step output, never straight to the
+log, and don't redirect the kit's stderr inside the `$(...)`
+([README.md](README.md#least-privilege-consumption)).
 
 **Script:** `dist-decrypt-env.sh` (repo root, shipped with cone-mode checkout).
 
@@ -129,6 +131,7 @@ Use the narrowest target that satisfies the job:
      env:
        SOPS_AGE_KEY: ${{ secrets.SOPS_AGE_KEY }}
      run: |
+       exec 2>&1
        AUTH_TOKEN="$(make -s -C _secrets dist-decrypt-env KEY=AUTH_TOKEN)"
        AUTH_TOKEN="$AUTH_TOKEN" npm run build
    ```
@@ -140,6 +143,7 @@ Use the narrowest target that satisfies the job:
      env:
        SOPS_AGE_KEY: ${{ secrets.SOPS_AGE_KEY }}
      run: |
+       exec 2>&1
        AUTH_TOKEN="$(make -s -C _secrets dist-decrypt-env KEY=AUTH_TOKEN)"
        export AUTH_TOKEN
        npm run build
