@@ -26,7 +26,8 @@ check() { # description, then a command that must succeed
 }
 
 rm -rf "$SB"
-mkdir -p "$A" "$B" "$H/.cursor" "$SB/projects" "$SB/bin"
+mkdir -p "$A" "$B" "$H/.cursor" "$SB/projects" "$SB/bin" "$SB/commands"
+printf 'a slash command\n' > "$SB/commands/fake-command.md"
 printf 'notes a\n' > "$A/CLAUDE.md"
 printf 'notes b\n' > "$B/CLAUDE.md"
 
@@ -53,7 +54,7 @@ chmod +x "$SB/bin/claude"
 
 mk() {
     env HOME="$H" STUB_LOG="$SB/claude-calls.log" make -s -C "$AGENTS_DIR" "$@" \
-        PROJECTS_DIR="$SB/projects" REMOVE_HISTORY=yes WIN_HOME= \
+        PROJECTS_DIR="$SB/projects" REMOVE_HISTORY=yes WIN_HOME= COMMANDS_SRC="$SB/commands" \
         CLAUDE_BIN="$SB/bin/claude"
 }
 
@@ -68,6 +69,7 @@ for d in "$A" "$B"; do
     check "$n: block in CLAUDE.md" grep -qF "$MARK" "$d/CLAUDE.md"
     check "$n: its own notes kept" grep -qF "notes ${n#.claude-}" "$d/CLAUDE.md"
     check "$n: skills linked" test -L "$d/skills/$SKILL"
+    check "$n: command linked" test -L "$d/commands/fake-command.md"
     check "$n: settings.json has the allowlist" has_allow "$d/settings.json"
     check "$n: own sidecar" test -f "$d/.settings.$ORG-managed.json"
 done
@@ -99,6 +101,9 @@ check "blocks status reports both dirs" \
 
 mk status-claude-dirs CLAUDE_CONFIG_DIRS="$A:$A/:$B:" > "$SB/status-dup.out" 2>&1
 check "a repeated dir is listed once" test "$(grep -c '\.claude-a ' "$SB/status-dup.out")" = 1
+mk status-claude-dirs CLAUDE_CONFIG_DIRS="/tmp/a%:/tmp/abc" > "$SB/status-pct.out" 2>&1
+check "a '%' in one path doesn't drop another dir" \
+    test "$(grep -c 'listed but not found' "$SB/status-pct.out")" = 2
 check "a trailing colon adds no dir" test "$(grep -c 'OK managed' "$SB/status-dup.out")" = 2
 ln -s "$A" "$H/.claude-link"
 mk status-claude-dirs CLAUDE_CONFIG_DIRS="$A:$B" > "$SB/status-link.out" 2>&1

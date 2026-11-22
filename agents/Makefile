@@ -59,8 +59,9 @@ CLAUDE_CONFIG_DIRS ?= $(HOME)/.claude
 claude_empty :=
 claude_sp    := $(claude_empty) $(claude_empty)
 claude_tok   := @SP@
-claude_uniq   = $(if $(1),$(firstword $(1)) $(call claude_uniq,$(filter-out $(firstword $(1)),$(1))))
-claude_words := $(strip $(call claude_uniq,$(patsubst %/,%,$(subst :,$(claude_sp),$(subst $(claude_sp),$(claude_tok),$(CLAUDE_CONFIG_DIRS))))))
+# sort drops duplicates and, unlike filter-out, takes every word literally (a
+# path may contain a '%'); the order of the dirs doesn't matter.
+claude_words := $(sort $(patsubst %/,%,$(subst :,$(claude_sp),$(subst $(claude_sp),$(claude_tok),$(CLAUDE_CONFIG_DIRS)))))
 
 # The single-dir variables this list replaced: refuse them rather than ignore them.
 $(foreach v,CLAUDE_HOME CLAUDE_DATA_HOME CLAUDE_SKILLS_HOME CLAUDE_COMMANDS_HOME,\
