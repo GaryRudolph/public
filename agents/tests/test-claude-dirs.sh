@@ -58,7 +58,7 @@ mk() {
 }
 
 snapshot > "$SB/before.txt"
-LIST="$A $B"
+LIST="$A:$B"
 
 printf 'two dirs install together\n'
 mk install CLAUDE_MODE=home CLAUDE_CONFIG_DIRS="$LIST" > "$SB/install.out" 2>&1 \
@@ -97,8 +97,17 @@ check "allowlists status reports both dirs" \
 check "blocks status reports both dirs" \
     test "$(grep -cE '\.claude-[ab]/CLAUDE.md' "$SB/status.out")" -ge 2
 
-mk status-claude-dirs CLAUDE_CONFIG_DIRS="$A $A/ $B" > "$SB/status-dup.out" 2>&1
+mk status-claude-dirs CLAUDE_CONFIG_DIRS="$A:$A/:$B:" > "$SB/status-dup.out" 2>&1
 check "a repeated dir is listed once" test "$(grep -c '\.claude-a ' "$SB/status-dup.out")" = 1
+check "a trailing colon adds no dir" test "$(grep -c 'OK managed' "$SB/status-dup.out")" = 2
+ln -s "$A" "$H/.claude-link"
+mk status-claude-dirs CLAUDE_CONFIG_DIRS="$A:$B" > "$SB/status-link.out" 2>&1
+check "a symlink to a listed dir is not reported as unmanaged" \
+    test "$(grep -c '\.claude-link' "$SB/status-link.out")" = 0
+rm -f "$H/.claude-link"
+mk status-claude-dirs CLAUDE_CONFIG_DIRS="$A" > "$SB/status-left.out" 2>&1
+check "an unlisted dir that still holds our files says so" \
+    grep -qE "\.claude-b +\? not managed.*still holds $ORG files" "$SB/status-left.out"
 rmdir "$H/.claude-x"
 mkdir -p "$H/.claude"
 mk status-claude-dirs > "$SB/status-default.out" 2>&1
@@ -106,6 +115,27 @@ check "default list is ~/.claude" grep -qE '\.claude +OK managed' "$SB/status-de
 check "default list leaves ~/.claude-a unmanaged" \
     grep -qE '\.claude-a +\? not managed' "$SB/status-default.out"
 rmdir "$H/.claude"
+
+printf 'a path with a space\n'
+SPD="$SB/sp ace/.claude-s"
+mkdir -p "$SPD"
+printf 'spaced notes\n' > "$SPD/CLAUDE.md"
+before_sp=$(cd "$SPD" && find . -print | LC_ALL=C sort)
+mk install CLAUDE_MODE=home CLAUDE_CONFIG_DIRS="$SPD" > "$SB/install-sp.out" 2>&1 \
+    || { cat "$SB/install-sp.out" >&2; fail "install into a dir with a space failed"; }
+check "block written into the dir with a space" grep -qF "$MARK" "$SPD/CLAUDE.md"
+check "skills linked into the dir with a space" test -L "$SPD/skills/$SKILL"
+mk uninstall CLAUDE_MODE=home CLAUDE_CONFIG_DIRS="$SPD" > "$SB/uninstall-sp.out" 2>&1 \
+    || { cat "$SB/uninstall-sp.out" >&2; fail "uninstall from a dir with a space failed"; }
+check "the dir with a space is back to its notes" \
+    test "$(cd "$SPD" && find . -print | LC_ALL=C sort)" = "$before_sp"
+HSP="$SB/home sp"
+mkdir -p "$HSP"
+if env HOME="$HSP" make -s -C "$AGENTS_DIR" status-claude-dirs > "$SB/home-sp.out" 2>&1; then
+    check "a HOME with a space still works" grep -q "claude config dirs" "$SB/home-sp.out"
+else
+    cat "$SB/home-sp.out" >&2; fail "make fails when HOME has a space"
+fi
 
 printf 'two dirs uninstall together\n'
 mk uninstall CLAUDE_MODE=home CLAUDE_CONFIG_DIRS="$LIST" > "$SB/uninstall.out" 2>&1 \

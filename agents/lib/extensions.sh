@@ -40,7 +40,7 @@
 #   LEGACY_COMMANDS_SRC      former command dirs whose links are swept (empty)
 #   CURSOR_SKILLS_HOME       ~/.cursor/skills
 #   AGENTS_SKILLS_HOME       ~/.agents/skills   (Codex, Gemini, Copilot CLI)
-#   CLAUDE_CONFIG_DIRS       ~/.claude   (space-separated absolute paths; each gets
+#   CLAUDE_CONFIG_DIRS       ~/.claude   (colon-separated absolute paths; each gets
 #                            its own skills/ and commands/)
 #   LEGACY_SKILLS_HOMES      ~/.gemini/skills:~/.codex/skills (swept, never installed)
 #   CURSOR_SKILLS_MODE       copy    (copy | symlink | plugin)
@@ -232,14 +232,18 @@ split_list() {
     done
 }
 
+# One Claude config dir per line, from the colon-separated list. Read as text,
+# so a space or glob character in a path is kept literally.
+claude_dirs() { printf '%s\n' "$CLAUDE_CONFIG_DIRS" | tr ':' '\n' | sed '/^$/d'; }
+
 # $1 = unix or win, $2 = skills or commands. One Claude destination per line:
 # each dir in CLAUDE_CONFIG_DIRS on the Unix side, the single Windows one under WSL.
 claude_dests() {
     local side="$1" sub="$2" dir
     if [ "$side" = "unix" ]; then
-        for dir in $CLAUDE_CONFIG_DIRS; do
+        while IFS= read -r dir; do
             printf '%s\n' "$dir/$sub"
-        done
+        done < <(claude_dirs)
     elif [ "$sub" = "skills" ]; then
         printf '%s\n' "${WIN_CLAUDE_SKILLS_HOME:-}"
     else
@@ -969,9 +973,9 @@ cmd_status() {
     local mode_line claude_dir
     local mode_lines=("cursor skills|$CURSOR_SKILLS_MODE|$CURSOR_SKILLS_HOME"
                       "agents skills|$AGENTS_SKILLS_MODE|$AGENTS_SKILLS_HOME")
-    for claude_dir in $CLAUDE_CONFIG_DIRS; do
+    while IFS= read -r claude_dir; do
         mode_lines+=("claude skills + commands|$CLAUDE_SKILLS_MODE|$claude_dir/skills")
-    done
+    done < <(claude_dirs)
     for mode_line in "${mode_lines[@]}"; do
         IFS='|' read -r kind mode dest <<<"$mode_line"
         [ "$mode" = "plugin" ] || continue

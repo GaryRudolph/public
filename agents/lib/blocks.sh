@@ -15,7 +15,7 @@
 #   MAKEFILE_LABEL    human-readable label for the "managed by" line
 #
 # Home-file locations (Makefile passes its preferred defaults):
-#   CLAUDE_CONFIG_DIRS (space-separated absolute paths; each gets its own CLAUDE.md),
+#   CLAUDE_CONFIG_DIRS (colon-separated absolute paths; each gets its own CLAUDE.md),
 #   GEMINI_HOME, CODEX_HOME
 #   CURSOR_GLOBAL_FILE
 #   XCODE_CLAUDE_DIR, XCODE_CODEX_DIR
@@ -283,12 +283,16 @@ keep_or_remove() {
     fi
 }
 
+# One Claude config dir per line, from the colon-separated list. Read as text,
+# so a space or glob character in a path is kept literally.
+claude_dirs() { printf '%s\n' "$CLAUDE_CONFIG_DIRS" | tr ':' '\n' | sed '/^$/d'; }
+
 # Block mode for a home file, for status output.
 block_mode_for() {
     local claude_dir
-    for claude_dir in $CLAUDE_CONFIG_DIRS; do
+    while IFS= read -r claude_dir; do
         if [ "$1" = "$claude_dir/CLAUDE.md" ]; then printf '%s' "$CLAUDE_BLOCK"; return; fi
-    done
+    done < <(claude_dirs)
     case "$1" in
         */.claude/CLAUDE.md)                          printf '%s' "$CLAUDE_BLOCK" ;;
         "$CODEX_HOME/AGENTS.md"|*/.codex/AGENTS.md)   printf '%s' "$CODEX_BLOCK" ;;
@@ -485,9 +489,9 @@ run_pass() {
     # honor them only when the home_base IS the native $HOME).
     if [ "$home_base" = "$HOME" ]; then
         claude_files=()
-        for claude_dir in $CLAUDE_CONFIG_DIRS; do
+        while IFS= read -r claude_dir; do
             claude_files+=("$claude_dir/CLAUDE.md")
-        done
+        done < <(claude_dirs)
         gemini_file="$GEMINI_HOME/GEMINI.md"
         cursor_file="$CURSOR_GLOBAL_FILE"
         codex_file="$CODEX_HOME/AGENTS.md"
@@ -717,9 +721,9 @@ cmd_status() {
     # Read-only summary per home file.
     local pretty
     local files=() claude_dir
-    for claude_dir in $CLAUDE_CONFIG_DIRS; do
+    while IFS= read -r claude_dir; do
         files+=("$claude_dir/CLAUDE.md")
-    done
+    done < <(claude_dirs)
     files+=(
         "$GEMINI_HOME/GEMINI.md"
         "$CURSOR_GLOBAL_FILE"

@@ -41,9 +41,8 @@
 #
 # Optional env (defaults shown):
 #   CURSOR_DATA_HOME      ~/.cursor
-#   CLAUDE_CONFIG_DIRS    ~/.claude   (space-separated absolute paths, no spaces
-#                         inside a path; each gets its own settings.json, sidecars
-#                         and .history/)
+#   CLAUDE_CONFIG_DIRS    ~/.claude   (colon-separated absolute paths; each gets
+#                         its own settings.json, sidecars and .history/)
 #   GEMINI_DATA_HOME      ~/.gemini   (managed file lives in $GEMINI_DATA_HOME/policies)
 #   WIN_HOME              (empty; auto-detected when /proc/version contains
 #                         "microsoft" — the WSL Windows host home directory)
@@ -184,14 +183,18 @@ all_targets() {
     printf '%s\n' \
         "permissions|$CURSOR_DATA_HOME|cursor_ide" \
         "cli-config|$CURSOR_DATA_HOME|cursor_cli"
-    for claude_dir in $CLAUDE_CONFIG_DIRS; do
+    while IFS= read -r claude_dir; do
         printf '%s\n' "settings|$claude_dir|claude"
-    done
+    done < <(claude_dirs)
     [ -n "$WIN_HOME" ] && printf '%s\n' \
         "permissions|$WIN_CURSOR_DATA_HOME|cursor_ide" \
         "cli-config|$WIN_CURSOR_DATA_HOME|cursor_cli" \
         "settings|$WIN_CLAUDE_DATA_HOME|claude"
 }
+
+# One Claude config dir per line, from the colon-separated list. Read as text,
+# so a space or glob character in a path is kept literally.
+claude_dirs() { printf '%s\n' "$CLAUDE_CONFIG_DIRS" | tr ':' '\n' | sed '/^$/d'; }
 
 # Stems-per-directory map, used by foreign-history detection so each
 # .history/ dir only flags files that don't belong to any installed target

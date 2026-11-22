@@ -45,24 +45,31 @@ MAKEFILE_LABEL    ?= ~/Projects/personal/public/agents/Makefile
 
 -include $(AGENTS_DIR)/local.mk
 
-# Claude Code config dirs the Claude targets manage: space-separated absolute
-# paths, none containing a space. Each gets its own CLAUDE.md block, skills and
-# commands, allowlist (settings.json, sidecars, history) and local marketplace.
-# Set it in agents/local.mk to match the CLAUDE_CONFIG_DIR your shell and
-# launchers route to, e.g.
-#   CLAUDE_CONFIG_DIRS := $(HOME)/.claude-lolay $(HOME)/.claude-agerpoint
+# Claude Code config dirs the Claude targets manage: colon-separated absolute
+# paths (a space in a path is fine). Each gets its own CLAUDE.md block, skills
+# and commands, allowlist (settings.json, sidecars, history) and local
+# marketplace. Set it in agents/local.mk to match the CLAUDE_CONFIG_DIR your
+# shell and launchers route to, e.g.
+#   CLAUDE_CONFIG_DIRS := $(HOME)/.claude-lolay:$(HOME)/.claude-agerpoint
 # `make status` names any ~/.claude* dir that isn't listed.
 CLAUDE_CONFIG_DIRS ?= $(HOME)/.claude
-CLAUDE_CONFIG_DIRS := $(strip $(CLAUDE_CONFIG_DIRS))
-claude_uniq = $(if $(1),$(firstword $(1)) $(call claude_uniq,$(filter-out $(firstword $(1)),$(1))))
-CLAUDE_CONFIG_DIRS := $(strip $(call claude_uniq,$(patsubst %/,%,$(CLAUDE_CONFIG_DIRS))))
+
+# Make splits lists on spaces, so hide the spaces inside a path while the list
+# is split on ':' to deduplicate and check it, then put them back.
+claude_empty :=
+claude_sp    := $(claude_empty) $(claude_empty)
+claude_tok   := @SP@
+claude_uniq   = $(if $(1),$(firstword $(1)) $(call claude_uniq,$(filter-out $(firstword $(1)),$(1))))
+claude_words := $(strip $(call claude_uniq,$(patsubst %/,%,$(subst :,$(claude_sp),$(subst $(claude_sp),$(claude_tok),$(CLAUDE_CONFIG_DIRS))))))
+
 # The single-dir variables this list replaced: refuse them rather than ignore them.
 $(foreach v,CLAUDE_HOME CLAUDE_DATA_HOME CLAUDE_SKILLS_HOME CLAUDE_COMMANDS_HOME,\
   $(if $(filter file command line,$(origin $(v))),\
     $(error $(v) is gone; set CLAUDE_CONFIG_DIRS (one or more dirs) in agents/local.mk instead)))
-$(if $(CLAUDE_CONFIG_DIRS),,$(error CLAUDE_CONFIG_DIRS is empty; it needs at least one directory))
-$(foreach d,$(CLAUDE_CONFIG_DIRS),\
-  $(if $(filter /%,$(d)),,$(error CLAUDE_CONFIG_DIRS entries must be absolute paths, got '$(d)')))
+$(if $(claude_words),,$(error CLAUDE_CONFIG_DIRS is empty; it needs at least one directory))
+$(foreach d,$(claude_words),\
+  $(if $(filter /%,$(d)),,$(error CLAUDE_CONFIG_DIRS entries must be absolute paths, got '$(subst $(claude_tok),$(claude_sp),$(d))')))
+override CLAUDE_CONFIG_DIRS := $(subst $(claude_tok),$(claude_sp),$(subst $(claude_sp),:,$(claude_words)))
 
 CLAUDE_MODE       ?= plugin
 CODEX_MODE        ?= home
@@ -357,7 +364,7 @@ status-modes:
 
 # Names the Claude config dirs this installer manages and any ~/.claude* it doesn't.
 status-claude-dirs:
-	@CLAUDE_CONFIG_DIRS="$(CLAUDE_CONFIG_DIRS)" bash "$(AGENTS_DIR)/lib/claude-dirs.sh" status
+	@ORG="$(ORG)" CLAUDE_CONFIG_DIRS="$(CLAUDE_CONFIG_DIRS)" bash "$(AGENTS_DIR)/lib/claude-dirs.sh" status
 
 # ---------------------------------------------------------------------------
 # Local marketplace (optional; live edits)

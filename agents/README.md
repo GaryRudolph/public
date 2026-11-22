@@ -107,9 +107,9 @@ Put per-machine choices in `agents/local.mk` (git ignores it), such as
 its plugin is installed; the runbook (m7) covers each one.
 
 `CLAUDE_CONFIG_DIRS` lists the Claude Code config dirs to manage
-(space-separated absolute paths, default `~/.claude`). Set it in `local.mk`
+(colon-separated absolute paths, default `~/.claude`). Set it in `local.mk`
 when your sessions run from routed dirs, for example
-`CLAUDE_CONFIG_DIRS := $(HOME)/.claude-lolay $(HOME)/.claude-agerpoint`.
+`CLAUDE_CONFIG_DIRS := $(HOME)/.claude-lolay:$(HOME)/.claude-agerpoint`.
 Every `~/.claude/...` path in the tables above is then one per listed dir:
 the `CLAUDE.md` block, skills and commands, the `settings.json` allowlist with
 its sidecars and `.history/`, and the local marketplace. `make status` names

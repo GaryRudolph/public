@@ -10,7 +10,7 @@
 # points anywhere else (another checkout, or GitHub).
 #
 # Required env: REPO_DIR, MARKETPLACE, PLUGINS (space-separated plugin names)
-# Optional env: CLAUDE_BIN (claude), CLAUDE_CONFIG_DIRS (~/.claude; space-separated
+# Optional env: CLAUDE_BIN (claude), CLAUDE_CONFIG_DIRS (~/.claude; colon-separated
 #               absolute paths). Each dir is handled on its own, with
 #               CLAUDE_CONFIG_DIR set to it, so each has its own marketplace list
 #               and plugin installs.
@@ -125,15 +125,21 @@ cmd_status() {
     fi
 }
 
+# One Claude config dir per line, from the colon-separated list. Read as text,
+# so a space or glob character in a path is kept literally.
+claude_dirs() { printf '%s\n' "$CLAUDE_CONFIG_DIRS" | tr ':' '\n' | sed '/^$/d'; }
+
 # Runs one command against every Claude config dir, each in a subshell with
 # CLAUDE_CONFIG_DIR pointed at it. A failure in one dir doesn't skip the others;
 # the exit status is non-zero if any dir failed.
 for_each_config_dir() {
     local dir rc=0
-    for dir in $CLAUDE_CONFIG_DIRS; do
+    # Without the CLI there is nothing per dir to do; the command says so once.
+    have_claude || { "$@"; return; }
+    while IFS= read -r dir <&3; do
         printf 'local-marketplace: config dir %s\n' "$dir"
         ( export CLAUDE_CONFIG_DIR="$dir"; "$@" ) || rc=1
-    done
+    done 3< <(claude_dirs)
     return "$rc"
 }
 

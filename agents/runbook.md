@@ -162,8 +162,8 @@ CODEX_MODE := plugin
 
 If your Claude Code sessions run from a config dir other than `~/.claude`
 (`CLAUDE_CONFIG_DIR` set by a shell function or an app launcher), list every
-dir in `CLAUDE_CONFIG_DIRS`. Space-separated absolute paths, none containing a
-space; the default is `~/.claude`. Match what your routing actually sets: the
+dir in `CLAUDE_CONFIG_DIRS`. Colon-separated absolute paths (a space in a path
+is fine); the default is `~/.claude`. Match what your routing actually sets: the
 fish `claude` function in `dotfiles/fish/conf.d/65-aliases.apps.fish` and the
 launchers in `macos-launchers/apps/claude.applescript` use
 `~/.claude-lolay` (the default) and `~/.claude-agerpoint` inside Agerpoint
@@ -171,7 +171,7 @@ work, plus `~/.claude-<slug>` for each launcher profile.
 
 ```make
 # agents/local.mk
-CLAUDE_CONFIG_DIRS := $(HOME)/.claude-lolay $(HOME)/.claude-agerpoint
+CLAUDE_CONFIG_DIRS := $(HOME)/.claude-lolay:$(HOME)/.claude-agerpoint
 ```
 
 Every Claude target loops over the list, and each dir keeps its own
@@ -179,7 +179,9 @@ Every Claude target loops over the list, and each dir keeps its own
 sidecars and `.history/`, and local marketplace and plugin installs.
 `make install` and `make uninstall` handle all of them together. `make status`
 starts with the managed dirs and names any other `~/.claude*` directory it
-finds (`? not managed`), which is the sign the list is missing a profile.
+finds (`? not managed`), which is the sign the list is missing a profile, and
+says so when such a dir still holds our files (a dir dropped from the list
+after an install; list it again and run `make uninstall` to clear it).
 Nothing is ever written to a dir that isn't listed.
 `CLAUDE_HOME`, `CLAUDE_DATA_HOME`, `CLAUDE_SKILLS_HOME` and `CLAUDE_COMMANDS_HOME`
 no longer exist; `make` stops with an error if `local.mk` still sets one.
