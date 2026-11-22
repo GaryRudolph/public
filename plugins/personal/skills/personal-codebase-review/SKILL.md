@@ -198,8 +198,9 @@ which queues the per-group prompts below. Otherwise one card or session per grou
 findings that land together, handed over as plan-execution.md "Handing work to another
 session" says, each prompt behind its header (the repo the findings land
 in, the model for the fix's tier). Without a planning session,
-remediation PRs don't wait on each other, so none is numbered, and all can
-start at once. Each prompt names
+a group waits only where the source requires an order, numbered with
+`after` (core.md "Queue sessions"); the rest are unnumbered and can start at
+once. Each prompt names
 its finding IDs and the tracking issue, and says: cite both in the PR
 description (`Fixes r7.f1`, `Part of #<issue>`, no closing keyword); add a
 fix claim per finding at `specs/reviews/r{N}/f{K}.md` (reference.md "Fix
