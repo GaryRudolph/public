@@ -8,7 +8,8 @@ description: >-
   then the next item. Answers go into a walk file in specs/handoffs/ that is
   committed (and on a runner pushed) after every answer, so a respawned
   session resumes at the first open item. Ends with a tally, one summary on
-  the source, and remediation cards for the fixes. Sources: a
+  the source, and remediation cards for the fixes, or a planning session
+  first when the fixes are many; it never fixes anything itself. Sources: a
   personal-codebase-review tracking issue and its findings register, a PR's
   review comments, /code-review output, a plan's open questions. Triggers:
   "walk me through the findings", "go through the decisions", "one by one",
@@ -166,21 +167,44 @@ committed; the `.scratch/` file holds the state.
      a reply on each thread, and one comment for the body-only findings.
      Don't tick checkboxes: a tick means a
      remediation PR opened.
-   - Queue the remediation: one card per `fix` group and per `decided`
-     item that needs work (r1.f18's `test.yml`), as core.md "Queue
-     sessions" describes, numbered with `after` where the source requires
-     an order. Findings from a register get `personal-codebase-review`
-     "Show it"'s prompt (finding IDs, the tracking issue, fix claims);
-     others cite their PR thread or carry the finding's text. A walk over
-     a PR's own threads makes its `fix` items in that PR instead, after
-     the walk, as review.md's triage does.
+   - Hand off the remediation: the `fix` groups and the `decided` items
+     that need work (r1.f18's `test.yml`). For a register source, first
+     judge whether the set is
+     plan-sized (codebase-review.md "Planning the remediation"): more than
+     three groups, an order between groups, a group that spans repos, or
+     a `decided` item that needs design before code. Then ask, the
+     recommended option first:
+     - `Plan the remediation in a new session`, recommended when
+       plan-sized: one `[deep]` session, handed over as core.md "Queue
+       sessions" describes, titled `[deep] Plan r{N} remediation`. Its
+       prompt carries every group and item with its outcome and note, the
+       source and the register, and asks for codebase-review.md's
+       planning session. The planning session queues the fix cards, not
+       this one.
+     - `Queue one card per group`, recommended otherwise: one card per
+       `fix` group and per `decided` item that needs work, as core.md
+       "Queue sessions" describes, each title starting with the fix's
+       tier, numbered with `after` where the source requires an order.
+     - `Not now`.
+
+     Only a register source gets the planning option: the planning
+     session posts to the tracking issue and its cards carry fix claims,
+     which other sources don't have. They get the other two.
+
+     Findings from a register get `personal-codebase-review` "Show it"'s
+     prompt (finding IDs, the tracking issue, fix claims); others cite
+     their PR thread or carry the finding's text. A walk over a PR's own
+     threads skips the question and makes its `fix` items in that PR,
+     after the walk, as review.md's triage does.
    - Record a decision that sets a lasting rule as an ADR or a spec edit,
      on the walk's task branch, shipped with `personal-ship-pr`. A walk
      that ran on a workstation's shared branch proposes a task branch
      first (core.md "Cut a task branch off a shared branch").
 4. **The walk file.** Once its content is posted or promoted, `git rm` it
    and commit (on a runner, push); on a workstation's shared branch,
-   delete the `.scratch/` file and commit nothing. A walk on a PR's branch
+   delete the `.scratch/` file and commit nothing. After `Not now` with
+   nothing posted, keep it and say so: it's the only record of the fix
+   groups. A walk on a PR's branch
    removes it in its last push; `personal-ship-pr`'s merge-ready check
    catches one left behind. If the branch ends with no net change, say so:
    deleting it is the Owner's call.
@@ -188,8 +212,12 @@ committed; the `.scratch/` file holds the state.
 ## Don't
 
 - Don't batch items into one dialog, or decide one the Owner skipped.
-- Don't start fixing mid-walk. A `fix` outcome queues work; the walk keeps
-  going.
+- Don't fix anything in the walk session, mid-walk or at the end, and
+  don't plan the remediation here either. A `fix` outcome queues work; the
+  walk keeps going, and the work runs in sessions started for it, each at
+  its own tier. The one exception is a walk over a PR's own threads,
+  whose fixes land in that PR after the walk (End, step 3). The walk's context is long and every call re-sends it, so
+  a fresh session is the cheaper place to plan and fix.
 - Don't edit `specs/reviews/`. The register's status is the next review's
   call; the walk's outcomes reach it through the source.
 - Don't post to GitHub item by item. The commits carry the state; the
