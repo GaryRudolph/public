@@ -365,7 +365,8 @@ unit is a fix-up, a check fails, or a worker discloses a breach.
      section's Creates list in the same bookkeeping commit, so later
      workers and reviewers see it.
    - Mark each step ` (done)` at the **end** of its heading, after all
-     other text. A group whose check failed or whose review said CONCERNS
+     other text, and switch its leading `⬜` to `✅` (a heading without
+     one gets only ` (done)`; never strikethrough). A group whose check failed or whose review said CONCERNS
      is still marked done; its fix-up comes from the Review log. A group
      that failed, crashed or asked keeps its steps open.
    - Write its Review log line, `<from>..<to>` from `check_wave.py`, never

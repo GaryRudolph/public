@@ -185,7 +185,7 @@ include:
    identifiers the plan uses (IDs like `m2 s1-s4` if present, or exact
    title text if not), references the resolved plan path from step 1, carries
    the **progress-update reminder spelled out inline** (before stopping:
-   append ` (done)` to finished headings, update the Status line, flip
+   append ` (done)` to finished headings and flip ⬜ to ✅, update the Status line, flip
    todos), carries `On branch <name> (task branch): commit each finished
    step.` on a task branch (the Owner pasting it names the branch for that chat;
    leave it out until a task branch exists; a chat on another branch
@@ -346,7 +346,7 @@ and the only way to authorize multiple unattended steps is an explicit
 In whichever chat executes a group, **before halting at the STOP marker**:
 
 1. Append ` (done)` to every executable heading in the just-finished
-   group.
+   group and switch its leading `⬜` to `✅` (no strikethrough).
 2. Flip that group's native todo to `completed`; mark the next group
    `in_progress`.
 3. Update the `Status:` line in the Kickoff block: increment the done

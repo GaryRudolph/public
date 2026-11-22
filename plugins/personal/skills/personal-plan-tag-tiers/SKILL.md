@@ -72,7 +72,10 @@ escalation path catch a step that needed more); doubt between `[deep]` and
 `[xdeep]` resolves to `[deep]`. Every `[deep]` tag needs a one-line reason
 (what in the step needs top-tier reasoning), which goes in the readout, not
 the heading. A step that is the Owner's own decision gets no tag: it is a gate,
-not work. Do not rename, renumber, or otherwise change any other content.
+not work. Do not rename, renumber, or otherwise change any other content. A
+leading `⬜` or `✅` on a heading stays where it is, ahead of the ID; the tag
+still goes after the separator (`#### ⬜ s1 - [exec] Title`). Don't add one to
+a plan that has none.
 
 A step ID must be one token (standard §"Tag placement"): a heading whose
 prefix has whitespace (`#### Phase 1: Auth`) can never match a commit

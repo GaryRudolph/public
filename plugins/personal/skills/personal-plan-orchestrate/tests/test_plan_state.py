@@ -156,6 +156,32 @@ def milestone_comes_from_the_enclosing_heading_when_ids_lack_it():
     assert s["next"]["steps"] == ["m2.s2"]
 
 
+@test
+def a_leading_status_emoji_is_not_part_of_the_step_id_or_title():
+    plain = state(plan("--- WAVE 1 [exec] ---\n#### s1 - [exec] Wire it\n#### s2 - [exec] Test it\n"))
+    for lead in ("\u2b1c", "\u2705", "\u2b1c\ufe0f"):
+        body = f"--- WAVE 1 [exec] ---\n#### {lead} s1 - [exec] Wire it\n#### {lead}s2 - [exec] Test it\n"
+        s = state(plan(body))
+        assert s["errors"] == plain["errors"] == [], (lead, s["errors"])
+        assert s["next"]["steps"] == plain["next"]["steps"] == ["m1.s1", "m1.s2"], (lead, s["next"]["steps"])
+
+
+@test
+def the_emoji_does_not_change_done_and_done_is_still_the_marker():
+    body = ("--- WAVE 1 [exec] ---\n#### \u2705 m1.s1 - [exec] A (done)\n"
+            "#### \u2705 m1.s2 - [exec] B\n#### \u2b1c m1.s3 - [exec] C (done)\n#### \u2b1c m1.s4 - [exec] D\n")
+    s = state(plan(body))
+    assert s["next"]["steps"] == ["m1.s2", "m1.s4"], s["next"]["steps"]
+
+
+@test
+def an_emoji_on_milestone_and_untagged_headings_and_slug_ids():
+    body = ("## \u2b1c m2 - Next\n\n--- WAVE 1 [exec] ---\n#### \u2b1c s1 - [exec] A\n"
+            "#### \u2b1c [exec] Wire Redis client\n")
+    s = state(plan(body))
+    assert s["next"]["milestone"] == "m2" and s["next"]["steps"] == ["m2.s1", "wire-redis-client"], s["next"]
+
+
 # ---- step IDs: s{K} restarts in each milestone (documentation.md), so the ID is m{N}.s{K} ----
 STANDARD = """--- WAVE 1 [exec] ---
 #### s1 - [exec] One{d1}
