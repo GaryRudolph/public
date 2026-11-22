@@ -1029,6 +1029,7 @@ run_al "$H41" "$REAL_META" install >/dev/null
 
 # Every string each target would auto-approve, one per line.
 rendered41() {
+    jq -r '.terminalAllowlist[]' "$H41/.cursor/permissions.json"
     jq -r '.mcpAllowlist[]' "$H41/.cursor/permissions.json"
     jq -r '.permissions.allow[]' "$H41/.cursor/cli-config.json"
     jq -r '.permissions.allow[]' "$H41/.claude/settings.json"
@@ -1072,16 +1073,26 @@ do
     fi
 done
 
-# r1.f4: no shell allow reads a secret or sends data (op read, op run, curl GET forms).
+# r1.f4: no shell allow reads a secret or sends data (op read, op run, curl GET forms),
+# in the meta and in each target, in the form that target writes:
+#   Cursor IDE  terminalAllowlist  the bare entry
+#   Cursor CLI  permissions.allow  Shell(<base>:<args>), split as the renderer splits it
+#   Claude Code permissions.allow  Bash(<entry>:*)
+#   Gemini      policy TOML        a `commandPrefix = "<entry>"` line
+jq -r '.terminalAllowlist[]'  "$H41/.cursor/permissions.json" > "$TEST_DIR/t41.ide"
+jq -r '.permissions.allow[]'  "$H41/.cursor/cli-config.json"  > "$TEST_DIR/t41.cli"
+jq -r '.permissions.allow[]'  "$H41/.claude/settings.json"    > "$TEST_DIR/t41.claude"
+cp "$H41/.gemini/policies/${ORG}-managed.toml"                  "$TEST_DIR/t41.gemini"
 for removed in 'op read' 'op run' 'curl -X GET' 'curl --get' 'curl -G' 'wget --method=GET'; do
     if jq -e --arg e "$removed" '.shell.allow | index($e)' "$REAL_META" >/dev/null; then
         fail "T41: shell.allow still holds '$removed'"
     fi
-    for form in "$removed" "Bash($removed:*)" "Shell($removed)"; do
-        if grep -qxF -- "$form" "$TEST_DIR/t41.rendered"; then
-            fail "T41: '$form' is auto-approved"
-        fi
-    done
+    cli_form=$(jq -rn --arg e "$removed" '$e | capture("^(?<base>\\S+)\\s+(?<args>.+)$") | "Shell(" + .base + ":" + .args + ")"')
+    gemini_line="commandPrefix = $(jq -rn --arg e "$removed" '$e | tojson')"
+    grep -qxF -- "$removed"           "$TEST_DIR/t41.ide"    && fail "T41: '$removed' is in Cursor IDE terminalAllowlist"
+    grep -qxF -- "$cli_form"          "$TEST_DIR/t41.cli"    && fail "T41: '$cli_form' is in Cursor CLI permissions.allow"
+    grep -qxF -- "Bash($removed:*)"   "$TEST_DIR/t41.claude" && fail "T41: 'Bash($removed:*)' is in Claude Code permissions.allow"
+    grep -qxF -- "$gemini_line"       "$TEST_DIR/t41.gemini" && fail "T41: '$gemini_line' is in the Gemini policy"
 done
 
 # A named tool renders per tool in each target.
