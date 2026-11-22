@@ -1,7 +1,7 @@
 ```
 --- KICKOFF: begin execution at [deep] ---
 
-  Status: 1/2 groups done | last review: — | current: review wave-1 [deep] | updated 2026-11-22
+  Status: 1/2 groups done | last review: wave-1 PASS 2026-11-22 | current: wave-2 [exec] | updated 2026-11-22
 
   review: every-wave
 
@@ -239,6 +239,8 @@ Run `personal-ship-pr`. The PR description carries the s1 Design note, one `Fixe
 
 ## Review log
 
+review wave-1 (m8-s1) 4f6d337..7dec616: PASS - design note is complete and its paths check out (parents[3] and ../../../scripts reach plugins/personal/scripts through symlinked installs); the copy-install gap is acceptable given f23's one-helper decision and fail-closed masking; transport is fine as report-only. For s2-s3: read() should run `git remote get-url origin` as five of the six callers do today (config --get skips insteadOf, regressing shorthand remotes), and mask() must keep redact_url's rule exactly (any non-ssh scheme masks the whole userinfo, not only http(s)) - 2026-11-22
+
 ## Token log
 
 **Counting header (Claude Code)**
@@ -250,3 +252,4 @@ Run `personal-ship-pr`. The PR description carries the s1 Design note, one `Fixe
 - In another harness, or on a model not listed here, count and price per plan-execution.md "Token accounting" and "Model price table" instead.
 tokens kickoff plan-r1-origin-doctor-heron (claude-opus-5-5): input ~45 / cache read ~3.5M / cache write ~150k 1h / output ~15k | ~$2.2 API-equiv
 tokens wave-1 m8-s1 (claude-opus-5-5): input ~35 / cache read ~2.3M / cache write ~90k 1h / output ~13k | ~$1.4 API-equiv
+tokens review-wave-1 m8-s1 (claude-opus-5-5): input ~25 / cache read ~1.2M / cache write ~120k 1h / output ~7k | ~$1.3 API-equiv
