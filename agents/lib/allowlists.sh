@@ -315,17 +315,26 @@ render_target_schema() {
             }' "$meta"
             ;;
         claude)
-            jq -S '{
+            # server:tool -> mcp__server__tool, server:* -> mcp__server__*.
+            # Split at the first colon (the tool part is the rest). An entry
+            # with no colon, no server or no tool stops the render rather than
+            # produce a rule such as mcp____tool.
+            jq -S 'def claude_mcp:
+                       if test("^[^:]+:.+$")
+                       then index(":") as $i | "mcp__" + .[:$i] + "__" + .[$i+1:]
+                       else error("bad mcp entry: " + .)
+                       end;
+                   {
                 permissions: {
                     allow: (
                         ((.shell.allow    // []) +
-                         ((.mcp.allow     // []) | map("mcp__" + (split(":")[0]) + "__*")) +
+                         ((.mcp.allow     // []) | map(claude_mcp)) +
                          ((.webfetch.allow // []) | map("WebFetch(domain:" + . + ")"))
                         ) | unique
                     ),
                     deny: (
                         ((.shell.deny    // []) +
-                         ((.mcp.deny     // []) | map("mcp__" + (split(":")[0]) + "__*")) +
+                         ((.mcp.deny     // []) | map(claude_mcp)) +
                          ((.webfetch.deny // []) | map("WebFetch(domain:" + . + ")"))
                         ) | unique
                     )
@@ -750,6 +759,21 @@ has_any_sidecar() {
 # ---------------------------------------------------------------------------
 # Input validation: nothing is written unless every live file and sidecar parses
 # ---------------------------------------------------------------------------
+
+# The meta must render for every target before any target is written, so a
+# meta one target rejects (a malformed mcp entry stops the Claude render)
+# leaves the other targets as they were.
+validate_meta() {
+    local kind
+    for kind in cursor_ide cursor_cli claude; do
+        if ! render_target_schema "$kind" "$ALLOWLISTS_SRC" >/dev/null; then
+            printf 'error: rendering %s for %s failed; nothing was written.\n' \
+                "$(pretty_path "$ALLOWLISTS_SRC")" "$kind" >&2
+            ABORTED=1
+            return 1
+        fi
+    done
+}
 
 validate_inputs() {
     local stem dir kind f bad=0 live shape
@@ -1444,6 +1468,7 @@ cmd_install() {
     print_header "install-allowlists"
     local stem dir kind gdir
     validate_inputs || exit 1
+    validate_meta || exit 1
     while IFS='|' read -r stem dir kind; do
         apply_one_target "$stem" "$dir" "$kind" || ABORTED=1
         [ "$ABORTED" = "1" ] && break
@@ -1486,6 +1511,7 @@ cmd_dry_run() {
     print_header "dry-run-allowlists"
     local stem dir kind gdir
     validate_inputs || exit 1
+    validate_meta || exit 1
     while IFS='|' read -r stem dir kind; do
         apply_one_target "$stem" "$dir" "$kind" || ABORTED=1
         [ "$ABORTED" = "1" ] && break

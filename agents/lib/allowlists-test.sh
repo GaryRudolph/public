@@ -46,7 +46,7 @@ META="$TEST_DIR/meta/meta.json"
 cat > "$META" <<'ENDJSON'
 {
   "shell":    { "allow": ["git status", "make test"], "deny": ["rm -rf /"] },
-  "mcp":      { "allow": ["notion:*", "slack:*"],     "deny": [] },
+  "mcp":      { "allow": ["notion:*", "slack:*", "figma:get_screenshot"], "deny": [] },
   "read":     { "deny": [] },
   "write":    { "deny": [] },
   "webfetch": { "allow": ["*.github.com", "docs.python.org"], "deny": [] }
@@ -461,8 +461,9 @@ has_deny=$(jq '.permissions.deny | contains(["rm -rf /"])' "$H14/.cursor/cli-con
 [ "$has_deny" = "true" ] || fail "T14: deny entry missing from cli-config.json"
 
 # ---------------------------------------------------------------------------
-# T15: Claude format translation — mcp entries use mcp__server__* form,
-#      webfetch entries use WebFetch(domain:...) form.
+# T15: Claude format translation — server:* renders mcp__server__*, server:tool
+#      renders mcp__server__tool (never a server wildcard), webfetch entries
+#      use WebFetch(domain:...) form.
 # ---------------------------------------------------------------------------
 printf '[T15] Claude format translation\n'
 H15=$(mk_home t15)
@@ -478,6 +479,21 @@ has_deny=$(jq   '.permissions.deny  | contains(["rm -rf /"])'       "$H15/.claud
 [ "$has_slack"  = "true" ] || fail "T15: mcp__slack__* missing from settings.json"
 [ "$has_wf"     = "true" ] || fail "T15: WebFetch(domain:*.github.com) missing from settings.json"
 [ "$has_deny"   = "true" ] || fail "T15: shell deny entry missing from settings.json"
+
+# A named tool renders per tool in Claude Code and Cursor CLI, and keeps its
+# server:tool form in Cursor IDE; it must not widen to the whole server (r1.f9).
+has_shot=$(jq '.permissions.allow | contains(["mcp__figma__get_screenshot"])' "$H15/.claude/settings.json")
+has_figma_all=$(jq '.permissions.allow | contains(["mcp__figma__*"])' "$H15/.claude/settings.json")
+[ "$has_shot" = "true" ]       || fail "T15: mcp__figma__get_screenshot missing from settings.json"
+[ "$has_figma_all" = "false" ] || fail "T15: figma:get_screenshot widened to mcp__figma__* in settings.json"
+[ "$(jq '.permissions.allow | contains(["Mcp(figma:get_screenshot)"])' "$H15/.cursor/cli-config.json")" = "true" ] \
+    || fail "T15: Mcp(figma:get_screenshot) missing from cli-config.json"
+[ "$(jq '.permissions.allow | contains(["Mcp(figma:*)"])' "$H15/.cursor/cli-config.json")" = "false" ] \
+    || fail "T15: figma:get_screenshot widened to Mcp(figma:*) in cli-config.json"
+[ "$(jq '.mcpAllowlist | contains(["figma:get_screenshot"])' "$H15/.cursor/permissions.json")" = "true" ] \
+    || fail "T15: figma:get_screenshot missing from permissions.json mcpAllowlist"
+[ "$(jq '.mcpAllowlist | contains(["figma:*"])' "$H15/.cursor/permissions.json")" = "false" ] \
+    || fail "T15: figma:get_screenshot widened to figma:* in permissions.json"
 
 # Raw colon-notation must NOT appear in the Claude output.
 raw=$(jq '.permissions.allow | map(select(test("^notion:"))) | length' "$H15/.claude/settings.json")
@@ -994,6 +1010,85 @@ rc=0
 run_al "$H40C" "$TEST_DIR/meta/t40c.json" install >/dev/null 2>&1 || rc=$?
 [ "$rc" -ne 0 ] || fail "T40c: install exited 0 on a two-object meta"
 [ -z "$(find "$H40C/.claude" "$H40C/.cursor" -name '.*-managed.json' -print -quit)" ] || fail "T40c: a sidecar was written"
+
+# ---------------------------------------------------------------------------
+# T41 (r1.f9): the shipped personal.json names every MCP tool that may run;
+# sends, shares, writes with no rollback, deletes and deploys prompt.
+# ---------------------------------------------------------------------------
+printf '[T41] real personal.json: no MCP server wildcard, no send/share/destructive tool auto-approved\n'
+H41=$(mk_home t41)
+REAL_META="$AGENTS_DIR/allowlists/personal.json"
+run_al "$H41" "$REAL_META" install >/dev/null
+
+# Every string each target would auto-approve, one per line.
+rendered41() {
+    jq -r '.mcpAllowlist[]' "$H41/.cursor/permissions.json"
+    jq -r '.permissions.allow[]' "$H41/.cursor/cli-config.json"
+    jq -r '.permissions.allow[]' "$H41/.claude/settings.json"
+}
+rendered41 > "$TEST_DIR/t41.rendered"
+cat "$H41/.gemini/policies/${ORG}-managed.toml" >> "$TEST_DIR/t41.rendered"
+
+mcp_keys="notion slack miro-mcp firebase figma googledocs googleworkspace"
+for k in $mcp_keys; do
+    for form in "$k:*" "Mcp($k:*)" "mcp__${k}__*"; do
+        if grep -qxF -- "$form" "$TEST_DIR/t41.rendered"; then
+            fail "T41: server wildcard $form is auto-approved"
+        fi
+    done
+    # The server still has named tools, so the key is not simply dropped.
+    jq -e --arg k "$k" '.mcp.allow | map(select(startswith($k + ":"))) | length > 0' "$REAL_META" >/dev/null \
+        || fail "T41: no named tool left for $k in personal.json"
+done
+
+# Sends, sharing and permission changes, and unrecoverable writes, by name.
+for entry in \
+    slack:slack_send_message slack:slack_schedule_message slack:slack_send_message_draft \
+    googleworkspace:send_message googleworkspace:reply googleworkspace:forward \
+    googleworkspace:share_file googleworkspace:create_event googleworkspace:trash_file \
+    firebase:firestore_update_document firebase:firestore_delete_document \
+    firebase:realtimedatabase_set_data firebase:firebase_deploy \
+    firebase:messaging_send_message firebase:auth_update_user \
+    miro-mcp:board_share miro-mcp:space_share miro-mcp:board_role_update miro-mcp:space_role_update \
+    miro-mcp:section_delete \
+    notion:notion-move-pages notion:notion-create-comment notion:notion-get-file-download-urls \
+    figma:update_shader figma:weave_run_tool
+do
+    server=${entry%%:*}; tool=${entry#*:}
+    for form in "$entry" "Mcp($entry)" "mcp__${server}__${tool}"; do
+        if grep -qxF -- "$form" "$TEST_DIR/t41.rendered"; then
+            fail "T41: $form is auto-approved"
+        fi
+    done
+    if jq -e --arg e "$entry" '.mcp.allow | index($e)' "$REAL_META" >/dev/null; then
+        fail "T41: $entry is in personal.json mcp.allow"
+    fi
+done
+
+# A named tool renders per tool in each target.
+grep -qxF 'mcp__notion__notion-search'  "$TEST_DIR/t41.rendered" || fail "T41: mcp__notion__notion-search not rendered"
+grep -qxF 'Mcp(notion:notion-search)'   "$TEST_DIR/t41.rendered" || fail "T41: Mcp(notion:notion-search) not rendered"
+grep -qxF 'notion:notion-search'        "$TEST_DIR/t41.rendered" || fail "T41: notion:notion-search not rendered for Cursor IDE"
+# Claude Code renders one rule per allowed MCP entry, none of them a wildcard.
+n_meta=$(jq '.mcp.allow | length' "$REAL_META")
+n_claude=$(jq '[.permissions.allow[] | select(startswith("mcp__"))] | length' "$H41/.claude/settings.json")
+[ "$n_meta" = "$n_claude" ] || fail "T41: $n_meta meta mcp entries but $n_claude mcp__ rules in settings.json"
+[ "$(jq '[.permissions.allow[] | select(startswith("mcp__") and endswith("__*"))] | length' "$H41/.claude/settings.json")" = "0" ] \
+    || fail "T41: a mcp__<server>__* wildcard is in settings.json"
+
+printf '[T41b] a malformed mcp entry stops the render and writes nothing\n'
+n=0
+for bad in 'nocolon' ':tool' 'server:'; do
+    n=$((n + 1))
+    H41B=$(mk_home "t41b-$n")
+    jq --arg b "$bad" '.mcp.allow += [$b]' "$META" > "$TEST_DIR/meta/t41b-$n.json"
+    rc=0
+    run_al "$H41B" "$TEST_DIR/meta/t41b-$n.json" install >/dev/null 2>&1 || rc=$?
+    [ "$rc" -ne 0 ] || fail "T41b: install exited 0 on mcp entry '$bad'"
+    [ -z "$(find "$H41B/.claude" "$H41B/.cursor" -name '.*-managed.json' -print -quit)" ] \
+        || fail "T41b: a sidecar was written for mcp entry '$bad'"
+    [ ! -f "$H41B/.claude/settings.json" ] || fail "T41b: settings.json written for mcp entry '$bad'"
+done
 
 # ---------------------------------------------------------------------------
 # Final report
