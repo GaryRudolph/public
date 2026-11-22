@@ -46,9 +46,24 @@ push a release — those are Remote Write.
 |---|---|---|
 | **Remote Write** | Writes to or mutates a remote / external service: pushes, deploys, publishes, distributes, or applies remote changes | `git push`, `make testflight`, `make appstore`, `make notarize`, `make deploy`, `make release`, `make publish-*`, `npm publish`, `pnpm publish`, `firebase deploy`, `terraform apply`, `kubectl apply`, `helm install/upgrade`, `docker push`, `twine upload`, `cargo publish`, `rsync`/`scp` to a server, `gh release create`, `aws s3 cp/sync`, `gcloud … deploy`, `xcrun notarytool`, `fastlane pilot/deliver` |
 | **Sensitive** | Touches secrets, credentials, or security material: decrypts/exposes keys or tokens, reads a keychain/keystore | `*decrypt*`, `sops -d`, `gpg -d`, `ansible-vault decrypt`, `security find-*`, `vault kv get`, `print-secret`, `unseal`, `.env.enc` access |
-| **Destructive** | Irreversible or privileged: removes files unconditionally, formats storage, requires root, or performs a global install | `rm -rf`, `dd if=`, `mkfs`, `sudo *`, `git reset --hard`, `git clean -fd`, `make init` (clones or installs), `make setup`, `make bootstrap` |
+| **Destructive** | Irreversible or privileged: removes files unconditionally, formats storage, requires root, performs a global install, or passes a flag that writes any path or runs any program (below) | `rm -rf`, `dd if=`, `mkfs`, `sudo *`, `git reset --hard`, `git clean -fd`, `make init` (clones or installs), `make setup`, `make bootstrap`, `git log --output=<path>`, `rg --pre <cmd>`, `git fetch --upload-pack=<cmd>` |
 | **Long-running** | Interactive or never-returns: would block or hang an agent indefinitely | `make dev`, `make serve`, `make watch`, `make start`, `next dev`, `ng serve`, `nodemon`, `webpack-dev-server`, `vite` (dev mode), `jekyll serve`, `mkdocs serve`, `tail -f` |
 | **Unclassified** | `scan.py`'s heuristics could not confidently assign a class | *(see § Unclassified below)* |
+
+**Flags that make a command Destructive.** A command that passes one of these
+flags is never proposed, as Build & test or Inspect or anything else, whatever
+its name or tool says. It makes no difference whether the flag sits in the
+command text or in the recipe or script body a target runs: a `package.json`
+script named `lint` that runs `rg --pre x` is caught.
+
+| Flag | Why |
+|---|---|
+| `--output` | writes any path (`git log`, `git diff`, `git format-patch`) |
+| `--pre` | runs any program over each file (`rg --pre cat`) |
+| `--upload-pack` | runs any program on the remote end (`git fetch`, `git ls-remote`, `git clone`) |
+
+Whole flags only, as `--flag value` or `--flag=value`: `--output-format`,
+`--prefix` and `--pre-release` do not match.
 
 **Security-scanning tools are Inspect, not Sensitive.** `bandit`, `pip-audit`,
 `trivy`, `semgrep` and similar static analysis / dependency audit tools are

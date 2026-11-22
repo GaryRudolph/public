@@ -1065,6 +1065,18 @@ do
     fi
 done
 
+# r1.f4: no shell allow reads a secret or sends data (op read, op run, curl GET forms).
+for removed in 'op read' 'op run' 'curl -X GET' 'curl --get' 'curl -G' 'wget --method=GET'; do
+    if jq -e --arg e "$removed" '.shell.allow | index($e)' "$REAL_META" >/dev/null; then
+        fail "T41: shell.allow still holds '$removed'"
+    fi
+    for form in "$removed" "Bash($removed:*)" "Shell($removed)"; do
+        if grep -qxF -- "$form" "$TEST_DIR/t41.rendered"; then
+            fail "T41: '$form' is auto-approved"
+        fi
+    done
+done
+
 # A named tool renders per tool in each target.
 grep -qxF 'mcp__notion__notion-search'  "$TEST_DIR/t41.rendered" || fail "T41: mcp__notion__notion-search not rendered"
 grep -qxF 'Mcp(notion:notion-search)'   "$TEST_DIR/t41.rendered" || fail "T41: Mcp(notion:notion-search) not rendered"

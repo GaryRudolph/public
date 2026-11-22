@@ -105,6 +105,73 @@ class RenderThenScan(unittest.TestCase):
         self.assertEqual(allow(self.repo), ["Shell(make:test)"])
 
 
+class UnsafeFlags(unittest.TestCase):
+    """A command passing --output, --pre or --upload-pack is never proposed,
+    whatever its name says, whether the flag is in the command text or in the
+    recipe or script body (r1.f4)."""
+
+    def setUp(self):
+        self._tmp = tempfile.TemporaryDirectory()
+        self.repo = Path(self._tmp.name)
+        (self.repo / ".git").mkdir()
+
+    def tearDown(self):
+        self._tmp.cleanup()
+
+    def write(self, rel, text):
+        f = self.repo / rel
+        f.parent.mkdir(parents=True, exist_ok=True)
+        f.write_text(text)
+
+    def scan_repo(self):
+        res = scan.analyze_repo(self.repo, {h: [] for h in scan.HARNESSES}, self.repo)
+        proposed = {e["segment"]: e["class"] for e in res["group1"] + res["group2"]}
+        excluded = {e["segment"]: e["class"] for e in res["excluded"]}
+        unclassified = {e["segment"] for e in res["unclassified"]}
+        return proposed, excluded, unclassified
+
+    def assertNeverProposed(self, seg, proposed, excluded, unclassified):
+        self.assertNotIn(seg, proposed)
+        self.assertNotIn(seg, unclassified)
+        self.assertEqual(excluded.get(seg), scan.DESTRUCTIVE, seg)
+
+    def test_makefile_test_target_with_output(self):
+        for cmd in ("git log --output=/tmp/x", "git log --output /tmp/x"):
+            self.write("Makefile", "test:\n\t%s\n" % cmd)
+            self.assertNeverProposed("make test", *self.scan_repo())
+
+    def test_script_with_pre(self):
+        self.write("scripts/check.sh", "#!/usr/bin/env bash\nrg --pre cat TODO .\n")
+        self.assertNeverProposed("bash scripts/check.sh", *self.scan_repo())
+
+    def test_makefile_target_with_upload_pack(self):
+        self.write("Makefile", "check:\n\tgit fetch --upload-pack=x origin\n")
+        self.assertNeverProposed("make check", *self.scan_repo())
+
+    def test_package_json_lint_script_with_pre(self):
+        self.write("package.json", json.dumps({"scripts": {"lint": "rg --pre x TODO src"}}))
+        self.assertNeverProposed("npm run lint", *self.scan_repo())
+
+    def test_flag_in_the_command_text(self):
+        for text in ("git diff --output=/tmp/x", "rg --pre cat x", "git fetch --upload-pack=x"):
+            cls, _ = scan._classify_text(text)
+            self.assertEqual(cls, scan.DESTRUCTIVE, text)
+
+    def test_similar_flags_classify_as_before(self):
+        self.write("Makefile",
+                   "lint:\n\truff check --output-format=json .\n"
+                   "test:\n\tnpm --prefix web test\n"
+                   "check:\n\tcargo test --pre-release\n")
+        proposed, excluded, _ = self.scan_repo()
+        for seg in ("make lint", "make test", "make check"):
+            self.assertEqual(proposed.get(seg), scan.BUILD, seg)
+            self.assertNotIn(seg, excluded)
+        for text, want in (("test", scan.BUILD), ("lint", scan.BUILD)):
+            self.assertEqual(scan._classify_text(text, "ruff check --output-format=json .")[0], want)
+            self.assertEqual(scan._classify_text(text, "npm --prefix web test")[0], want)
+            self.assertEqual(scan._classify_text(text, "cargo test --pre-release")[0], want)
+
+
 class Unwrap(unittest.TestCase):
     def test_forms(self):
         u = scan._unwrap_token

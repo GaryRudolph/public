@@ -122,6 +122,20 @@ DESTRUCTIVE_BODY = [
     r"git\s+reset\s+--hard", r"git\s+clean\s+-[a-z]*[fd]", r"\bflash\b",
     r"\berase\b", r"\bdiskutil\b", r"\bchmod\s+-R\b", r">\s*/dev/",
 ]
+
+# Flags that turn a read-looking command into a write or an exec: `--output`
+# writes any path (git log, git diff), `--pre` runs any program over each file
+# (rg), `--upload-pack` runs any program on the remote end (git fetch, git
+# ls-remote). Whole flags only, as `--flag value` or `--flag=value`, so
+# `--output-format`, `--prefix` and `--pre-release` do not trip it. Checked in
+# the command's name and in its recipe or script body (reference.md section 1).
+UNSAFE_FLAG = re.compile(r"(?<![\w-])--(output|pre|upload-pack)(?![\w-])")
+UNSAFE_FLAG_WHY = {
+    "output": "writes any path",
+    "pre": "runs any program",
+    "upload-pack": "runs any program",
+}
+
 LONG_BODY = [
     r"--watch\b", r"-w\b\s*$", r"\bnodemon\b", r"\bvite\b(?!\s+build)",
     r"next\s+dev", r"ng\s+serve", r"runserver", r"\bwatchexec\b",
@@ -166,6 +180,11 @@ def _classify_text(name: str, body: str = ""):
     """Return (class, reason). `name` is the human-facing command/target name;
     `body` is the recipe/script value used for high-precision unsafe signals."""
     body_l = (body or "").lower()
+
+    m = UNSAFE_FLAG.search(name.lower()) or UNSAFE_FLAG.search(body_l)
+    if m:
+        flag = m.group(1)
+        return DESTRUCTIVE, "passes --%s (%s)" % (flag, UNSAFE_FLAG_WHY[flag])
 
     for pat in SENSITIVE_BODY:
         m = re.search(pat, body_l)
