@@ -1,7 +1,7 @@
 ```
---- KICKOFF: begin orchestration at [deep] ---
+--- KICKOFF: plan complete ---
 
-  Status: 5/5 groups done | last review: wave-2 CONCERNS | current: public m3 s2-s5 [2-fix] | updated 2026-11-22
+  Status: 5/5 groups done | completed 2026-11-22
 
   mode: unattended | proposed unattended (harness=claude-code runner=cloud; assigned branch, CLAUDE_CODE_REMOTE=true) | guard 3x min $50 | fixups 2 | confirmed 2026-11-22 session 2ec2fdaa-1eac-5814-b7c2-d7ccce5bf7da: Unattended (Recommended)
 
@@ -29,14 +29,14 @@
 
 **Cost (API-equiv, Claude Code models)**
 
-| wave | expected tokens | expected $ |
-|---|---|---|
-| 1 [deep] m3 s1 | ~2.7M | ~$1.4 |
-| 1-fix [deep] m3 s1 | — | — |
-| 2 [exec] m3 s2-s5 | ~5.6M | ~$2.2 |
-| 2-fix [exec] m3 s2-s5 | — | — |
-| orchestrator | ~4.3M | ~$3.8 |
-| **Total** | ~13M | ~$7.4 |
+| wave | expected tokens | expected $ | actual tokens | actual $ |
+|---|---|---|---|---|
+| 1 [deep] m3 s1 | ~2.7M | ~$1.4 | ~5.9M (output est.) | ~$3.5 (output est.) |
+| 1-fix [deep] m3 s1 | — | — | ~1.2M (output est.) | ~$0.77 (output est.) |
+| 2 [exec] m3 s2-s5 | ~5.6M | ~$2.2 | ~12M (output est.) | ~$3.0 (output est.) |
+| 2-fix [exec] m3 s2-s5 | — | — | ~2.1M (output est.) | ~$0.90 (output est.) |
+| orchestrator | ~4.3M | ~$3.8 | ~14M | ~$6.3 |
+| **Total** | ~13M | ~$7.4 | ~36M | ~$14.5 |
 
 Expected values are estimates, good to about 2-3× per wave. Wave 1: one medium `[deep]` step on Opus high plus its Opus review. Wave 2: s2 medium, s3 small (folded `[fast]`), s4 small, s5 large, on Sonnet high, plus an Opus review. Orchestrator: kickoff, two waves, one wait (the kickoff answer, unattended), no new-chat start-up on a runner.
 
@@ -136,6 +136,7 @@ Acceptance: `make -C agents validate test` passes; the new assertions fail again
 review wave-1 (public m3 s1) 8d34bd1..ab8298b: CONCERNS - the note says `claude_mcp` fails the render on an entry with no `:` or an empty server or tool part, but the jq it gives has no check (`nocolon` renders `mcp__nocolon__ocolon`, `:tool` renders `mcp____tool`): add an explicit guard that calls `error`, or drop the claim; minor: the per-tool record (what each tool does) is only in the gitignored wave output file, so it survives nowhere once the note becomes the PR description - 2026-11-22
 review wave-1-fix (public m3 s1) 8d34bd1..d6ba861: PASS - the guarded claude_mcp renders `notion:notion-search` and `notion:*` and errors on `nocolon`, `:tool` and `server:` as the note states; the per-tool record is the note's collapsed appendix; only the note changed - 2026-11-22
 review wave-2 (public m3 s2-s5) 8757ea0..6fff233: CONCERNS - T41's check that the six removed shell entries render nowhere works only for Claude Code, yet specs/reviews/r1/f4.md says none is rendered in any target: it tests `Shell($removed)` (e.g. `Shell(op read)`), which the renderer never writes (it writes `Shell(op:read)`, `Shell(curl:-G)`); `rendered41` never dumps Cursor IDE's `terminalAllowlist`, the one target that keeps bare strings; and `grep -qxF` on the Gemini TOML can't match a `commandPrefix = "op read"` line. Fix: test `Shell(<base>:<args>)`, add `terminalAllowlist` to rendered41, match Gemini's `commandPrefix` line, or narrow the f4 Evidence to the meta check and Claude Code (agents/lib/allowlists-test.sh:1031-1035, :1080) - 2026-11-22
+review wave-2-fix (public m3 s2-s5) 8757ea0..58c4451: PASS - T41 now checks each removed entry in every target's own form (Cursor IDE bare, Cursor CLI `Shell(<base>:<args>)`, Claude Code `Bash(<entry>:*)`, Gemini `commandPrefix` line, plus the meta); a copy of the meta with the six entries restored gave 30 T41 failures, 6 per check; f4.md Evidence matches - 2026-11-22
 
 ## Token log
 
@@ -156,3 +157,14 @@ tokens orchestrator-wave-1 public-m3-s1 (claude-opus-5-5): input ~14 / cache rea
 tokens wave-2 public-m3-s2-s5 (claude-sonnet-5-5): input ~120 / cache read ~11M / cache write ~240k / output ~53k | ~$2.19 API-equiv
 tokens review-wave-2 public-m3-s2-s5 (claude-opus-5-5): input ~46 / cache read ~1.1M / cache write ~69k / output ~13k | ~$0.81 API-equiv
 tokens orchestrator-wave-1-fix public-m3-s1 (claude-opus-5-5): input ~10 / cache read ~1.1M / cache write ~0 5m + ~12k 1h / output ~9.1k | ~$0.50 API-equiv
+tokens wave-2-fix public-m3-s2-s5 (claude-sonnet-5-5): input ~33 / cache read ~1.7M / cache write ~120k / output ~10k | ~$0.57 API-equiv
+tokens review-wave-2-fix public-m3-s2-s5 (claude-opus-5-5): input ~24 / cache read ~270k / cache write ~32k / output ~5.7k | ~$0.33 API-equiv
+tokens orchestrator-wave-2 public-m3-s2-s5 (claude-opus-5-5): input ~20 / cache read ~3.1M / cache write ~0 5m + ~41k 1h / output ~19k | ~$1.34 API-equiv
+tokens orchestrator-wave-2-fix public-m3-s2-s5 (claude-opus-5-5): input ~8 / cache read ~990k / cache write ~0 5m + ~11k 1h / output ~1.9k | ~$0.32 API-equiv
+
+## Completion summary
+
+**Completed**: 2026-11-22
+**What shipped**: r1.f9: `mcp.allow` names the 217 MCP tools that may run without a prompt (reads, writes with a rollback, creates), so sends, sharing changes, deletes and deploys prompt in every harness, including tools a server adds later; Claude Code renders `server:tool` per tool through a guarded `claude_mcp`; `validate_meta` renders every target before any write; the rule is in `security.md`. r1.f4: `op read`, `op run` and the four GET-only curl/wget prefixes are gone from the meta (git log/show/diff kept by the Owner's call), and the scout classes `--output`, `--pre` and `--upload-pack` as Destructive. r1.f1: shell allows and denies are wrapped for Claude Code (`Bash(<entry>:*)`, an entry holding `*` as written) and Cursor CLI (exact `Shell(<base>:<args>)` allows, prefix `Shell(<base>:<args>*)` denies), the scout reads bare entries there as covering nothing, and an upgrade test shows a bare-string live file reinstalls wrapped with nothing promoted. Claims f1, f4, f9 under `specs/reviews/r1/`.
+**Deviations from plan**: fit check skipped (the Owner had chosen a driver); consolidation step skipped (all code in one wave); fix-up 1-fix (review: the note's renderer guard was claimed but missing, and the per-tool record lived only in scratch); fix-up 2-fix (review: T41 checked the removed f4 entries only in Claude Code); a first 2-fix launch was refused by the workflow's own check before any agent ran (the parent passed steps `m3.s4` instead of the group's `m3.s2`-`m3.s5`), relaunched corrected; Claude Code renders a `*`-holding entry as `Bash(<entry>)`, not `Bash(<entry>:*)` (docs: `:*` is only a trailing wildcard).
+**Follow-ups**: codebase review of `main` after merge; scan.py reads `Bash(cmd)` with no `:*` as a prefix though Claude Code treats it as exact; Cursor's docs don't document `mcpDenylist`; claude.ai connector tools (`mcp__claude_ai_<server>__*`) aren't in the meta; re-check MCP tool names when servers change; `agents/lib/` now differs from the Agerpoint bok (not ported, by the walk's rule).

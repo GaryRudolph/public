@@ -4,11 +4,11 @@
 - Branch: `claude/charming-ramanujan-l3dgpq` (runner-assigned task branch, cut from `main` be8c1f6)
 - Queue: r1-fixes-lantern 3, after 1 (#90) and 2 (#89), both merged
 - Mode: unattended, confirmed 2026-11-22 in this session (dialog: Unattended, This session)
-- Done: wave 1 [deep] m3 s1, 8d34bd1..ab8298b, review CONCERNS (renderer guard claim; per-tool record not durable); fix-up 1-fix 8d34bd1..d6ba861, review PASS; wave 2 [exec] m3 s2-s5, 8757ea0..6fff233 (6359f57 s2, d6c1c0d s3, 84e1680 s4, 6fff233 s5), review CONCERNS (T41 checks the removed f4 entries only in Claude Code)
-- Next unit: fix-up 2-fix (automatic, unattended)
+- Done: wave 1 [deep] m3 s1, 8d34bd1..ab8298b, review CONCERNS (renderer guard claim; per-tool record not durable); fix-up 1-fix 8d34bd1..d6ba861, review PASS; wave 2 [exec] m3 s2-s5, 8757ea0..6fff233 (6359f57 s2, d6c1c0d s3, 84e1680 s4, 6fff233 s5), review CONCERNS (T41 checks the removed f4 entries only in Claude Code); fix-up 2-fix 8757ea0..58c4451, review PASS
+- Next unit: none; plan complete. Next: personal-ship-pr (draft PR, then #45 ticks)
 - Expected total: ~$7.4 API-equiv; guard $50
-- Spend so far: ~$11.9 API-equiv (Token log), against ~$7.4 expected; guard $50
-- Resume: paste the plan's Kickoff prompt
+- Spend: ~$14.5 API-equiv (Token log), against ~$7.4 expected; guard $50 never neared
+- Resume: the plan is complete; the PR carries the state from here
 
 ## Decisions so far
 
@@ -25,6 +25,7 @@
 
 - Wave 1 review CONCERNS: automatic fix-up 1-fix (unattended).
 - Wave 2 review CONCERNS: automatic fix-up 2-fix (unattended).
+- First 2-fix launch refused by the workflow's own check before any agent ran: the parent passed steps `m3.s4` instead of the group's; relaunched corrected.
 - Wave 2 worker: an entry holding `*` renders `Bash(<entry>)` in Claude Code, not `Bash(<entry>:*)` as the plan text said (the docs show `rm -rf /*:*` would miss the entry itself); review confirmed.
 
 ## Follow-ups (not in m3)
