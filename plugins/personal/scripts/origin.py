@@ -46,6 +46,7 @@ WINDOWS_PATH = re.compile(r"^[A-Za-z]:[\\/]")
 ALIAS_HOST = re.compile(r"^github\.com-[^.]+$")
 CONTROL = re.compile(r"[\x00-\x1f\x7f]")
 GITHUB_CLASSES = ("github", "ssh443", "alias", "proxy")
+SSH_SCHEMES = ("ssh", "git+ssh", "ssh+git")  # the ssh URL schemes git accepts
 
 
 @dataclass(frozen=True)
@@ -65,14 +66,15 @@ class Origin:
 def mask(url):
     """The URL with credentials masked: all of a non-ssh scheme URL's userinfo
     (a token can sit in the user part), the password of an ssh one, and any
-    query string (`?***`). A URL with no `scheme://` is returned as is."""
+    query string (`?***`) or fragment (`#***`). A URL with no `scheme://` is
+    returned as is."""
     m = re.match(r"^([A-Za-z][A-Za-z0-9+.-]*://)([^/?#]*)(.*)$", url, re.S)
     if not m:
         return url
     scheme, authority, rest = m.groups()
     if "@" in authority:
         userinfo, _, hostport = authority.rpartition("@")
-        if "ssh" in scheme.lower():
+        if scheme[:-3].lower() in SSH_SCHEMES:
             user, colon, _ = userinfo.partition(":")
             userinfo = user + (":***" if colon else "")
         else:
@@ -80,6 +82,8 @@ def mask(url):
         authority = userinfo + "@" + hostport
     if "?" in rest:
         rest = rest.partition("?")[0] + "?***"
+    if "#" in rest:
+        rest = rest.partition("#")[0] + "#***"
     return scheme + authority + rest
 
 
@@ -115,7 +119,7 @@ def parse(url):
         path = m.group("path") or ""
         if scheme == "file" or not host:
             return Origin("local", transport="file" if scheme == "file" else "local", masked=masked)
-        is_ssh = "ssh" in scheme
+        is_ssh = scheme in SSH_SCHEMES
         transport = "ssh" if is_ssh else scheme if scheme in ("http", "https") else ""
     else:
         m = SCP_FORM.match(url)
@@ -126,7 +130,7 @@ def parse(url):
     # really the owner and repo: exactly <owner>/<repo> (a trailing slash allowed)
     # on a GitHub host, and exactly /git/<owner>/<repo>, no empty segment, no
     # query or fragment, through the proxy.
-    two = len(_segments(path)) == 2
+    two = re.fullmatch(r"/?[^/]+/[^/]+/?", re.split(r"[?#]", path, maxsplit=1)[0]) is not None
     if host in ("github.com", "www.github.com") and two:
         host_class = "github"
     elif host == "ssh.github.com" and two:
