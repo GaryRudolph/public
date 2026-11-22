@@ -12,7 +12,7 @@ writes a deny rule, never touches a harness that already covers the command.
 Supported targets
 -----------------
   cursor_ide  <repo>/.cursor/permissions.json  ->  terminalAllowlist  (raw prefix strings)
-  cursor_cli  <repo>/.cursor/cli.json          ->  permissions.allow  (Shell(<base>) tokens)
+  cursor_cli  <repo>/.cursor/cli.json          ->  permissions.allow  (Shell(<base>) / Shell(<base>:<args>) tokens)
   claude      <repo>/.claude/settings.json     ->  permissions.allow  (Bash(<cmd>:*) tokens)
   gemini      <repo>/.gemini/policies/<name>.toml  additive [[rule]] blocks
                   toolName = "run_shell_command"
@@ -125,22 +125,45 @@ def _add_cursor_ide(path: Path, segment: str, dry_run: bool) -> bool:
         return False
 
 
-def _shell_token(segment: str) -> str:
-    """Return the Shell(…) token for a segment.
+_GLOB_CHARS = set("*?")
 
-    If the segment contains a space (i.e. has arguments), use Shell(<base>:*)
-    so the wildcard grants any arguments to that command.  If it's a bare word
-    with no spaces, Shell(<word>) covers exact invocations.  Both are safe
-    prefix-matching tokens; the :* form is more permissive but matches the
-    Cursor CLI convention for multi-word commands."""
-    if " " in segment.strip():
-        base = segment.strip().split()[0]
-        return "Shell(%s:*)" % base
-    return "Shell(%s)" % segment.strip()
+
+def _shell_token(segment: str):
+    """Return the Cursor CLI token that allows exactly *segment*, or None when
+    no such token exists.
+
+    A bare word is Shell(<word>): Cursor reads it as the command base, any
+    arguments (reference.md section 3). A multi-word segment is
+    Shell(<base>:<args>), the command:args form with a glob-free args part,
+    so Shell(make:test) allows `make test` and not `make release`. Never
+    Shell(<base>:*) for a multi-word segment: that grants every subcommand.
+    A segment containing a glob character, or whose first word contains a
+    colon, can't be written exactly, so it gets no token and the caller skips
+    cursor_cli."""
+    parts = segment.strip().split(None, 1)
+    if not parts:
+        return None
+    if any(c in _GLOB_CHARS for c in segment) or ":" in parts[0]:
+        return None
+    if len(parts) == 1:
+        return "Shell(%s)" % parts[0]
+    # Keep the args substring as written: whitespace inside a quoted
+    # argument is part of the command, so collapsing it would allow a
+    # different one.
+    return "Shell(%s:%s)" % (parts[0], parts[1])
 
 
 def _add_cursor_cli(path: Path, segment: str, dry_run: bool) -> bool:
-    """Add Shell(…) token to .cursor/cli.json permissions.allow."""
+    """Add Shell(...) token to .cursor/cli.json permissions.allow. Returns
+    True on success or when already present, False on a write error, and
+    None when the segment has no exact Cursor CLI form (skipped)."""
+    token = _shell_token(segment)
+    if token is None:
+        sys.stderr.write(
+            "skip:   cursor_cli has no exact form for %r (glob character or "
+            "colon in the command); not written\n" % segment)
+        return None
+
     data = _load_json(path) or {}
     perms = data.setdefault("permissions", {})
     arr   = perms.setdefault("allow", [])
@@ -148,8 +171,7 @@ def _add_cursor_cli(path: Path, segment: str, dry_run: bool) -> bool:
         arr = []
         perms["allow"] = arr
 
-    token = _shell_token(segment)
-    if token in arr or segment in arr:
+    if token in arr:
         return True
     arr.append(token)
     try:
@@ -307,7 +329,10 @@ def main(argv=None) -> int:
         for cmd in commands:
             seg = cmd["segment"]
             for h in cmd.get("harnesses", []):
-                if not write_entry(repo, seg, h, policy_name, args.dry_run):
+                res = write_entry(repo, seg, h, policy_name, args.dry_run)
+                if res is None:
+                    sys.stderr.write("skipped: %s -> %s\n" % (seg, h))
+                elif not res:
                     ok = False
                     sys.stderr.write("FAILED: %s -> %s\n" % (seg, h))
                 else:
@@ -322,8 +347,11 @@ def main(argv=None) -> int:
     repo = Path(args.repo)
     ok   = True
     for h in args.harnesses:
-        if not write_entry(repo, args.segment, h,
-                           args.gemini_policy_name, args.dry_run):
+        res = write_entry(repo, args.segment, h,
+                          args.gemini_policy_name, args.dry_run)
+        if res is None:
+            sys.stderr.write("skipped: %s -> %s\n" % (args.segment, h))
+        elif not res:
             ok = False
             sys.stderr.write("FAILED: %s -> %s\n" % (args.segment, h))
         else:
