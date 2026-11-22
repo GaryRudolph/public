@@ -91,6 +91,10 @@ the plan uses only one heading level, tag every heading at that level.
 **One rule:** the tag goes immediately after the title separator (the first
 `-`, `:`, or `.` followed by whitespace) and before the title text. If the
 heading has no separator, the tag goes immediately after the heading marker.
+A leading status emoji (`⬜` open, `✅` done; see [Marking steps
+done](#marking-steps-done)) comes first, between the heading marker and the
+ID, and is not part of the ID or the title: `#### ⬜ s2 - [exec] Wire search
+results`. The tag still follows the separator.
 
 Do not rewrite IDs, renumber, change casing, add separators, or coin new
 identifiers. This convention works with any plan structure — `m{N}`/`s{N}`
@@ -535,7 +539,7 @@ Template (a `[deep] -> [exec]` transition):
         Read <absolute path to the plan file>. Execute <next group>.
         On branch <name> (task branch): commit each finished step.
         Before you stop, update plan progress: append ` (done)` to the
-        headings you finished, update the Kickoff Status line, and flip the
+        headings you finished (⬜ to ✅), update the Kickoff Status line, and flip the
         matching todos. Append one line per model this chat ran to the
         plan's "## Token log", counted and priced per its counting header:
           tokens wave-<n> <group-id> (<model>): input ~X / cache read ~R / cache write ~W / output ~Y | ~$C API-equiv
@@ -560,7 +564,7 @@ For an `[exec] -> [fast]` transition, the prompt should also remind the model no
         On branch <name> (task branch): commit each finished step.
         These are mechanical edits -- apply exactly what the plan
         specifies; do not refactor, rename, or generalize. Before you
-        stop, update plan progress (mark the headings you finished
+        stop, update plan progress (mark the headings you finished (⬜ to ✅)
         ` (done)`, update the Status line, flip the matching todos). Append
         one line per model this chat ran to the plan's "## Token log",
         counted and priced per its counting header:
@@ -585,7 +589,7 @@ For an escalation back to `[deep]` (after `[exec]` or `[fast]`):
         implement). The previous wave is reviewed in its own REVIEW beat
         (see the Review beat section), so do not re-review it here.
         On branch <name> (task branch): commit each finished step.
-        Before you stop, update plan progress (mark the headings you finished
+        Before you stop, update plan progress (mark the headings you finished (⬜ to ✅)
         ` (done)`, update the Status line, flip the matching todos). Append
         one line per model this chat ran to the plan's "## Token log",
         counted and priced per its counting header:
@@ -612,7 +616,7 @@ Rules for filling in the template:
 - Always include the `Suggested chat title:` line in the [Wave title format](#wave-title-format). `{n}` is the **next** wave (the one this STOP launches), `{t}` the total wave count, and `{group-id}` the same identifier used to name the next group above. It is advisory — a foreground chat cannot set its own title, so emit it for the user to paste even though there is no guarantee the harness will use it.
 - Always include the "Stop at the next STOP marker" hard limit so the cascade is preserved.
 - `On branch <name> (task branch)` names the task branch the plan runs on. Each wave is a new chat, so a branch cut in an earlier one isn't "cut this session"; on a workstation, the Owner pasting the prompt names the branch for the work (git.md "Task branches and shared branches"), so a chat on `<name>` commits there without asking again. On a runner with an assigned branch, that branch wins even when it isn't `<name>`: the chat brings `<name>` onto it first (`git fetch origin <name>`, then `git merge --ff-only origin/<name>`, else `git merge origin/<name>`), so the plan and the earlier waves' commits come along, says in its first report that it isn't `<name>`, and puts its own branch on the remaining prompts' `On branch` lines (`<name>` stays as is). On a workstation, it proposes switching to `<name>` and waits, committing nothing until the Owner answers. With no task branch yet (a workstation on a shared branch), leave the line out; the chat that cuts one adds it to the remaining prompts with its first commit. The REVIEW prompt carries it only when the plan file is tracked (in `specs/handoffs/` on a runner), as `On branch <name> (task branch): commit the plan update before you stop.`; a plan in gitignored `.scratch/` stays uncommitted (never `git add -f`).
-- Always include the **progress-update reminder** spelled out inline in the prompt body (append ` (done)` to finished headings, update the Kickoff Status line, flip the matching todos). The pasted chat usually does **not** re-load the driver skill, so this inline reminder is the only way the [Progress tracking](#progress-tracking) convention reaches it — never drop it. Do not factor it out into a separate checklist block in the plan; keep it in the prompt.
+- Always include the **progress-update reminder** spelled out inline in the prompt body (append ` (done)` to finished headings and flip ⬜ to ✅, update the Kickoff Status line, flip the matching todos). The pasted chat usually does **not** re-load the driver skill, so this inline reminder is the only way the [Progress tracking](#progress-tracking) convention reaches it — never drop it. Do not factor it out into a separate checklist block in the plan; keep it in the prompt.
 - Always include the **token-line reminder** the same way, with `<n>` and `<group-id>` (the group identifier with hyphens, `m2-s1-s3`) filled in. It sends the chat to the Token log's [counting header](#token-line-format) for how to count and price the line, never to this standard, so a pasted chat reads only the plan. The [Cost table](#cost-table)'s actual columns are summed from the Token log, and the prompt is the only place a pasted chat learns to write its line.
 - Use `->` ASCII arrows rather than Unicode em-dash arrows so the marker is safe in terminals and grep.
 - If the next group is a `[deep]` block being delegated to a parent, the prompt should say "design only, do not implement"; if it's `[exec]` or `[fast]`, the prompt should say "implement <next group>, stop at next STOP marker."
@@ -762,7 +766,7 @@ Passive variant — `[exec]` first wave (the most common shape):
         of the plan.
         On branch <name> (task branch): commit each finished step.
         Before you stop, update plan progress: append ` (done)` to the
-        headings you finished, update the Kickoff Status line, and flip the
+        headings you finished (⬜ to ✅), update the Kickoff Status line, and flip the
         matching todos. Append one line per model this chat ran to the
         plan's "## Token log", counted and priced per its counting header:
           tokens wave-1 <group-id> (<model>): input ~X / cache read ~R / cache write ~W / output ~Y | ~$C API-equiv
@@ -791,7 +795,7 @@ Passive variant — `[fast]` first wave (prompt body adds the "no refactor" remi
         On branch <name> (task branch): commit each finished step.
         These are mechanical edits -- apply exactly what the
         plan specifies; do not refactor, rename, or generalize. Before you
-        stop, update plan progress (mark the headings you finished
+        stop, update plan progress (mark the headings you finished (⬜ to ✅)
         ` (done)`, update the Status line, flip the matching todos). Append
         one line per model this chat ran to the plan's "## Token log",
         counted and priced per its counting header:
@@ -842,7 +846,7 @@ Rules for filling in the template:
 - Use `->` ASCII arrows rather than Unicode em-dash arrows so the marker is safe in terminals and grep.
 - Fill in the `Status:` line with the total group count (`N`), the first group's identifier, and today's date. Update it as execution progresses (see [Progress tracking](#progress-tracking) below).
 - For the passive variants, include the `Suggested chat title:` line in the [Wave title format](#wave-title-format) for the first wave (`Wave 1 of N [<tier>] <first group>`). It is advisory — a foreground chat cannot set its own title, so emit it for the user to paste even though the harness may ignore it. The active orchestrate variant has no such line: its per-wave titles are its dispatches' descriptions.
-- For the passive variants, always keep the **progress-update reminder** spelled out inline in the prompt body (append ` (done)` to finished headings, update the Status line, flip the matching todos). A fresh chat that pastes this prompt usually does **not** re-load the driver skill, so this line is the only way the [Progress tracking](#progress-tracking) convention reaches the worker — it is the single most common reason a wave finishes without being marked done, so never drop it. Keep the token-line reminder too, filled in per the [STOP fill-in rules](#stop-marker-template). (The active orchestrate variant re-loads the skill, so its parent applies the updates per the skill procedure instead; see [Who updates progress, and how](#who-updates-progress-and-how).)
+- For the passive variants, always keep the **progress-update reminder** spelled out inline in the prompt body (append ` (done)` to finished headings and flip ⬜ to ✅, update the Status line, flip the matching todos). A fresh chat that pastes this prompt usually does **not** re-load the driver skill, so this line is the only way the [Progress tracking](#progress-tracking) convention reaches the worker — it is the single most common reason a wave finishes without being marked done, so never drop it. Keep the token-line reminder too, filled in per the [STOP fill-in rules](#stop-marker-template). (The active orchestrate variant re-loads the skill, so its parent applies the updates per the skill procedure instead; see [Who updates progress, and how](#who-updates-progress-and-how).)
 - For both variants, write the Token log's [counting header](#token-line-format) for the harness the Cost table names. The passive prompts send every pasted chat to it, and the orchestrate parent on Cursor quotes it into each dispatch prompt (Claude Code's workflow path needs no quote: the parent writes the token lines).
 
 ### Printing a prompt in chat
@@ -979,15 +983,19 @@ Plans span multiple chat sessions, which means native harness todos (Cursor Plan
 
 ### Marking steps done
 
-When a group finishes, append ` (done)` to the end of every executable heading in that group:
+A new plan's executable headings start with an empty checkbox emoji, `⬜`, right after the heading marker. When a group finishes, switch it to `✅` and append ` (done)` to the end of every executable heading in that group:
 
-    #### s1 - [exec] Wire search results to view model  (done)
+    #### ⬜ s1 - [exec] Wire search results to view model
+    #### ✅ s1 - [exec] Wire search results to view model (done)
+
+No strikethrough anywhere (`~~…~~` hides the heading from the parsers, which read it as an unfinished step with the ID `~~s1`). A plan without the leading emoji stays valid, and a tagged heading is done only by ` (done)`; the emoji is for the eye.
 
 Rules:
+- The emoji is a marker for people. ` (done)` is authoritative: where the two disagree (`✅` without ` (done)`, or `⬜` with it), the heading is done only if it ends in ` (done)`. `plan_state.py` skips a leading `⬜` or `✅` when it reads the step ID and title.
 - The marker goes at the **end of the heading line**, after all other content, so it never collides with the tier-tag regex `^#+\s+.*\[(xdeep|deep|exec|fast)\]`.
 - Done-step regex: `\(done\)\s*$`
 - Incomplete steps: any tagged heading that does **not** match the done-step regex.
-- This is the **only** sanctioned heading mutation besides the tier tag itself. The "do not rename/renumber" rule has an explicit carve-out for appending ` (done)`.
+- This and the leading `⬜` to `✅` switch are the **only** sanctioned heading mutations besides the tier tag itself. The "do not rename/renumber" rule has an explicit carve-out for appending ` (done)` and flipping the emoji.
 
 ### Updating the Status line
 
@@ -1007,7 +1015,7 @@ When re-entering a plan in a fresh chat, re-derive the native todo list from thi
 Final completion runs once the last group finishes and its review passes: in the passive flow, in the last wave's [review beat](#review-beat) on `PASS` (in the last wave's own chat when `review:` is off), and in orchestrate, in the parent after the last wave's review (it ends the run, so it also writes the final handoff, below). It does:
 
 1. Flip all remaining native todos to `completed`.
-2. Ensure every executable heading carries ` (done)`.
+2. Ensure every executable heading carries ` (done)` and a leading `✅`.
 3. Replace the Kickoff marker line with the terminal form:
 
        --- KICKOFF: plan complete ---

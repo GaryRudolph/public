@@ -122,7 +122,7 @@ Large projects are broken into ordered milestones, each producing a user- or dev
 - **Section heading in specs:** `### m{N} - {Short Title}` (e.g. `### m3 - Search UI (Noop Models)`)
 - **Cross-references:** write `m7` inline (not "Step 7", not "milestone 7")
 - **Commits and branches:** may reference the milestone tag, e.g. `m3 add floating search panel` or `feature/m3-search-ui`
-- **Marking complete:** when a milestone ships, wrap the name and title of its spec heading in `~~…~~` so the whole `m{N} - {Title}` reads as struck through; leave the `###` outside the strikethrough so the heading still renders. Example: `### ~~m3 - Search UI (Noop Models)~~`. Apply the same treatment to any tracking lists or tables of contents that enumerate milestones (e.g. a `specs/README.md` checklist). Don't strike through inline `m{N}` cross-references in prose — only the milestone's own heading and list entries.
+- **Marking complete:** no strikethrough, ever. A milestone heading starts with an empty checkbox emoji, `### ⬜ m3 - Search UI (Noop Models)`, switches it to `✅` when the milestone ships, and appends ` (done)`, which stays authoritative where the two disagree: `### ✅ m3 - Search UI (Noop Models) (done)`. The emoji leads the heading text, before the `m{N}` ID. Apply the same ⬜/✅ lead to any tracking lists or tables of contents that enumerate milestones (e.g. a `specs/README.md` checklist). Don't mark inline `m{N}` cross-references in prose, only the milestone's own heading and list entries.
 
 ### Steps within a milestone
 
@@ -132,7 +132,7 @@ When a milestone's plan has ordered steps, prefix them `s{N}` (lowercase). Step 
 - **Section heading:** `#### s{N} - {Short Title}` when steps live as subsections under an `### m{N}` heading
 - **Cross-references:** within the same milestone, write `s2` inline. To reference a step in a different milestone, qualify it as `m{N}.s{M}` (e.g. `m3.s2`). Don't write "Step 2" or "step two" for these.
 - **Commits and branches:** may reference the step alongside the milestone, e.g. `m3.s2 wire search results to view model` or `feature/m3-s2-search-results`
-- **Marking complete:** same convention as milestones — wrap the name and title in `~~…~~`, leaving the heading prefix outside. Example: `#### ~~s2 - Wire search results~~`. Apply to checklists and TOC entries that enumerate steps.
+- **Marking complete:** same convention as milestones: `#### ⬜ s2 - Wire search results` becomes `#### ✅ s2 - Wire search results (done)`. In a tagged plan the tag still follows the separator (`#### ✅ s2 - [exec] Wire search results (done)`); see "Marking steps done" and "Tag placement" in [plan-execution.md](plan-execution.md). Apply to checklists and TOC entries that enumerate steps.
 
 Reserve plain "step" prose for procedural steps in user-facing docs (onboarding flows, tutorials, algorithm walk-throughs) — not for plan execution.
 

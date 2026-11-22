@@ -64,7 +64,7 @@ ORDER = {"fast": 0, "exec": 1, "deep": 2, "xdeep": 3}
 # A fix-up of wave N is N-fix, then N-fix2, N-fix3 (plan-execution.md "Fix-up waves"); never N-fix1 or N-fix02.
 FIX = r"-fix(?:[2-9]|[1-9]\d+)?"
 WAVE_RE = re.compile(r"^--- WAVE (\d+)(" + FIX + r")? \[(xdeep|deep|exec|fast)\] ---\s*$")
-HEADING_RE = re.compile(r"^(#+)\s+(.*?)\s*$")
+HEADING_RE = re.compile(r"^(#+)\s+(?:[\u2b1c\u2705]\ufe0f?\s*)?(.*?)\s*$")  # a leading \u2b1c/\u2705 is the status emoji, not part of the ID or title
 TAG_RE = re.compile(r"\[(xdeep|deep|exec|fast)\]")
 DONE_RE = re.compile(r"\(done\)\s*$")
 MILESTONE_RE = re.compile(r"^(?:m(\d+)\b|milestone\s+(\d+)\b)", re.I)
