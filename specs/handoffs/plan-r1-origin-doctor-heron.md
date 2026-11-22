@@ -1,7 +1,7 @@
 ```
 --- KICKOFF: begin execution at [deep] ---
 
-  Status: 0/2 groups done | last review: — | current: m8 s1 [deep] | updated 2026-11-22
+  Status: 1/2 groups done | last review: — | current: review wave-1 [deep] | updated 2026-11-22
 
   review: every-wave
 
@@ -76,7 +76,7 @@ Modifies:
 ## m8 - Origin helper and doctor
 
 --- WAVE 1 [deep] ---
-### s1 - [deep] Design origin.py and how every caller loads it
+### s1 - [deep] Design origin.py and how every caller loads it (done)
 
 Design `plugins/personal/scripts/origin.py`; do not implement. Decide:
 - The interface: host class, owner, repo and masked URL, as a Python import and as a CLI the bash scripts (`repo-facts.sh`, `secrets-facts.sh`) call. Host classes: `github.com`; `github.com-*` SSH aliases; `ssh.github.com` on 443; the cloud proxy form (`http://local_proxy@127.0.0.1:<port>/git/<owner>/<repo>`); anything else is `other`. Masking: drop any userinfo password or token, as `repo-facts.sh` `redact_url` does now.
@@ -84,6 +84,37 @@ Design `plugins/personal/scripts/origin.py`; do not implement. Decide:
 - What `session-doctor.py` trusts: only the GitHub classes with a trusted owner.
 
 Output: a `### Design note` subsection appended under this step, short enough to paste into the PR description. Commit it as `m8.s1 design origin.py`.
+
+### Design note
+
+**What it is.** `plugins/personal/scripts/origin.py`, standard library only, runs on Python 3.9 (no `match`, no `X | Y` annotations). It parses; it runs nothing but one `git config --get remote.origin.url`, and never `ssh -G` or the network.
+
+**Python interface.**
+- `parse(url) -> Origin` and `read(repo_dir) -> Origin` (reads `remote.origin.url`; never raises: a missing origin or a failed git gives class `none`).
+- `Origin` is a frozen dataclass: `host_class`, `host` (lowercased, `""` for local and none), `owner`, `repo` (no `.git`), `masked`, and `is_github`.
+- `host_class` is one of `github` (github.com, www.github.com), `ssh443` (ssh.github.com, any port; GitHub's ssh-over-443 host), `alias` (an ssh or scp-form host matching `github.com-<x>` with no dot in `<x>`; `github.com-evil.example` is `other`, as `repo-facts.sh` has it now), `proxy` (http(s) to 127.0.0.1 or localhost whose path starts `/git/<owner>/<repo>`), `other` (anything else, IP addresses included), `local` (a path, `C:\`, `file://`), `none` (no origin).
+- `is_github` is true for `github`, `ssh443`, `alias` and `proxy`. `https://github.com-x/...` is `other`: alias is an ssh-only form.
+- `owner`/`repo` are the last two path segments for every class except `local` and `none`, so `secrets-facts.sh` can name a gitlab repo. GitHub-only callers gate on `is_github`, never on `owner` alone: `https://attacker.example/lolay/x.git` parses to owner `lolay`, class `other`.
+- `mask(url)`, and `Origin.masked`: an http(s) URL's whole userinfo becomes `***` (a token can sit in the user part); any other scheme keeps the user and masks a password (`user:***@`). This is `repo-facts.sh` `redact_url` moved, unchanged.
+- `transport` (`https`, `http`, `ssh`, `file`, `local`, `""`) rides along so `repo-facts.sh` can keep resolving an unknown ssh host with `ssh -G` for its report. That resolution stays in `repo-facts.sh` and never feeds trust.
+
+**CLI** (for `repo-facts.sh` and `secrets-facts.sh`): `python3 -I origin.py URL` or `python3 -I origin.py --repo DIR`, exit 0, one tab-separated line `host_class<TAB>host<TAB>owner<TAB>repo<TAB>transport<TAB>masked`, `-` for an empty field (so `IFS=$'\t' read -r` doesn't collapse fields); control characters are stripped from every field. `--json` prints the same as one object, for tests and humans. Exit 2 on a usage error. The raw URL is never printed.
+
+**How callers load it.** By a path from their own resolved file, as `review_log_facts.py` loads `review_facts.py`, but through `Path(__file__).resolve()` rather than `abspath`, because origin.py sits at the plugin root, outside the skill: a skill reached through a `~/.agents/skills` or `~/.cursor/skills` symlink must resolve back into the plugin first.
+- Skill Python (`review_facts.py`, `pr_state.py`, `review_log_facts.py`): `Path(__file__).resolve().parents[3] / "scripts" / "origin.py"`, loaded with `importlib.util.spec_from_file_location`, never by `sys.path` (which `python3 -I` ignores anyway). Each carries the same five-line `load_origin()` that returns the module or `None`.
+- `session-doctor.py`: `Path(__file__).resolve().parent / "origin.py"`, same loader (it runs under `python3 -I`).
+- Bash (`repo-facts.sh`, `secrets-facts.sh`): `origin_py="$(cd "$(dirname "$0")" && pwd -P)/../../../scripts/origin.py"`, run as `python3 -I "$origin_py" …`.
+- Surfaces: the Claude plugin cache, claude.ai sync (cloud, runners, Cowork), the Codex, Cursor and Gemini plugin installs and the Mac's symlinks all carry the whole plugin root, so the path resolves; nothing goes above the plugin root and there is no `bin/`. It does **not** resolve where a skill is copied on its own: `make install`'s Windows destinations (`copy_install_skill`, `cp -R` of one skill) and, likely, Claude chat. Those take the fail-open path below. Copying origin.py into each skill would fix that and bring back the six copies f23 removes, so this design accepts the gap and says so in the output.
+
+**When it can't load or run: fail open, never crash, never leak.**
+- `review_facts.py`: `github_repo: unknown (origin.py not found at <path>)`.
+- `pr_state.py`: raises its existing `Unavailable`: `can't read origin (origin.py not found at <path>); pass --repo OWNER/REPO`.
+- `review_log_facts.py`: `origin_owner` returns `""` with the same reason on stderr, so `--members` asks for `--owner` as it does for a non-GitHub origin.
+- `repo-facts.sh`: `origin: not shown (origin.py unavailable at <path>)`, host and owner/name `unknown`, and the GitHub section `not read: origin.py unavailable`. It never falls back to printing the raw URL: masking fails closed.
+- `secrets-facts.sh`: `remote: not shown (origin.py unavailable)`; the identity name falls back to the repo root's basename.
+- `session-doctor.py`: runs no doctor and reports `not run: origin.py unavailable` per repo; the hook still exits 0. Trust fails closed, the session fails open.
+
+**What `session-doctor.py` trusts.** `origin.is_github and is_trusted(origin.owner)`; the rest of the trust rule is unchanged. A gitlab or attacker-host origin naming a trusted owner gets `not run` with its host class and masked URL, never the raw one. The proxy and alias classes are no stronger than a github.com URL here, since the repo's author writes `.git/config` either way; f10 (doctor on runners only) is what closes that.
 
 --- REVIEW: wave-1 [deep] ---
 
@@ -218,3 +249,4 @@ Run `personal-ship-pr`. The PR description carries the s1 Design note, one `Fixe
 - `$C` = (input × in + cache read × cached + 5m write × in × 1.25 + 1h write × in × 2.00 + output × out) / 1M.
 - In another harness, or on a model not listed here, count and price per plan-execution.md "Token accounting" and "Model price table" instead.
 tokens kickoff plan-r1-origin-doctor-heron (claude-opus-5-5): input ~45 / cache read ~3.5M / cache write ~150k 1h / output ~15k | ~$2.2 API-equiv
+tokens wave-1 m8-s1 (claude-opus-5-5): input ~35 / cache read ~2.3M / cache write ~90k 1h / output ~13k | ~$1.4 API-equiv
