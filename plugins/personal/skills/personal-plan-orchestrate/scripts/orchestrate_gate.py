@@ -514,8 +514,11 @@ def check(inp):
                  "since the last launch with the guard and floor unchanged, so the Cost table's Total row moved; approve gate-guard with the human's answer")
         deny(f"the cost guard rose from {before or 0:g}x min ${floor or 0:g} (limit ${limit_before or 0:g}) to {mode.get('guard') or 0:g}x min ${mode.get('guard_min') or 0:g} (limit ${limit_now or 0:g}) since the last launch; approve gate-guard with the human's answer")
     spent_before, spent_now = cost_before.get("actual"), cost_now.get("actual")
-    if spent_before is not None and spent_now is not None and spent_now < spent_before:
-        deny(f"the Token log's total fell from ${spent_before:g} to ${spent_now:g} since the last launch: a line was deleted or lowered; restore it (spend is only ever added)")
+    if spent_before is not None and spent_now is not None and spent_now < spent_before and not guard_ok:
+        # A better-source line replaces the lines it covers (plan-execution.md "Token log"), so a fall is allowed on the
+        # human's word, as a rise in the limit is; otherwise a deleted or lowered line moves the guard unseen.
+        deny(f"the Token log's total fell from ${spent_before:g} to ${spent_now:g} since the last launch: a line was deleted or lowered; "
+             "approve gate-guard with the human's answer if a better-source line replaced it, else restore it")
     cap = prior.get("fixups")
     if cap is not None and (mode.get("fixups") or 0) > cap and "gate-1" not in given:
         deny(f"the fix-up cap rose from {cap} to {mode.get('fixups')} since the last launch; approve gate-1 with the human's answer")

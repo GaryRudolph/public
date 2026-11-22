@@ -467,11 +467,13 @@ def a_raised_cost_total_or_a_lowered_token_log_cannot_move_the_guard_unseen():
     # An approval that names another wave does not count: plan-segment.js ignores it.
     other = args(state=st3, canaryDone=True, approved=[{"gate": "gate-guard", "wave": 2}], approval="yes, keep going")
     assert "cost limit rose" in hook(seg(other), t + [human("yes, keep going")], done)
-    # Deleting a Token log line lowers cost.actual: denied, and a gate-guard approval does not excuse it.
+    # Deleting a Token log line lowers cost.actual: denied unless the human approves gate-guard for this wave.
     st4 = write_plan(UN + "unattended", status="0/1 groups done | updated 2026-10-08")
     assert "Token log's total fell" in hook(seg(args(state=st4, canaryDone=True)), t, done)
+    wrong = args(state=st4, canaryDone=True, approved=[{"gate": "gate-guard", "wave": 2}], approval="yes, keep going")
+    assert "Token log's total fell" in hook(seg(wrong), t + [human("yes, keep going")], done)
     ok = args(state=st4, canaryDone=True, approved=[{"gate": "gate-guard", "wave": 1}], approval="yes, keep going")
-    assert "Token log's total fell" in hook(seg(ok), t + [human("yes, keep going")], done)
+    assert hook(seg(ok), t + [human("yes, keep going")], done) is None
     # A deleted Total row leaves no limit at all: also a raise.
     st6 = write_plan(UN + "unattended", tokens=TOKENS, cost=COST.replace("| **Total** | ~3M | ~$2.0 |\n", ""),
                      status="0/1 groups done | updated 2026-10-10")
