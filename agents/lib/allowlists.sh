@@ -116,7 +116,7 @@ LOCK_ACQUIRED=0
 DRY_RUN=0
 MODE="install"            # install | uninstall | dry-run | status | diff | restore | clean
 ABORTED=0
-PT_DROPPED=0              # dry-run: promotion decided the passthrough is stale
+PT_MODE=""                # dry-run: "dropped", or a file holding the freshly extracted passthrough
 
 # Cross-target accumulators printed at the end of every run.
 CONFLICTS=()
@@ -412,7 +412,7 @@ list_org_sidecars() {
             ".$stem.user-managed.json")     continue ;;
             *)                              printf '%s\n' "$f" ;;
         esac
-    done < <(find "$dir" -maxdepth 1 -type f -name ".$stem.*-managed.json" -print0 2>/dev/null)
+    done < <(find "$dir" -maxdepth 1 \( -type f -o -type l \) -name ".$stem.*-managed.json" -print0 2>/dev/null)
 }
 
 # Sidecars from other $ORGs only (used by user-managed promotion when we want
@@ -429,7 +429,7 @@ list_other_org_sidecars() {
             ".$stem.user-managed.json")     continue ;;
             *)                              printf '%s\n' "$f" ;;
         esac
-    done < <(find "$dir" -maxdepth 1 -type f -name ".$stem.*-managed.json" -print0 2>/dev/null)
+    done < <(find "$dir" -maxdepth 1 \( -type f -o -type l \) -name ".$stem.*-managed.json" -print0 2>/dev/null)
 }
 
 # ---------------------------------------------------------------------------
@@ -482,7 +482,12 @@ render_one_target() {
     # should be no conflict; merged-wins is the defensive choice).
     local pt
     pt=$(passthrough_path "$stem" "$dir")
-    if [ -f "$pt" ] && [ "$PT_DROPPED" != "1" ]; then
+    if [ "$PT_MODE" = "dropped" ]; then
+        pt=""
+    elif [ -n "$PT_MODE" ] && [ -f "$PT_MODE" ]; then
+        pt="$PT_MODE"
+    fi
+    if [ -n "$pt" ] && [ -f "$pt" ]; then
         jq -s -S '.[0] * .[1]' "$pt" "$merged" > "$out"
     else
         jq -S '.' "$merged" > "$out"
@@ -502,7 +507,7 @@ promote_user_edits() {
     local stem="$1" dir="$2" kind="$3"
     local live
     live=$(target_path "$stem" "$dir")
-    PT_DROPPED=0
+    PT_MODE=""
     [ -f "$live" ] || return 0
 
     # 1) Refresh the passthrough sidecar from live (idempotent).
@@ -522,13 +527,17 @@ promote_user_edits() {
         # engineer removed (say defaultMode: bypassPermissions) comes back.
         if [ -f "$pt" ]; then
             if [ "$DRY_RUN" = "1" ]; then
-                PT_DROPPED=1     # preview as if it were gone; touch nothing
+                PT_MODE=dropped  # preview as if it were gone; touch nothing
             else
                 rm -f -- "$pt" || { rm -f "$new_pt"; return 1; }
             fi
         fi
     elif [ ! -f "$pt" ] || ! cmp -s "$new_pt" "$pt"; then
         should_write_pt=1
+        if [ "$DRY_RUN" = "1" ]; then
+            PT_MODE=$(mktemp)            # preview with what install would write
+            cp -- "$new_pt" "$PT_MODE"
+        fi
     fi
     if [ "$should_write_pt" = "1" ] && [ "$DRY_RUN" != "1" ]; then
         atomic_write "$pt" "$new_pt" || { rm -f "$new_pt"; return 1; }
@@ -546,7 +555,8 @@ promote_user_edits() {
     if [ -f "$our_sidecar" ]; then
         cp -- "$our_sidecar" "$our_render"
     else
-        if ! render_target_schema "$kind" "$ALLOWLISTS_SRC" > "$our_render" || [ ! -s "$our_render" ]; then
+        if ! render_target_schema "$kind" "$ALLOWLISTS_SRC" > "$our_render" \
+            || ! jq -s -e 'length == 1 and (.[0] | type) == "object"' "$our_render" >/dev/null 2>&1; then
             printf 'error: rendering %s failed; %s left untouched.\n' \
                 "$(pretty_path "$ALLOWLISTS_SRC")" "$(pretty_path "$live")" >&2
             rm -f "$our_render" "$expected_no_user"
@@ -835,7 +845,7 @@ apply_one_target() {
     local our_render sidecar
     our_render=$(mktemp)
     if ! render_target_schema "$kind" "$ALLOWLISTS_SRC" > "$our_render" \
-        || [ ! -s "$our_render" ] || ! jq empty "$our_render" >/dev/null 2>&1; then
+        || ! jq -s -e 'length == 1 and (.[0] | type) == "object"' "$our_render" >/dev/null 2>&1; then
         printf 'error: rendering %s from %s failed; %s left untouched.\n' \
             "$pretty" "$(pretty_path "$ALLOWLISTS_SRC")" "$pretty" >&2
         rm -f "$our_render"
@@ -855,6 +865,8 @@ apply_one_target() {
     local proposed
     proposed=$(mktemp)
     render_one_target "$stem" "$dir" "$kind" "$proposed" "$our_render"
+    if [ -n "$PT_MODE" ] && [ "$PT_MODE" != "dropped" ]; then rm -f -- "$PT_MODE"; fi
+    PT_MODE=""
     if [ ! -s "$proposed" ] || ! jq empty "$proposed" >/dev/null 2>&1; then
         printf 'error: merging %s failed; left untouched.\n' "$pretty" >&2
         rm -f "$proposed" "$our_render"

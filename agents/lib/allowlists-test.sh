@@ -962,6 +962,40 @@ run_al "$H39D" "$META" dry-run 2>&1 | grep -F 'settings.json' | grep -q 'no chan
     || fail "T39d: dry-run previews a rewrite that install would not make"
 
 # ---------------------------------------------------------------------------
+# T40 (review round 3)
+# ---------------------------------------------------------------------------
+printf '[T40] dry-run previews a changed, non-empty passthrough, not the stale one\n'
+H40=$(mk_home t40)
+printf '{"model":"opus","permissions":{"defaultMode":"bypassPermissions"}}\n' > "$H40/.claude/settings.json"
+run_al "$H40" "$META" install >/dev/null
+jq 'del(.permissions.defaultMode)' "$H40/.claude/settings.json" > "$H40/s.tmp" && mv "$H40/s.tmp" "$H40/.claude/settings.json"
+run_al "$H40" "$META" dry-run 2>&1 | grep -F 'settings.json' | grep -q 'no change' \
+    || fail "T40: dry-run previews a rewrite install would not make"
+[ "$(jq -r '.permissions.defaultMode // "gone"' "$H40/.claude/.settings.passthrough.json")" = "bypassPermissions" ] \
+    || fail "T40: dry-run changed the passthrough on disk"
+
+printf '[T40b] a symlinked peer sidecar is part of the baseline and the union\n'
+H40B=$(mk_home t40b)
+run_al     "$H40B" "$META"  install >/dev/null
+run_al_org "testpeer" "$H40B" "$META2" install >/dev/null
+mv "$H40B/.claude/.settings.testpeer-managed.json" "$TEST_DIR/t40b.peer.json"
+ln -s "$TEST_DIR/t40b.peer.json" "$H40B/.claude/.settings.testpeer-managed.json"
+run_al "$H40B" "$META" install >/dev/null
+if [ -f "$H40B/.claude/.settings.user-managed.json" ] && grep -q 'pytest' "$H40B/.claude/.settings.user-managed.json"; then
+    fail "T40b: the peer's rules were saved as user edits"
+fi
+[ "$(jq '.permissions.allow | index("Bash(pytest:*)") // index("pytest") | . != null' "$H40B/.claude/settings.json")" = "true" ] \
+    || fail "T40b: the peer's rules dropped out of the live file"
+
+printf '[T40c] a meta that renders two JSON objects: nothing written\n'
+H40C=$(mk_home t40c)
+{ cat "$META"; cat "$META2"; } > "$TEST_DIR/meta/t40c.json"
+rc=0
+run_al "$H40C" "$TEST_DIR/meta/t40c.json" install >/dev/null 2>&1 || rc=$?
+[ "$rc" -ne 0 ] || fail "T40c: install exited 0 on a two-object meta"
+[ -z "$(find "$H40C/.claude" "$H40C/.cursor" -name '.*-managed.json' -print -quit)" ] || fail "T40c: a sidecar was written"
+
+# ---------------------------------------------------------------------------
 # Final report
 # ---------------------------------------------------------------------------
 if [ "$FAILED" -eq 0 ]; then
