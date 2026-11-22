@@ -36,7 +36,6 @@ can't answer at the start; a poll that fails later is retried.
 import argparse
 import importlib.util
 import json
-import re
 import subprocess
 import sys
 import time
@@ -55,6 +54,8 @@ def load_origin():
         return module
     except Exception:  # noqa: BLE001 - fail open: callers report why, they never crash
         return None
+
+
 FAILED = {"failure", "timed_out", "cancelled", "action_required", "startup_failure", "stale"}
 PER_PAGE = 100
 

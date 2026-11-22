@@ -336,6 +336,8 @@ for case in "yes|git@gitlab.com:acme/widget.git|gitlab.com" \
             "no|git@github.com-mirror.example.net:acme/widget.git|github.com-mirror.example.net" \
             "yes|ssh://git@[::1]/acme/widget|[::1]" \
             "yes|git@[::1]:acme/widget.git|[::1]" \
+            "yes|git@10.0.0.5:acme/widget.git|10.0.0.5" \
+            "yes|ssh://git@192.168.1.255/acme/widget|192.168.1.255" \
             "no|git@gl.example.com:acme/widget.git|gl.example.com"; do
     has_ssh=${case%%|*} rest=${case#*|}
     url=${rest%%|*} want=${rest#*|}
@@ -347,7 +349,7 @@ for case in "yes|git@gitlab.com:acme/widget.git|gitlab.com" \
     expect_grep "  ...GitHub not read"           out "not read: origin host ${want%% (*} isn't github.com, the cloud git proxy, or an ssh alias for github.com"
     expect_eq "  ...gh not called"               "$(test -e "$GH_ARGS_FILE" && echo called || echo not)" not
     case "$want" in
-        \[*) expect_eq "  ...ssh -G not run for an IP" "$(test -e "$SSH_ARGS_FILE" && echo called || echo not)" not ;;
+        \[*|[0-9]*.[0-9]*.[0-9]*.[0-9]*) expect_eq "  ...ssh -G not run for an IP" "$(test -e "$SSH_ARGS_FILE" && echo called || echo not)" not ;;
     esac
 done
 

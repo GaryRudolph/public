@@ -168,6 +168,12 @@ read_github() {
     fi
 }
 
+# True for a dotted-quad IPv4 address (four octets, 0-255, no leading zeros).
+is_ipv4() {
+    local octet='(25[0-5]|2[0-4][0-9]|1[0-9][0-9]|[1-9]?[0-9])'
+    [[ "$1" =~ ^$octet\.$octet\.$octet\.$octet$ ]]
+}
+
 # Sets form and note for an ssh host: alias when ssh -G resolves it to
 # GitHub, other when it resolves elsewhere, and, when it can't be resolved,
 # unresolved for a host with no dot or a dotless github.com-<ctx> alias
@@ -222,8 +228,12 @@ facts_for() {
                     # Another ssh host may be a ~/.ssh/config alias for GitHub;
                     # an IP address or localhost is not.
                     case "$host" in
-                        localhost|\[*|*:*|[0-9]*.[0-9]*.[0-9]*.[0-9]*) form=other ;;
-                        *) if [ "$o_transport" = ssh ]; then form=ssh; classify_ssh_host "$host"; else form=other; fi ;;
+                        localhost|\[*|*:*) form=other ;;
+                        *)
+                            if is_ipv4 "$host"; then form=other
+                            elif [ "$o_transport" = ssh ]; then form=ssh; classify_ssh_host "$host"
+                            else form=other
+                            fi ;;
                     esac ;;
             esac
         fi
