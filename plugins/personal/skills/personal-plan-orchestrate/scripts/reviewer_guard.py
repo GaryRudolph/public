@@ -32,11 +32,24 @@ GIT_WRITE = re.compile(
     r"\bgit\b" + GIT_OPTS + r"\s+"
     r"(commit|push|add|rm|mv|reset|checkout|switch|restore|rebase|merge|cherry-pick|revert|stash|tag|branch\s+-[dDmMcC]|"
     r"clean|apply|am|pull|fetch|worktree|update-ref|update-index|config|remote|gc|prune|notes|replace|filter-branch)\b")
-WRITERS = re.compile(r"(?:^|[;&|(`\n]\s*|\$\(\s*|\bsudo\s+|\bxargs\s+)(rm|rmdir|mv|cp|touch|mkdir|tee|truncate|chmod|chown|ln|dd|install|gh|patch)\b")
+# A command word's position: the start, or after a separator, a subshell or a substitution, past the shell's keywords
+# and `{` (`if true; then rm x; fi`, `for f in a; do rm $f; done`), wrappers with their flags and operands
+# (`timeout 5 rm x`, `xargs -I{} rm {}`) and VAR=value prefixes. worker_guard.py builds the same START.
+PREFIX_WORDS = {"sudo", "env", "command", "exec", "nohup", "time", "eval", "then", "do", "else", "elif", "if", "while",
+                "until", "!", "{"}
+WRAPPERS = {"timeout", "nice", "xargs"}
+_WORDS = "|".join(re.escape(w) for w in sorted(PREFIX_WORDS | WRAPPERS, key=len, reverse=True))
+_WRAP_ARG = r"(?:-[A-Za-z]\s+\S+|-\S+|[+-]?\d+(?:\.\d+)?[smhd]?|[{%@]\S*)"
+START = r"(?:^|[;&|(`\n]|\$\()\s*(?:(?:" + _WORDS + r")(?:\s+" + _WRAP_ARG + r")*\s+|[A-Za-z_]\w*=\S*\s+)*"
+WRITERS = re.compile(START + r"(rm|rmdir|mv|cp|touch|mkdir|tee|truncate|chmod|chown|ln|dd|install|gh|patch)\b")
+FIND_WRITE = re.compile(r"\bfind\b[^;&|\n]*\s-(?:delete|fprint\w*|fls|exec(?:dir)?\s+(?:rm|rmdir|mv|cp|touch|mkdir|tee|truncate|chmod|chown|ln|dd|install|gh|patch)|"
+                        r"(?:exec|execdir|ok|okdir)\s+(?:sh|bash|zsh)\b)")
+SHELL_C = re.compile(START + r"(?:\S*/)?(?:sh|bash|zsh|dash|ksh)(?:\s+-[A-Za-z-]+)*?\s+-[A-Za-z]*c[A-Za-z]*\s*$")
+EVAL = re.compile(START + r"eval\s*$")
 SED_IN_PLACE = re.compile(r"\b(?:sed|perl)\b[^;&|\n]*\s-[a-zA-Z]*i")
 REDIRECT = re.compile(r"(?<![0-9&])>>?\s*(?!&|/dev/null\b)\S|\b[0-9]>>?\s*(?!&|/dev/null\b)[^\s&]")
 
-HEREDOC = re.compile(r"(<<-?[ \t]*(['\"]?)([A-Za-z_]\w*)\2)([^\n]*)\n.*?\n[ \t]*\3[ \t]*(?=\n|$)", re.S)
+HEREDOC = re.compile(r"(<<-?[ \t]*(['\"]?)([A-Za-z_]\w*)\2)([^\n]*)\n(?:.*?\n)??[ \t]*\3[ \t]*(?=\n|$)", re.S)
 QUOTED = re.compile(r"'[^']*'|\"(?:[^\"\\]|\\.)*\"")
 
 
@@ -45,11 +58,24 @@ def bare(command):
     return QUOTED.sub("''", HEREDOC.sub(r"\1\4", command))
 
 
-def problem(command):
+def inner_strings(command):
+    """The quoted strings that a `sh|bash|zsh -c` or an `eval` runs, which bare() would set aside."""
+    command = HEREDOC.sub(r"\1\4", command)
+    return [m.group(0)[1:-1].replace('\\"', '"') for m in QUOTED.finditer(command)
+            if SHELL_C.search(command[:m.start()]) or EVAL.search(command[:m.start()])]
+
+
+def problem(command, depth=0):
     """Why a reviewer may not run command, or None."""
+    if depth < 3:
+        for inner in inner_strings(command):
+            why = problem(inner, depth + 1)
+            if why:
+                return why
     command = bare(command)
     for rx, what in ((GIT_WRITE, "a git command that writes"), (WRITERS, "a command that writes files or acts outward"),
-                     (SED_IN_PLACE, "an in-place edit"), (REDIRECT, "output redirected to a file")):
+                     (FIND_WRITE, "a find that deletes or writes"), (SED_IN_PLACE, "an in-place edit"),
+                     (REDIRECT, "output redirected to a file")):
         m = rx.search(command)
         if m:
             return f"{what} ({m.group(0).strip()[:40]!r})"

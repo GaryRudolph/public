@@ -385,8 +385,11 @@ avoids the runner Stop hook.
 - In auto mode, the prompt the script passes to `agent()` doesn't count as
   a request from the Owner (Claude Code's workflow docs); worker commits pass
   under auto mode with the allow rules above (verified on the Mac and the
-  web). `worker_guard.py`, not the auto-mode classifier, is what stops a
-  publish script run without its dry-run flag.
+  web). `worker_guard.py` denies a publish script run without its dry-run
+  flag, including one behind shell keywords, `timeout`, `nice`, `xargs`,
+  `sh -c` or `eval`; it is a deny list, so a worker can still reach one
+  through an interpreter, a variable or a script it wrote, and the prompt and
+  the auto-mode classifier remain the other layers.
 - Unattended answers no permission prompt: one mid-run still waits for
   the Owner. A run works best with the allow rules above in place.
 - When the snapshot reports a repo whose `.claude/settings.json`

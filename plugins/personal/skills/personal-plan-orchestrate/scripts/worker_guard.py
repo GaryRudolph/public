@@ -44,9 +44,20 @@ import sys
 
 WORKER = re.compile(r"^[a-z][a-z0-9-]*:plan-worker$")
 
-# A command word's position: the start, or after a separator, a subshell or a substitution, past sudo/env and
-# VAR=value prefixes.
-START = r"(?:^|[;&|(`\n]|\$\()\s*(?:(?:sudo|env|command|exec|nohup|time)\s+|[A-Za-z_]\w*=\S*\s+)*"
+# Words that sit before the command word: wrappers that run what follows, and the shell's keywords and `{` that
+# begin a command (`if make release; then ...`, `for d in a; do git push; done`, `{ git push; }`, `! git push`).
+PREFIX_WORDS = {"sudo", "env", "command", "exec", "nohup", "time", "eval", "then", "do", "else", "elif", "if", "while",
+                "until", "!", "{"}
+# Wrappers with their own flags and operands: `timeout -k 5 120 git push`, `nice -n 5 npm publish`,
+# `xargs -I{} git -C {} push`. A flag may take a value (-n 5, -I X); a duration or a {} placeholder is an operand.
+WRAPPERS = {"timeout", "nice", "xargs"}
+VALUE_FLAGS = {"timeout": set("sk"), "nice": set("n"), "xargs": set("aEIJLnPsdRlS"), "sudo": set("ugCUhpRrT"), "env": set("uCS")}
+WRAP_VALUE = re.compile(r"[+-]?\d+(?:\.\d+)?[smhd]?|[{%@]\S*")
+_WORDS = "|".join(re.escape(w) for w in sorted(PREFIX_WORDS | WRAPPERS, key=len, reverse=True))
+_WRAP_ARG = r"(?:-[A-Za-z]\s+\S+|-\S+|[+-]?\d+(?:\.\d+)?[smhd]?|[{%@]\S*)"
+# A command word's position: the start, or after a separator, a subshell or a substitution, past the prefix words and
+# their flags and VAR=value prefixes.
+START = r"(?:^|[;&|(`\n]|\$\()\s*(?:(?:" + _WORDS + r")(?:\s+" + _WRAP_ARG + r")*\s+|[A-Za-z_]\w*=\S*\s+)*"
 GIT_OPTS = r"(?:\s+-[Cc]\s+\S+|\s+--?[\w-]+(?:=\S+)?)*"
 # docker's global options before the subcommand (--context prod, --config dir, -H host), so a push that names its
 # context or config, as security.md "Explicit CLI Identity" asks, is still a push.
@@ -70,7 +81,6 @@ OUTWARD_NAME = re.compile(r"publish|release|deploy", re.I)
 SEPARATOR = re.compile(r"\|\||&&|[;|&()`\n]|\$\(")
 # Redirections, removed before a command is split into words: their targets are files, not scripts or targets.
 REDIRECTION = re.compile(r"(?:\d+|&)?(?:>>?|<)(?:&\d+|&-|\s*[^\s;&|()<>`]+)")
-PREFIX_WORDS = {"sudo", "env", "command", "exec", "nohup", "time", "then", "do", "else", "elif", "if", "while", "until", "!", "{"}
 ASSIGN = re.compile(r"^([A-Za-z_]\w*)=(.*)$")
 TRUE = {"1", "true", "yes"}
 DRY_EXPORT = re.compile(r"\bexport\s+(?:[A-Za-z_]\w*=\S*\s+)*DRY_RUN=(?:1|true|yes)\b")
@@ -85,7 +95,7 @@ MAKE_VALUE_OPTS = {"-C", "-f", "-I", "-o", "-W", "--directory", "--file", "--mak
 MAKE_DRY = {"-n", "--dry-run", "--just-print", "--recon"}
 RUNNERS = {"npm", "pnpm", "yarn", "bun"}
 
-HEREDOC = re.compile(r"(<<-?[ \t]*(['\"]?)([A-Za-z_]\w*)\2)([^\n]*)\n.*?\n[ \t]*\3[ \t]*(?=\n|$)", re.S)
+HEREDOC = re.compile(r"(<<-?[ \t]*(['\"]?)([A-Za-z_]\w*)\2)([^\n]*)\n(?:.*?\n)??[ \t]*\3[ \t]*(?=\n|$)", re.S)
 QUOTED = re.compile(r"'[^']*'|\"(?:[^\"\\]|\\.)*\"")
 
 
@@ -158,14 +168,18 @@ def named_problem(command):
     without a dry-run form, or None."""
     exported = False
     for segment in SEPARATOR.split(REDIRECTION.sub(" ", command)):
-        words, env, prefixed = segment.split(), {}, False
-        while words:  # past sudo/env (and their flags) and VAR=value prefixes, to the command word
-            m = ASSIGN.match(words[0])
-            if m:
+        words, env, prefixed, wrapper, skip = segment.split(), {}, False, None, False
+        while words:  # past the prefix words and their flags and VAR=value prefixes, to the command word
+            w, m = words[0], ASSIGN.match(words[0])
+            if skip:
+                skip = False
+            elif m:
                 env[m.group(1)] = m.group(2)
-            elif words[0] in PREFIX_WORDS:
-                prefixed = True
-            elif not (prefixed and words[0].startswith("-")):
+            elif w in PREFIX_WORDS or w in WRAPPERS:
+                prefixed, wrapper = True, w
+            elif prefixed and (w.startswith("-") or WRAP_VALUE.fullmatch(w)):
+                skip = len(w) == 2 and w[0] == "-" and w[1] in VALUE_FLAGS.get(wrapper, ())
+            else:
                 break
             words = words[1:]
         if not words:
@@ -192,8 +206,24 @@ def named_problem(command):
     return None
 
 
-def problem(command):
+SHELL_C = re.compile(START + r"(?:\S*/)?(?:sh|bash|zsh|dash|ksh)(?:\s+-[A-Za-z-]+)*?\s+-[A-Za-z]*c[A-Za-z]*\s*$")
+EVAL = re.compile(START + r"eval\s*$")
+
+
+def inner_strings(command):
+    """The quoted strings that a `sh|bash|zsh -c` or an `eval` runs, which bare() would set aside."""
+    command = HEREDOC.sub(r"\1\4", command)
+    return [m.group(0)[1:-1].replace('\\"', '"') for m in QUOTED.finditer(command)
+            if SHELL_C.search(command[:m.start()]) or EVAL.search(command[:m.start()])]
+
+
+def problem(command, depth=0):
     """Why a worker may not run command, or None."""
+    if depth < 3:
+        for inner in inner_strings(command):
+            why = problem(inner, depth + 1)
+            if why:
+                return why
     command = bare(command)
     for rx, what in OUTWARD:
         if rx.search(command):

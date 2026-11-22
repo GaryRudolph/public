@@ -51,15 +51,16 @@ def kickoff_prompt(mode):
 
 
 def write_plan(mode="gated | proposed gated (harness=claude-code runner=none) | guard 2x | fixups 2 | confirmed 2026-10-06 session s: gated",
-               save=True, log="", prompt=None, status="0/1 groups done | updated 2026-10-06"):
+               save=True, log="", prompt=None, status="0/1 groups done | updated 2026-10-06", cost=None, tokens=""):
     """Write the plan and its handoff; with save, commit both in one commit and push, as each wave's bookkeeping does."""
     paste = "".join(f"      {line}\n" for line in prompt) if prompt else ""
     plan.write_text(f"```\n--- KICKOFF: begin orchestration at [deep] ---\n  Status: {status}\n"
                     f"  mode: {mode}\n" + (f"\n    Prompt to paste into the next chat:\n{paste}\n---\n" if prompt else "")
-                    + "```\n" + COST + "## m1 - A\n--- WAVE 1 [exec] ---\n#### s1 - [exec] One\n"
-                    + (f"\n## Review log\n\n{log}" if log else ""))
+                    + "```\n" + (cost or COST) + "## m1 - A\n--- WAVE 1 [exec] ---\n#### s1 - [exec] One\n"
+                    + (f"\n## Review log\n\n{log}" if log else "")
+                    + (f"\n## Token log\n\n{tokens}" if tokens else ""))
     resume = " / ".join(prompt) if prompt else "none yet"
-    handoff.write_text(f"# Handoff plan-x\n\nmode: {mode}\nStatus: {status}\nResume: {resume}\nNext: wave 1\n{log}")
+    handoff.write_text(f"# Handoff plan-x\n\nmode: {mode}\nStatus: {status}\nResume: {resume}\nNext: wave 1\n{log}{tokens}")
     if save:
         git("add", str(plan), str(handoff))
         if git("status", "--porcelain"):
@@ -446,6 +447,31 @@ def a_raised_cost_guard_needs_a_human_approval():
     assert "cost guard rose" in hook(seg(args(state=st3, canaryDone=True)), t, done)
     ok = args(state=st3, canaryDone=True, approved=[{"gate": "gate-guard", "wave": 1}], approval="yes, keep going")
     assert hook(seg(ok), t + [human("yes, keep going")], done) is None
+    write_plan()
+
+
+TOKENS = "tokens wave-1 repo-m1-s1 (claude-haiku-4-5): input ~1k / cache read ~1M / cache write ~0.1M / output ~20k | ~$1.00 API-equiv\n"
+
+
+@case
+def a_raised_cost_total_or_a_lowered_token_log_cannot_move_the_guard_unseen():
+    st2 = write_plan(UN + "unattended", tokens=TOKENS)
+    t = [human("orchestrate"), QUESTION, human("unattended")] + launch(args(state=st2), "t1") + [NOTIFY]
+    done = [{"rid": "wf_1"}]
+    # Raising the Total row lifts max(guard x Total, floor) with guard and floor untouched: gate-guard.
+    st3 = write_plan(UN + "unattended", tokens=TOKENS, cost=COST.replace("~$2.0 |", "~$80.0 |"),
+                    status="0/1 groups done | updated 2026-10-07")  # the status line moves the handoff with the plan
+    assert "cost guard rose" in hook(seg(args(state=st3, canaryDone=True)), t, done)
+    ok = args(state=st3, canaryDone=True, approved=[{"gate": "gate-guard", "wave": 1}], approval="yes, keep going")
+    assert hook(seg(ok), t + [human("yes, keep going")], done) is None
+    # Deleting a Token log line lowers cost.actual: denied, and a gate-guard approval does not excuse it.
+    st4 = write_plan(UN + "unattended", status="0/1 groups done | updated 2026-10-08")
+    assert "Token log's total fell" in hook(seg(args(state=st4, canaryDone=True)), t, done)
+    ok = args(state=st4, canaryDone=True, approved=[{"gate": "gate-guard", "wave": 1}], approval="yes, keep going")
+    assert "Token log's total fell" in hook(seg(ok), t + [human("yes, keep going")], done)
+    # A lowered Total (a smaller limit) and a growing log pass.
+    st5 = write_plan(UN + "unattended", tokens=TOKENS + TOKENS, status="0/1 groups done | updated 2026-10-09")
+    assert hook(seg(args(state=st5, canaryDone=True)), t, done) is None
     write_plan()
 
 
@@ -1051,6 +1077,34 @@ def a_workers_run_of_the_repos_publish_release_or_deploy_script_needs_its_dry_ru
     assert "scripts/publish-formula.sh without DRY_RUN=1" in guard_bash(WORKERS[0], near_miss)
     for agent in (None, "Explore", "personal:plan-reviewer"):  # the parent and other agents run what their rules allow
         assert guard_bash(agent, "make release", "worker_guard.py") is None, agent
+
+
+@case
+def the_guards_see_a_command_after_shell_keywords_wrappers_and_command_strings():
+    worker_bad = ('for d in a b; do git -C "$d" push; done', "if true; then git push; fi", "{ git push; }", "! git push",
+                  "while true; do git push; done", "timeout 120 git push", "timeout -k 5 120 make release", "nice npm publish",
+                  "nice -n 5 ./release.sh", "xargs -I{} git -C {} push", "xargs -n1 ./deploy.sh", 'bash -c "make release"',
+                  "sh -c 'git push'", "bash -lc 'git push'", "/bin/bash -c 'gh pr merge 1'", "xargs sh -c 'git push'",
+                  "eval 'git push'", "eval git push", "if make release; then :; fi",
+                  "cat <<EOF\nEOF\ngit push\ncat <<EOF\nx\nEOF")  # an empty heredoc body must not swallow the push after it
+    worker_ok = ("for d in a; do git status; done", "timeout 5 make test", "nice -n 5 make ci", "xargs -n1 echo", "echo then git push",
+                 "bash -c 'echo hi'", "eval 'echo ok'", "echo \"bash -c 'git push'\"", "cat > f <<'EOF'\nbash -c \"make release\"\nEOF",
+                 "cat <<EOF\nEOF\necho hi")
+    for agent in WORKERS:
+        for bad in worker_bad:
+            assert worker_denies(agent, bad), (agent, bad)
+        for ok in worker_ok:
+            assert guard_bash(agent, ok) is None, (agent, ok)
+    reviewer_bad = ("for f in a; do rm -f $f; done", "timeout 5 rm -f x", "find . -delete", "if true; then gh pr merge 1; fi",
+                    "{ rm x; }", "xargs -I{} rm {}", "nice -n 5 mv a b", "find . -name x -exec rm {} \\;", 'bash -c "rm -f x"',
+                    "eval 'touch y'", "cat <<EOF\nEOF\nrm x\ncat <<EOF\ny\nEOF")
+    reviewer_ok = ("find . -name '*.py' | head", "find . -name x -exec grep -l y {} \\;", "timeout 60 make ci 2>&1 | tail",
+                   "for f in a; do cat $f; done", "bash -c 'echo hi'", "xargs -n1 echo", "echo 'rm x'", "cat > /dev/null <<'EOF'\nrm x\nEOF")
+    for agent in ("personal:plan-reviewer", "orch-spike:plan-reviewer"):
+        for bad in reviewer_bad:
+            assert "read-only" in (guard_bash(agent, bad, "reviewer_guard.py") or ""), (agent, bad)
+        for ok in reviewer_ok:
+            assert guard_bash(agent, ok) is None, (agent, ok)
 
 
 failed = 0
