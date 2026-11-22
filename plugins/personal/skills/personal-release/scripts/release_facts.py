@@ -32,9 +32,12 @@ def git(*args, check=False):
 
 
 def tracked_files(root):
-    listed = git("ls-files")
+    # From the root, not the cwd: `git ls-files` lists paths relative to where it runs.
+    result = subprocess.run(["git", "-C", str(root), "ls-files", "-z"], capture_output=True, text=True,
+                            stdin=subprocess.DEVNULL)
+    listed = [p for p in result.stdout.split("\0") if p] if result.returncode == 0 else []
     if listed:
-        paths = [root / p for p in listed.splitlines()]
+        paths = [root / p for p in listed]
     else:
         paths = [p for p in root.rglob("*") if p.is_file()]
     return [p for p in paths if p.is_file() and not SKIP_DIRS & set(p.relative_to(root).parts)]

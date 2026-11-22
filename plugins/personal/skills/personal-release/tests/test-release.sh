@@ -192,6 +192,10 @@ expect_grep "changelog entries counted"              "## [Unreleased]: 2 entries
 expect_grep "surfaces: npm"                          "npm package (packages/a/package.json)"
 expect_grep "surfaces: python"                       "Python package"
 expect_grep "--next"                                 "minor: 2.4.0 -> 2.5.0"
+# From a subdirectory, the version files are still found (ls-files runs from the root).
+(cd packages/a && python3 "$facts") >"$work/out" 2>"$work/err" && pass "facts run from a subdirectory" || fail "facts from a subdirectory: exit $?"
+expect_grep "  ...finds the package.json"           "package.json: version = 2.4.0  [private]"
+expect_grep "  ...and the surfaces"                 "npm package (packages/a/package.json)"
 printf 'y\n' >> work.txt
 expect_ok   "facts on a dirty tree"                  python3 "$facts"
 expect_grep "  ...dirty build-version"               "2.4.0+$sha.dirty ($count)"
