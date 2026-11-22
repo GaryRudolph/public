@@ -304,6 +304,10 @@ check_segment() {
     exit 0
   fi
 
+  # The first pass looks for protected entries only, so an ordinary
+  # approval is never requested for a command a later segment will refuse.
+  [ "$SCAN" = protected ] && return 0
+
   printf '%s\n' "$allowlist" | matching_entries "$segment" >/dev/null && return 0
 
   if printf '%s' "$hit" | grep -qE "$PROPOSE_ONLY"; then
@@ -327,27 +331,32 @@ check_segment() {
   exit 0
 }
 
-while IFS= read -r segment; do
-  segment=$(printf '%s' "$segment" | sed -e 's/[[:space:]][[:space:]]*/ /g' -e 's/^ //' -e 's/ $//')
-  [ -n "$segment" ] || continue
-  # Check every intermediate form (the line as written, then each time a
-  # leading env assignment or wrapper word comes off), so a deny on a
-  # wrapper word still applies. The final form is checked below.
-  while :; do
-    if [[ "$segment" =~ ^[A-Za-z_][A-Za-z0-9_]*=[^[:space:]]*[[:space:]]+(.*)$ ]] \
-       || [[ "$segment" =~ ^(if|then|else|elif|do|while|until|time|exec|command|nohup|\!)[[:space:]]+(.*)$ ]]; then
-      check_segment "$segment"
-      segment="${BASH_REMATCH[${#BASH_REMATCH[@]}-1]}"
-    else
-      break
-    fi
-  done
-  [ -n "$segment" ] || continue
+scan_segments() {
+  while IFS= read -r segment; do
+    segment=$(printf '%s' "$segment" | sed -e 's/[[:space:]][[:space:]]*/ /g' -e 's/^ //' -e 's/ $//')
+    [ -n "$segment" ] || continue
+    # Check every intermediate form (the line as written, then each time a
+    # leading env assignment or wrapper word comes off), so a deny on a
+    # wrapper word still applies. The final form is checked below.
+    while :; do
+      if [[ "$segment" =~ ^[A-Za-z_][A-Za-z0-9_]*=[^[:space:]]*[[:space:]]+(.*)$ ]] \
+         || [[ "$segment" =~ ^(if|then|else|elif|do|while|until|time|exec|command|nohup|\!)[[:space:]]+(.*)$ ]]; then
+        check_segment "$segment"
+        segment="${BASH_REMATCH[${#BASH_REMATCH[@]}-1]}"
+      else
+        break
+      fi
+    done
+    [ -n "$segment" ] || continue
 
-  if argv_is_safe_tool "$segment"; then
-    continue
-  fi
-  check_segment "$segment"
-done <<< "$segments"
+    if argv_is_safe_tool "$segment"; then
+      continue
+    fi
+    check_segment "$segment"
+  done <<< "$segments"
+}
+
+SCAN=protected scan_segments
+SCAN=full scan_segments
 
 allow
