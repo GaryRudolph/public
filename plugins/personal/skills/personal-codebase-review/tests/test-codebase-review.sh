@@ -219,6 +219,31 @@ expect_nogrep "unlisted repo not reported" "== repo nowline-web"
 expect_ok "plain folder without --members" "$work/estate"
 expect_grep "lists candidates" "== repos in this folder (not members until confirmed): nowline-cloud, nowline-core, nowline-web, other-tool"
 
+echo "owner from origin"
+cd "$repo" || exit 1
+for url in git@github.com-work:acme/nowline-core.git ssh://git@ssh.github.com:443/acme/nowline-core.git \
+           http://local_proxy@127.0.0.1:41923/git/acme/nowline-core https://github.com/acme/nowline-core; do
+  git remote remove origin 2>/dev/null; git remote add origin "$url"
+  expect_ok "origin $url" --members 'nowline*' "$repo"
+  expect_grep "  ...owner acme" "(owner: acme)"
+done
+for url in https://gitlab.com/acme/nowline-core.git https://attacker.example/acme/nowline-core.git; do
+  git remote remove origin; git remote add origin "$url"
+  expect_ok "origin $url" --members 'nowline*' "$repo"
+  expect_grep "  ...no owner, asks for --owner" "(owner: unknown)"
+done
+git remote remove origin; git remote add origin https://github.com/acme/nowline-core
+# A copy of the plugin without scripts/origin.py: no owner, the reason on stderr, no crash.
+cp -R "$here/../../.." "$work/plugin-copy" && rm "$work/plugin-copy/scripts/origin.py"
+if env PATH="$work/bin" python3 -I "$work/plugin-copy/skills/personal-codebase-review/scripts/review_log_facts.py" --no-fetch --members 'nowline*' "$repo" >"$work/out" 2>"$work/err"; then
+  pass "no origin.py: still runs"
+else
+  fail "no origin.py: exit $?"
+fi
+expect_grep "  ...no owner" "(owner: unknown)"
+if grep -qF "origin.py not found at" "$work/err"; then pass "  ...says why on stderr"; else fail "  ...no reason on stderr"; fi
+git remote remove origin
+
 echo "github lookup that fails"
 cat > "$work/bin/gh" <<'EOS'
 #!/bin/sh

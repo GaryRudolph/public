@@ -37,8 +37,10 @@ import re
 import shutil
 import subprocess
 import sys
+from pathlib import Path
 
 HERE = os.path.dirname(os.path.abspath(__file__))
+ORIGIN_PY = Path(__file__).resolve().parents[3] / "scripts" / "origin.py"
 REVIEW_FACTS = os.path.join(HERE, "..", "..", "personal-review-guide", "scripts", "review_facts.py")
 
 LOG = "specs/reviews/README.md"
@@ -131,10 +133,25 @@ def is_shallow(repo):
     return git(repo, "rev-parse", "--is-shallow-repository") == "true"
 
 
+def load_origin():
+    """The plugin's origin.py (plugins/personal/scripts), or None when this copy of the skill has no plugin root above it."""
+    try:
+        spec = importlib.util.spec_from_file_location("origin", ORIGIN_PY)
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        return module
+    except Exception:  # noqa: BLE001 - fail open: callers report why, they never crash
+        return None
+
+
 def origin_owner(repo):
-    url = git(repo, "remote", "get-url", "origin")
-    m = re.search(r"[:/]([^/:]+)/[^/]+?(?:\.git)?/?$", url)
-    return m.group(1) if m else ""
+    """origin's GitHub owner through origin.py, or "" (the reason on stderr) so --members asks for --owner."""
+    origin = load_origin()
+    if origin is None:
+        print(f"can't read origin (origin.py not found at {ORIGIN_PY})", file=sys.stderr)
+        return ""
+    found = origin.read(repo)
+    return found.owner if found.is_github else ""
 
 
 def show(repo, ref, path):

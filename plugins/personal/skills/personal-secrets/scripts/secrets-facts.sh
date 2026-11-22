@@ -5,8 +5,24 @@
 # no recommendations: the agent decides what to do.
 set -uo pipefail
 
+# The plugin's origin.py parses and masks origin's URL. Resolve it before the
+# cd below; a skill copied out of the plugin has no such file, and the remote
+# is then not shown (never printed raw).
+origin_py="$(cd "$(dirname "$0")" && pwd -P)/../../../scripts/origin.py"
 root=$(git rev-parse --show-toplevel 2>/dev/null || pwd)
 cd "$root" || exit 1
+
+# Sets o_masked (credentials masked) and o_repo (the repo name) from origin;
+# o_state is none (no origin), ok, or unavailable (origin.py can't run).
+o_state=none o_masked="" o_repo=""
+if url=$(git remote get-url origin 2>/dev/null) && [ -n "$url" ]; then
+    o_state=unavailable
+    if [ -f "$origin_py" ] && line=$(python3 -I "$origin_py" -- "$url" 2>/dev/null) && [ -n "$line" ]; then
+        IFS=$'\t' read -r _ _ _ o_repo _ o_masked <<<"$line"
+        [ "$o_repo" = "-" ] && o_repo=""
+        o_state=ok
+    fi
+fi
 
 section() { printf '\n== %s\n' "$1"; }
 
@@ -33,7 +49,11 @@ done
 
 section repo
 printf '  root: %s\n' "$root"
-printf '  remote: %s\n' "$(git remote get-url origin 2>/dev/null || echo none)"
+case "$o_state" in
+    none) printf '  remote: none\n' ;;
+    ok) printf '  remote: %s\n' "$o_masked" ;;
+    *) printf '  remote: not shown (origin.py unavailable)\n' ;;
+esac
 printf '  branch: %s\n' "$(git branch --show-current 2>/dev/null || echo none)"
 
 if [ -f access.map ] && [ -f .sops.yaml ]; then
@@ -111,7 +131,7 @@ else
     fi
 
     section "consumer wiring"
-    name=$(basename "$(git remote get-url origin 2>/dev/null || echo "$root")" .git)
+    name=${o_repo:-$(basename "$root")}
     printf '  repo name: %s (identities would be %s__<context>)\n' "$name" "$name"
     if [ -d .github/workflows ]; then
         for f in .github/workflows/*.y*ml; do

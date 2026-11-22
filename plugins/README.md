@@ -45,7 +45,8 @@ plugins/
     cursor/rules/personal-core.mdc  <- GENERATED from core.md; Cursor's always-on core
     scripts/session-start.sh        <- prints core.md in parts
     scripts/session-doctor.py       <- runs each repo's doctor at session start
-    tests/                          <- session-doctor tests
+    scripts/origin.py               <- parses origin (host class, owner, repo, masked URL); the facts scripts load it
+    tests/                          <- session-doctor and origin tests
     skills/
       personal-standards/
         SKILL.md                    <- index; loads standards on demand

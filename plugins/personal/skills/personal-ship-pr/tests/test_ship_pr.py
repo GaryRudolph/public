@@ -4,6 +4,7 @@
 import json
 import os
 import re
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -252,6 +253,41 @@ os.rename(os.path.join(f.dir, key(f"repos/{REPO}/pulls/7") + ".json"),
           os.path.join(f.dir, key(f"repos/{REPO}/pulls/7") + ".1.json"))
 rc, s, err = f.run("--wait-until", "checks-done", "--interval", "0.05", "--grace", "0.1", "--timeout", "0.4")
 check("grace never passes on a stale snapshot while polls fail", rc == 3, (rc, err))
+
+
+print("pr_state.py: the repo from origin")
+
+
+def run_without_repo(f, origin_url, script=STATE):
+    """Run pr_state with no --repo, in a fixture repo whose origin is origin_url; returns (rc, state, stderr)."""
+    with tempfile.TemporaryDirectory() as d:
+        subprocess.run(["git", "init", "-q", d], check=True)
+        if origin_url:
+            subprocess.run(["git", "-C", d, "remote", "add", "origin", origin_url], check=True)
+        env = {**os.environ, "FAKE_GH": f.dir, "PATH": f.bin + os.pathsep + os.environ["PATH"]}
+        r = subprocess.run([sys.executable, "-I", script, "--pr", "7"], capture_output=True, text=True, env=env,
+                           cwd=d, timeout=30)
+    try:
+        out = json.loads(r.stdout) if r.stdout.strip() else None
+    except ValueError:
+        out = None
+    return r.returncode, out, r.stderr
+
+
+for url in (f"git@github.com-work:{REPO}.git", f"ssh://git@ssh.github.com:443/{REPO}.git",
+            f"http://local_proxy@127.0.0.1:41923/git/{REPO}", f"https://github.com/{REPO}"):
+    rc, s, err = run_without_repo(Fake(), url)
+    check(f"origin {url.split('@')[-1]}: owner/repo found", rc == 0 and s and s["head_sha"] == HEAD, (rc, err))
+for url in (f"https://gitlab.com/{REPO}.git", f"https://attacker.example/{REPO}.git", None):
+    rc, s, err = run_without_repo(Fake(), url)
+    check(f"origin {url}: not a GitHub remote, asks for --repo",
+          rc != 0 and "origin is not a GitHub remote; pass --repo OWNER/REPO" in err, (rc, err))
+with tempfile.TemporaryDirectory() as lone:
+    os.makedirs(os.path.join(lone, "scripts"))
+    shutil.copy(STATE, os.path.join(lone, "scripts", "pr_state.py"))
+    rc, s, err = run_without_repo(Fake(), f"https://github.com/{REPO}", os.path.join(lone, "scripts", "pr_state.py"))
+    check("no origin.py beside the plugin root: says where it looked, asks for --repo",
+          rc != 0 and "origin.py not found at" in err and "pass --repo OWNER/REPO" in err, (rc, err))
 
 
 print("ship_pr_hook.py")

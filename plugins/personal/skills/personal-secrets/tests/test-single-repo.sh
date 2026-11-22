@@ -361,6 +361,22 @@ expect_ok   "secrets-facts runs in a single repo"                bash "$here/../
 expect_grep "  ...sees a single repo"                            'kind: single repo'
 if grep -q 'AGE-SECRET-KEY' "$work/out"; then fail "secrets-facts printed a private key"; else pass "  ...prints no private key"; fi
 if grep -q 're_prod\|cf_write\|p12pass' "$work/out"; then fail "secrets-facts printed a secret value"; else pass "  ...prints no secret value"; fi
+expect_grep "  ...no origin: remote none"                       'remote: none'
+git remote add origin 'https://ghp_s3cr3t@github.com/acme/widget.git'
+expect_ok   "secrets-facts with a token in origin"               bash "$here/../scripts/secrets-facts.sh"
+expect_grep "  ...masks the remote"                              'remote: https://\*\*\*@github.com/acme/widget.git'
+if grep -q 'ghp_s3cr3t' "$work/out"; then fail "secrets-facts printed the token"; else pass "  ...prints no token"; fi
+expect_grep "  ...names the repo from origin"                    'repo name: widget'
+git remote set-url origin 'git@github.com-work:acme/gadget.git'
+expect_ok   "secrets-facts with an ssh alias origin"             bash "$here/../scripts/secrets-facts.sh"
+expect_grep "  ...names the repo from the alias"                 'repo name: gadget'
+# A copy of the plugin without scripts/origin.py: the remote is not shown, the name falls back to the folder.
+cp -R "$here/../../.." "$work/plugin-copy" && rm "$work/plugin-copy/scripts/origin.py"
+git remote set-url origin 'https://ghp_s3cr3t@github.com/acme/widget.git'
+expect_ok   "secrets-facts without origin.py"                    bash "$work/plugin-copy/skills/personal-secrets/scripts/secrets-facts.sh"
+expect_grep "  ...says the remote is not shown"                  'remote: not shown (origin.py unavailable)'
+if grep -q 'ghp_s3cr3t' "$work/out"; then fail "secrets-facts without origin.py printed the token"; else pass "  ...prints no token"; fi
+git remote remove origin
 
 printf '\n'
 if [ "$failures" -eq 0 ]; then echo "test-single-repo: all passed"; else echo "test-single-repo: $failures failed"; exit 1; fi

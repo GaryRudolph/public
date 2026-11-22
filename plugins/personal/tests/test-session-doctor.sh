@@ -139,6 +139,43 @@ makefile_with_doctor "$r"
 run_doctor "$r"
 expect_grep "ssh host alias URL: owner parsed" "passed: \`make doctor\` in $r"
 
+r="$work/ssh443"; new_repo "$r" ssh://git@ssh.github.com:443/lolay/ssh443.git
+makefile_with_doctor "$r"
+run_doctor "$r"
+expect_grep "ssh.github.com on 443: owner parsed" "passed: \`make doctor\` in $r"
+
+r="$work/gitlab"; new_repo "$r" https://gitlab.com/lolay/gitlab.git
+makefile_with_doctor "$r"
+run_doctor "$r"
+expect_grep   "gitlab origin naming a trusted owner: not run" "not run: \`make doctor\` in $r: origin is not a GitHub remote (host class other: https://gitlab.com/lolay/gitlab.git)"
+expect_nocall "  ...and nothing ran" "STUB make"
+
+r="$work/attacker"; new_repo "$r" https://ghp_SECRET@attacker.example/lolay/x.git
+makefile_with_doctor "$r"
+run_doctor "$r"
+expect_grep   "attacker host naming a trusted owner: not run" "not run: \`make doctor\` in $r: origin is not a GitHub remote (host class other: https://***@attacker.example/lolay/x.git)"
+expect_nocall "  ...and nothing ran" "STUB make"
+expect_nogrep "  ...and the token isn't printed" "ghp_SECRET"
+
+r="$work/dotted-alias"; new_repo "$r" git@github.com-evil.example:lolay/x.git
+makefile_with_doctor "$r"
+run_doctor "$r"
+expect_nocall "a dotted github.com-<x> host is not an alias: nothing ran" "STUB make"
+
+r="$work/trusted-on-other-host"; new_repo "$r" https://git.example.com/GaryRudolph/x.git
+makefile_with_doctor "$r"
+run_doctor "$r" PERSONAL_DOCTOR_OWNERS="garyrudolph"
+expect_nocall "PERSONAL_DOCTOR_OWNERS doesn't make another host trusted" "STUB make"
+
+# Without origin.py beside it, the hook runs nothing and still exits 0.
+mkdir -p "$work/lone"; cp "$doctor" "$work/lone/session-doctor.py"
+r="$work/no-helper"; new_repo "$r" https://github.com/GaryRudolph/no-helper; makefile_with_doctor "$r"
+: > "$work/calls"
+printf '{"cwd": "%s"}' "$r" | env -i HOME="$work" PATH="$bin" "$python" -I "$work/lone/session-doctor.py" --timeout 2 >"$work/out" 2>"$work/err"
+[ "$?" = 0 ] && pass "origin.py missing: hook exits 0" || fail "origin.py missing: hook failed"
+expect_grep   "  ...and says it didn't run" "not run: \`make doctor\` in $r: origin.py unavailable"
+expect_nocall "  ...and nothing ran" "STUB make"
+
 printf 'outcomes\n'
 r="$work/make-repo"
 run_doctor "$r" STUB_RC=2

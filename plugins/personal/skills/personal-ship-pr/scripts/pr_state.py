@@ -34,14 +34,27 @@ can't answer at the start; a poll that fails later is retried.
 """
 
 import argparse
+import importlib.util
 import json
 import re
 import subprocess
 import sys
 import time
 import urllib.parse
+from pathlib import Path
 
-GITHUB_REMOTE = re.compile(r"github\.com[:/]+([^/]+)/([^/]+?)(?:\.git)?/*$")
+ORIGIN_PY = Path(__file__).resolve().parents[3] / "scripts" / "origin.py"
+
+
+def load_origin():
+    """The plugin's origin.py (plugins/personal/scripts), or None when this copy of the skill has no plugin root above it."""
+    try:
+        spec = importlib.util.spec_from_file_location("origin", ORIGIN_PY)
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        return module
+    except Exception:  # noqa: BLE001 - fail open: callers report why, they never crash
+        return None
 FAILED = {"failure", "timed_out", "cancelled", "action_required", "startup_failure", "stale"}
 PER_PAGE = 100
 
@@ -74,10 +87,13 @@ def api_list(path, key=None):
 
 
 def default_repo():
-    m = GITHUB_REMOTE.search(run("git", "remote", "get-url", "origin").strip())
-    if not m:
+    origin = load_origin()
+    if origin is None:
+        raise Unavailable(f"can't read origin (origin.py not found at {ORIGIN_PY}); pass --repo OWNER/REPO")
+    found = origin.read(".")
+    if not found.is_github:
         raise Unavailable("origin is not a GitHub remote; pass --repo OWNER/REPO")
-    return f"{m.group(1)}/{m.group(2)}"
+    return f"{found.owner}/{found.repo}"
 
 
 def default_pr(repo):
