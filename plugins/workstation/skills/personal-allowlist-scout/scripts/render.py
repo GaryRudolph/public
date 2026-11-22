@@ -137,12 +137,13 @@ def _shell_token(segment: str):
     Shell(<base>:<args>), the command:args form with a glob-free args part,
     so Shell(make:test) allows `make test` and not `make release`. Never
     Shell(<base>:*) for a multi-word segment: that grants every subcommand.
-    A segment whose text contains a glob character can't be written exactly,
-    so it gets no token and the caller skips cursor_cli."""
+    A segment containing a glob character, or whose first word contains a
+    colon, can't be written exactly, so it gets no token and the caller skips
+    cursor_cli."""
     words = segment.split()
     if not words:
         return None
-    if any(c in _GLOB_CHARS for c in segment):
+    if any(c in _GLOB_CHARS for c in segment) or ":" in words[0]:
         return None
     if len(words) == 1:
         return "Shell(%s)" % words[0]
@@ -150,14 +151,15 @@ def _shell_token(segment: str):
 
 
 def _add_cursor_cli(path: Path, segment: str, dry_run: bool) -> bool:
-    """Add Shell(...) token to .cursor/cli.json permissions.allow, or skip
-    (returning True) when the segment has no exact Cursor CLI form."""
+    """Add Shell(...) token to .cursor/cli.json permissions.allow. Returns
+    True on success or when already present, False on a write error, and
+    None when the segment has no exact Cursor CLI form (skipped)."""
     token = _shell_token(segment)
     if token is None:
         sys.stderr.write(
-            "skip:   cursor_cli has no exact form for %r (glob character); "
-            "not written\n" % segment)
-        return True
+            "skip:   cursor_cli has no exact form for %r (glob character or "
+            "colon in the command); not written\n" % segment)
+        return None
 
     data = _load_json(path) or {}
     perms = data.setdefault("permissions", {})
@@ -324,7 +326,10 @@ def main(argv=None) -> int:
         for cmd in commands:
             seg = cmd["segment"]
             for h in cmd.get("harnesses", []):
-                if not write_entry(repo, seg, h, policy_name, args.dry_run):
+                res = write_entry(repo, seg, h, policy_name, args.dry_run)
+                if res is None:
+                    sys.stderr.write("skipped: %s -> %s\n" % (seg, h))
+                elif not res:
                     ok = False
                     sys.stderr.write("FAILED: %s -> %s\n" % (seg, h))
                 else:
@@ -339,8 +344,11 @@ def main(argv=None) -> int:
     repo = Path(args.repo)
     ok   = True
     for h in args.harnesses:
-        if not write_entry(repo, args.segment, h,
-                           args.gemini_policy_name, args.dry_run):
+        res = write_entry(repo, args.segment, h,
+                          args.gemini_policy_name, args.dry_run)
+        if res is None:
+            sys.stderr.write("skipped: %s -> %s\n" % (args.segment, h))
+        elif not res:
             ok = False
             sys.stderr.write("FAILED: %s -> %s\n" % (args.segment, h))
         else:

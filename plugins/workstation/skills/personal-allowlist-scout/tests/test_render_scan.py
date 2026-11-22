@@ -75,6 +75,13 @@ class RenderThenScan(unittest.TestCase):
             r = render_cli(self.repo, seg)
             self.assertEqual(r.returncode, 0)
             self.assertIn("skip:", r.stderr)
+            self.assertIn("skipped: %s -> cursor_cli" % seg, r.stderr)
+            self.assertNotIn("ok:", r.stderr)
+        self.assertFalse((self.repo / ".cursor" / "cli.json").exists())
+
+    def test_colon_in_command_is_skipped(self):
+        r = render_cli(self.repo, "./run:all now")
+        self.assertIn("skipped:", r.stderr)
         self.assertFalse((self.repo / ".cursor" / "cli.json").exists())
 
     def test_other_harnesses_still_written(self):
