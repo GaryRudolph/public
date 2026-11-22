@@ -352,6 +352,11 @@ expect_decision deny  'echo hi; sudo ls'
 expect_decision deny  'echo $(sudo id)'
 expect_decision deny  'if true; then rm -rf ~; fi'
 expect_decision deny  '{ rm -rf ~; }'
+expect_decision deny  'FOO=1 sudo ls'
+expect_decision deny  "$(printf 'echo hi\n\trm -rf ~')"
+expect_decision deny  'echo `sudo id`'
+expect_decision deny  'time sudo ls'
+expect_decision allow 'pytest tests/ 2>&1'
 # ALWAYS_DENY beats any allowlist, even unsandboxed, even a workspace one.
 expect_decision deny  'sudo ls' false
 expect_decision deny  'rm -rf ~' false

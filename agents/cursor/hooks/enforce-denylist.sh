@@ -3,7 +3,10 @@
 # This is a best-effort backstop, not enforcement: it splits the command
 # string on shell operators and prefix-matches each segment, so quoting,
 # variable expansion, `bash -c`, eval and the like get past it. The real
-# boundary is the IDE sandbox and the approval cards.
+# boundary is the IDE sandbox and the approval cards. Known gaps: path-qualified
+# or wrapped commands (/bin/rm, env rm, xargs rm, timeout 5 sudo), quoting,
+# variable expansion, bash -c, eval. Known false positives: the split ignores
+# quotes, so `git commit -m "(sudo) ..."` is denied; reword the command.
 #
 # Cursor removed auto-run denylists in v1.3; permissions.json only honors
 # mcpAllowlist / terminalAllowlist / autoRun, and silently drops everything
