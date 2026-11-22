@@ -52,18 +52,21 @@ push a release — those are Remote Write.
 
 **Flags that make a command Destructive.** A command that passes one of these
 flags is never proposed, as Build & test or Inspect or anything else, whatever
-its name or tool says. It makes no difference whether the flag sits in the
-command text or in the recipe or script body a target runs: a `package.json`
-script named `lint` that runs `rg --pre x` is caught.
+its name or tool says. The flag is caught in the command text and in the
+target's own recipe or script body: a `package.json` script named `lint` that
+runs `rg --pre x` is caught. What that body calls is not followed: a make
+prerequisite, a `$(MAKE)` call, npm's `pre<name>` hook, or a script the recipe
+runs (r1.f14), and `scan.py` reads only a script's first 60 lines.
 
 | Flag | Why |
 |---|---|
-| `--output` | writes any path (`git log`, `git diff`, `git format-patch`) |
+| `--output`, `--output-directory` | writes any path (`git log`, `git diff`, `git format-patch`) |
 | `--pre` | runs any program over each file (`rg --pre cat`) |
-| `--upload-pack` | runs any program on the remote end (`git fetch`, `git ls-remote`, `git clone`) |
+| `--upload-pack`, `--exec` | runs any program on the remote end (`git fetch`, `git ls-remote`, `git clone`); git's abbreviations `--upload-p`, `--upload-pa` and `--upload-pac` count |
 
 Whole flags only, as `--flag value` or `--flag=value`: `--output-format`,
-`--prefix` and `--pre-release` do not match.
+`--prefix`, `--pre-release` and `--exec-path` do not match. Short forms such
+as `git format-patch -o` or `sort -o` are not caught.
 
 **Security-scanning tools are Inspect, not Sensitive.** `bandit`, `pip-audit`,
 `trivy`, `semgrep` and similar static analysis / dependency audit tools are
@@ -143,7 +146,8 @@ Cursor reads as the command with any arguments, so approving a bare word
 grants every flag and argument. Review a bare-word candidate with that in
 mind before approving it; the scout doesn't check each variant.
 `scan.py` reads `Shell(cmd:args)` back as covering only `cmd args`, and
-`Shell(cmd:*)` or `Bash(cmd:*)` as the prefix `cmd`. This keeps § 4 rule 2:
+`Shell(cmd:*)`, `Bash(cmd:*)` or `Bash(cmd *)` as the prefix `cmd`, and
+`Bash(cmd)` with no wildcard as covering only `cmd`, as Claude Code reads it. This keeps § 4 rule 2:
 no entry subsumes a command the scout would never propose.
 
 **A bare entry covers nothing.** Neither Cursor CLI nor Claude Code reads an

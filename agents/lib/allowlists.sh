@@ -320,7 +320,14 @@ render_target_schema() {
             ;;
         cursor_cli)
             # allow: the exact command line; deny: the prefix. See the header.
-            jq -S 'def cli_parts: capture("^(?<base>\\S+)\\s+(?<args>.+)$");
+            # Each shell entry is trimmed and, unless it quotes, its runs of
+            # whitespace collapsed, so " sudo" or "git  push" can't render a
+            # rule that matches nothing; an empty entry stops the render.
+            jq -S 'def shell_norm:
+                       gsub("^\\s+|\\s+$"; "")
+                       | if test("[\"\u0027]") then . else gsub("\\s+"; " ") end
+                       | if . == "" then error("empty shell entry") else . end;
+                   def cli_parts: capture("^(?<base>\\S+)\\s+(?<args>.+)$");
                    def cli_first_word_colon: test("^[^\\s:]*:");
                    def cli_allow:
                        if test("[*?]") or cli_first_word_colon then empty
@@ -337,12 +344,12 @@ render_target_schema() {
                    {
                 permissions: {
                     allow: (
-                        (((.shell.allow // []) | map(cli_allow)) +
+                        (((.shell.allow // []) | map(shell_norm | cli_allow)) +
                          ((.mcp.allow   // []) | map("Mcp(" + . + ")"))
                         ) | unique
                     ),
                     deny: (
-                        (((.shell.deny // []) | map(cli_deny)) +
+                        (((.shell.deny // []) | map(shell_norm | cli_deny)) +
                          ((.mcp.deny   // []) | map("Mcp(" + . + ")"))
                         ) | unique
                     )
@@ -355,7 +362,11 @@ render_target_schema() {
             # with no colon, no server or no tool stops the render rather than
             # produce a rule such as mcp____tool. A shell entry is a prefix,
             # Bash(<entry>:*); one that holds a * is written as it is.
-            jq -S 'def claude_mcp:
+            jq -S 'def shell_norm:
+                       gsub("^\\s+|\\s+$"; "")
+                       | if test("[\"\u0027]") then . else gsub("\\s+"; " ") end
+                       | if . == "" then error("empty shell entry") else . end;
+                   def claude_mcp:
                        if test("^[^:]+:.+$")
                        then index(":") as $i | "mcp__" + .[:$i] + "__" + .[$i+1:]
                        else error("bad mcp entry: " + .)
@@ -365,13 +376,13 @@ render_target_schema() {
                    {
                 permissions: {
                     allow: (
-                        (((.shell.allow   // []) | map(claude_bash)) +
+                        (((.shell.allow   // []) | map(shell_norm | claude_bash)) +
                          ((.mcp.allow     // []) | map(claude_mcp)) +
                          ((.webfetch.allow // []) | map("WebFetch(domain:" + . + ")"))
                         ) | unique
                     ),
                     deny: (
-                        (((.shell.deny   // []) | map(claude_bash)) +
+                        (((.shell.deny   // []) | map(shell_norm | claude_bash)) +
                          ((.mcp.deny     // []) | map(claude_mcp)) +
                          ((.webfetch.deny // []) | map("WebFetch(domain:" + . + ")"))
                         ) | unique

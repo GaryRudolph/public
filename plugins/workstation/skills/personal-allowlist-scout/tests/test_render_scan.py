@@ -157,6 +157,16 @@ class UnsafeFlags(unittest.TestCase):
             cls, _ = scan._classify_text(text)
             self.assertEqual(cls, scan.DESTRUCTIVE, text)
 
+    def test_other_forms_of_the_flags(self):
+        for text in ("git format-patch --output-directory /tmp/x HEAD~1",
+                     "git ls-remote --exec=evil origin",
+                     "git fetch --upload-p=evil origin",
+                     "git fetch --upload-pac evil origin"):
+            cls, _ = scan._classify_text("check", text)
+            self.assertEqual(cls, scan.DESTRUCTIVE, text)
+        for text in ("git --exec-path", "git log --output-indicator-new=+"):
+            self.assertEqual(scan._classify_text("check", text)[0], scan.BUILD, text)
+
     def test_similar_flags_classify_as_before(self):
         self.write("Makefile",
                    "lint:\n\truff check --output-format=json .\n"
@@ -187,6 +197,21 @@ class Unwrap(unittest.TestCase):
         self.assertIsNone(u("make test"))
         self.assertIsNone(u("pytest"))
         self.assertIsNone(u("make test:*"))
+        # Claude Code reads Bash(cmd) with no wildcard as that exact command,
+        # and Bash(cmd *) as the prefix cmd.
+        self.assertEqual(u("Bash(make test)"), "make test")
+        self.assertIsInstance(u("Bash(make test)"), scan._Exact)
+        self.assertNotIsInstance(u("Bash(make test:*)"), scan._Exact)
+        self.assertEqual(u("Bash(make test *)"), "make test")
+        self.assertNotIsInstance(u("Bash(make test *)"), scan._Exact)
+        self.assertIsNone(u("Bash(rm -rf /*)"))
+
+    def test_exact_bash_rule_does_not_cover_longer_commands(self):
+        covered, _, _ = scan.covered_by("make test coverage", [scan._unwrap_token("Bash(make test)")])
+        self.assertFalse(covered)
+        covered, entry, kind = scan.covered_by("make test", [scan._unwrap_token("Bash(make test)")])
+        self.assertTrue(covered)
+        self.assertEqual(kind, "exact")
 
     def test_bare_entries_cover_nothing_and_the_scout_proposes_the_wrapped_rule(self):
         with tempfile.TemporaryDirectory() as tmp:

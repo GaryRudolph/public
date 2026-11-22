@@ -1191,6 +1191,33 @@ run_al "$H42B" "$TEST_DIR/meta/t42b.json" install >/dev/null 2>&1 || rc=$?
 [ "$rc" -ne 0 ] || fail "T42b: install exited 0 on an unwritable Cursor CLI deny"
 [ -z "$(find "$H42B/.claude" "$H42B/.cursor" -name '.*-managed.json' -print -quit)" ] || fail "T42b: a sidecar was written"
 
+printf '[T42c] stray whitespace in a shell entry neither drops nor breaks the rule\n'
+META42C="$TEST_DIR/meta/t42c.json"
+cat > "$META42C" <<'ENDJSON'
+{
+  "shell":    { "allow": ["  git   status "], "deny": [" sudo", "git push ", "rm  -rf /"] },
+  "mcp":      { "allow": [], "deny": [] },
+  "read":     { "deny": [] },
+  "write":    { "deny": [] },
+  "webfetch": { "allow": [], "deny": [] }
+}
+ENDJSON
+H42C=$(mk_home t42c)
+run_al "$H42C" "$META42C" install >/dev/null
+for want in 'Shell(sudo)' 'Shell(git:push*)' 'Shell(rm:-rf /*)'; do
+    in_list "$H42C/.cursor/cli-config.json" deny "$want" || fail "T42c: Cursor CLI deny lacks $want: $(jq -c '.permissions.deny' "$H42C/.cursor/cli-config.json")"
+done
+in_list "$H42C/.cursor/cli-config.json" allow 'Shell(git:status)' || fail "T42c: Cursor CLI allow lacks Shell(git:status)"
+for want in 'Bash(sudo:*)' 'Bash(git push:*)' 'Bash(rm -rf /:*)'; do
+    in_list "$H42C/.claude/settings.json" deny "$want" || fail "T42c: Claude Code deny lacks $want: $(jq -c '.permissions.deny' "$H42C/.claude/settings.json")"
+done
+in_list "$H42C/.claude/settings.json" allow 'Bash(git status:*)' || fail "T42c: Claude Code allow lacks Bash(git status:*)"
+H42D=$(mk_home t42d)
+jq '.shell.deny += ["   "]' "$META42C" > "$TEST_DIR/meta/t42d.json"
+rc=0
+run_al "$H42D" "$TEST_DIR/meta/t42d.json" install >/dev/null 2>&1 || rc=$?
+[ "$rc" -ne 0 ] || fail "T42c: install exited 0 on an empty shell entry"
+
 # ---------------------------------------------------------------------------
 # T43 (r1.f1): upgrade from the previous render. The old installer wrote shell
 # entries bare and every MCP entry as mcp__<server>__*; install replaces them

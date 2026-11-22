@@ -124,16 +124,20 @@ DESTRUCTIVE_BODY = [
 ]
 
 # Flags that turn a read-looking command into a write or an exec: `--output`
-# writes any path (git log, git diff), `--pre` runs any program over each file
-# (rg), `--upload-pack` runs any program on the remote end (git fetch, git
-# ls-remote). Whole flags only, as `--flag value` or `--flag=value`, so
-# `--output-format`, `--prefix` and `--pre-release` do not trip it. Checked in
-# the command's name and in its recipe or script body (reference.md section 1).
-UNSAFE_FLAG = re.compile(r"(?<![\w-])--(output|pre|upload-pack)(?![\w-])")
+# and `--output-directory` write any path (git log, git diff, git
+# format-patch), `--pre` runs any program over each file (rg), and `--exec` and
+# `--upload-pack` run any program on the remote end (git ls-remote, git fetch;
+# git also takes `--upload-p`, `--upload-pa` and `--upload-pac`). Whole flags
+# only, as `--flag value` or `--flag=value`, so `--output-format`, `--prefix`,
+# `--pre-release` and `--exec-path` do not trip it. Checked in the command's
+# name and in its own recipe or script body (reference.md section 1).
+UNSAFE_FLAG = re.compile(
+    r"(?<![\w-])--(output|output-directory|pre|exec|upload-p(?:a(?:c(?:k)?)?)?)(?![\w-])")
 UNSAFE_FLAG_WHY = {
     "output": "writes any path",
+    "output-directory": "writes any path",
     "pre": "runs any program",
-    "upload-pack": "runs any program",
+    "exec": "runs any program",
 }
 
 LONG_BODY = [
@@ -184,7 +188,8 @@ def _classify_text(name: str, body: str = ""):
     m = UNSAFE_FLAG.search(name.lower()) or UNSAFE_FLAG.search(body_l)
     if m:
         flag = m.group(1)
-        return DESTRUCTIVE, "passes --%s (%s)" % (flag, UNSAFE_FLAG_WHY[flag])
+        why = UNSAFE_FLAG_WHY.get(flag, "runs any program")
+        return DESTRUCTIVE, "passes --%s (%s)" % (flag, why)
 
     for pat in SENSITIVE_BODY:
         m = re.search(pat, body_l)
@@ -264,7 +269,9 @@ def _unwrap_token(tok: str):
     """Normalize one permissions.allow token to a shell prefix.
     Handles Cursor CLI Shell(...) and Claude Bash(...) wrappers.
 
-    Bash(cmd:*) and Shell(cmd:*) are prefixes. Shell(cmd:args) with a literal
+    Bash(cmd:*), Bash(cmd *) and Shell(cmd:*) are prefixes; Bash(cmd) with no
+    wildcard covers only `cmd` (an _Exact entry), as Claude Code reads it, and
+    any other Bash glob covers nothing. Shell(cmd:args) with a literal
     args part covers only `cmd args`, so it returns an _Exact entry; with a
     glob in args it returns None (covers nothing here, so the scan keeps
     proposing the narrower command). Returns None for non-shell tokens
@@ -292,6 +299,14 @@ def _unwrap_token(tok: str):
         if any(c in args for c in "*?"):
             return None
         return _Exact("%s %s" % (base, args))
+    if not m.group(1):
+        # Claude Code: `Bash(cmd *)` is a prefix like `Bash(cmd:*)`; any other
+        # glob covers nothing here; `Bash(cmd)` with none matches only `cmd`.
+        if inner.endswith(" *") and "*" not in inner[:-2]:
+            return inner[:-2].strip() or None
+        if "*" in inner:
+            return None
+        return _Exact(inner) if inner else None
     return inner or None
 
 
