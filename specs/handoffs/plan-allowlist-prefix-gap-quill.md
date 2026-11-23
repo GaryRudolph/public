@@ -1,6 +1,6 @@
 # Plan: close the Gemini and Cursor IDE prefix-allow gap (r1.f1 follow-up)
 
-Status: decided, waiting on PR 98 to merge before coding.
+Status: on hold. PR 98 merged; the Owner reopened the approach (drop the installer, ship the allowlist as plugin hooks). Do not code this plan until that discussion ends.
 Branch: `claude/nice-bohr-xt3iuw` (harness-assigned task branch).
 Refs: r1.f1, https://github.com/GaryRudolph/public/issues/45, follow-up recorded in
 https://github.com/GaryRudolph/public/pull/98 ("Follow-ups").
