@@ -734,7 +734,11 @@ rotate_history() {
     while [ "$i" -ge 1 ]; do
         src="$hist/$stem.json.$i"
         dst="$hist/$stem.json.$((i+1))"
-        [ -f "$src" ] && mv -- "$src" "$dst"
+        # A link at the destination would take the backup into its target.
+        if [ -f "$src" ]; then
+            if [ -L "$dst" ]; then rm -f -- "$dst"; fi
+            mv -- "$src" "$dst"
+        fi
         i=$((i - 1))
     done
 
@@ -1346,6 +1350,10 @@ clear_claude_dir() {
     label=$(side_label "$dir")
     [ -f "$ours" ] || return 0
     claude_dir_shared "$dir" && alone=0
+    # With no settings.json, the user-managed sidecar is the only copy of the
+    # user's own entries: keep it, and the passthrough with it.
+    local keep_feed=0
+    [ "$alone" = "1" ] && [ ! -f "$live" ] && keep_feed=1
 
     if [ -f "$live" ]; then
         new=$(mktemp)
@@ -1364,7 +1372,7 @@ clear_claude_dir() {
             printf '%-50s - would remove %s %s entries (now in managed settings)%s\n' "$pretty" "$n" "$ORG" "$label"
         fi
         printf '%-50s - would remove sidecar %s%s\n' "$pretty" "$(pretty_path "$ours")" "$label"
-        if [ "$alone" = "1" ]; then
+        if [ "$alone" = "1" ] && [ "$keep_feed" = "0" ]; then
             claude_feed_sidecars "$dir" | while IFS= read -r f; do
                 printf '%-50s - would remove sidecar %s%s\n' "$pretty" "$(pretty_path "$f")" "$label"
             done
@@ -1394,8 +1402,12 @@ clear_claude_dir() {
 
     rm -f -- "$ours" || return 1
     printf '%-50s - removed sidecar %s%s\n' "$pretty" "$(pretty_path "$ours")" "$label"
-    if [ "$alone" = "1" ]; then
-        local f
+    if [ "$keep_feed" = "1" ]; then
+        while IFS= read -r f; do
+            printf '%-50s = kept %s (no settings.json: the only copy of your own entries)%s\n' \
+                "$pretty" "$(pretty_path "$f")" "$label"
+        done < <(claude_feed_sidecars "$dir")
+    elif [ "$alone" = "1" ]; then
         while IFS= read -r f; do
             rm -f -- "$f" || return 1
             printf '%-50s - removed sidecar %s%s\n' "$pretty" "$(pretty_path "$f")" "$label"
@@ -1429,15 +1441,15 @@ diff_claude_dir() {
     [ -f "$ours" ] || return 0
     claude_dir_shared "$dir" && alone=0
     if [ ! -f "$live" ]; then
-        printf '%s ~ no file; %s sidecars to remove:%s\n' "$pretty" "$ORG" "$(side_label "$dir")"
+        printf '%s ~ no file; %s sidecar to remove:%s\n' "$pretty" "$ORG" "$(side_label "$dir")"
         printf '  %s\n' "$(pretty_path "$ours")"
-        if [ "$alone" = "1" ]; then
-            claude_feed_sidecars "$dir" | while IFS= read -r f; do printf '  %s\n' "$(pretty_path "$f")"; done
-        fi
         return 0
     fi
     new=$(mktemp)
-    if n=$(claude_strip "$dir" "$new" "$alone") && [ "$n" -gt 0 ]; then
+    if ! n=$(claude_strip "$dir" "$new" "$alone"); then
+        printf '%s ! cannot compute the %s cleanup (does it parse?); install will stop here%s\n' \
+            "$pretty" "$ORG" "$(side_label "$dir")"
+    elif [ "$n" -gt 0 ]; then
         printf '%s ~ differs (%s entries to remove):%s\n' "$pretty" "$ORG" "$(side_label "$dir")"
         diff -u "$live" "$new" || true
     fi
@@ -1504,7 +1516,11 @@ rotate_gemini_history() {
     while [ "$i" -ge 1 ]; do
         src="$hist/$base.$i"
         dst="$hist/$base.$((i+1))"
-        [ -f "$src" ] && mv -- "$src" "$dst"
+        # A link at the destination would take the backup into its target.
+        if [ -f "$src" ]; then
+            if [ -L "$dst" ]; then rm -f -- "$dst"; fi
+            mv -- "$src" "$dst"
+        fi
         i=$((i - 1))
     done
 

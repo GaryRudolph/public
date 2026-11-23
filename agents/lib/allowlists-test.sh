@@ -1554,7 +1554,27 @@ case "$(run_al "$H51" "$META" status 2>&1)" in *"foreign"*"stray.txt"*) ;; *) fa
 H51B=$(mk_home t51b)
 seed_old_claude "$H51B/.claude" "$META"
 rm -f "$H51B/.claude/settings.json"
+printf '{"permissions":{"allow":["Bash(mine)"],"deny":[]}}\n' > "$H51B/.claude/.settings.user-managed.json"
 case "$(run_al "$H51B" "$META" diff 2>&1)" in *"settings.json ~ no file"*".settings.${ORG}-managed.json"*) ;; *) fail "T51: diff says nothing about the sidecar left with no settings.json" ;; esac
+# With no settings.json the user-managed sidecar is the only copy of their rules.
+run_al "$H51B" "$META" install >/dev/null || fail "T51: install failed with no settings.json"
+[ ! -f "$H51B/.claude/.settings.${ORG}-managed.json" ] || fail "T51: our sidecar kept with no settings.json"
+grep -q 'Bash(mine)' "$H51B/.claude/.settings.user-managed.json" 2>/dev/null || fail "T51: the user-managed sidecar was deleted with no settings.json"
+# A directory link at a higher history slot doesn't take a backup.
+H51C=$(mk_home t51c)
+seed_old_claude "$H51C/.claude" "$META" '' '{"model":"opus"}'
+mkdir -p "$H51C/.claude/.history" "$TEST_DIR/t51c.outside"
+printf 'old\n' > "$H51C/.claude/.history/settings.json.1"
+ln -s "$TEST_DIR/t51c.outside" "$H51C/.claude/.history/settings.json.2"
+run_al "$H51C" "$META" install >/dev/null || fail "T51: install failed with a link at .history/settings.json.2"
+[ -z "$(ls -A "$TEST_DIR/t51c.outside")" ] || fail "T51: a backup landed in the target of a .history link"
+[ -f "$H51C/.claude/.history/settings.json.2" ] && [ ! -L "$H51C/.claude/.history/settings.json.2" ] \
+    || fail "T51: .history/settings.json.2 is not the shifted backup"
+# diff names a settings.json it can't read instead of saying nothing.
+H51D=$(mk_home t51d)
+seed_old_claude "$H51D/.claude" "$META"
+printf '{"permissions":\n' > "$H51D/.claude/settings.json"
+case "$(run_al "$H51D" "$META" diff 2>/dev/null)" in *"settings.json ! cannot compute"*) ;; *) fail "T51: diff is silent on a settings.json it can't read" ;; esac
 
 # ---------------------------------------------------------------------------
 # Final report
