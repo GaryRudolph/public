@@ -164,7 +164,9 @@ unwrapped string such as `"make test"` in `permissions.allow`; the agent
 allowlist installer wrote them that way before r1.f1. `scan.py` reads one in
 either file as covering no command, so the scout proposes the wrapped rule
 for it. Cursor IDE's `terminalAllowlist` and Gemini's `commandPrefix` are raw
-strings by design and still count.
+strings by design and still count. A Gemini `commandRegex` in the form the
+agent allowlist installer writes (the command JSON-escaped, RE2-escaped and
+closed with `"`) covers only that command; any other regex covers nothing.
 
 All writes are **union-only**: `render.py` adds missing allow entries and never
 removes anything, never writes a `deny` / `ask_user` / `confirmationRequired`
