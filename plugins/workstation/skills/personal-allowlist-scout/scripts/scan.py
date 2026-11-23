@@ -133,7 +133,8 @@ DESTRUCTIVE_BODY = [
 # name and in its own recipe or script body (reference.md section 1).
 UNSAFE_FLAG = re.compile(
     r"(?<![\w-])--(output|output-directory|pre|exec|upload-p(?:a(?:c(?:k)?)?)?)(?![\w-])")
-# `--output <format>` picks a format (kubectl, aws, az, gcloud), not a path.
+# `--output <format>` picks a format (kubectl, aws, az, gcloud), not a path;
+# never for git, where `--output=json` writes a file named json.
 OUTPUT_FORMATS = re.compile(
     r"(?:json|jsonc|yaml|yml|table|wide|text|tsv|csv|name|none|raw"
     r"|jsonpath|go-template|custom-columns|template)(?:[=-].*)?$")
@@ -184,11 +185,20 @@ INSPECT_NAME = {
 }
 
 
+def _is_git_command(text: str, at: int) -> bool:
+    """True when the command holding position *at* runs git, whose `--output`
+    always names a file (`git log --output=json` writes `./json`)."""
+    start = max(text.rfind(sep, 0, at) for sep in (";", "&", "|", "\n", "(", "`"))
+    words = text[start + 1:at].split()
+    return bool(words) and words[0].rsplit("/", 1)[-1] == "git"
+
+
 def _unsafe_flag(text: str):
     """The first UNSAFE_FLAG match in *text*, skipping `--output` followed by
-    a format word (`--output json`, `--output=jsonpath={..}`)."""
+    a format word (`--output json`, `--output=jsonpath={..}`) unless the
+    command is git."""
     for m in UNSAFE_FLAG.finditer(text):
-        if m.group(1) == "output":
+        if m.group(1) == "output" and not _is_git_command(text, m.start()):
             value = re.match(r"[=\s]+(\S+)", text[m.end():])
             if value and OUTPUT_FORMATS.match(value.group(1).strip("'\"")):
                 continue

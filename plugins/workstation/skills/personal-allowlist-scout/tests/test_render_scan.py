@@ -187,6 +187,10 @@ class UnsafeFlags(unittest.TestCase):
             self.assertEqual(cls, scan.DESTRUCTIVE, text)
         self.assertEqual(scan._classify_text("check", "git log --output json --output=/tmp/x")[0],
                          scan.DESTRUCTIVE)
+        # git's --output always names a file, even one called json.
+        for text in ("git log --output=json", "git diff --output table",
+                     "cd src && /usr/bin/git show --output=yaml HEAD"):
+            self.assertEqual(scan._classify_text("check", text)[0], scan.DESTRUCTIVE, text)
         for text in ("git --exec-path", "git log --output-indicator-new=+",
                      "kubectl get pods --output json", "aws sts get-caller-identity --output=json",
                      "az account show --output table", "kubectl get pods --output=jsonpath={.items}"):
