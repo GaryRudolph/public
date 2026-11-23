@@ -1,6 +1,6 @@
 # Security Standards
 
-Contents: [Authentication](#authentication) · [Authorization](#authorization) · [Shared-Domain Cookies](#shared-domain-cookies) · [Input Validation](#input-validation) · [Security Headers](#security-headers) · [API Security](#api-security) · [Encryption and Erasure](#encryption-and-erasure) · [Secrets Management](#secrets-management) · [Explicit CLI Identity](#explicit-cli-identity) · [Logging](#logging) · [Dependency Security](#dependency-security) · [Cross-Language Security Parallels](#cross-language-security-parallels) · [Security Checklist — Before Deployment](#security-checklist--before-deployment) · [Regular Security Tasks](#regular-security-tasks) · [Language-Specific Security](#language-specific-security) · [Platform-Specific Security](#platform-specific-security)
+Contents: [Authentication](#authentication) · [Authorization](#authorization) · [Shared-Domain Cookies](#shared-domain-cookies) · [Input Validation](#input-validation) · [Security Headers](#security-headers) · [API Security](#api-security) · [Encryption and Erasure](#encryption-and-erasure) · [Secrets Management](#secrets-management) · [Explicit CLI Identity](#explicit-cli-identity) · [Agent Tool Permissions](#agent-tool-permissions) · [Logging](#logging) · [Dependency Security](#dependency-security) · [Cross-Language Security Parallels](#cross-language-security-parallels) · [Security Checklist — Before Deployment](#security-checklist--before-deployment) · [Regular Security Tasks](#regular-security-tasks) · [Language-Specific Security](#language-specific-security) · [Platform-Specific Security](#platform-specific-security)
 
 ## Authentication
 
@@ -121,6 +121,15 @@ Several sessions run at once against different organizations, and a CLI's defaul
 | `snow` (Snowflake CLI) | `-c <connection>` | `default_connection_name` |
 | `vercel` | `--scope <team>` | `vercel switch` |
 | HCP Terraform (`terraform` with a `cloud` block) | that organization's own named token on the command, `TF_TOKEN_app_terraform_io=<token>` (the host with dots as underscores), read from where the repo keeps it, plus `TF_CLOUD_ORGANIZATION=<org>` when the `cloud` block doesn't name one | `terraform login`, which keeps one token per host for every session |
+
+## Agent Tool Permissions
+
+What an agent's MCP tools may do without asking is the allowlist's call, not the session's. The meta-source (`agents/allowlists/*.json`) holds it, and the installer renders it into every harness.
+
+- **Auto-approve a write that can be undone**: a tool with version history or a Trash, or a create the Owner deletes afterward (a new page, board, file or design)
+- **Prompt on anything that reaches people, changes who can see it, or can't be recovered**: sends, comments, reactions and invites; sharing, roles and permission changes; signed download links; deletes with no Trash, deploys and tools that spend money
+- **Name the allowed tools, not the server**: `notion:notion-search`, not `notion:*`. A tool that matches no allow entry prompts in every harness, so one the server adds later asks first. A wildcard would run it unseen, and a deny blocks instead of prompting
+- **Re-check the names when a server's docs change**: a renamed read tool prompts until someone adds it, which is the safe direction
 
 ## Logging
 

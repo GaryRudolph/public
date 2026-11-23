@@ -116,6 +116,15 @@ REMOTE_BODY = [
     r"xcrun\s+altool", r"xcrun\s+notarytool", r"fastlane\s+(pilot|deliver|release|match)",
     r"pod\s+trunk\s+push", r"netlify\s+deploy", r"vercel\s+(deploy|--prod)",
     r"databricks\s+\S+\s+(create|deploy|run|submit)", r"\bcurl\b[^|]*\s-X\s*(POST|PUT|PATCH|DELETE)",
+    # Sends data out even as a GET: `curl -G --data-urlencode @~/.ssh/id_ed25519`.
+    r"\bcurl\b[^|;&\n]*\s--(get|data[a-z-]*|form[a-z-]*|upload-file|json)(?![\w-])",
+    r"\bwget\b[^|;&\n]*\s--(method|post-data|post-file|body-data|body-file)\b",
+]
+# Matched against the body as written: curl's short options are case-sensitive
+# (`-F` sends a form, `-f` fails quietly), and may be attached or combined
+# (`-d@file`, `-Gdx`, `-T/etc/x`).
+REMOTE_BODY_CASED = [
+    r"\bcurl\b[^|;&\n]*\s-[A-Za-z]*[GdFT]",
 ]
 SENSITIVE_BODY = [
     r"decrypt", r"gpg\s+-d\b", r"gpg\s+--decrypt", r"openssl\s+enc[^\n]*-d\b",
@@ -123,12 +132,35 @@ SENSITIVE_BODY = [
     r"ansible-vault\s+(decrypt|view)", r"secrets?[-_ ](decrypt|export|print|show)",
     r"\bkeychain\b", r"security\s+find-", r"\.env\.enc\b", r"\bunseal\b",
     r"vault\s+(read|kv\s+get)", r"print[-_ ]?secret",
+    # 1Password: read a secret, or run a command with secrets in its environment.
+    r"\bop\s+(read|run|inject)\b",
 ]
 DESTRUCTIVE_BODY = [
     r"\brm\s+-[rf]", r"\bdd\s+if=", r"\bmkfs", r"\bsudo\b", r"\bfdisk\b",
     r"git\s+reset\s+--hard", r"git\s+clean\s+-[a-z]*[fd]", r"\bflash\b",
     r"\berase\b", r"\bdiskutil\b", r"\bchmod\s+-R\b", r">\s*/dev/",
 ]
+
+# Flags that turn a read-looking command into a write or an exec: `--output`
+# and `--output-directory` write any path (git log, git diff, git
+# format-patch), `--pre` runs any program over each file (rg), and `--exec` and
+# `--upload-pack` run any program on the remote end (git ls-remote, git fetch;
+# git also takes `--upload-p`, `--upload-pa` and `--upload-pac`). Whole flags
+# only, as `--flag value` or `--flag=value`, so `--output-format`, `--prefix`,
+# `--pre-release` and `--exec-path` do not trip it. Checked in the command's
+# name and in its own recipe or script body (reference.md section 1).
+UNSAFE_FLAG = re.compile(
+    r"(?<![\w-])--(output|output-directory|pre|exec|upload-p(?:a(?:c(?:k)?)?)?)(?![\w-])")
+# Any `--output` counts, even as a format (`kubectl get --output json`): the
+# scout can't tell a format from a path, or a read from a write
+# (`aws dynamodb put-item --output json`), so it fails closed.
+UNSAFE_FLAG_WHY = {
+    "output": "writes any path",
+    "output-directory": "writes any path",
+    "pre": "runs any program",
+    "exec": "runs any program",
+}
+
 LONG_BODY = [
     r"--watch\b", r"-w\b\s*$", r"\bnodemon\b", r"\bvite\b(?!\s+build)",
     r"next\s+dev", r"ng\s+serve", r"runserver", r"\bwatchexec\b",
@@ -169,10 +201,21 @@ INSPECT_NAME = {
 }
 
 
+def _unsafe_flag(text: str):
+    """The first UNSAFE_FLAG match in *text*, or None."""
+    return UNSAFE_FLAG.search(text)
+
+
 def _classify_text(name: str, body: str = ""):
     """Return (class, reason). `name` is the human-facing command/target name;
     `body` is the recipe/script value used for high-precision unsafe signals."""
     body_l = (body or "").lower()
+
+    m = _unsafe_flag(name.lower()) or _unsafe_flag(body_l)
+    if m:
+        flag = m.group(1)
+        why = UNSAFE_FLAG_WHY.get(flag, "runs any program")
+        return DESTRUCTIVE, "passes --%s (%s)" % (flag, why)
 
     for pat in SENSITIVE_BODY:
         m = re.search(pat, body_l)
@@ -181,6 +224,9 @@ def _classify_text(name: str, body: str = ""):
     for pat in REMOTE_BODY:
         m = re.search(pat, body_l)
         if m:
+            return REMOTE, "body matched /%s/" % pat
+    for pat in REMOTE_BODY_CASED:
+        if re.search(pat, body or ""):
             return REMOTE, "body matched /%s/" % pat
     for pat in DESTRUCTIVE_BODY:
         m = re.search(pat, body_l)
@@ -252,22 +298,27 @@ def _unwrap_token(tok: str):
     """Normalize one permissions.allow token to a shell prefix.
     Handles Cursor CLI Shell(...) and Claude Bash(...) wrappers.
 
-    Bash(cmd:*) and Shell(cmd:*) are prefixes. Shell(cmd:args) with a literal
+    Bash(cmd:*), Bash(cmd *) and Shell(cmd:*) are prefixes; Bash(cmd) with no
+    wildcard covers only `cmd` (an _Exact entry), as Claude Code reads it, and
+    any other Bash glob covers nothing. Shell(cmd:args) with a literal
     args part covers only `cmd args`, so it returns an _Exact entry; with a
     glob in args it returns None (covers nothing here, so the scan keeps
     proposing the narrower command). Returns None for non-shell tokens
-    (Mcp(...), mcp__..., WebFetch(...))."""
+    (Mcp(...), mcp__..., WebFetch(...)) and for a bare, unwrapped string:
+    neither Cursor CLI nor Claude Code reads one (the installer wrote them
+    before r1.f1), so it covers nothing and the scout proposes the wrapped
+    rule."""
     tok = tok.strip()
     if not tok:
         return None
-    if tok.startswith(("Mcp(", "mcp__", "WebFetch(")):
-        return None
     m = re.match(r"^(?:(Shell)|Bash)\((.*)\)$", tok)
-    inner = (m.group(2) if m else tok).strip()
+    if not m:
+        return None
+    inner = m.group(2).strip()
     if inner.endswith(":*"):
         inner = inner[:-2].strip()
         return inner or None
-    if m and m.group(1) and ":" in inner:
+    if m.group(1) and ":" in inner:
         base, args = inner.split(":", 1)
         base, args = base.strip(), args.strip()
         if not base:
@@ -277,6 +328,14 @@ def _unwrap_token(tok: str):
         if any(c in args for c in "*?"):
             return None
         return _Exact("%s %s" % (base, args))
+    if not m.group(1):
+        # Claude Code: `Bash(cmd *)` is a prefix like `Bash(cmd:*)`; any other
+        # glob covers nothing here; `Bash(cmd)` with none matches only `cmd`.
+        if inner.endswith(" *") and "*" not in inner[:-2]:
+            return inner[:-2].strip() or None
+        if "*" in inner:
+            return None
+        return _Exact(inner) if inner else None
     return inner or None
 
 
