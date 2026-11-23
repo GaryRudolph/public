@@ -145,7 +145,7 @@ class UnsafeFlags(unittest.TestCase):
         f.write_text(text)
 
     def scan_repo(self):
-        res = scan.analyze_repo(self.repo, {h: [] for h in scan.HARNESSES}, self.repo)
+        res = scan.analyze_repo(self.repo, {h: [[]] for h in scan.HARNESSES}, self.repo)
         proposed = {e["segment"]: e["class"] for e in res["group1"] + res["group2"]}
         excluded = {e["segment"]: e["class"] for e in res["excluded"]}
         unclassified = {e["segment"] for e in res["unclassified"]}
@@ -268,7 +268,7 @@ class Unwrap(unittest.TestCase):
                 json.dumps({"permissions": {"allow": ["make test"]}}))
             (repo / ".cursor" / "permissions.json").write_text(
                 json.dumps({"terminalAllowlist": ["make test"]}))
-            res = scan.analyze_repo(repo, {h: [] for h in scan.HARNESSES}, repo)
+            res = scan.analyze_repo(repo, {h: [[]] for h in scan.HARNESSES}, repo)
             entry = {e["segment"]: e for e in res["group1"] + res["group2"]}["make test"]
             self.assertIn("cursor_cli", entry["missing_harnesses"])
             self.assertIn("claude", entry["missing_harnesses"])
@@ -286,7 +286,7 @@ class Unwrap(unittest.TestCase):
                 json.dumps({"permissions": {"allow": ["Shell(make:test)"]}}))
             (repo / ".claude" / "settings.json").write_text(
                 json.dumps({"permissions": {"allow": ["Bash(make test:*)"]}}))
-            res = scan.analyze_repo(repo, {h: [] for h in scan.HARNESSES}, repo)
+            res = scan.analyze_repo(repo, {h: [[]] for h in scan.HARNESSES}, repo)
             entry = {e["segment"]: e for e in res["group1"] + res["group2"]}["make test"]
             self.assertNotIn("cursor_cli", entry["missing_harnesses"])
             self.assertNotIn("claude", entry["missing_harnesses"])
