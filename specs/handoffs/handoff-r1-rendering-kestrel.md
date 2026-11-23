@@ -41,8 +41,6 @@
 - `personal-ship-pr`: PR description gets s1's design note, one `Fixes r1.f<K>` line each for f1, f4, f9, `Part of #45`, and `Queue: r1-fixes-lantern 3`. Remove this handoff, the plan and the design note before marking ready.
 - Then re-read #45's body, tick only f1, f4, f9 and append the PR link to each.
 
-## Pending question (verbatim)
+## Owner decision (2026-11-23)
 
-Security call on r1.f1 (both /code-review and /security-review): `Bash(<entry>:*)` makes ~160 shell prefixes live in Claude Code for the first time, including ones that run programs or write any path (`git fetch --upload-pack=`, `rg --pre`, `make test x --eval=`, `git log --output=`, `sort -o`, `uniq IN OUT`, `tree -o`) and network-capable ones (`git fetch <url>`, `helm template`, `kubectl`). Cursor CLI one-word rules (`Shell(rg)`, `Shell(sort)`, ...) take any arguments. Options: (a) exact allows in both tools: Claude Code `Bash(<entry>)`, Cursor CLI exact multi-word, no Cursor CLI rule for one-word entries; denies stay prefixes; (b) keep prefixes and prune the meta of exec/write/network entries; (c) render only denies for Claude Code and Cursor CLI in this PR and decide allows separately. Recommended: (a).
-
-Review tally so far: /code-review high: 2 important (1 to the Owner, 1 fixed), 4 nits (2 fixed, 1 declined: no bok port per the walk; 1 at ready: handoffs removed), 1 pre-existing (fixed). /security-review: 3 findings, same cause as the Owner's question.
+The f1 security question was answered "Exact allows": Claude Code allows `Bash(<entry>)`, Cursor CLI no one-word allow rules, denies stay prefixes. Applied in the commit after c04c0e1.
