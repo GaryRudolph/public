@@ -12,7 +12,7 @@ writes a deny rule, never touches a harness that already covers the command.
 Supported targets
 -----------------
   cursor_ide  <repo>/.cursor/permissions.json  ->  terminalAllowlist  (raw prefix strings)
-  cursor_cli  <repo>/.cursor/cli.json          ->  permissions.allow  (Shell(<base>) / Shell(<base>:<args>) tokens)
+  cursor_cli  <repo>/.cursor/cli.json          ->  permissions.allow  (exact Shell(<base>:<args>) tokens; none for one word)
   claude      <repo>/.claude/settings.json     ->  permissions.allow  (exact Bash(<cmd>) tokens)
   gemini      <repo>/.gemini/policies/<name>.toml  additive [[rule]] blocks
                   toolName = "run_shell_command"
