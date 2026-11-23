@@ -366,8 +366,13 @@ def _toml_strings(value: str):
     """Extract the string literal(s) from a TOML value that is either a basic
     string or an inline array of basic strings (single-line)."""
     out = []
-    for m in re.finditer(r'"((?:[^"\\]|\\.)*)"', value):
-        s = m.group(1).replace('\\"', '"').replace("\\\\", "\\")
+    for m in re.finditer(r'"(?:[^"\\]|\\.)*"', value):
+        # TOML basic-string escapes are JSON's (plus \e and \U, which no
+        # command needs), so json.loads decodes \t, \n and \uXXXX too.
+        try:
+            s = json.loads(m.group(0))
+        except ValueError:
+            continue
         if s:
             out.append(s)
     return out
@@ -422,15 +427,15 @@ def gemini_allow_prefixes_from_text(text: str):
             continue
         crm = re.search(r"(?m)^\s*commandRegex\s*=\s*(.+?)\s*$", b)
         if crm:
-            # One basic string, decoded as JSON: TOML basic-string escapes are
-            # JSON's, and the installer writes the value with jq's tojson.
-            try:
-                rx = json.loads(crm.group(1))
-            except ValueError:
-                continue
-            exact = gemini_exact_from_regex(rx) if isinstance(rx, str) else None
-            if exact is not None:
-                out.append(exact)
+            # One string: a basic string (the installer writes it with jq's
+            # tojson) or a literal one, with anything after it (a comment)
+            # ignored.
+            lit = re.match(r"'([^']*)'", crm.group(1))
+            rxs = [lit.group(1)] if lit else _toml_strings(crm.group(1))[:1]
+            for rx in rxs:
+                exact = gemini_exact_from_regex(rx)
+                if exact is not None:
+                    out.append(exact)
     return out
 
 

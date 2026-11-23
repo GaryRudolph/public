@@ -437,6 +437,19 @@ priority = 900
         self.assertEqual(scan.covered_by("git log", got), (True, "git log", "exact"))
         self.assertEqual(scan.covered_by("make lint fix", got), (True, "make lint", "broad"))
 
+    def test_comment_and_literal_string_still_read(self):
+        text = (
+            '[[rule]]\ncommandRegex = "git log\\"" # mine\ndecision = "allow"\n'
+            "[[rule]]\ncommandRegex = 'git diff\"'\ndecision = \"allow\"\n"
+        )
+        got = scan.gemini_allow_prefixes_from_text(text)
+        self.assertEqual(got, ["git log", "git diff"])
+        self.assertTrue(all(isinstance(g, scan._Exact) for g in got))
+
+    def test_prefix_escapes_decode(self):
+        self.assertEqual(scan._toml_strings('"printf a\\tb"'), ["printf a\tb"])
+        self.assertEqual(scan._toml_strings('["a \\"b\\"", "c\\\\"]'), ['a "b"', "c\\"])
+
     def test_other_regexes_cover_nothing(self):
         self.assertIsNone(scan.gemini_exact_from_regex('git (status|diff)"'))
         self.assertIsNone(scan.gemini_exact_from_regex("git log"))

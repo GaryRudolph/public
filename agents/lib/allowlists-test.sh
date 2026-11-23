@@ -696,6 +696,34 @@ grep -qF 'commandRegex = "ls \\*\\.md\""' "$GTOML23B" || fail "T23b: '*' not esc
 grep -qF 'commandRegex = "npm run \\\\\"a b\\\\\"\""' "$GTOML23B" || fail "T23b: quoted args not escaped"
 
 # ---------------------------------------------------------------------------
+# T23c: the rendered regex matches only its entry, under Gemini's own search:
+# `\x00"command":"(?:<re>)` over the sorted args, each top-level pair wrapped
+# in \0 (gemini-cli packages/core/src/policy/{utils,stable-stringify}.ts).
+# Python's re agrees with RE2 on these escapes.
+# ---------------------------------------------------------------------------
+printf '[T23c] gemini allow regex matches the entry and nothing longer\n'
+META23C="$TEST_DIR/meta/meta23c.json"
+printf '%s\n' '{"shell":{"allow":["git log","make test.x","npm run \"a b\"","echo a\\b"]}}' > "$META23C"
+H23C=$(mk_home t23c)
+run_al "$H23C" "$META23C" install >/dev/null
+python3 -I - "$H23C/.gemini/policies/${ORG}-managed.toml" <<'ENDPY' || fail "T23c: a rendered regex matched the wrong commands"
+import json, re, sys
+rxs = [json.loads(v) for v in re.findall(r'(?m)^commandRegex = (".*")$', open(sys.argv[1]).read())]
+def args(cmd):
+    a = {"command": cmd, "description": "d", "dir_path": "/w", "is_background": False}
+    return "{" + ",".join("\0" + json.dumps(k) + ":" + json.dumps(v, ensure_ascii=False, separators=(",", ":")) + "\0"
+                          for k, v in sorted(a.items())) + "}"
+def allowed(cmd):
+    return any(re.search('\x00"command":"(?:' + rx + ")", args(cmd)) for rx in rxs)
+want = {"git log": True, "git log --output=x": False, "git logx": False, 'git log"': False,
+        "make test.x": True, "make testxx": False, 'npm run "a b"': True, 'npm run "a b" c': False,
+        "echo a\\b": True, "echo a\\bc": False, "echo a\\": False}
+bad = [c for c, ok in want.items() if allowed(c) != ok]
+print("\n".join("  wrong: %r" % c for c in bad), file=sys.stderr)
+sys.exit(1 if bad or len(rxs) != 4 else 0)
+ENDPY
+
+# ---------------------------------------------------------------------------
 # T24: Gemini deny mapping + idempotence
 # ---------------------------------------------------------------------------
 printf '[T24] gemini deny mapping + idempotence\n'
