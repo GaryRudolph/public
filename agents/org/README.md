@@ -36,8 +36,8 @@ On a push to `main` that touches the generated file or `settings.json`,
 runs [`settings_issue.py`](settings_issue.py) against `main`'s tip:
 
 - It pins the last commit that changed the generated file.
-- An org has that content when an issue closed as **completed** pinned the
-  same content and listed the org. Issues closed as not planned never count.
+- An org has that content when the newest issue closed as **completed** that
+  lists it pinned the same content. Issues closed as not planned never count.
 - If some orgs don't have it, it opens one `org-settings` issue for them: the
   JSON to copy, a checkbox per org, and where to paste. It replaces an open
   issue that covered something else, and leaves one that already covers this.
@@ -57,7 +57,8 @@ writes the issue to the job summary and files, closes and posts nothing.
 
 - The Slack app is the one lolay/infrastructure posts with (`chat:write` only),
   already in `#infrastructure` (`C0CHEJ64U93`, in the workflow).
-- Its bot token is `SLACK_BOT_TOKEN` in this repo's `org-settings`
-  environment, whose deployment branches are limited to `main`, so no other
-  branch's workflow can read it.
+- Create the `org-settings` environment in this repo's settings, limit its
+  deployment branches to `main`, and put the app's bot token there as
+  `SLACK_BOT_TOKEN`, so no other branch's workflow can read it. Without that,
+  the first run creates the environment with no branch limit.
 - The workflow creates the `org-settings` label on its first issue.

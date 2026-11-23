@@ -143,6 +143,16 @@ class Run(unittest.TestCase):
         o = self.go(setting(LOLAY, NEXT), FakeGit({A: V1, B: V1}, A), gh)
         self.assertEqual(o.action, "skip")
 
+    def test_a_revert_asks_again_when_the_org_pasted_something_newer(self) -> None:
+        # Pasted V1 (#5), then V2 (#6); main is back on V1: Lolay has V2.
+        gh = FakeGitHub(closed=[
+            raw(5, C, ["Lolay"], "COMPLETED", "2026-11-01"),
+            raw(6, B, ["Lolay"], "COMPLETED", "2026-11-02"),
+        ])
+        o = self.go(setting(), FakeGit({A: V1, B: V2, C: V1}, A), gh)
+        self.assertEqual((o.action, o.orgs, o.changed), ("file", ["Lolay"], True))
+        self.assertIn(f"compare/{B}...{A}", gh.created[0][1])
+
     def test_not_planned_never_counts(self) -> None:
         gh = FakeGitHub(closed=[raw(5, A, ["Lolay"], "NOT_PLANNED", "2026-11-01")])
         o = self.go(setting(), FakeGit({A: V1}, A), gh)
@@ -206,9 +216,11 @@ class Slack(unittest.TestCase):
         )
         self.assertEqual(
             si.slack_text(s, "GaryRudolph/public", self.outcome(False, ["Next & Co", "<b>"])),
-            "GaryRudolph/public: Claude Code managed settings for a new org. Paste into Next &amp; Co, &lt;b&gt;: "
+            "GaryRudolph/public: Claude Code managed settings for new orgs. Paste into Next &amp; Co, &lt;b&gt;: "
             "https://github.com/GaryRudolph/public/issues/100",
         )
+        self.assertIn("for a new org. Paste into Next &amp; Co:",
+                      si.slack_text(s, "GaryRudolph/public", self.outcome(False, ["Next & Co"])))
 
     def test_post_sends_the_text_to_the_channel(self) -> None:
         sent = []

@@ -11,8 +11,8 @@ and a first run all end in the same state.
 
 What an org has is read from the issues themselves: every issue closed as
 completed records the content it pinned and the orgs it listed. An org has the
-current content when one of those issues pinned the same content and listed
-it. So a change to the file asks for every org, and an org added to the list
+current content when the newest of those issues that lists it pinned the same
+content. So a change to the file asks for every org, and an org added to the list
 with no change asks for that org alone. Issues closed as not planned
 (superseded, or no longer needed) never count.
 
@@ -244,10 +244,15 @@ def run(setting: Setting, root: Path, repo: str, sha: str, git, github, dry_run:
         return Outcome("skip", f"{setting.content} doesn't exist at {sha[:7]}")
 
     done = completed(github.issues("closed"), setting.id)
+    # Each org's latest paste is the newest completed issue that lists it; an
+    # older issue that happens to match (a revert) says nothing about today.
     have: set[str] = set()
+    seen: set[str] = set()
     for issue in done:
-        if same(content, git.file_at(issue.sha, setting.content)):
-            have.update(issue.orgs)
+        fresh = [org for org in issue.orgs if org not in seen]
+        seen.update(fresh)
+        if fresh and same(content, git.file_at(issue.sha, setting.content)):
+            have.update(fresh)
     due = [o for o in setting.orgs if o.name not in have]
     changed = not have
     baseline = done[0] if done else None
@@ -300,7 +305,7 @@ def slack_escape(text: str) -> str:
 def slack_text(setting: Setting, repo: str, outcome: Outcome) -> str:
     """One line that says which repo and what to do, since other repos post as
     the same Slack app. Slack links the bare URL itself."""
-    what = "changed" if outcome.changed else "for a new org"
+    what = "changed" if outcome.changed else ("for a new org" if len(outcome.orgs) == 1 else "for new orgs")
     orgs = ", ".join(outcome.orgs)
     return slack_escape(f"{repo}: {setting.name} {what}. Paste into {orgs}: ") + outcome.issue.url
 

@@ -20,7 +20,7 @@ def meta_check:
       else . end
     | $v | to_entries[] as {key: $l, value: $a}
     | if ($a | type) != "array" then fail($k + "." + $l + " must be an array")
-      elif any($a[]; type != "string" or . == "") then fail($k + "." + $l + " must hold non-empty strings")
+      elif any($a[]; type != "string" or test("^\\s*$")) then fail($k + "." + $l + " must hold non-empty strings")
       else . end
     | empty;
 

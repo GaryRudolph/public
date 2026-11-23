@@ -15,7 +15,8 @@ set -euo pipefail
 
 ORG_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 AGENTS_DIR="$(dirname "$ORG_DIR")"
-: "${ALLOWLISTS_SRC:=$AGENTS_DIR/allowlists/personal.json}"
+# Always the canonical file, whatever ALLOWLISTS_SRC the shell exports.
+SRC="$AGENTS_DIR/allowlists/personal.json"
 BASE="$ORG_DIR/claude-managed-base.json"
 OUT="$ORG_DIR/claude-managed-settings.json"
 
@@ -23,7 +24,7 @@ command -v jq >/dev/null 2>&1 || { echo "render.sh: jq is required" >&2; exit 2;
 
 render() {
     jq -S "$(cat "$AGENTS_DIR/lib/allowlist.jq")"'
-        (meta_check), claude_permissions' "$ALLOWLISTS_SRC" \
+        (meta_check), claude_permissions' "$SRC" \
         | jq -S -s '.[0] * .[1]' "$BASE" - \
         | jq 'if has("settings-commit")
               then del(."settings-commit") + {"settings-commit": ."settings-commit"}

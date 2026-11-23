@@ -1333,7 +1333,8 @@ i45=0
 for bad in '{"shell":{"allow":["ls"]},"shel":{"allow":["rm"]}}' \
            '{"read":{"allow":["~/x"]}}' \
            '{"shell":{"allow":"ls"}}' \
-           '{"mcp":{"allow":[""]}}'; do
+           '{"mcp":{"allow":[""]}}' \
+           '{"webfetch":{"allow":["  "]}}'; do
     i45=$((i45 + 1))
     M45="$TEST_DIR/meta/t45-$i45.json"
     printf '%s\n' "$bad" > "$M45"
