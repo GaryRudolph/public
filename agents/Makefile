@@ -48,8 +48,9 @@ MAKEFILE_LABEL    ?= ~/Projects/personal/public/agents/Makefile
 # Claude Code config dirs the Claude targets manage: colon-separated absolute
 # paths (a space in a path is fine). Each gets its own CLAUDE.md block, skills
 # and commands, allowlist (settings.json, sidecars, history) and local
-# marketplace. Set it in agents/local.mk to match the CLAUDE_CONFIG_DIR your
-# shell and launchers route to, e.g.
+# marketplace. Set it in agents/local.mk, or export it from the shell (the
+# allowlist scout reads the exported list too), to match the CLAUDE_CONFIG_DIR
+# your shell and launchers route to, e.g.
 #   CLAUDE_CONFIG_DIRS := $(HOME)/.claude-lolay:$(HOME)/.claude-agerpoint
 # `make status` names any ~/.claude* dir that isn't listed.
 CLAUDE_CONFIG_DIRS ?= $(HOME)/.claude

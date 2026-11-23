@@ -174,6 +174,17 @@ work, plus `~/.claude-<slug>` for each launcher profile.
 CLAUDE_CONFIG_DIRS := $(HOME)/.claude-lolay:$(HOME)/.claude-agerpoint
 ```
 
+Or export it from the shell instead, which the Makefile reads when `local.mk`
+doesn't set it. `dotfiles/fish/conf.d/65-aliases.apps.fish` and
+`dotfiles/zshrc` do that next to the routing, and the allowlist scout reads
+the same exported list (plus the session's own `CLAUDE_CONFIG_DIR`), so in
+those shells `local.mk` needs no copy. A shell without the export falls back
+to `~/.claude`. The agents tests unset it, so they never touch the real dirs:
+
+```fish
+set -gx CLAUDE_CONFIG_DIRS "$HOME/.claude-lolay:$HOME/.claude-agerpoint"
+```
+
 Every Claude target loops over the list, and each dir keeps its own
 `CLAUDE.md` block, skills and commands links, `settings.json` with its
 sidecars and `.history/`, and local marketplace and plugin installs.
