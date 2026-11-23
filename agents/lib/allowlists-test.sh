@@ -1570,6 +1570,11 @@ run_al "$H51C" "$META" install >/dev/null || fail "T51: install failed with a li
 [ -z "$(ls -A "$TEST_DIR/t51c.outside")" ] || fail "T51: a backup landed in the target of a .history link"
 [ -f "$H51C/.claude/.history/settings.json.2" ] && [ ! -L "$H51C/.claude/.history/settings.json.2" ] \
     || fail "T51: .history/settings.json.2 is not the shifted backup"
+# diff names the sidecars it would remove when settings.json holds none of ours.
+H51E=$(mk_home t51e)
+seed_old_claude "$H51E/.claude" "$META" '' '{"model":"opus"}'
+printf '{"model":"opus"}\n' > "$H51E/.claude/settings.json"
+case "$(run_al "$H51E" "$META" diff 2>&1)" in *"no $ORG entries left"*".settings.passthrough.json"*) ;; *) fail "T51: diff is silent when settings.json holds none of ours" ;; esac
 # diff names a settings.json it can't read instead of saying nothing.
 H51D=$(mk_home t51d)
 seed_old_claude "$H51D/.claude" "$META"

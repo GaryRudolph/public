@@ -1452,6 +1452,12 @@ diff_claude_dir() {
     elif [ "$n" -gt 0 ]; then
         printf '%s ~ differs (%s entries to remove):%s\n' "$pretty" "$ORG" "$(side_label "$dir")"
         diff -u "$live" "$new" || true
+    else
+        printf '%s ~ no %s entries left; sidecars to remove:%s\n' "$pretty" "$ORG" "$(side_label "$dir")"
+        printf '  %s\n' "$(pretty_path "$ours")"
+        if [ "$alone" = "1" ]; then
+            claude_feed_sidecars "$dir" | while IFS= read -r f; do printf '  %s\n' "$(pretty_path "$f")"; done
+        fi
     fi
     rm -f "$new"
 }
