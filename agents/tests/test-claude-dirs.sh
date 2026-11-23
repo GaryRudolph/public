@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # CLAUDE_CONFIG_DIRS through the real Makefile, in a sandboxed $HOME: two dirs
-# install and uninstall together (block, skills, allowlist, local marketplace),
+# install and uninstall together (block, skills, local marketplace; install
+# clears what an earlier version's allowlist left in each, and writes none),
 # `make status` names a ~/.claude* dir the list leaves out, and a bad list is
 # refused. Needs bash, make, jq and python3 (the installers' own floor).
 #
@@ -33,8 +34,6 @@ mkdir -p "$A" "$B" "$H/.cursor" "$SB/projects" "$SB/bin" "$SB/commands"
 printf 'a slash command\n' > "$SB/commands/fake-command.md"
 printf 'notes a\n' > "$A/CLAUDE.md"
 printf 'notes b\n' > "$B/CLAUDE.md"
-
-has_allow() { jq -e '(.permissions.allow | length) > 0' "$1" >/dev/null 2>&1; }
 
 snapshot() {
     (cd "$H" && find . -print | LC_ALL=C sort | while IFS= read -r p; do
@@ -73,8 +72,7 @@ for d in "$A" "$B"; do
     check "$n: its own notes kept" grep -qF "notes ${n#.claude-}" "$d/CLAUDE.md"
     check "$n: skills linked" test -L "$d/skills/$SKILL"
     check "$n: command linked" test -L "$d/commands/fake-command.md"
-    check "$n: settings.json has the allowlist" has_allow "$d/settings.json"
-    check "$n: own sidecar" test -f "$d/.settings.$ORG-managed.json"
+    check "$n: no settings.json written (managed settings carry the rules)" test ! -e "$d/settings.json"
 done
 check "the default ~/.claude was not created" test ! -e "$H/.claude"
 
@@ -97,8 +95,6 @@ check "listed .claude-a is managed"    grep -qE '\.claude-a +OK managed' "$SB/st
 check "listed .claude-b is managed"    grep -qE '\.claude-b +OK managed' "$SB/status.out"
 check "listed dirs are not flagged"    test "$(grep -c 'not managed' "$SB/status.out")" = 1
 check "a ~/.claude.json file is not a dir" test "$(grep -c 'claude.json' "$SB/status.out")" = 0
-check "allowlists status reports both dirs" \
-    test "$(grep -cE '\.claude-[ab]/settings.json' "$SB/status.out")" -ge 2
 check "blocks status reports both dirs" \
     test "$(grep -cE '\.claude-[ab]/CLAUDE.md' "$SB/status.out")" -ge 2
 

@@ -68,6 +68,12 @@ cat > "$META2" <<'ENDJSON'
 }
 ENDJSON
 
+# Claude Code's rules as the managed settings render them (agents/org/render.sh):
+# allowlist.jq's claude_permissions on a meta. The installer no longer writes them.
+claude_render() {
+    jq -S "$(cat "$AGENTS_DIR/lib/allowlist.jq")"'claude_permissions' "$1"
+}
+
 # Create a fresh home-like directory with .cursor/, .claude/, and .gemini/ subdirs.
 mk_home() {
     local d="$TEST_DIR/homes/$1"
@@ -143,13 +149,12 @@ run_al "$H" "$META" install >/dev/null
 
 [ -f "$H/.cursor/permissions.json" ] || fail "T01: permissions.json not created"
 [ -f "$H/.cursor/cli-config.json"  ] || fail "T01: cli-config.json not created"
-[ -f "$H/.claude/settings.json"    ] || fail "T01: settings.json not created"
 [ ! -d "$H/.cursor/.history"       ] || fail "T01: .cursor/.history/ must not be created on first install"
-[ ! -d "$H/.claude/.history"       ] || fail "T01: .claude/.history/ must not be created on first install"
+# Claude Code's rules come from managed settings: nothing lands in its config dir.
+[ -z "$(ls -A "$H/.claude")"       ] || fail "T01: install wrote into .claude/: $(ls -A "$H/.claude")"
 # Rendered files must be valid JSON.
 jq . "$H/.cursor/permissions.json" >/dev/null 2>&1 || fail "T01: permissions.json invalid JSON"
 jq . "$H/.cursor/cli-config.json"  >/dev/null 2>&1 || fail "T01: cli-config.json invalid JSON"
-jq . "$H/.claude/settings.json"    >/dev/null 2>&1 || fail "T01: settings.json invalid JSON"
 
 # ---------------------------------------------------------------------------
 # T02: Idempotence — second install is a no-op (no new .history entries)
@@ -157,11 +162,9 @@ jq . "$H/.claude/settings.json"    >/dev/null 2>&1 || fail "T01: settings.json i
 printf '[T02] idempotence\n'
 snap_p=$(cat "$H/.cursor/permissions.json")
 snap_c=$(cat "$H/.cursor/cli-config.json")
-snap_s=$(cat "$H/.claude/settings.json")
 run_al "$H" "$META" install >/dev/null
 [ "$(cat "$H/.cursor/permissions.json")" = "$snap_p" ] || fail "T02: permissions.json changed"
 [ "$(cat "$H/.cursor/cli-config.json")"  = "$snap_c" ] || fail "T02: cli-config.json changed"
-[ "$(cat "$H/.claude/settings.json")"    = "$snap_s" ] || fail "T02: settings.json changed"
 [ ! -d "$H/.cursor/.history"             ] || fail "T02: .history/ created by idempotent install"
 
 # ---------------------------------------------------------------------------
@@ -177,8 +180,8 @@ run_al "$H3" "$META" install >/dev/null
 [ -f "$H3/.cursor/.history/permissions.json.1"        ] || fail "T03: backup .1 not created"
 old=$(jq -r '.terminalAllowlist[0]' "$H3/.cursor/.history/permissions.json.1")
 [ "$old" = "prior-entry"                              ] || fail "T03: backup does not contain old content (got: $old)"
-# settings.json had no prior file → no claude .history/ yet.
-[ ! -d "$H3/.claude/.history"                         ] || fail "T03: claude .history/ created without prior file"
+# Nothing is written to the Claude config dir, so no claude .history/ either.
+[ ! -d "$H3/.claude/.history"                         ] || fail "T03: claude .history/ created"
 
 # ---------------------------------------------------------------------------
 # T04: First-install conflict guardrail — abort when .history/.1 exists with
@@ -298,12 +301,6 @@ has_pytest=$(jq '.terminalAllowlist | contains(["pytest"])'  "$H8/.cursor/permis
 [ "$has_git"    = "true" ] || fail "T08: agerpoint entry missing after coexistence install"
 [ "$has_pytest" = "true" ] || fail "T08: personal entry missing after coexistence install"
 
-# Claude settings should also have both orgs' MCP entries.
-has_notion=$(jq '.permissions.allow | contains(["mcp__notion__*"])' "$H8/.claude/settings.json")
-has_miro=$(jq   '.permissions.allow | contains(["mcp__miro-mcp__*"])' "$H8/.claude/settings.json")
-[ "$has_notion" = "true" ] || fail "T08: agerpoint MCP entry missing from settings.json"
-[ "$has_miro"   = "true" ] || fail "T08: personal MCP entry missing from settings.json"
-
 # Uninstall $ORG only — testpeer entries must survive.
 run_al "$H8" "$META" uninstall >/dev/null
 
@@ -411,7 +408,6 @@ run_al "$H12" "$TEST_DIR/meta/v2.json" install >/dev/null
 run_al "$H12" "$META" clean >/dev/null
 
 [ ! -d "$H12/.cursor/.history" ] || fail "T12: .cursor/.history/ not removed by clean"
-[ ! -d "$H12/.claude/.history" ] || fail "T12: .claude/.history/ not removed by clean"
 # Live files must still exist.
 [ -f "$H12/.cursor/permissions.json" ] || fail "T12: permissions.json removed by clean (must not be)"
 
@@ -467,35 +463,38 @@ bare=$(jq '[.permissions.allow[], .permissions.deny[] | select(test("^(Shell|Mcp
 [ "$bare" = "0" ] || fail "T14: bare (unwrapped) entry in cli-config.json permissions"
 
 # ---------------------------------------------------------------------------
-# T15: Claude format translation — server:* renders mcp__server__*, server:tool
+# T15: Claude format translation (allowlist.jq's claude_permissions, which the
+#      managed settings render) — server:* renders mcp__server__*, server:tool
 #      renders mcp__server__tool (never a server wildcard), webfetch entries
-#      use WebFetch(domain:...) form.
+#      use WebFetch(domain:...) form. Cursor's forms come from the install.
 # ---------------------------------------------------------------------------
 printf '[T15] Claude format translation\n'
 H15=$(mk_home t15)
 run_al "$H15" "$META" install >/dev/null
+CC15="$TEST_DIR/t15.claude.json"
+claude_render "$META" > "$CC15"
 
-has_notion=$(jq '.permissions.allow | contains(["mcp__notion__*"])' "$H15/.claude/settings.json")
-has_slack=$(jq  '.permissions.allow | contains(["mcp__slack__*"])'  "$H15/.claude/settings.json")
+has_notion=$(jq '.permissions.allow | contains(["mcp__notion__*"])' "$CC15")
+has_slack=$(jq  '.permissions.allow | contains(["mcp__slack__*"])'  "$CC15")
 has_wf=$(jq     '.permissions.allow | contains(["WebFetch(domain:*.github.com)"])' \
-                "$H15/.claude/settings.json")
-has_deny=$(jq   '.permissions.deny  | index("Bash(rm -rf /:*)") != null' "$H15/.claude/settings.json")
+                "$CC15")
+has_deny=$(jq   '.permissions.deny  | index("Bash(rm -rf /:*)") != null' "$CC15")
 
-[ "$has_notion" = "true" ] || fail "T15: mcp__notion__* missing from settings.json"
-[ "$has_slack"  = "true" ] || fail "T15: mcp__slack__* missing from settings.json"
-[ "$has_wf"     = "true" ] || fail "T15: WebFetch(domain:*.github.com) missing from settings.json"
-[ "$has_deny"   = "true" ] || fail "T15: Bash(rm -rf /:*) deny missing from settings.json"
-has_allow=$(jq  '.permissions.allow | index("Bash(git status)") != null' "$H15/.claude/settings.json")
-[ "$has_allow"  = "true" ] || fail "T15: exact Bash(git status) allow missing from settings.json"
-bare=$(jq '[.permissions.allow[], .permissions.deny[] | select(test("^(Bash|mcp__|WebFetch)") | not)] | length' "$H15/.claude/settings.json")
-[ "$bare" = "0" ] || fail "T15: bare (unwrapped) entry in settings.json permissions"
+[ "$has_notion" = "true" ] || fail "T15: mcp__notion__* missing from the Claude render"
+[ "$has_slack"  = "true" ] || fail "T15: mcp__slack__* missing from the Claude render"
+[ "$has_wf"     = "true" ] || fail "T15: WebFetch(domain:*.github.com) missing from the Claude render"
+[ "$has_deny"   = "true" ] || fail "T15: Bash(rm -rf /:*) deny missing from the Claude render"
+has_allow=$(jq  '.permissions.allow | index("Bash(git status)") != null' "$CC15")
+[ "$has_allow"  = "true" ] || fail "T15: exact Bash(git status) allow missing from the Claude render"
+bare=$(jq '[.permissions.allow[], .permissions.deny[] | select(test("^(Bash|mcp__|WebFetch)") | not)] | length' "$CC15")
+[ "$bare" = "0" ] || fail "T15: bare (unwrapped) entry in the Claude render permissions"
 
 # A named tool renders per tool in Claude Code and Cursor CLI, and keeps its
 # server:tool form in Cursor IDE; it must not widen to the whole server (r1.f9).
-has_shot=$(jq '.permissions.allow | contains(["mcp__figma__get_screenshot"])' "$H15/.claude/settings.json")
-has_figma_all=$(jq '.permissions.allow | contains(["mcp__figma__*"])' "$H15/.claude/settings.json")
-[ "$has_shot" = "true" ]       || fail "T15: mcp__figma__get_screenshot missing from settings.json"
-[ "$has_figma_all" = "false" ] || fail "T15: figma:get_screenshot widened to mcp__figma__* in settings.json"
+has_shot=$(jq '.permissions.allow | contains(["mcp__figma__get_screenshot"])' "$CC15")
+has_figma_all=$(jq '.permissions.allow | contains(["mcp__figma__*"])' "$CC15")
+[ "$has_shot" = "true" ]       || fail "T15: mcp__figma__get_screenshot missing from the Claude render"
+[ "$has_figma_all" = "false" ] || fail "T15: figma:get_screenshot widened to mcp__figma__* in the Claude render"
 [ "$(jq '.permissions.allow | contains(["Mcp(figma:get_screenshot)"])' "$H15/.cursor/cli-config.json")" = "true" ] \
     || fail "T15: Mcp(figma:get_screenshot) missing from cli-config.json"
 [ "$(jq '.permissions.allow | contains(["Mcp(figma:*)"])' "$H15/.cursor/cli-config.json")" = "false" ] \
@@ -506,8 +505,8 @@ has_figma_all=$(jq '.permissions.allow | contains(["mcp__figma__*"])' "$H15/.cla
     || fail "T15: figma:get_screenshot widened to figma:* in permissions.json"
 
 # Raw colon-notation must NOT appear in the Claude output.
-raw=$(jq '.permissions.allow | map(select(test("^notion:"))) | length' "$H15/.claude/settings.json")
-[ "$raw" = "0" ] || fail "T15: raw 'notion:*' notation found in settings.json (should be mcp__notion__*)"
+raw=$(jq '.permissions.allow | map(select(test("^notion:"))) | length' "$CC15")
+[ "$raw" = "0" ] || fail "T15: raw 'notion:*' notation found in the Claude render (should be mcp__notion__*)"
 
 # ---------------------------------------------------------------------------
 # T16: Flock serialization — two concurrent installs both succeed without
@@ -534,7 +533,6 @@ wait "$PID2" || rc2=$?
 
 jq . "$H16/.cursor/permissions.json" >/dev/null 2>&1 || fail "T16: permissions.json corrupted"
 jq . "$H16/.cursor/cli-config.json"  >/dev/null 2>&1 || fail "T16: cli-config.json corrupted"
-jq . "$H16/.claude/settings.json"    >/dev/null 2>&1 || fail "T16: settings.json corrupted"
 
 # ---------------------------------------------------------------------------
 # T17: Uninstall removal path — REMOVE_HISTORY=yes purges .history/ on a
@@ -549,7 +547,6 @@ run_al "$H17" "$TEST_DIR/meta/v2.json" install >/dev/null
 REMOVE_HISTORY=yes run_al "$H17" "$TEST_DIR/meta/v2.json" uninstall >/dev/null
 
 [ ! -d "$H17/.cursor/.history" ] || fail "T17: .cursor/.history/ not removed with REMOVE_HISTORY=yes"
-[ ! -d "$H17/.claude/.history" ] || fail "T17: .claude/.history/ not removed with REMOVE_HISTORY=yes"
 
 # ---------------------------------------------------------------------------
 # Windows dual-pass tests (sandboxed WIN_HOME — no real WSL required)
@@ -580,10 +577,8 @@ cmp -s "$H18/.cursor/permissions.json" "$W18/.cursor/permissions.json" \
 cmp -s "$H18/.cursor/cli-config.json" "$W18/.cursor/cli-config.json" \
     || fail "T18: unix and Windows cli-config.json differ"
 
-[ -f "$H18/.claude/settings.json" ] || fail "T18: unix settings.json not created"
-[ -f "$W18/.claude/settings.json" ] || fail "T18: win settings.json not created"
-cmp -s "$H18/.claude/settings.json" "$W18/.claude/settings.json" \
-    || fail "T18: unix and Windows settings.json differ"
+[ ! -e "$H18/.claude/settings.json" ] || fail "T18: unix settings.json written"
+[ ! -e "$W18/.claude/settings.json" ] || fail "T18: win settings.json written"
 
 # ---------------------------------------------------------------------------
 # T19: Windows-side sidecar is created on install and removed on uninstall.
@@ -595,15 +590,11 @@ run_al_win "$H19" "$W19" "$META" install >/dev/null
 
 [ -f "$W19/.cursor/.permissions.${ORG}-managed.json" ] \
     || fail "T19: win .cursor permissions sidecar not created"
-[ -f "$W19/.claude/.settings.${ORG}-managed.json" ] \
-    || fail "T19: win .claude settings sidecar not created"
 
 run_al_win "$H19" "$W19" "$META" uninstall >/dev/null
 
 [ ! -f "$W19/.cursor/.permissions.${ORG}-managed.json" ] \
     || fail "T19: win .cursor permissions sidecar not removed on uninstall"
-[ ! -f "$W19/.claude/.settings.${ORG}-managed.json" ] \
-    || fail "T19: win .claude settings sidecar not removed on uninstall"
 
 # ---------------------------------------------------------------------------
 # T20: Windows-side .history/ rotates independently (per-dir counters).
@@ -789,9 +780,12 @@ run_al "$H30" "$META" clean >/dev/null
 # ---------------------------------------------------------------------------
 # T31 (r1.f12): a malformed live file halts install before anything is written.
 # ---------------------------------------------------------------------------
-printf '[T31] malformed live settings.json: nothing written, exit non-zero\n'
+printf '[T31] malformed settings.json left to clear: nothing written, exit non-zero\n'
 H31=$(mk_home t31)
 run_al "$H31" "$META" install >/dev/null
+# What an earlier version left: our sidecar beside a settings.json that no
+# longer parses. The cleanup reads both, so nothing may be written.
+claude_render "$META" > "$H31/.claude/.settings.${ORG}-managed.json"
 printf '{"model":"opus","permissions":{"allow":["x"],},}\n' > "$H31/.claude/settings.json"
 snap31() { (cd "$H31" && find . -type f -print | LC_ALL=C sort | while IFS= read -r p; do printf '%s %s\n' "$p" "$(cksum < "$p")"; done); }
 snap31 > "$TEST_DIR/t31.before"
@@ -805,11 +799,11 @@ case "$out31" in *"settings.json"*) ;; *) fail "T31: output does not name settin
 printf '[T31b] 0-byte sidecar: nothing written, exit non-zero\n'
 H31B=$(mk_home t31b)
 run_al "$H31B" "$META" install >/dev/null
-: > "$H31B/.claude/.settings.passthrough.json"
+: > "$H31B/.cursor/.cli-config.passthrough.json"
 rc=0
 run_al "$H31B" "$META" install >/dev/null 2>&1 || rc=$?
 [ "$rc" -ne 0 ] || fail "T31b: install exited 0 with a 0-byte sidecar"
-[ -s "$H31B/.claude/settings.json" ] || fail "T31b: settings.json was emptied"
+[ -s "$H31B/.cursor/cli-config.json" ] || fail "T31b: cli-config.json was emptied"
 
 # ---------------------------------------------------------------------------
 # T32 (r1.f11): an entry removed from the meta leaves the live file.
@@ -820,17 +814,19 @@ META32A="$TEST_DIR/meta/t32a.json"; META32B="$TEST_DIR/meta/t32b.json"
 printf '{"shell":{"allow":["git status","rm"],"deny":[]},"mcp":{"allow":[],"deny":[]},"read":{"deny":[]},"write":{"deny":[]},"webfetch":{"allow":[],"deny":[]}}\n' > "$META32A"
 printf '{"shell":{"allow":["git status"],"deny":[]},"mcp":{"allow":[],"deny":[]},"read":{"deny":[]},"write":{"deny":[]},"webfetch":{"allow":[],"deny":[]}}\n' > "$META32B"
 run_al "$H32" "$META32A" install >/dev/null
-[ "$(jq '.permissions.allow | index("Bash(rm)") | . != null' "$H32/.claude/settings.json")" = "true" ] \
-    || fail "T32: setup, rm not in settings.json"
+[ "$(jq '.terminalAllowlist | index("rm") | . != null' "$H32/.cursor/permissions.json")" = "true" ] \
+    || fail "T32: setup, rm not in permissions.json"
 run_al "$H32" "$META32B" install >/dev/null
-for f in "$H32/.claude/settings.json" "$H32/.cursor/permissions.json" "$H32/.cursor/cli-config.json"; do
-    grep -q '"rm"\|rm:\*\|Shell(rm\|Bash(rm)' "$f" && fail "T32: rm still live in $(basename "$f")"
+for f in "$H32/.cursor/permissions.json" "$H32/.cursor/cli-config.json"; do
+    grep -q '"rm"\|rm:\*\|Shell(rm' "$f" && fail "T32: rm still live in $(basename "$f")"
 done
-if [ -f "$H32/.claude/.settings.user-managed.json" ] && grep -q 'rm' "$H32/.claude/.settings.user-managed.json"; then
-    fail "T32: rm was saved as a user edit"
-fi
-[ "$(run_al "$H32" "$META32B" status 2>&1 | grep -c 'json OK current')" = "3" ] \
-    || fail "T32: status is not OK current on all three JSON targets after the removal"
+for f in "$H32/.cursor/.permissions.user-managed.json" "$H32/.cursor/.cli-config.user-managed.json"; do
+    if [ -f "$f" ] && grep -q 'rm' "$f"; then
+        fail "T32: rm was saved as a user edit in $(basename "$f")"
+    fi
+done
+[ "$(run_al "$H32" "$META32B" status 2>&1 | grep -c 'json OK current')" = "2" ] \
+    || fail "T32: status is not OK current on both JSON targets after the removal"
 
 # ---------------------------------------------------------------------------
 # T33 (r1.f13): reinstall after uninstall with history kept, and a second org.
@@ -844,6 +840,7 @@ REMOVE_HISTORY=no run_al "$H33" "$META" uninstall >/dev/null
 rc=0
 run_al "$H33" "$META" install >/dev/null 2>&1 || rc=$?
 [ "$rc" -eq 0 ] || fail "T33: reinstall after uninstall failed (exit $rc)"
+[ "$(cat "$H33/.claude/settings.json")" = '{"model":"opus"}' ] || fail "T33: settings.json was touched"
 
 printf '[T33b] second org first install after the first org re-rendered\n'
 H33B=$(mk_home t33b)
@@ -860,12 +857,12 @@ run_al_org "testpeer" "$H33B" "$META2" install >/dev/null 2>&1 || rc=$?
 # ---------------------------------------------------------------------------
 printf '[T34] ask, defaultMode, disableBypassPermissionsMode, additionalDirectories survive\n'
 H34=$(mk_home t34)
-cat > "$H34/.claude/settings.json" <<'ENDJSON'
+cat > "$H34/.cursor/cli-config.json" <<'ENDJSON'
 {"model":"opus","permissions":{"allow":[],"ask":["Bash(git push:*)"],"defaultMode":"acceptEdits","disableBypassPermissionsMode":"disable","additionalDirectories":["/tmp/extra"]}}
 ENDJSON
 run_al "$H34" "$META" install >/dev/null
 run_al "$H34" "$META" install >/dev/null
-S34="$H34/.claude/settings.json"
+S34="$H34/.cursor/cli-config.json"
 [ "$(jq -c '.permissions.ask' "$S34")" = '["Bash(git push:*)"]' ] || fail "T34: ask lost"
 [ "$(jq -r '.permissions.defaultMode' "$S34")" = "acceptEdits" ] || fail "T34: defaultMode lost"
 [ "$(jq -r '.permissions.disableBypassPermissionsMode' "$S34")" = "disable" ] || fail "T34: disableBypassPermissionsMode lost"
@@ -874,9 +871,9 @@ S34="$H34/.claude/settings.json"
 
 printf '[T34b] a non-object permissions value is dropped, not merged back\n'
 H34B=$(mk_home t34b)
-printf '{"model":"opus","permissions":null}\n' > "$H34B/.claude/settings.json"
+printf '{"model":"opus","permissions":null}\n' > "$H34B/.cursor/cli-config.json"
 run_al "$H34B" "$META" install >/dev/null 2>&1 || fail "T34b: install failed on permissions:null"
-[ "$(jq '.permissions.allow | length > 0' "$H34B/.claude/settings.json")" = "true" ] \
+[ "$(jq '.permissions.allow | length > 0' "$H34B/.cursor/cli-config.json")" = "true" ] \
     || fail "T34b: allow not rendered over permissions:null"
 
 # ---------------------------------------------------------------------------
@@ -884,12 +881,12 @@ run_al "$H34B" "$META" install >/dev/null 2>&1 || fail "T34b: install failed on 
 # ---------------------------------------------------------------------------
 printf '[T35] removing the last unmanaged setting clears the passthrough\n'
 H35=$(mk_home t35)
-printf '{"permissions":{"defaultMode":"bypassPermissions"}}\n' > "$H35/.claude/settings.json"
+printf '{"permissions":{"defaultMode":"bypassPermissions"}}\n' > "$H35/.cursor/cli-config.json"
 run_al "$H35" "$META" install >/dev/null
-[ "$(jq -r '.permissions.defaultMode' "$H35/.claude/settings.json")" = "bypassPermissions" ] || fail "T35: setup, defaultMode not kept"
-jq 'del(.permissions.defaultMode)' "$H35/.claude/settings.json" > "$H35/s.tmp" && mv "$H35/s.tmp" "$H35/.claude/settings.json"
+[ "$(jq -r '.permissions.defaultMode' "$H35/.cursor/cli-config.json")" = "bypassPermissions" ] || fail "T35: setup, defaultMode not kept"
+jq 'del(.permissions.defaultMode)' "$H35/.cursor/cli-config.json" > "$H35/s.tmp" && mv "$H35/s.tmp" "$H35/.cursor/cli-config.json"
 run_al "$H35" "$META" install >/dev/null
-[ "$(jq -r '.permissions.defaultMode // "gone"' "$H35/.claude/settings.json")" = "gone" ] \
+[ "$(jq -r '.permissions.defaultMode // "gone"' "$H35/.cursor/cli-config.json")" = "gone" ] \
     || fail "T35: defaultMode came back after the engineer removed it"
 
 # ---------------------------------------------------------------------------
@@ -914,13 +911,13 @@ n=0
 for content in '   ' '{"a":1}{"b":2}' '[1,2]' '{"permissions":{"allow":"Bash(x)"}}'; do
     n=$((n + 1))
     H37=$(mk_home "t37-$n")
-    printf '%s\n' "$content" > "$H37/.claude/settings.json"
-    cp "$H37/.claude/settings.json" "$TEST_DIR/t37.before"
+    printf '%s\n' "$content" > "$H37/.cursor/cli-config.json"
+    cp "$H37/.cursor/cli-config.json" "$TEST_DIR/t37.before"
     rc=0
     run_al "$H37" "$META" install >/dev/null 2>&1 || rc=$?
     [ "$rc" -ne 0 ] || fail "T37.$n: install exited 0"
-    cmp -s "$TEST_DIR/t37.before" "$H37/.claude/settings.json" || fail "T37.$n: settings.json changed"
-    [ -z "$(find "$H37/.claude" -name '.settings.*' -print -quit)" ] || fail "T37.$n: a sidecar was written"
+    cmp -s "$TEST_DIR/t37.before" "$H37/.cursor/cli-config.json" || fail "T37.$n: cli-config.json changed"
+    [ -z "$(find "$H37/.cursor" -name '.cli-config.*' -print -quit)" ] || fail "T37.$n: a sidecar was written"
 done
 H37C=$(mk_home t37-cursor)
 printf '{"terminalAllowlist":"git"}\n' > "$H37C/.cursor/permissions.json"
@@ -934,13 +931,13 @@ run_al "$H37C" "$META" install >/dev/null 2>&1 || rc=$?
 printf '[T38] meta with trailing garbage: nothing written\n'
 H38=$(mk_home t38)
 { cat "$META"; printf 'garbage\n'; } > "$TEST_DIR/meta/t38.json"
-printf '{"model":"opus"}\n' > "$H38/.claude/settings.json"
-cp "$H38/.claude/settings.json" "$TEST_DIR/t38.before"
+printf '{"model":"opus"}\n' > "$H38/.cursor/cli-config.json"
+cp "$H38/.cursor/cli-config.json" "$TEST_DIR/t38.before"
 rc=0
 run_al "$H38" "$TEST_DIR/meta/t38.json" install >/dev/null 2>&1 || rc=$?
 [ "$rc" -ne 0 ] || fail "T38: install exited 0 on a bad meta"
-cmp -s "$TEST_DIR/t38.before" "$H38/.claude/settings.json" || fail "T38: settings.json changed"
-[ -z "$(find "$H38/.claude" -name '.settings.*' -print -quit)" ] || fail "T38: a sidecar was written"
+cmp -s "$TEST_DIR/t38.before" "$H38/.cursor/cli-config.json" || fail "T38: cli-config.json changed"
+[ -z "$(find "$H38/.cursor" -name '.cli-config.*' -print -quit)" ] || fail "T38: a sidecar was written"
 
 # ---------------------------------------------------------------------------
 # T39 (review round 2): uninstall validates first, and a stray backup does not block reinstall.
@@ -948,13 +945,13 @@ cmp -s "$TEST_DIR/t38.before" "$H38/.claude/settings.json" || fail "T38: setting
 printf '[T39] uninstall refuses a live file with two JSON values, untouched\n'
 H39=$(mk_home t39)
 run_al "$H39" "$META" install >/dev/null
-printf '{"a":1}{"b":2}\n' > "$H39/.claude/settings.json"
-cp "$H39/.claude/settings.json" "$TEST_DIR/t39.before"
+printf '{"a":1}{"b":2}\n' > "$H39/.cursor/cli-config.json"
+cp "$H39/.cursor/cli-config.json" "$TEST_DIR/t39.before"
 rc=0
 run_al "$H39" "$META" uninstall >/dev/null 2>&1 || rc=$?
 [ "$rc" -ne 0 ] || fail "T39: uninstall exited 0 on a malformed live file"
-cmp -s "$TEST_DIR/t39.before" "$H39/.claude/settings.json" || fail "T39: settings.json changed"
-[ -f "$H39/.claude/.settings.${ORG}-managed.json" ] || fail "T39: org sidecar removed despite the abort"
+cmp -s "$TEST_DIR/t39.before" "$H39/.cursor/cli-config.json" || fail "T39: cli-config.json changed"
+[ -f "$H39/.cursor/.cli-config.${ORG}-managed.json" ] || fail "T39: org sidecar removed despite the abort"
 
 printf '[T39b] stray backup file: install, uninstall, reinstall succeeds\n'
 H39B=$(mk_home t39b)
@@ -970,7 +967,7 @@ printf '[T39c] empty symlinked sidecar is caught before any write\n'
 H39C=$(mk_home t39c)
 run_al "$H39C" "$META" install >/dev/null
 : > "$TEST_DIR/t39c.empty"
-ln -sf "$TEST_DIR/t39c.empty" "$H39C/.claude/.settings.user-managed.json"
+ln -sf "$TEST_DIR/t39c.empty" "$H39C/.cursor/.cli-config.user-managed.json"
 snap39() { (cd "$H39C" && find . -type f -print | LC_ALL=C sort | while IFS= read -r p; do printf '%s %s\n' "$p" "$(cksum < "$p")"; done); }
 snap39 > "$TEST_DIR/t39c.before"
 rc=0
@@ -981,10 +978,10 @@ cmp -s "$TEST_DIR/t39c.before" "$TEST_DIR/t39c.after" || fail "T39c: a file chan
 
 printf '[T39d] dry-run previews the stale passthrough as gone\n'
 H39D=$(mk_home t39d)
-printf '{"permissions":{"defaultMode":"bypassPermissions"}}\n' > "$H39D/.claude/settings.json"
+printf '{"permissions":{"defaultMode":"bypassPermissions"}}\n' > "$H39D/.cursor/cli-config.json"
 run_al "$H39D" "$META" install >/dev/null
-jq 'del(.permissions.defaultMode)' "$H39D/.claude/settings.json" > "$H39D/s.tmp" && mv "$H39D/s.tmp" "$H39D/.claude/settings.json"
-run_al "$H39D" "$META" dry-run 2>&1 | grep -F 'settings.json' | grep -q 'no change' \
+jq 'del(.permissions.defaultMode)' "$H39D/.cursor/cli-config.json" > "$H39D/s.tmp" && mv "$H39D/s.tmp" "$H39D/.cursor/cli-config.json"
+run_al "$H39D" "$META" dry-run 2>&1 | grep -F 'cli-config.json' | grep -q 'no change' \
     || fail "T39d: dry-run previews a rewrite that install would not make"
 
 # ---------------------------------------------------------------------------
@@ -992,25 +989,25 @@ run_al "$H39D" "$META" dry-run 2>&1 | grep -F 'settings.json' | grep -q 'no chan
 # ---------------------------------------------------------------------------
 printf '[T40] dry-run previews a changed, non-empty passthrough, not the stale one\n'
 H40=$(mk_home t40)
-printf '{"model":"opus","permissions":{"defaultMode":"bypassPermissions"}}\n' > "$H40/.claude/settings.json"
+printf '{"model":"opus","permissions":{"defaultMode":"bypassPermissions"}}\n' > "$H40/.cursor/cli-config.json"
 run_al "$H40" "$META" install >/dev/null
-jq 'del(.permissions.defaultMode)' "$H40/.claude/settings.json" > "$H40/s.tmp" && mv "$H40/s.tmp" "$H40/.claude/settings.json"
-run_al "$H40" "$META" dry-run 2>&1 | grep -F 'settings.json' | grep -q 'no change' \
+jq 'del(.permissions.defaultMode)' "$H40/.cursor/cli-config.json" > "$H40/s.tmp" && mv "$H40/s.tmp" "$H40/.cursor/cli-config.json"
+run_al "$H40" "$META" dry-run 2>&1 | grep -F 'cli-config.json' | grep -q 'no change' \
     || fail "T40: dry-run previews a rewrite install would not make"
-[ "$(jq -r '.permissions.defaultMode // "gone"' "$H40/.claude/.settings.passthrough.json")" = "bypassPermissions" ] \
+[ "$(jq -r '.permissions.defaultMode // "gone"' "$H40/.cursor/.cli-config.passthrough.json")" = "bypassPermissions" ] \
     || fail "T40: dry-run changed the passthrough on disk"
 
 printf '[T40b] a symlinked peer sidecar is part of the baseline and the union\n'
 H40B=$(mk_home t40b)
 run_al     "$H40B" "$META"  install >/dev/null
 run_al_org "testpeer" "$H40B" "$META2" install >/dev/null
-mv "$H40B/.claude/.settings.testpeer-managed.json" "$TEST_DIR/t40b.peer.json"
-ln -s "$TEST_DIR/t40b.peer.json" "$H40B/.claude/.settings.testpeer-managed.json"
+mv "$H40B/.cursor/.cli-config.testpeer-managed.json" "$TEST_DIR/t40b.peer.json"
+ln -s "$TEST_DIR/t40b.peer.json" "$H40B/.cursor/.cli-config.testpeer-managed.json"
 run_al "$H40B" "$META" install >/dev/null
-if [ -f "$H40B/.claude/.settings.user-managed.json" ] && grep -q 'pytest' "$H40B/.claude/.settings.user-managed.json"; then
+if [ -f "$H40B/.cursor/.cli-config.user-managed.json" ] && grep -q 'npm' "$H40B/.cursor/.cli-config.user-managed.json"; then
     fail "T40b: the peer's rules were saved as user edits"
 fi
-[ "$(jq '.permissions.allow | index("Bash(pytest)") != null' "$H40B/.claude/settings.json")" = "true" ] \
+[ "$(jq '.permissions.allow | index("Shell(npm:test)") != null' "$H40B/.cursor/cli-config.json")" = "true" ] \
     || fail "T40b: the peer's rules dropped out of the live file"
 
 printf '[T40c] a meta that renders two JSON objects: nothing written\n'
@@ -1035,8 +1032,9 @@ rendered41() {
     jq -r '.terminalAllowlist[]' "$H41/.cursor/permissions.json"
     jq -r '.mcpAllowlist[]' "$H41/.cursor/permissions.json"
     jq -r '.permissions.allow[]' "$H41/.cursor/cli-config.json"
-    jq -r '.permissions.allow[]' "$H41/.claude/settings.json"
+    jq -r '.permissions.allow[]' "$TEST_DIR/t41.claude.json"
 }
+claude_render "$REAL_META" > "$TEST_DIR/t41.claude.json"
 rendered41 > "$TEST_DIR/t41.rendered"
 cat "$H41/.gemini/policies/${ORG}-managed.toml" >> "$TEST_DIR/t41.rendered"
 
@@ -1082,10 +1080,11 @@ done
 #   Cursor IDE  terminalAllowlist  the bare entry
 #   Cursor CLI  permissions.allow  Shell(<base>:<args>), split as the renderer splits it
 #   Claude Code permissions.allow  Bash(<entry>), and the old prefix Bash(<entry>:*)
+#               (the managed settings render)
 #   Gemini      policy TOML        a `commandPrefix = "<entry>"` line
 jq -r '.terminalAllowlist[]'  "$H41/.cursor/permissions.json" > "$TEST_DIR/t41.ide"
 jq -r '.permissions.allow[]'  "$H41/.cursor/cli-config.json"  > "$TEST_DIR/t41.cli"
-jq -r '.permissions.allow[]'  "$H41/.claude/settings.json"    > "$TEST_DIR/t41.claude"
+jq -r '.permissions.allow[]'  "$TEST_DIR/t41.claude.json"     > "$TEST_DIR/t41.claude"
 cp "$H41/.gemini/policies/${ORG}-managed.toml"                  "$TEST_DIR/t41.gemini"
 for removed in 'op read' 'op run' 'curl -X GET' 'curl --get' 'curl -G' 'wget --method=GET'; do
     if jq -e --arg e "$removed" '.shell.allow | index($e)' "$REAL_META" >/dev/null; then
@@ -1114,11 +1113,13 @@ grep -qxF 'Mcp(notion:notion-search)'   "$TEST_DIR/t41.rendered" || fail "T41: M
 grep -qxF 'notion:notion-search'        "$TEST_DIR/t41.rendered" || fail "T41: notion:notion-search not rendered for Cursor IDE"
 # Claude Code renders one rule per allowed MCP entry, none of them a wildcard.
 n_meta=$(jq '.mcp.allow | length' "$REAL_META")
-n_claude=$(jq '[.permissions.allow[] | select(startswith("mcp__"))] | length' "$H41/.claude/settings.json")
-[ "$n_meta" = "$n_claude" ] || fail "T41: $n_meta meta mcp entries but $n_claude mcp__ rules in settings.json"
-[ "$(jq '[.permissions.allow[] | select(startswith("mcp__") and endswith("__*"))] | length' "$H41/.claude/settings.json")" = "0" ] \
-    || fail "T41: a mcp__<server>__* wildcard is in settings.json"
+n_claude=$(jq '[.permissions.allow[] | select(startswith("mcp__"))] | length' "$TEST_DIR/t41.claude.json")
+[ "$n_meta" = "$n_claude" ] || fail "T41: $n_meta meta mcp entries but $n_claude mcp__ rules in the Claude render"
+[ "$(jq '[.permissions.allow[] | select(startswith("mcp__") and endswith("__*"))] | length' "$TEST_DIR/t41.claude.json")" = "0" ] \
+    || fail "T41: a mcp__<server>__* wildcard is in the Claude render"
 
+# The Cursor forms would pass these through as written; the managed settings
+# render stops on them, so the install refuses the meta too.
 printf '[T41b] a malformed mcp entry stops the render and writes nothing\n'
 n=0
 for bad in 'nocolon' ':tool' 'server:'; do
@@ -1152,7 +1153,8 @@ ENDJSON
 H42=$(mk_home t42)
 run_al "$H42" "$META42" install >/dev/null
 CLI42="$H42/.cursor/cli-config.json"
-CC42="$H42/.claude/settings.json"
+CC42="$TEST_DIR/t42.claude.json"
+claude_render "$META42" > "$CC42"
 in_list() { jq -e --arg e "$3" ".permissions.$2 | index(\$e) != null" "$1" >/dev/null; }
 
 # Cursor CLI allow: Shell(<base>:<args>) for a multi-word entry, nothing for a
@@ -1226,10 +1228,12 @@ for want in 'Shell(sudo)' 'Shell(git:push*)' 'Shell(rm:-rf /*)'; do
     in_list "$H42C/.cursor/cli-config.json" deny "$want" || fail "T42c: Cursor CLI deny lacks $want: $(jq -c '.permissions.deny' "$H42C/.cursor/cli-config.json")"
 done
 in_list "$H42C/.cursor/cli-config.json" allow 'Shell(git:status)' || fail "T42c: Cursor CLI allow lacks Shell(git:status)"
+CC42C="$TEST_DIR/t42c.claude.json"
+claude_render "$META42C" > "$CC42C"
 for want in 'Bash(sudo:*)' 'Bash(git push:*)' 'Bash(rm -rf /:*)'; do
-    in_list "$H42C/.claude/settings.json" deny "$want" || fail "T42c: Claude Code deny lacks $want: $(jq -c '.permissions.deny' "$H42C/.claude/settings.json")"
+    in_list "$CC42C" deny "$want" || fail "T42c: Claude Code deny lacks $want: $(jq -c '.permissions.deny' "$CC42C")"
 done
-in_list "$H42C/.claude/settings.json" allow 'Bash(git status)' || fail "T42c: Claude Code allow lacks Bash(git status)"
+in_list "$CC42C" allow 'Bash(git status)' || fail "T42c: Claude Code allow lacks Bash(git status)"
 [ "$(jq -c '.terminalDenylist' "$H42C/.cursor/permissions.json")" = '["git push","rm -rf /","sudo"]' ] \
     || fail "T42c: Cursor IDE terminalDenylist is not normalized: $(jq -c '.terminalDenylist' "$H42C/.cursor/permissions.json")"
 [ "$(jq -c '.terminalAllowlist' "$H42C/.cursor/permissions.json")" = '["git status"]' ] \
@@ -1246,7 +1250,9 @@ run_al "$H42D" "$TEST_DIR/meta/t42d.json" install >/dev/null 2>&1 || rc=$?
 # ---------------------------------------------------------------------------
 # T43 (r1.f1): upgrade from the previous render. The old installer wrote shell
 # entries bare and every MCP entry as mcp__<server>__*; install replaces them
-# with the wrapped forms, and none is promoted to a user edit.
+# with the wrapped forms in Cursor CLI, clears them from Claude Code's
+# settings.json (the managed settings carry the rules now), and none is
+# promoted to a user edit.
 # ---------------------------------------------------------------------------
 printf '[T43] upgrade from bare shell strings and mcp__<server>__* wildcards\n'
 H43=$(mk_home t43)
@@ -1271,30 +1277,26 @@ printf '%s\n' "$OLD_CC"  | jq -S . > "$H43/.claude/.settings.${ORG}-managed.json
 printf '%s\n' "$OLD_IDE" | jq -S . > "$H43/.cursor/permissions.json"
 printf '%s\n' "$OLD_IDE" | jq -S . > "$H43/.cursor/.permissions.${ORG}-managed.json"
 run_al "$H43" "$META43" install >/dev/null || fail "T43: install failed on the previous render"
-CLI43="$H43/.cursor/cli-config.json"; CC43="$H43/.claude/settings.json"
+CLI43="$H43/.cursor/cli-config.json"
 [ "$(jq -c '.permissions.allow' "$CLI43")" = '["Mcp(notion:notion-search)","Mcp(slack:slack_read_channel)","Shell(git:status)"]' ] \
     || fail "T43: Cursor CLI allow after upgrade: $(jq -c '.permissions.allow' "$CLI43")"
 [ "$(jq -c '.permissions.deny' "$CLI43")" = '["Shell(rm:-rf /*)","Shell(sudo)"]' ] \
     || fail "T43: Cursor CLI deny after upgrade: $(jq -c '.permissions.deny' "$CLI43")"
-[ "$(jq -c '.permissions.allow' "$CC43")" = '["Bash(git status)","Bash(pytest)","WebFetch(domain:docs.python.org)","mcp__notion__notion-search","mcp__slack__slack_read_channel"]' ] \
-    || fail "T43: Claude Code allow after upgrade: $(jq -c '.permissions.allow' "$CC43")"
-[ "$(jq -c '.permissions.deny' "$CC43")" = '["Bash(rm -rf /:*)","Bash(sudo:*)"]' ] \
-    || fail "T43: Claude Code deny after upgrade: $(jq -c '.permissions.deny' "$CC43")"
-for f in "$CLI43" "$CC43"; do
-    [ "$(jq '[.permissions.allow[], .permissions.deny[] | select(test("^[A-Za-z_]+(\\(|__)") | not)] | length' "$f")" = "0" ] \
-        || fail "T43: bare string left in $(basename "$f") permissions"
+[ "$(jq '[.permissions.allow[], .permissions.deny[] | select(test("^[A-Za-z_]+(\\(|__)") | not)] | length' "$CLI43")" = "0" ] \
+    || fail "T43: bare string left in cli-config.json permissions"
+for old in 'Mcp(notion:*)' 'Mcp(slack:*)'; do
+    jq -e --arg o "$old" '.permissions.allow | index($o) != null' "$CLI43" >/dev/null \
+        && fail "T43: $old still in cli-config.json"
 done
-for old in 'mcp__notion__*' 'mcp__slack__*' 'Mcp(notion:*)' 'Mcp(slack:*)'; do
-    for f in "$CLI43" "$CC43"; do
-        jq -e --arg o "$old" '.permissions.allow | index($o) != null' "$f" >/dev/null \
-            && fail "T43: $old still in $(basename "$f")"
-    done
-done
+# settings.json only held the old render, so it goes, with every settings sidecar.
+[ ! -e "$H43/.claude/settings.json" ] || fail "T43: settings.json kept: $(cat "$H43/.claude/settings.json")"
+[ -z "$(find "$H43/.claude" -maxdepth 1 -name '.settings.*' -print -quit)" ] || fail "T43: a settings sidecar is left"
 # Nothing was taken for the user's own.
 [ ! -f "$H43/.cursor/.cli-config.user-managed.json" ] || fail "T43: the old render was promoted into .cli-config.user-managed.json"
 [ ! -f "$H43/.claude/.settings.user-managed.json" ] || fail "T43: the old render was promoted into .settings.user-managed.json"
 [ ! -f "$H43/.cursor/.permissions.user-managed.json" ] || fail "T43: the old render was promoted into .permissions.user-managed.json"
-# The second install is a no-op: no further backup of either file.
+# The second install is a no-op: no further backup of either file (settings.json
+# got one, on its way out).
 n43=$(count_hist cli-config "$H43/.cursor"); m43=$(count_hist settings "$H43/.claude")
 run_al "$H43" "$META43" install >/dev/null
 [ "$(count_hist cli-config "$H43/.cursor")" = "$n43" ] && [ "$(count_hist settings "$H43/.claude")" = "$m43" ] \
@@ -1315,9 +1317,8 @@ cat > "$META44" <<'ENDJSON'
   "webfetch": { "allow": [], "deny": [] }
 }
 ENDJSON
-H44=$(mk_home t44)
-run_al "$H44" "$META44" install >/dev/null
-CC44="$H44/.claude/settings.json"
+CC44="$TEST_DIR/t44.claude.json"
+claude_render "$META44" > "$CC44"
 for rule in 'Read(~/.ssh/**)' 'Read(./.env)' 'Edit(/etc/**)'; do
     jq -e --arg r "$rule" '.permissions.deny | index($r) != null' "$CC44" >/dev/null \
         || fail "T44: $rule missing from Claude Code deny"
