@@ -61,6 +61,20 @@ target. Each recommends the option above, with these alternatives:
   - keep `commandPrefix`;
   - use the admin tier.
 
+## Owner's answers (2026-11-23)
+
+- Cursor IDE: "I'd prefer to just do what permissions.json can do, and if
+  cursor can't support it we skip". No plugin hook and no flag seatbelt; the
+  installer renders only what `permissions.json` honours. Open: whether the
+  deny hook and the `terminalDenylist` render go too, and whether the
+  prefix-widening allows stay (clarification asked).
+- Cursor CLI: "Installer only". Keep `cli-config.json` as is, no plugin hook.
+- Gemini CLI: "only support what they can do natively in the user home
+  directory in the cloud settings". Read as: keep the installer writing
+  `~/.gemini/policies/<org>-managed.toml`, no extension policy and no admin
+  tier, using the policy engine's own forms there (allows as exact
+  `commandRegex`, denies as `commandPrefix`).
+
 ## Resume
 
 Read the README section and this file, then re-ask if there is no answer on
