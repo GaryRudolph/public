@@ -38,8 +38,9 @@ runs [`settings_issue.py`](settings_issue.py) against `main`'s tip:
 - It pins the last commit that changed the generated file.
 - An org has that content when the newest issue closed as **completed** that
   lists it pinned the same content. Issues closed as not planned never count.
-- If some orgs don't have it, it opens one `org-settings` issue for them: the
-  JSON to copy, a checkbox per org, and where to paste. It replaces an open
+- If some orgs don't have it, it opens one issue labelled `allowlist` for them:
+  the JSON to copy, a checkbox per org, and where to paste. It locks the issue,
+  so only collaborators can comment beside the JSON. It replaces an open
   issue that covered something else, and leaves one that already covers this.
   So a change asks for every org; a new org with no change asks for that org
   alone.
@@ -61,4 +62,4 @@ writes the issue to the job summary and files, closes and posts nothing.
   deployment branches to `main`, and put the app's bot token there as
   `SLACK_BOT_TOKEN`, so no other branch's workflow can read it. Without that,
   the first run creates the environment with no branch limit.
-- The workflow creates the `org-settings` label on its first issue.
+- The workflow creates the `allowlist` label on its first issue.

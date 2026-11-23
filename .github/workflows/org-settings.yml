@@ -49,7 +49,7 @@ jobs:
     environment: org-settings
     permissions:
       contents: read
-      issues: write # file, close and label the org-settings issue
+      issues: write # file, lock, close and label the allowlist issue
     steps:
       - uses: actions/checkout@v7
         with:

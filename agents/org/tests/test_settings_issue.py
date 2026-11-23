@@ -67,6 +67,8 @@ class FakeGitHub:
         self.created: list[tuple[str, str]] = []
         self.closed_now: list[tuple[int, str]] = []
         self.labels = 0
+        self.locked: list[int] = []
+        self.lock_fails = False
 
     def issues(self, state: str) -> list[dict]:
         return self.open if state == "open" else self.closed
@@ -77,6 +79,11 @@ class FakeGitHub:
     def create(self, title: str, body: str) -> si.Issue:
         self.created.append((title, body))
         return si.Issue(number=100, sha="", orgs=(), url="https://github.com/GaryRudolph/public/issues/100")
+
+    def lock(self, number: int) -> None:
+        if self.lock_fails:
+            raise si.subprocess.CalledProcessError(1, ["gh", "issue", "lock"])
+        self.locked.append(number)
 
     def close(self, number: int, comment: str) -> None:
         self.closed_now.append((number, comment))
@@ -109,6 +116,19 @@ class Run(unittest.TestCase):
         self.assertNotIn("{{", body)
         self.assertEqual(len(self.notified), 1)
         self.assertEqual(gh.labels, 1)
+        self.assertEqual(gh.locked, [100])
+
+    def test_a_failed_lock_is_a_warning(self) -> None:
+        gh = FakeGitHub()
+        gh.lock_fails = True
+        out = io.StringIO()
+        sys.stdout, saved = out, sys.stdout
+        try:
+            o = self.go(setting(), FakeGit({A: V1}, A), gh)
+        finally:
+            sys.stdout = saved
+        self.assertEqual((o.action, o.issue.number), ("file", 100))
+        self.assertIn("Couldn't lock #100", out.getvalue())
 
     def test_nothing_when_every_org_has_it(self) -> None:
         gh = FakeGitHub(closed=[raw(5, B, ["Lolay"], "COMPLETED", "2026-11-01")])
@@ -182,7 +202,7 @@ class Run(unittest.TestCase):
         o = self.go(setting(), FakeGit({A: V2, B: V1}, A), gh, dry_run=True)
         self.assertEqual(o.action, "file")
         self.assertTrue(o.body)
-        self.assertEqual((gh.created, gh.closed_now, gh.labels, self.notified), ([], [], 0, []))
+        self.assertEqual((gh.created, gh.closed_now, gh.labels, gh.locked, self.notified), ([], [], 0, [], []))
         self.assertIn("dry run", si.summary(o, True))
 
     def test_markers_for_other_ids_and_bad_markers_are_ignored(self) -> None:

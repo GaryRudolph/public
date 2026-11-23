@@ -38,7 +38,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 REGISTRY = "agents/org/settings.json"
-LABEL = "org-settings"
+LABEL = "allowlist"
 MARKER_RE = re.compile(r"<!-- org-settings (\{.*?\}) -->")
 PLACEHOLDER_RE = re.compile(r"\{\{\s*([a-z_]+)\s*\}\}")
 # The generated file's own stamp, filled in with the commit the issue pins.
@@ -231,13 +231,16 @@ class GitHub:
     def ensure_label(self) -> None:
         subprocess.run(
             ["gh", "label", "create", LABEL, "-R", self.repo, "--color", "5319e7", "--force",
-             "--description", "Org settings to paste by hand (agents/org/settings.json)"],
+             "--description", "Claude Code managed settings to paste by hand (agents/org/README.md)"],
             capture_output=True, check=True,
         )
 
     def create(self, title: str, body: str) -> Issue:
         url = self._gh("issue", "create", "--title", title, "--body", body, "--label", LABEL).strip()
         return Issue(number=int(url.rsplit("/", 1)[1]), sha="", orgs=(), url=url)
+
+    def lock(self, number: int) -> None:
+        self._gh("issue", "lock", str(number))
 
     def close(self, number: int, comment: str) -> None:
         self._gh("issue", "close", str(number), "--reason", "not planned", "--comment", comment)
@@ -302,6 +305,12 @@ def run(setting: Setting, root: Path, repo: str, sha: str, git, github, dry_run:
     # and the next run closes the extra one.
     outcome.issue = github.create(outcome.title, outcome.body)
     notify(outcome)
+    # Locked, only collaborators can comment, so no one else can post a
+    # "corrected" JSON beside the one to paste. Best effort, like Slack.
+    try:
+        github.lock(outcome.issue.number)
+    except (OSError, subprocess.CalledProcessError) as error:
+        print(f"::warning::Couldn't lock #{outcome.issue.number}: {error}")
     close(still_open, f"Superseded by #{outcome.issue.number}.")
     return outcome
 
