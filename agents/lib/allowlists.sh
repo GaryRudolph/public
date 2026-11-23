@@ -321,16 +321,17 @@ gemini_history_file() { printf '%s/.history/%s-managed.toml.%s' "$1" "$ORG" "$2"
 # Output is canonical (sorted keys, deduped + sorted arrays via `unique`) so
 # the diff between two renders of the same inputs is byte-identical.
 
-# Every shell entry is trimmed and, unless it quotes, its runs of whitespace
-# collapsed before any target renders it, so " sudo" or "git  push" can't
-# render a rule that matches nothing; an empty entry stops the render.
-SHELL_NORM_JQ='def shell_norm: gsub("^\\s+|\\s+$"; "") | if test("[\"\u0027]") then . else gsub("\\s+"; " ") end | if . == "" then error("empty shell entry") else . end; '
+# The definitions every render shares (shell_norm, meta_check, the Claude Code
+# rules) live in allowlist.jq beside this file; each jq program below starts
+# with them.
+ALLOWLIST_JQ="$(cat "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/allowlist.jq")
+"
 
 render_target_schema() {
     local kind="$1" meta="$2"
     case "$kind" in
         cursor_ide)
-            jq -S "$SHELL_NORM_JQ"'{
+            jq -S "$ALLOWLIST_JQ"'{
                 terminalAllowlist: ((.shell.allow    // []) | map(shell_norm) | unique),
                 terminalDenylist:  ((.shell.deny     // []) | map(shell_norm) | unique),
                 mcpAllowlist:      ((.mcp.allow      // []) | unique),
@@ -339,7 +340,7 @@ render_target_schema() {
             ;;
         cursor_cli)
             # allow: the exact command line; deny: the prefix. See the header.
-            jq -S "$SHELL_NORM_JQ"'def cli_parts: capture("^(?<base>\\S+)\\s+(?<args>.+)$");
+            jq -S "$ALLOWLIST_JQ"'def cli_parts: capture("^(?<base>\\S+)\\s+(?<args>.+)$");
                    def cli_first_word_colon: test("^[^\\s:]*:");
                    def cli_allow:
                        if test("[*?]") or cli_first_word_colon or (test("\\s") | not) then empty
@@ -368,37 +369,9 @@ render_target_schema() {
             }' "$meta"
             ;;
         claude)
-            # server:tool -> mcp__server__tool, server:* -> mcp__server__*.
-            # Split at the first colon (the tool part is the rest). An entry
-            # with no colon, no server or no tool stops the render rather than
-            # produce a rule such as mcp____tool. A shell allow is the exact
-            # command, Bash(<entry>); a shell deny is the prefix, Bash(<entry>:*),
-            # or as written when it holds a *. See the header.
-            jq -S "$SHELL_NORM_JQ"'def claude_mcp:
-                       if test("^[^:]+:.+$")
-                       then index(":") as $i | "mcp__" + .[:$i] + "__" + .[$i+1:]
-                       else error("bad mcp entry: " + .)
-                       end;
-                   def claude_allow:
-                       if test("[*]") then empty else "Bash(" + . + ")" end;
-                   def claude_deny:
-                       if test("[*]") then "Bash(" + . + ")" else "Bash(" + . + ":*)" end;
-                   {
-                permissions: {
-                    allow: (
-                        (((.shell.allow   // []) | map(shell_norm | claude_allow)) +
-                         ((.mcp.allow     // []) | map(claude_mcp)) +
-                         ((.webfetch.allow // []) | map("WebFetch(domain:" + . + ")"))
-                        ) | unique
-                    ),
-                    deny: (
-                        (((.shell.deny   // []) | map(shell_norm | claude_deny)) +
-                         ((.mcp.deny     // []) | map(claude_mcp)) +
-                         ((.webfetch.deny // []) | map("WebFetch(domain:" + . + ")"))
-                        ) | unique
-                    )
-                }
-            }' "$meta"
+            # allowlist.jq's claude_permissions, which agents/org/render.sh
+            # also renders the managed settings from.
+            jq -S "$ALLOWLIST_JQ"'claude_permissions' "$meta"
             ;;
         *)
             printf 'render_target_schema: unknown kind %s\n' "$kind" >&2
@@ -824,6 +797,12 @@ has_any_sidecar() {
 # leaves the other targets as they were.
 validate_meta() {
     local kind
+    if ! jq "$ALLOWLIST_JQ"'meta_check' "$ALLOWLISTS_SRC" >/dev/null; then
+        printf 'error: %s is not in the allowlist format (agents/allowlists/README.md); nothing was written.\n' \
+            "$(pretty_path "$ALLOWLISTS_SRC")" >&2
+        ABORTED=1
+        return 1
+    fi
     for kind in cursor_ide cursor_cli claude; do
         if ! render_target_schema "$kind" "$ALLOWLISTS_SRC" >/dev/null; then
             printf 'error: rendering %s for %s failed; nothing was written.\n' \
@@ -1281,12 +1260,12 @@ render_gemini_toml() {
     printf '# Generated from %s; edits here are overwritten on re-render.\n' "$(pretty_path "$ALLOWLISTS_SRC")"
     printf '# Regenerate with the agents Makefile: make install-allowlists\n'
     printf '# Other *.toml files in this directory are never read or modified.\n'
-    jq -r "$SHELL_NORM_JQ"'
+    jq -r "$ALLOWLIST_JQ"'
         (.shell.allow // []) | map(shell_norm) | unique | .[] |
         "\n[[rule]]\ntoolName = \"run_shell_command\"\ncommandPrefix = " + tojson +
         "\ndecision = \"allow\"\npriority = 100"
     ' "$meta"
-    jq -r "$SHELL_NORM_JQ"'
+    jq -r "$ALLOWLIST_JQ"'
         (.shell.deny // []) | map(shell_norm) | unique | .[] |
         "\n[[rule]]\ntoolName = \"run_shell_command\"\ncommandPrefix = " + tojson +
         "\ndecision = \"deny\"\npriority = 900"
