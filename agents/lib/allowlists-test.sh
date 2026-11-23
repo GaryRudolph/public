@@ -1302,6 +1302,53 @@ run_al "$H43" "$META43" install >/dev/null
 [ "$n43" = "1" ] && [ "$m43" = "1" ] || fail "T43: expected one backup of each live file, got cli-config=$n43 settings=$m43"
 
 # ---------------------------------------------------------------------------
+# T44: read.deny and write.deny reach Claude Code as Read() and Edit() denies
+# ---------------------------------------------------------------------------
+printf '[T44] read.deny and write.deny render as Claude Code Read() and Edit() denies\n'
+META44="$TEST_DIR/meta/t44.json"
+cat > "$META44" <<'ENDJSON'
+{
+  "shell":    { "allow": ["git status"], "deny": [] },
+  "mcp":      { "allow": [], "deny": [] },
+  "read":     { "deny": ["~/.ssh/**", "./.env"] },
+  "write":    { "deny": ["/etc/**"] },
+  "webfetch": { "allow": [], "deny": [] }
+}
+ENDJSON
+H44=$(mk_home t44)
+run_al "$H44" "$META44" install >/dev/null
+CC44="$H44/.claude/settings.json"
+for rule in 'Read(~/.ssh/**)' 'Read(./.env)' 'Edit(/etc/**)'; do
+    jq -e --arg r "$rule" '.permissions.deny | index($r) != null' "$CC44" >/dev/null \
+        || fail "T44: $rule missing from Claude Code deny"
+done
+jq -e '.permissions.allow == ["Bash(git status)"]' "$CC44" >/dev/null \
+    || fail "T44: Claude Code allow changed: $(jq -c '.permissions.allow' "$CC44")"
+
+# ---------------------------------------------------------------------------
+# T45: a file outside the format stops the install before anything is written
+# ---------------------------------------------------------------------------
+printf '[T45] unknown key, wrong list or empty entry stops the install, nothing written\n'
+i45=0
+for bad in '{"shell":{"allow":["ls"]},"shel":{"allow":["rm"]}}' \
+           '{"read":{"allow":["~/x"]}}' \
+           '{"shell":{"allow":"ls"}}' \
+           '{"mcp":{"allow":[""]}}' \
+           '{"webfetch":{"allow":["  "]}}'; do
+    i45=$((i45 + 1))
+    M45="$TEST_DIR/meta/t45-$i45.json"
+    printf '%s\n' "$bad" > "$M45"
+    H45=$(mk_home "t45-$i45")
+    if run_al "$H45" "$M45" install >/dev/null 2>&1; then
+        fail "T45: install accepted $bad"
+    fi
+    for f in "$H45/.cursor/permissions.json" "$H45/.cursor/cli-config.json" "$H45/.claude/settings.json"; do
+        [ ! -f "$f" ] || fail "T45: $bad wrote $f"
+    done
+    find "$H45/.gemini" -name '*.toml' | grep -q . && fail "T45: $bad wrote a Gemini policy"
+done
+
+# ---------------------------------------------------------------------------
 # Final report
 # ---------------------------------------------------------------------------
 if [ "$FAILED" -eq 0 ]; then

@@ -1,0 +1,17 @@
+{
+  "attribution": {
+    "commit": "Assisted-by: Claude Code",
+    "pr": "Assisted-by: Claude Code"
+  },
+  "autoMode": {
+    "allow": [
+      "$defaults",
+      "Replying to pull request review comments (gh api repos/<owner>/<repo>/pulls/<n>/comments/<id>/replies) and resolving review threads (GraphQL resolveReviewThread) on github.com/GaryRudolph and github.com/lolay repos is allowed when the agent is following a PR it opened or was asked to work on through CI and review"
+    ],
+    "environment": [
+      "$defaults",
+      "Source control: github.com/GaryRudolph and github.com/lolay, and all repos under them"
+    ]
+  },
+  "settings-commit": "{{ commit }}"
+}

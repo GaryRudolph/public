@@ -1,0 +1,12 @@
+{
+  "id": "claude-managed-settings",
+  "name": "Claude Code managed settings",
+  "content": "agents/org/claude-managed-settings.json",
+  "steps": "agents/org/steps/claude-managed-settings.md",
+  "orgs": [
+    {
+      "name": "Lolay",
+      "where": "claude.ai > Organization settings > Claude Code > Managed settings > Manage"
+    }
+  ]
+}

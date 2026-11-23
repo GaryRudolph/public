@@ -1,0 +1,77 @@
+# Opens one GitHub issue when a merge to main changes the Claude Code managed
+# settings an Owner pastes by hand into each org in agents/org/settings.json,
+# or adds an org to that list, and posts it to Slack #infrastructure. A touch
+# that changes nothing to paste files nothing. agents/org/README.md has the
+# rules; agents/org/settings_issue.py implements them.
+#
+# Every run checks main's current tip, not the pushed commit, so a run dropped
+# from the concurrency queue, a rerun of an old push and the first run all end
+# in the same state.
+#
+# Keep `paths` to the registry and the generated file;
+# agents/org/tests/test_settings_issue.py fails when they drift.
+name: Org settings
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - agents/org/claude-managed-settings.json
+      - agents/org/settings.json
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: Render the issue to the job summary without filing or posting anything
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+
+# Real runs one at a time, so two quick merges can't both supersede the same
+# open issue. GitHub keeps only the newest pending run; that's enough, since
+# each run checks main's current tip. A dry run gets a group of its own, so it
+# can never push a pending real run out of the queue.
+concurrency:
+  group: ${{ (github.event_name == 'workflow_dispatch' && inputs.dry_run) && format('org-settings-dry-{0}', github.run_id) || 'org-settings' }}
+  cancel-in-progress: false
+
+jobs:
+  issue:
+    name: org-settings issue
+    # Only from main: an issue pins the commit it was filed from, and the
+    # Slack token's environment admits only main.
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    # SLACK_BOT_TOKEN lives here, limited to main, so no other branch's
+    # workflow can read it.
+    environment: org-settings
+    permissions:
+      contents: read
+      issues: write # file, lock, close and label the allowlist issue
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          # main's tip when the run starts, not the event's commit: a rerun of
+          # an old push would otherwise check out that old commit.
+          ref: main
+          # Full history: the comparison reads the file at every commit an
+          # issue pinned, which can be any age.
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: File, leave or close the issue, and post a new one to Slack
+        env:
+          GH_TOKEN: ${{ github.token }}
+          DRY_RUN: ${{ inputs.dry_run }}
+          # The Slack app lolay/infrastructure posts with (chat:write only).
+          # Best effort: without a token the run warns and stays green.
+          SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
+          SLACK_CHANNEL_ID: C0CHEJ64U93 # #infrastructure
+        run: |
+          args=(--sha "$(git rev-parse HEAD)")
+          if [ "$DRY_RUN" = true ]; then
+            args+=(--dry-run)
+          fi
+          python3 -I agents/org/settings_issue.py "${args[@]}"
