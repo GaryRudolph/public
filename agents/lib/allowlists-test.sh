@@ -80,7 +80,7 @@ run_al() {
     ORG="$ORG" \
     ALLOWLISTS_SRC="$meta" \
     CURSOR_DATA_HOME="$home/.cursor" \
-    CLAUDE_DATA_HOME="$home/.claude" \
+    CLAUDE_CONFIG_DIRS="$home/.claude" \
     GEMINI_DATA_HOME="$home/.gemini" \
     REMOVE_HISTORY="${REMOVE_HISTORY:-no}" \
     bash "$ALLOWLISTS" "$@"
@@ -92,7 +92,7 @@ run_al_org() {
     ORG="$org_val" \
     ALLOWLISTS_SRC="$meta" \
     CURSOR_DATA_HOME="$home/.cursor" \
-    CLAUDE_DATA_HOME="$home/.claude" \
+    CLAUDE_CONFIG_DIRS="$home/.claude" \
     GEMINI_DATA_HOME="$home/.gemini" \
     REMOVE_HISTORY="${REMOVE_HISTORY:-no}" \
     bash "$ALLOWLISTS" "$@"
@@ -106,7 +106,7 @@ run_al_win() {
     ORG="$ORG" \
     ALLOWLISTS_SRC="$meta" \
     CURSOR_DATA_HOME="$home/.cursor" \
-    CLAUDE_DATA_HOME="$home/.claude" \
+    CLAUDE_CONFIG_DIRS="$home/.claude" \
     GEMINI_DATA_HOME="$home/.gemini" \
     WIN_HOME="$win_home" \
     WIN_CURSOR_DATA_HOME="$win_home/.cursor" \
@@ -384,7 +384,7 @@ run_al "$H11" "$META_ALT" install >/dev/null
 ORG="$ORG" \
 ALLOWLISTS_SRC="$META_ALT" \
 CURSOR_DATA_HOME="$H11/.cursor" \
-CLAUDE_DATA_HOME="$H11/.claude" \
+CLAUDE_CONFIG_DIRS="$H11/.claude" \
 GEMINI_DATA_HOME="$H11/.gemini" \
 RESTORE_N=1 \
 bash "$ALLOWLISTS" restore >/dev/null
@@ -731,7 +731,7 @@ run_al "$H28" "$META_ALT" install >/dev/null
 ORG="$ORG" \
 ALLOWLISTS_SRC="$META_ALT" \
 CURSOR_DATA_HOME="$H28/.cursor" \
-CLAUDE_DATA_HOME="$H28/.claude" \
+CLAUDE_CONFIG_DIRS="$H28/.claude" \
 GEMINI_DATA_HOME="$H28/.gemini" \
 RESTORE_N=1 \
 bash "$ALLOWLISTS" restore >/dev/null

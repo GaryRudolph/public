@@ -40,8 +40,8 @@
 #   LEGACY_COMMANDS_SRC      former command dirs whose links are swept (empty)
 #   CURSOR_SKILLS_HOME       ~/.cursor/skills
 #   AGENTS_SKILLS_HOME       ~/.agents/skills   (Codex, Gemini, Copilot CLI)
-#   CLAUDE_SKILLS_HOME       ~/.claude/skills
-#   CLAUDE_COMMANDS_HOME     ~/.claude/commands
+#   CLAUDE_CONFIG_DIRS       ~/.claude   (colon-separated absolute paths; each gets
+#                            its own skills/ and commands/)
 #   LEGACY_SKILLS_HOMES      ~/.gemini/skills:~/.codex/skills (swept, never installed)
 #   CURSOR_SKILLS_MODE       copy    (copy | symlink | plugin)
 #   AGENTS_SKILLS_MODE       symlink (symlink | plugin)
@@ -75,8 +75,7 @@ set -euo pipefail
 : "${LEGACY_COMMANDS_SRC:=}"
 : "${CURSOR_SKILLS_HOME:=$HOME/.cursor/skills}"
 : "${AGENTS_SKILLS_HOME:=$HOME/.agents/skills}"
-: "${CLAUDE_SKILLS_HOME:=$HOME/.claude/skills}"
-: "${CLAUDE_COMMANDS_HOME:=$HOME/.claude/commands}"
+: "${CLAUDE_CONFIG_DIRS:=$HOME/.claude}"
 : "${LEGACY_SKILLS_HOMES:=$HOME/.gemini/skills:$HOME/.codex/skills}"
 : "${CURSOR_SKILLS_MODE:=copy}"
 : "${AGENTS_SKILLS_MODE:=symlink}"
@@ -233,6 +232,25 @@ split_list() {
     done
 }
 
+# One Claude config dir per line, from the colon-separated list. Read as text,
+# so a space or glob character in a path is kept literally.
+claude_dirs() { printf '%s\n' "$CLAUDE_CONFIG_DIRS" | tr ':' '\n' | sed '/^$/d'; }
+
+# $1 = unix or win, $2 = skills or commands. One Claude destination per line:
+# each dir in CLAUDE_CONFIG_DIRS on the Unix side, the single Windows one under WSL.
+claude_dests() {
+    local side="$1" sub="$2" dir
+    if [ "$side" = "unix" ]; then
+        while IFS= read -r dir; do
+            printf '%s\n' "$dir/$sub"
+        done < <(claude_dirs)
+    elif [ "$sub" = "skills" ]; then
+        printf '%s\n' "${WIN_CLAUDE_SKILLS_HOME:-}"
+    else
+        printf '%s\n' "${WIN_CLAUDE_COMMANDS_HOME:-}"
+    fi
+}
+
 # $1 = colon list of sources, $2 = dest, $3 = kind, $4 = mode
 tuples_for() {
     local srcs="$1" dest="$2" kind="$3" mode="$4" src
@@ -248,15 +266,13 @@ cursor_skill_sources() {
 
 # $1 = unix or win. Install set: every destination not in plugin mode.
 install_tuples() {
-    local side="$1" cursor agents claude commands cursor_mode
+    local side="$1" cursor agents claude cursor_mode
     if [ "$side" = "unix" ]; then
         cursor="$CURSOR_SKILLS_HOME"; agents="$AGENTS_SKILLS_HOME"
-        claude="$CLAUDE_SKILLS_HOME"; commands="$CLAUDE_COMMANDS_HOME"
         cursor_mode="$CURSOR_SKILLS_MODE"
     else
         [ -n "$WIN_HOME" ] || return 0
         cursor="${WIN_CURSOR_SKILLS_HOME:-}"; agents="${WIN_AGENTS_SKILLS_HOME:-}"
-        claude="${WIN_CLAUDE_SKILLS_HOME:-}"; commands="${WIN_CLAUDE_COMMANDS_HOME:-}"
         cursor_mode=copy
     fi
     local link=symlink
@@ -268,8 +284,12 @@ install_tuples() {
         tuples_for "$SKILLS_SRC" "$agents" skill "$link"
     fi
     if [ "$CLAUDE_SKILLS_MODE" != "plugin" ]; then
-        tuples_for "$SKILLS_SRC" "$claude" skill "$link"
-        tuples_for "$COMMANDS_SRC" "$commands" command "$link"
+        while IFS= read -r claude; do
+            tuples_for "$SKILLS_SRC" "$claude" skill "$link"
+        done < <(claude_dests "$side" skills)
+        while IFS= read -r claude; do
+            tuples_for "$COMMANDS_SRC" "$claude" command "$link"
+        done < <(claude_dests "$side" commands)
     fi
 }
 
@@ -279,21 +299,20 @@ win_tuples()  { install_tuples win; }
 # "dest|kind" for every destination that install must keep clear of our
 # entries: those in plugin mode, plus retired destinations.
 purge_dests() {
-    local side="$1" cursor agents claude commands legacy
+    local side="$1" cursor agents legacy
     if [ "$side" = "unix" ]; then
         cursor="$CURSOR_SKILLS_HOME"; agents="$AGENTS_SKILLS_HOME"
-        claude="$CLAUDE_SKILLS_HOME"; commands="$CLAUDE_COMMANDS_HOME"
         legacy="$LEGACY_SKILLS_HOMES"
     else
         [ -n "$WIN_HOME" ] || return 0
         cursor="${WIN_CURSOR_SKILLS_HOME:-}"; agents="${WIN_AGENTS_SKILLS_HOME:-}"
-        claude="${WIN_CLAUDE_SKILLS_HOME:-}"; commands="${WIN_CLAUDE_COMMANDS_HOME:-}"
         legacy="${WIN_LEGACY_SKILLS_HOMES:-}"
     fi
     [ "$CURSOR_SKILLS_MODE" = "plugin" ] && printf '%s|skill\n' "$cursor"
     [ "$AGENTS_SKILLS_MODE" = "plugin" ] && printf '%s|skill\n' "$agents"
-    if [ "$CLAUDE_SKILLS_MODE" = "plugin" ]; then
-        printf '%s|skill\n%s|command\n' "$claude" "$commands"
+ if [ "$CLAUDE_SKILLS_MODE" = "plugin" ]; then
+        claude_dests "$side" skills | sed 's/$/|skill/'
+        claude_dests "$side" commands | sed 's/$/|command/'
     fi
     split_list "$legacy" | sed 's/$/|skill/'
 }
@@ -303,13 +322,15 @@ purge_dests() {
 all_dests() {
     local side="$1"
     if [ "$side" = "unix" ]; then
-        printf '%s|skill\n' "$CURSOR_SKILLS_HOME" "$AGENTS_SKILLS_HOME" "$CLAUDE_SKILLS_HOME"
-        printf '%s|command\n' "$CLAUDE_COMMANDS_HOME"
+        printf '%s|skill\n' "$CURSOR_SKILLS_HOME" "$AGENTS_SKILLS_HOME"
+        claude_dests unix skills | sed 's/$/|skill/'
+        claude_dests unix commands | sed 's/$/|command/'
         split_list "$LEGACY_SKILLS_HOMES" | sed 's/$/|skill/'
     else
         [ -n "$WIN_HOME" ] || return 0
-        printf '%s|skill\n' "${WIN_CURSOR_SKILLS_HOME:-}" "${WIN_AGENTS_SKILLS_HOME:-}" "${WIN_CLAUDE_SKILLS_HOME:-}"
-        printf '%s|command\n' "${WIN_CLAUDE_COMMANDS_HOME:-}"
+        printf '%s|skill\n' "${WIN_CURSOR_SKILLS_HOME:-}" "${WIN_AGENTS_SKILLS_HOME:-}"
+        claude_dests win skills | sed 's/$/|skill/'
+        claude_dests win commands | sed 's/$/|command/'
         split_list "${WIN_LEGACY_SKILLS_HOMES:-}" | sed 's/$/|skill/'
     fi
 }
@@ -949,10 +970,13 @@ cmd_status() {
         fi
     done < <(unix_tuples)
 
-    local mode_line
-    for mode_line in "cursor skills|$CURSOR_SKILLS_MODE|$CURSOR_SKILLS_HOME" \
-                     "agents skills|$AGENTS_SKILLS_MODE|$AGENTS_SKILLS_HOME" \
-                     "claude skills + commands|$CLAUDE_SKILLS_MODE|$CLAUDE_SKILLS_HOME"; do
+    local mode_line claude_dir
+    local mode_lines=("cursor skills|$CURSOR_SKILLS_MODE|$CURSOR_SKILLS_HOME"
+                      "agents skills|$AGENTS_SKILLS_MODE|$AGENTS_SKILLS_HOME")
+    while IFS= read -r claude_dir; do
+        mode_lines+=("claude skills + commands|$CLAUDE_SKILLS_MODE|$claude_dir/skills")
+    done < <(claude_dirs)
+    for mode_line in "${mode_lines[@]}"; do
         IFS='|' read -r kind mode dest <<<"$mode_line"
         [ "$mode" = "plugin" ] || continue
         printf '%-50s = plugin mode (%s come from the %s plugin)\n' "$(pretty_path "$dest")/" "$kind" "$ORG"

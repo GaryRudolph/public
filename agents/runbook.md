@@ -107,7 +107,8 @@ covers plugin sync.
 
 #### s3 - Check user settings
 
-In `~/.claude/settings.json`, make sure `syncClaudeAiPlugins` isn't set to
+In `~/.claude/settings.json` (and the `settings.json` in each other config dir
+you run Claude Code from), make sure `syncClaudeAiPlugins` isn't set to
 `false`. No other user-settings change is needed.
 
 #### s4 - Add the local marketplace for live edits
@@ -121,6 +122,12 @@ claude plugin marketplace add ~/Projects/personal/public
 claude plugin install personal@personal --scope user
 claude plugin install workstation@personal --scope user
 ```
+
+These commands act on one config dir, whichever `CLAUDE_CONFIG_DIR` points
+at (`~/.claude` when it's unset). To register the marketplace in every dir
+in `CLAUDE_CONFIG_DIRS` instead (s5 sets it), run
+`make install-local-marketplace` in `agents/`; it repeats the same steps per
+dir with `CLAUDE_CONFIG_DIR` set to it.
 
 A marketplace added from a local directory loads plugins in place: edits
 apply at the next session start, or after `/reload-plugins`.
@@ -152,6 +159,32 @@ so a plain `make install` keeps honoring them:
 # agents/local.mk
 CODEX_MODE := plugin
 ```
+
+If your Claude Code sessions run from a config dir other than `~/.claude`
+(`CLAUDE_CONFIG_DIR` set by a shell function or an app launcher), list every
+dir in `CLAUDE_CONFIG_DIRS`. Colon-separated absolute paths (a space in a path
+is fine); the default is `~/.claude`. Match what your routing actually sets: the
+fish `claude` function in `dotfiles/fish/conf.d/65-aliases.apps.fish` and the
+launchers in `macos-launchers/apps/claude.applescript` use
+`~/.claude-lolay` (the default) and `~/.claude-agerpoint` inside Agerpoint
+work, plus `~/.claude-<slug>` for each launcher profile.
+
+```make
+# agents/local.mk
+CLAUDE_CONFIG_DIRS := $(HOME)/.claude-lolay:$(HOME)/.claude-agerpoint
+```
+
+Every Claude target loops over the list, and each dir keeps its own
+`CLAUDE.md` block, skills and commands links, `settings.json` with its
+sidecars and `.history/`, and local marketplace and plugin installs.
+`make install` and `make uninstall` handle all of them together. `make status`
+starts with the managed dirs and names any other `~/.claude*` directory it
+finds (`? not managed`), which is the sign the list is missing a profile, and
+says so when such a dir still holds our files (a dir dropped from the list
+after an install; list it again and run `make uninstall` to clear it).
+Nothing is ever written to a dir that isn't listed.
+`CLAUDE_HOME`, `CLAUDE_DATA_HOME`, `CLAUDE_SKILLS_HOME` and `CLAUDE_COMMANDS_HOME`
+no longer exist; `make` stops with an error if `local.mk` still sets one.
 
 #### s6 - Verify
 
