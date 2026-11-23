@@ -22,16 +22,21 @@
 # plain command prefixes, `git status`, `rm -rf /`):
 #   Cursor IDE   terminalAllowlist / terminalDenylist: the entry as written.
 #   Cursor CLI   allow: the exact command line, `Shell(<base>:<args>)` for a
-#                multi-word entry, `Shell(<word>)` for a one-word entry (any
-#                arguments), and no rule for an entry with `*` or `?` or a
-#                colon in its first word. deny: the prefix, `Shell(<base>:<args>*)`
+#                multi-word entry, and no rule for a one-word entry (Cursor reads
+#                `Shell(<word>)` as any arguments, and `rg --pre` or `sort -o`
+#                would run without a prompt) or one with `*` or `?` or a colon in
+#                its first word. deny: the prefix, `Shell(<base>:<args>*)`
 #                for a multi-word entry, `Shell(<word>)` for a one-word entry,
 #                and an entry whose args already hold a glob as written
 #                (`rm -rf /*` is `Shell(rm:-rf /*)`). A prefix deny also blocks
 #                longer commands (`rm -rf /tmp/x`), the safe direction.
-#   Claude Code  allow and deny: `Bash(<entry>:*)`, the prefix. An entry that
+#   Claude Code  allow: the exact command, `Bash(<entry>)`, so `git log` does not
+#                also approve `git log --output=<path>`; an entry with a `*` gets
+#                no rule. deny: the prefix, `Bash(<entry>:*)`; an entry that
 #                holds a `*` is written `Bash(<entry>)` as it is, since a `*`
 #                before the suffix would make `<entry> *` miss the entry itself.
+#                Allows are exact and denies prefixes in both tools, the
+#                Owner's call of 2026-11-23 (r1.f1).
 #   Gemini       commandPrefix rules in the policy TOML.
 # A bare string in Cursor CLI's or Claude Code's permissions list matches
 # nothing in either tool. MCP entries are `server:tool`: Cursor IDE as written,
@@ -330,9 +335,8 @@ render_target_schema() {
                    def cli_parts: capture("^(?<base>\\S+)\\s+(?<args>.+)$");
                    def cli_first_word_colon: test("^[^\\s:]*:");
                    def cli_allow:
-                       if test("[*?]") or cli_first_word_colon then empty
-                       elif test("\\s") then cli_parts | "Shell(" + .base + ":" + .args + ")"
-                       else "Shell(" + . + ")"
+                       if test("[*?]") or cli_first_word_colon or (test("\\s") | not) then empty
+                       else cli_parts | "Shell(" + .base + ":" + .args + ")"
                        end;
                    def cli_deny:
                        if cli_first_word_colon then error("no Cursor CLI deny form for: " + .)
@@ -360,8 +364,9 @@ render_target_schema() {
             # server:tool -> mcp__server__tool, server:* -> mcp__server__*.
             # Split at the first colon (the tool part is the rest). An entry
             # with no colon, no server or no tool stops the render rather than
-            # produce a rule such as mcp____tool. A shell entry is a prefix,
-            # Bash(<entry>:*); one that holds a * is written as it is.
+            # produce a rule such as mcp____tool. A shell allow is the exact
+            # command, Bash(<entry>); a shell deny is the prefix, Bash(<entry>:*),
+            # or as written when it holds a *. See the header.
             jq -S 'def shell_norm:
                        gsub("^\\s+|\\s+$"; "")
                        | if test("[\"\u0027]") then . else gsub("\\s+"; " ") end
@@ -371,18 +376,20 @@ render_target_schema() {
                        then index(":") as $i | "mcp__" + .[:$i] + "__" + .[$i+1:]
                        else error("bad mcp entry: " + .)
                        end;
-                   def claude_bash:
+                   def claude_allow:
+                       if test("[*]") then empty else "Bash(" + . + ")" end;
+                   def claude_deny:
                        if test("[*]") then "Bash(" + . + ")" else "Bash(" + . + ":*)" end;
                    {
                 permissions: {
                     allow: (
-                        (((.shell.allow   // []) | map(shell_norm | claude_bash)) +
+                        (((.shell.allow   // []) | map(shell_norm | claude_allow)) +
                          ((.mcp.allow     // []) | map(claude_mcp)) +
                          ((.webfetch.allow // []) | map("WebFetch(domain:" + . + ")"))
                         ) | unique
                     ),
                     deny: (
-                        (((.shell.deny   // []) | map(shell_norm | claude_bash)) +
+                        (((.shell.deny   // []) | map(shell_norm | claude_deny)) +
                          ((.mcp.deny     // []) | map(claude_mcp)) +
                          ((.webfetch.deny // []) | map("WebFetch(domain:" + . + ")"))
                         ) | unique

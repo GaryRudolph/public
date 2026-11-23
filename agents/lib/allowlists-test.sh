@@ -482,8 +482,8 @@ has_deny=$(jq   '.permissions.deny  | index("Bash(rm -rf /:*)") != null' "$H15/.
 [ "$has_slack"  = "true" ] || fail "T15: mcp__slack__* missing from settings.json"
 [ "$has_wf"     = "true" ] || fail "T15: WebFetch(domain:*.github.com) missing from settings.json"
 [ "$has_deny"   = "true" ] || fail "T15: Bash(rm -rf /:*) deny missing from settings.json"
-has_allow=$(jq  '.permissions.allow | index("Bash(git status:*)") != null' "$H15/.claude/settings.json")
-[ "$has_allow"  = "true" ] || fail "T15: Bash(git status:*) allow missing from settings.json"
+has_allow=$(jq  '.permissions.allow | index("Bash(git status)") != null' "$H15/.claude/settings.json")
+[ "$has_allow"  = "true" ] || fail "T15: exact Bash(git status) allow missing from settings.json"
 bare=$(jq '[.permissions.allow[], .permissions.deny[] | select(test("^(Bash|mcp__|WebFetch)") | not)] | length' "$H15/.claude/settings.json")
 [ "$bare" = "0" ] || fail "T15: bare (unwrapped) entry in settings.json permissions"
 
@@ -817,11 +817,11 @@ META32A="$TEST_DIR/meta/t32a.json"; META32B="$TEST_DIR/meta/t32b.json"
 printf '{"shell":{"allow":["git status","rm"],"deny":[]},"mcp":{"allow":[],"deny":[]},"read":{"deny":[]},"write":{"deny":[]},"webfetch":{"allow":[],"deny":[]}}\n' > "$META32A"
 printf '{"shell":{"allow":["git status"],"deny":[]},"mcp":{"allow":[],"deny":[]},"read":{"deny":[]},"write":{"deny":[]},"webfetch":{"allow":[],"deny":[]}}\n' > "$META32B"
 run_al "$H32" "$META32A" install >/dev/null
-[ "$(jq '.permissions.allow | index("Bash(rm:*)") // index("rm") | . != null' "$H32/.claude/settings.json")" = "true" ] \
+[ "$(jq '.permissions.allow | index("Bash(rm)") | . != null' "$H32/.claude/settings.json")" = "true" ] \
     || fail "T32: setup, rm not in settings.json"
 run_al "$H32" "$META32B" install >/dev/null
 for f in "$H32/.claude/settings.json" "$H32/.cursor/permissions.json" "$H32/.cursor/cli-config.json"; do
-    grep -q '"rm"\|rm:\*\|Shell(rm' "$f" && fail "T32: rm still live in $(basename "$f")"
+    grep -q '"rm"\|rm:\*\|Shell(rm\|Bash(rm)' "$f" && fail "T32: rm still live in $(basename "$f")"
 done
 if [ -f "$H32/.claude/.settings.user-managed.json" ] && grep -q 'rm' "$H32/.claude/.settings.user-managed.json"; then
     fail "T32: rm was saved as a user edit"
@@ -1007,7 +1007,7 @@ run_al "$H40B" "$META" install >/dev/null
 if [ -f "$H40B/.claude/.settings.user-managed.json" ] && grep -q 'pytest' "$H40B/.claude/.settings.user-managed.json"; then
     fail "T40b: the peer's rules were saved as user edits"
 fi
-[ "$(jq '.permissions.allow | index("Bash(pytest:*)") != null' "$H40B/.claude/settings.json")" = "true" ] \
+[ "$(jq '.permissions.allow | index("Bash(pytest)") != null' "$H40B/.claude/settings.json")" = "true" ] \
     || fail "T40b: the peer's rules dropped out of the live file"
 
 printf '[T40c] a meta that renders two JSON objects: nothing written\n'
@@ -1077,7 +1077,7 @@ done
 # in the meta and in each target, in the form that target writes:
 #   Cursor IDE  terminalAllowlist  the bare entry
 #   Cursor CLI  permissions.allow  Shell(<base>:<args>), split as the renderer splits it
-#   Claude Code permissions.allow  Bash(<entry>:*)
+#   Claude Code permissions.allow  Bash(<entry>), and the old prefix Bash(<entry>:*)
 #   Gemini      policy TOML        a `commandPrefix = "<entry>"` line
 jq -r '.terminalAllowlist[]'  "$H41/.cursor/permissions.json" > "$TEST_DIR/t41.ide"
 jq -r '.permissions.allow[]'  "$H41/.cursor/cli-config.json"  > "$TEST_DIR/t41.cli"
@@ -1091,8 +1091,17 @@ for removed in 'op read' 'op run' 'curl -X GET' 'curl --get' 'curl -G' 'wget --m
     gemini_line="commandPrefix = $(jq -rn --arg e "$removed" '$e | tojson')"
     grep -qxF -- "$removed"           "$TEST_DIR/t41.ide"    && fail "T41: '$removed' is in Cursor IDE terminalAllowlist"
     grep -qxF -- "$cli_form"          "$TEST_DIR/t41.cli"    && fail "T41: '$cli_form' is in Cursor CLI permissions.allow"
+    grep -qxF -- "Bash($removed)"     "$TEST_DIR/t41.claude" && fail "T41: 'Bash($removed)' is in Claude Code permissions.allow"
     grep -qxF -- "Bash($removed:*)"   "$TEST_DIR/t41.claude" && fail "T41: 'Bash($removed:*)' is in Claude Code permissions.allow"
     grep -qxF -- "$gemini_line"       "$TEST_DIR/t41.gemini" && fail "T41: '$gemini_line' is in the Gemini policy"
+done
+# r1.f1: no shell allow from the real meta is a prefix in Claude Code or takes
+# any arguments in Cursor CLI, so `git log --output=`, `rg --pre` or `make test
+# x --eval=` still prompt there.
+grep -E '^Bash\(.*(:\*| \*)\)$' "$TEST_DIR/t41.claude" && fail "T41: a Claude Code shell allow is a prefix rule"
+grep -E '^Shell\([^:]*\)$'       "$TEST_DIR/t41.cli"    && fail "T41: a Cursor CLI shell allow takes any arguments"
+for exact in 'Bash(git log)' 'Bash(rg)' 'Bash(git fetch)' 'Bash(make test)'; do
+    grep -qxF -- "$exact" "$TEST_DIR/t41.claude" || fail "T41: Claude Code allow lacks the exact $exact"
 done
 
 # A named tool renders per tool in each target.
@@ -1124,7 +1133,7 @@ done
 # T42 (r1.f1): shell entries reach Cursor CLI and Claude Code wrapped, in the
 # form each tool reads; Cursor IDE keeps the raw strings.
 # ---------------------------------------------------------------------------
-printf '[T42] shell forms: Cursor CLI exact allow and prefix deny, Claude Code prefix\n'
+printf '[T42] shell forms: exact allows and prefix denies in Cursor CLI and Claude Code\n'
 META42="$TEST_DIR/meta/t42.json"
 cat > "$META42" <<'ENDJSON'
 {
@@ -1142,12 +1151,13 @@ CLI42="$H42/.cursor/cli-config.json"
 CC42="$H42/.claude/settings.json"
 in_list() { jq -e --arg e "$3" ".permissions.$2 | index(\$e) != null" "$1" >/dev/null; }
 
-# Cursor CLI allow: Shell(<base>:<args>) for a multi-word entry, Shell(<word>)
-# for a one-word one, nothing for a glob or a colon in the first word.
+# Cursor CLI allow: Shell(<base>:<args>) for a multi-word entry, nothing for a
+# one-word entry (Shell(<word>) takes any arguments), a glob or a colon in the
+# first word.
 in_list "$CLI42" allow 'Shell(git:status)' || fail "T42: Cursor CLI multi-word allow is not Shell(git:status)"
-in_list "$CLI42" allow 'Shell(pytest)'     || fail "T42: Cursor CLI one-word allow is not Shell(pytest)"
-[ "$(jq '.permissions.allow | length' "$CLI42")" = "2" ] \
-    || fail "T42: Cursor CLI allow holds more than the two writable entries: $(jq -c '.permissions.allow' "$CLI42")"
+in_list "$CLI42" allow 'Shell(pytest)' && fail "T42: Cursor CLI one-word allow Shell(pytest) takes any arguments"
+[ "$(jq '.permissions.allow | length' "$CLI42")" = "1" ] \
+    || fail "T42: Cursor CLI allow holds more than the one exact entry: $(jq -c '.permissions.allow' "$CLI42")"
 for skipped in 'make test*' 'ls ?' './run:all now' 'Shell(make:test*)' 'Shell(ls:?)' 'Shell(./run:all now)' 'Shell(./run:all:now)'; do
     in_list "$CLI42" allow "$skipped" && fail "T42: Cursor CLI allow holds the unwritable entry $skipped"
 done
@@ -1159,11 +1169,14 @@ in_list "$CLI42" deny 'Shell(rm:-rf /*)'         || fail "T42: Cursor CLI glob d
 in_list "$CLI42" deny 'Shell(rm:-rf /**)' && fail "T42: Cursor CLI glob deny got a second *"
 in_list "$CLI42" deny 'Shell(git:push --force)' && fail "T42: Cursor CLI deny is the exact form, which lets longer commands through"
 
-# Claude Code: Bash(<entry>:*) for allow and deny; an entry holding a * as it is.
-in_list "$CC42" allow 'Bash(git status:*)' || fail "T42: Claude Code multi-word allow is not Bash(git status:*)"
-in_list "$CC42" allow 'Bash(pytest:*)'     || fail "T42: Claude Code one-word allow is not Bash(pytest:*)"
-in_list "$CC42" allow 'Bash(./run:all now:*)' || fail "T42: Claude Code allow with a colon in the first word is not Bash(./run:all now:*)"
-in_list "$CC42" allow 'Bash(make test*)'   || fail "T42: Claude Code glob allow is not written as it is"
+# Claude Code: the exact Bash(<entry>) for an allow (none for a glob), the
+# prefix Bash(<entry>:*) for a deny, a deny holding a * as it is.
+in_list "$CC42" allow 'Bash(git status)'   || fail "T42: Claude Code multi-word allow is not the exact Bash(git status)"
+in_list "$CC42" allow 'Bash(pytest)'       || fail "T42: Claude Code one-word allow is not the exact Bash(pytest)"
+in_list "$CC42" allow 'Bash(./run:all now)' || fail "T42: Claude Code allow with a colon in the first word is not Bash(./run:all now)"
+in_list "$CC42" allow 'Bash(make test*)'   && fail "T42: Claude Code glob allow was written; it would approve more than the entry"
+[ "$(jq '[.permissions.allow[] | select(endswith(":*)") or endswith(" *)"))] | length' "$CC42")" = "0" ] \
+    || fail "T42: Claude Code allow holds a prefix rule: $(jq -c '.permissions.allow' "$CC42")"
 in_list "$CC42" deny 'Bash(git push --force:*)' || fail "T42: Claude Code multi-word deny is not Bash(git push --force:*)"
 in_list "$CC42" deny 'Bash(sudo:*)'             || fail "T42: Claude Code one-word deny is not Bash(sudo:*)"
 in_list "$CC42" deny 'Bash(rm -rf /*)'          || fail "T42: Claude Code glob deny is not written as it is, Bash(rm -rf /*)"
@@ -1211,7 +1224,7 @@ in_list "$H42C/.cursor/cli-config.json" allow 'Shell(git:status)' || fail "T42c:
 for want in 'Bash(sudo:*)' 'Bash(git push:*)' 'Bash(rm -rf /:*)'; do
     in_list "$H42C/.claude/settings.json" deny "$want" || fail "T42c: Claude Code deny lacks $want: $(jq -c '.permissions.deny' "$H42C/.claude/settings.json")"
 done
-in_list "$H42C/.claude/settings.json" allow 'Bash(git status:*)' || fail "T42c: Claude Code allow lacks Bash(git status:*)"
+in_list "$H42C/.claude/settings.json" allow 'Bash(git status)' || fail "T42c: Claude Code allow lacks Bash(git status)"
 H42D=$(mk_home t42d)
 jq '.shell.deny += ["   "]' "$META42C" > "$TEST_DIR/meta/t42d.json"
 rc=0
@@ -1247,11 +1260,11 @@ printf '%s\n' "$OLD_IDE" | jq -S . > "$H43/.cursor/permissions.json"
 printf '%s\n' "$OLD_IDE" | jq -S . > "$H43/.cursor/.permissions.${ORG}-managed.json"
 run_al "$H43" "$META43" install >/dev/null || fail "T43: install failed on the previous render"
 CLI43="$H43/.cursor/cli-config.json"; CC43="$H43/.claude/settings.json"
-[ "$(jq -c '.permissions.allow' "$CLI43")" = '["Mcp(notion:notion-search)","Mcp(slack:slack_read_channel)","Shell(git:status)","Shell(pytest)"]' ] \
+[ "$(jq -c '.permissions.allow' "$CLI43")" = '["Mcp(notion:notion-search)","Mcp(slack:slack_read_channel)","Shell(git:status)"]' ] \
     || fail "T43: Cursor CLI allow after upgrade: $(jq -c '.permissions.allow' "$CLI43")"
 [ "$(jq -c '.permissions.deny' "$CLI43")" = '["Shell(rm:-rf /*)","Shell(sudo)"]' ] \
     || fail "T43: Cursor CLI deny after upgrade: $(jq -c '.permissions.deny' "$CLI43")"
-[ "$(jq -c '.permissions.allow' "$CC43")" = '["Bash(git status:*)","Bash(pytest:*)","WebFetch(domain:docs.python.org)","mcp__notion__notion-search","mcp__slack__slack_read_channel"]' ] \
+[ "$(jq -c '.permissions.allow' "$CC43")" = '["Bash(git status)","Bash(pytest)","WebFetch(domain:docs.python.org)","mcp__notion__notion-search","mcp__slack__slack_read_channel"]' ] \
     || fail "T43: Claude Code allow after upgrade: $(jq -c '.permissions.allow' "$CC43")"
 [ "$(jq -c '.permissions.deny' "$CC43")" = '["Bash(rm -rf /:*)","Bash(sudo:*)"]' ] \
     || fail "T43: Claude Code deny after upgrade: $(jq -c '.permissions.deny' "$CC43")"
