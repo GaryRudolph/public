@@ -1058,6 +1058,7 @@ for entry in \
     firebase:realtimedatabase_set_data firebase:firebase_deploy \
     firebase:messaging_send_message firebase:auth_update_user \
     miro-mcp:board_share miro-mcp:space_share miro-mcp:board_role_update miro-mcp:space_role_update \
+    figma:generate_image figma:generate_vector_illustration \
     miro-mcp:section_delete \
     notion:notion-move-pages notion:notion-create-comment notion:notion-get-file-download-urls \
     figma:update_shader figma:weave_run_tool
@@ -1138,7 +1139,7 @@ META42="$TEST_DIR/meta/t42.json"
 cat > "$META42" <<'ENDJSON'
 {
   "shell":    { "allow": ["git status", "pytest", "make test*", "ls ?", "./run:all now"],
-                "deny":  ["git push --force", "sudo", "rm -rf /*", "rm -rf /"] },
+                "deny":  ["git push --force", "sudo", "rm -rf /*", "rm -rf /", "rm -rf /?"] },
   "mcp":      { "allow": [], "deny": [] },
   "read":     { "deny": [] },
   "write":    { "deny": [] },
@@ -1167,6 +1168,7 @@ in_list "$CLI42" deny 'Shell(git:push --force*)' || fail "T42: Cursor CLI multi-
 in_list "$CLI42" deny 'Shell(sudo)'              || fail "T42: Cursor CLI one-word deny is not Shell(sudo)"
 in_list "$CLI42" deny 'Shell(rm:-rf /*)'         || fail "T42: Cursor CLI glob deny is not written as it is, Shell(rm:-rf /*)"
 in_list "$CLI42" deny 'Shell(rm:-rf /**)' && fail "T42: Cursor CLI glob deny got a second *"
+in_list "$CLI42" deny 'Shell(rm:-rf /?*)' || fail "T42: Cursor CLI deny with a ? is not a prefix, Shell(rm:-rf /?*)"
 in_list "$CLI42" deny 'Shell(git:push --force)' && fail "T42: Cursor CLI deny is the exact form, which lets longer commands through"
 
 # Claude Code: the exact Bash(<entry>) for an allow (none for a glob), the

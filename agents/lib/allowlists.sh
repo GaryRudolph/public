@@ -27,7 +27,7 @@
 #                would run without a prompt) or one with `*` or `?` or a colon in
 #                its first word. deny: the prefix, `Shell(<base>:<args>*)`
 #                for a multi-word entry, `Shell(<word>)` for a one-word entry,
-#                and an entry whose args already hold a glob as written
+#                and an entry whose args already end in `*` as written
 #                (`rm -rf /*` is `Shell(rm:-rf /*)`). A prefix deny also blocks
 #                longer commands (`rm -rf /tmp/x`), the safe direction.
 #   Claude Code  allow: the exact command, `Bash(<entry>)`, so `git log` does not
@@ -342,7 +342,7 @@ render_target_schema() {
                        if cli_first_word_colon then error("no Cursor CLI deny form for: " + .)
                        elif test("\\s")
                        then cli_parts | "Shell(" + .base + ":" + .args
-                            + (if .args | test("[*?]") then "" else "*" end) + ")"
+                            + (if .args | endswith("*") then "" else "*" end) + ")"
                        else "Shell(" + . + ")"
                        end;
                    {

@@ -63,9 +63,14 @@ class RenderThenScan(unittest.TestCase):
         for other in ("npm publish", "npm run deploy", "npm run build-all", "npm"):
             self.assertFalse(covers(self.repo, other), other)
 
-    def test_one_word_segment_is_bare_base(self):
-        render_cli(self.repo, "pytest")
-        self.assertEqual(allow(self.repo), ["Shell(pytest)"])
+    def test_one_word_segment_is_skipped_and_says_so(self):
+        # Cursor reads Shell(<word>) as any arguments (`rg --pre <prog>`), so a
+        # one-word segment gets no Cursor CLI rule (r1.f1).
+        for seg in ("pytest", "rg"):
+            r = render_cli(self.repo, seg)
+            self.assertEqual(r.returncode, 0)
+            self.assertIn("skipped: %s -> cursor_cli" % seg, r.stderr)
+        self.assertFalse((self.repo / ".cursor" / "cli.json").exists())
 
     def test_extra_spaces_are_normalized(self):
         self.assertEqual(render._shell_token("make   test"), "Shell(make:test)")
@@ -95,7 +100,7 @@ class RenderThenScan(unittest.TestCase):
         render_cli(self.repo, "make test", "claude")
         render_cli(self.repo, "make test", "cursor_ide")
         claude = json.loads((self.repo / ".claude" / "settings.json").read_text())
-        self.assertEqual(claude["permissions"]["allow"], ["Bash(make test:*)"])
+        self.assertEqual(claude["permissions"]["allow"], ["Bash(make test)"])
         ide = json.loads((self.repo / ".cursor" / "permissions.json").read_text())
         self.assertEqual(ide["terminalAllowlist"], ["make test"])
 
@@ -103,6 +108,22 @@ class RenderThenScan(unittest.TestCase):
         render_cli(self.repo, "make test")
         render_cli(self.repo, "make test")
         self.assertEqual(allow(self.repo), ["Shell(make:test)"])
+
+    def test_claude_allow_is_exact(self):
+        # Bash(<segment>), never the prefix Bash(<segment>:*), which would also
+        # allow `git log --output=<path>` (r1.f1); a glob gets no rule.
+        self.assertEqual(render._bash_token("git log"), "Bash(git log)")
+        self.assertIsNone(render._bash_token("make test*"))
+        r = render_cli(self.repo, "make test*", "claude")
+        self.assertIn("skipped: make test* -> claude", r.stderr)
+
+    def test_a_bare_entry_does_not_stop_the_wrapped_rule_being_written(self):
+        (self.repo / ".claude").mkdir()
+        (self.repo / ".claude" / "settings.json").write_text(
+            json.dumps({"permissions": {"allow": ["make test"]}}))
+        render_cli(self.repo, "make test", "claude")
+        claude = json.loads((self.repo / ".claude" / "settings.json").read_text())
+        self.assertIn("Bash(make test)", claude["permissions"]["allow"])
 
 
 class UnsafeFlags(unittest.TestCase):
@@ -164,7 +185,11 @@ class UnsafeFlags(unittest.TestCase):
                      "git fetch --upload-pac evil origin"):
             cls, _ = scan._classify_text("check", text)
             self.assertEqual(cls, scan.DESTRUCTIVE, text)
-        for text in ("git --exec-path", "git log --output-indicator-new=+"):
+        self.assertEqual(scan._classify_text("check", "git log --output json --output=/tmp/x")[0],
+                         scan.DESTRUCTIVE)
+        for text in ("git --exec-path", "git log --output-indicator-new=+",
+                     "kubectl get pods --output json", "aws sts get-caller-identity --output=json",
+                     "az account show --output table", "kubectl get pods --output=jsonpath={.items}"):
             self.assertEqual(scan._classify_text("check", text)[0], scan.BUILD, text)
 
     def test_similar_flags_classify_as_before(self):

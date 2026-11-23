@@ -372,8 +372,6 @@
       "figma:create_new_file",
       "figma:generate_diagram",
       "figma:generate_figma_design",
-      "figma:generate_image",
-      "figma:generate_vector_illustration",
       "figma:html_to_figma",
       "figma:send_code_to_figma",
       "figma:create_generative_plugin",

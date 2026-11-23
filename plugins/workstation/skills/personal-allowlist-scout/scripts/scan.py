@@ -133,6 +133,10 @@ DESTRUCTIVE_BODY = [
 # name and in its own recipe or script body (reference.md section 1).
 UNSAFE_FLAG = re.compile(
     r"(?<![\w-])--(output|output-directory|pre|exec|upload-p(?:a(?:c(?:k)?)?)?)(?![\w-])")
+# `--output <format>` picks a format (kubectl, aws, az, gcloud), not a path.
+OUTPUT_FORMATS = re.compile(
+    r"(?:json|jsonc|yaml|yml|table|wide|text|tsv|csv|name|none|raw"
+    r"|jsonpath|go-template|custom-columns|template)(?:[=-].*)?$")
 UNSAFE_FLAG_WHY = {
     "output": "writes any path",
     "output-directory": "writes any path",
@@ -180,12 +184,24 @@ INSPECT_NAME = {
 }
 
 
+def _unsafe_flag(text: str):
+    """The first UNSAFE_FLAG match in *text*, skipping `--output` followed by
+    a format word (`--output json`, `--output=jsonpath={..}`)."""
+    for m in UNSAFE_FLAG.finditer(text):
+        if m.group(1) == "output":
+            value = re.match(r"[=\s]+(\S+)", text[m.end():])
+            if value and OUTPUT_FORMATS.match(value.group(1).strip("'\"")):
+                continue
+        return m
+    return None
+
+
 def _classify_text(name: str, body: str = ""):
     """Return (class, reason). `name` is the human-facing command/target name;
     `body` is the recipe/script value used for high-precision unsafe signals."""
     body_l = (body or "").lower()
 
-    m = UNSAFE_FLAG.search(name.lower()) or UNSAFE_FLAG.search(body_l)
+    m = _unsafe_flag(name.lower()) or _unsafe_flag(body_l)
     if m:
         flag = m.group(1)
         why = UNSAFE_FLAG_WHY.get(flag, "runs any program")

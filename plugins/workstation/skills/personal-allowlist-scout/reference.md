@@ -65,7 +65,9 @@ runs (r1.f14), and `scan.py` reads only a script's first 60 lines.
 | `--upload-pack`, `--exec` | runs any program on the remote end (`git fetch`, `git ls-remote`, `git clone`); git's abbreviations `--upload-p`, `--upload-pa` and `--upload-pac` count |
 
 Whole flags only, as `--flag value` or `--flag=value`: `--output-format`,
-`--prefix`, `--pre-release` and `--exec-path` do not match. Short forms such
+`--prefix`, `--pre-release` and `--exec-path` do not match, and neither does
+`--output` followed by a format word (`--output json`, `--output=jsonpath=...`),
+as kubectl, aws and az use it. Short forms such
 as `git format-patch -o` or `sort -o` are not caught.
 
 **Security-scanning tools are Inspect, not Sensitive.** `bandit`, `pip-audit`,
@@ -126,8 +128,8 @@ The four first-class harness targets and the token format each uses:
 | Harness | File | Array / key | Token format |
 |---|---|---|---|
 | **Cursor IDE** | `<repo>/.cursor/permissions.json` | `terminalAllowlist` | Raw prefix string: `"make test"` |
-| **Cursor CLI** | `<repo>/.cursor/cli.json` | `permissions.allow` | `"Shell(<base>:<args>)"` for a multi-word segment, args literal (`Shell(make:test)`); `"Shell(<word>)"` for a one-word segment; no token for a segment containing `*` or `?` or a colon in its first word |
-| **Claude Code** | `<repo>/.claude/settings.json` | `permissions.allow` | `"Bash(<cmd>:*)"` |
+| **Cursor CLI** | `<repo>/.cursor/cli.json` | `permissions.allow` | `"Shell(<base>:<args>)"` for a multi-word segment, args literal (`Shell(make:test)`); no token for a one-word segment, or one containing `*` or `?` or a colon in its first word |
+| **Claude Code** | `<repo>/.claude/settings.json` | `permissions.allow` | `"Bash(<cmd>)"`, the exact command; no token for a segment containing `*` |
 | **Gemini** | `<repo>/.gemini/policies/<name>.toml` | additive `[[rule]]` blocks | `toolName = "run_shell_command"`, `commandPrefix = "<segment>"`, `decision = "allow"`, `priority = 100` |
 
 **Cursor CLI rule.** Cursor's permissions docs define `Shell(commandBase)`
@@ -140,11 +142,16 @@ also grant `make release`. The docs state the glob rule but never show an
 exact `command:args` example, so this relies on a glob without a wildcard
 matching only itself. A segment containing `*` or `?`, or whose first word
 contains a colon, can't be written exactly, so the Cursor CLI gets no rule
-for it and `render.py` says so. A one-word segment is `Shell(<word>)`, which
-Cursor reads as the command with any arguments, so approving a bare word
-(`pytest`, which `scan.py` proposes whenever a `tests/` directory exists)
-grants every flag and argument. Review a bare-word candidate with that in
-mind before approving it; the scout doesn't check each variant.
+for it and `render.py` says so. A one-word segment gets no rule either:
+Cursor reads `Shell(<word>)` as the command with any arguments, so
+`Shell(rg)` would also allow `rg --pre <prog>`.
+
+**Claude Code rule.** `render.py` writes `Bash(<cmd>)`, which Claude Code
+matches as that exact command, never the prefix `Bash(<cmd>:*)`: `Bash(git
+log:*)` would also allow `git log --output=<path>`, and `Bash(make test:*)`
+would allow `make test x --eval=...`. A segment holding a `*` gets no rule.
+The agent allowlist installer renders allows the same way in both tools
+(r1.f1, the Owner's call of 2026-11-23).
 `scan.py` reads `Shell(cmd:args)` back as covering only `cmd args`, and
 `Shell(cmd:*)`, `Bash(cmd:*)` or `Bash(cmd *)` as the prefix `cmd`, and
 `Bash(cmd)` with no wildcard as covering only `cmd`, as Claude Code reads it. This keeps § 4 rule 2:
