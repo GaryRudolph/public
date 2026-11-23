@@ -28,7 +28,7 @@ New files in this repo don't name another organization or its repo.
 ## Open questions for the Owner
 
 - Lolay org membership: managed settings apply to every member.
-- The second org's claude.ai name, for its entry in m2 (not needed to start).
+- Each later org's claude.ai name and GitHub owner, when it's added to `orgs`.
 
 ## m1 - Canonical file, written down and rendered per target
 
@@ -44,35 +44,46 @@ New files in this repo don't name another organization or its repo.
 
 STOP: Owner reviews the README table and the schema.
 
-## m2 - Org pipeline: issue plus Slack on a change
+## m2 - Org pipeline: one issue plus one Slack post on a change
 
-- s1 [deep] `agents/org/`: `settings.json` registry (one entry per org setting: id,
-  title, feeding paths, who applies it and where, the pasted file, the steps template),
-  `lolay/claude-managed-base.json` (attribution `Assisted-by: Claude Code`; `autoMode`
+Owner decisions (2026-11-23): reuse the Slack app that lolay/infrastructure posts with
+(already added to this repo), post to the same `#infrastructure` channel, and file one
+issue that covers every org the file is published to, Lolay first.
+
+- s1 [deep] `agents/org/`: `settings.json` registry with one setting,
+  `claude-managed-settings`: its feeding paths, the pasted file, the steps template, and
+  an `orgs` list (Lolay now; each entry a name and where its Owner pastes). One shared
+  `claude-managed-base.json` (attribution `Assisted-by: Claude Code`; `autoMode`
   environment naming github.com/GaryRudolph and github.com/lolay as trusted source
-  control, `$defaults` kept; a commit stamp key rendered last), and
-  `lolay/claude-managed-settings.json`, generated, committed, checked stale by
-  `make -C agents test`.
+  control, plus each later org's GitHub owner, `$defaults` kept; a commit stamp key
+  rendered last) and one generated `claude-managed-settings.json`, the same paste for
+  every org, committed and checked stale by `make -C agents test`.
 - s2 [exec] `agents/org/Makefile`: `render`, `check`, `install` (render, copy to the
   clipboard, print the paste steps).
-- s3 [deep] `agents/org/settings_issue.py` plus tests: on a push to `main`, compare each
-  setting's pasted file at the commit that last changed it with the last applied one
-  (the last issue closed as completed); open or replace an `org-settings:<id>` issue only
-  on a real change; post the new issue to Slack, best effort.
-- s4 [exec] `.github/workflows/org-settings.yml` (push to `main` on the feeding paths,
-  plus a dry-run dispatch; `issues: write` only; `SLACK_BOT_TOKEN` secret and
-  `ORG_SETTINGS_CHANNEL` variable), and `make -C agents test-org-settings` failing when
-  the workflow's `paths` miss one from the registry. `actions-check.py` covers the new
-  workflow.
-- s5 [exec] `agents/org/steps/claude-managed-settings.md` and `agents/org/README.md`.
+- s3 [deep] `agents/org/settings_issue.py` plus tests: on a push to `main`, compare the
+  pasted file at the commit that last changed it with the last applied one (the last
+  issue closed as completed). On a real change, open one `org-settings` issue, replacing
+  any open one, with the shared steps and a checkbox per org; the Owner closes it as
+  completed once every box is ticked. An org added to `orgs` with no content change gets
+  the same issue, listing only the new org. Post each new issue to Slack, best effort.
+- s4 [exec] `agents/org/slack-post.sh`, the same shape as infrastructure's
+  `scripts/slack-post.sh` (token in a curl config file, text escaped, bot-token and
+  channel-id checks, exit 1 on a Slack refusal), without the Claude Tag mention: the
+  paste is console-only, so there's nothing for Claude to pick up. Channel ID
+  `C0CHEJ64U93` committed in the workflow env, as infrastructure does in `.github/ci.env`.
+- s5 [exec] `.github/workflows/org-settings.yml`: push to `main` on the feeding paths,
+  plus a dry-run dispatch; `issues: write` only; reads `SLACK_BOT_TOKEN` through an
+  environment limited to `main`, so no other branch's workflow can read it in this
+  public repo. `make -C agents test-org-settings` fails when the workflow's `paths`
+  miss one from the registry; `actions-check.py` covers the new workflow.
+- s6 [exec] `agents/org/steps/claude-managed-settings.md` and `agents/org/README.md`.
 
-Owner prerequisites before the first real run: a Slack app in the Rudolphs workspace
-with `chat:write` only, invited to `#infrastructure`; its token as the
-`SLACK_BOT_TOKEN` repo secret; the channel ID as the `ORG_SETTINGS_CHANNEL` repo
-variable; the `org-settings:lolay-claude-managed-settings` label.
+Owner prerequisites before the first real run: confirm the token's secret name and that
+it sits in (or moves to) an environment limited to `main`; the app invited to
+`#infrastructure` (already true there); the `org-settings` label.
 
-STOP: Owner merges, follows the first issue, pastes, and confirms a Claude Code session
-(local and cloud) shows the managed rules.
+STOP: Owner merges, follows the first issue, pastes into Lolay, and confirms a Claude
+Code session (local and cloud) shows the managed rules.
 
 ## m3 - Local installer stops writing Claude Code
 
