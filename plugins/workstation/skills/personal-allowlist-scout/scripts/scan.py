@@ -109,6 +109,9 @@ REMOTE_BODY = [
     r"xcrun\s+altool", r"xcrun\s+notarytool", r"fastlane\s+(pilot|deliver|release|match)",
     r"pod\s+trunk\s+push", r"netlify\s+deploy", r"vercel\s+(deploy|--prod)",
     r"databricks\s+\S+\s+(create|deploy|run|submit)", r"\bcurl\b[^|]*\s-X\s*(POST|PUT|PATCH|DELETE)",
+    # Sends data out even as a GET: `curl -G --data-urlencode @~/.ssh/id_ed25519`.
+    r"\bcurl\b[^|;&\n]*\s(-G|--get|-d|--data(-[a-z]+)?|-F|--form|-T|--upload-file)(?=[\s=]|$)",
+    r"\bwget\b[^|;&\n]*\s--(method|post-data|post-file|body-data|body-file)\b",
 ]
 SENSITIVE_BODY = [
     r"decrypt", r"gpg\s+-d\b", r"gpg\s+--decrypt", r"openssl\s+enc[^\n]*-d\b",
@@ -116,6 +119,8 @@ SENSITIVE_BODY = [
     r"ansible-vault\s+(decrypt|view)", r"secrets?[-_ ](decrypt|export|print|show)",
     r"\bkeychain\b", r"security\s+find-", r"\.env\.enc\b", r"\bunseal\b",
     r"vault\s+(read|kv\s+get)", r"print[-_ ]?secret",
+    # 1Password: read a secret, or run a command with secrets in its environment.
+    r"\bop\s+(read|run|inject)\b",
 ]
 DESTRUCTIVE_BODY = [
     r"\brm\s+-[rf]", r"\bdd\s+if=", r"\bmkfs", r"\bsudo\b", r"\bfdisk\b",

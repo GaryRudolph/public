@@ -312,27 +312,25 @@ gemini_history_file() { printf '%s/.history/%s-managed.toml.%s' "$1" "$ORG" "$2"
 # Output is canonical (sorted keys, deduped + sorted arrays via `unique`) so
 # the diff between two renders of the same inputs is byte-identical.
 
+# Every shell entry is trimmed and, unless it quotes, its runs of whitespace
+# collapsed before any target renders it, so " sudo" or "git  push" can't
+# render a rule that matches nothing; an empty entry stops the render.
+SHELL_NORM_JQ='def shell_norm: gsub("^\\s+|\\s+$"; "") | if test("[\"\u0027]") then . else gsub("\\s+"; " ") end | if . == "" then error("empty shell entry") else . end; '
+
 render_target_schema() {
     local kind="$1" meta="$2"
     case "$kind" in
         cursor_ide)
-            jq -S '{
-                terminalAllowlist: ((.shell.allow    // []) | unique),
-                terminalDenylist:  ((.shell.deny     // []) | unique),
+            jq -S "$SHELL_NORM_JQ"'{
+                terminalAllowlist: ((.shell.allow    // []) | map(shell_norm) | unique),
+                terminalDenylist:  ((.shell.deny     // []) | map(shell_norm) | unique),
                 mcpAllowlist:      ((.mcp.allow      // []) | unique),
                 mcpDenylist:       ((.mcp.deny       // []) | unique)
             }' "$meta"
             ;;
         cursor_cli)
             # allow: the exact command line; deny: the prefix. See the header.
-            # Each shell entry is trimmed and, unless it quotes, its runs of
-            # whitespace collapsed, so " sudo" or "git  push" can't render a
-            # rule that matches nothing; an empty entry stops the render.
-            jq -S 'def shell_norm:
-                       gsub("^\\s+|\\s+$"; "")
-                       | if test("[\"\u0027]") then . else gsub("\\s+"; " ") end
-                       | if . == "" then error("empty shell entry") else . end;
-                   def cli_parts: capture("^(?<base>\\S+)\\s+(?<args>.+)$");
+            jq -S "$SHELL_NORM_JQ"'def cli_parts: capture("^(?<base>\\S+)\\s+(?<args>.+)$");
                    def cli_first_word_colon: test("^[^\\s:]*:");
                    def cli_allow:
                        if test("[*?]") or cli_first_word_colon or (test("\\s") | not) then empty
@@ -367,11 +365,7 @@ render_target_schema() {
             # produce a rule such as mcp____tool. A shell allow is the exact
             # command, Bash(<entry>); a shell deny is the prefix, Bash(<entry>:*),
             # or as written when it holds a *. See the header.
-            jq -S 'def shell_norm:
-                       gsub("^\\s+|\\s+$"; "")
-                       | if test("[\"\u0027]") then . else gsub("\\s+"; " ") end
-                       | if . == "" then error("empty shell entry") else . end;
-                   def claude_mcp:
+            jq -S "$SHELL_NORM_JQ"'def claude_mcp:
                        if test("^[^:]+:.+$")
                        then index(":") as $i | "mcp__" + .[:$i] + "__" + .[$i+1:]
                        else error("bad mcp entry: " + .)
@@ -1278,13 +1272,13 @@ render_gemini_toml() {
     printf '# Generated from %s; edits here are overwritten on re-render.\n' "$(pretty_path "$ALLOWLISTS_SRC")"
     printf '# Regenerate with the agents Makefile: make install-allowlists\n'
     printf '# Other *.toml files in this directory are never read or modified.\n'
-    jq -r '
-        (.shell.allow // []) | unique | .[] |
+    jq -r "$SHELL_NORM_JQ"'
+        (.shell.allow // []) | map(shell_norm) | unique | .[] |
         "\n[[rule]]\ntoolName = \"run_shell_command\"\ncommandPrefix = " + tojson +
         "\ndecision = \"allow\"\npriority = 100"
     ' "$meta"
-    jq -r '
-        (.shell.deny // []) | unique | .[] |
+    jq -r "$SHELL_NORM_JQ"'
+        (.shell.deny // []) | map(shell_norm) | unique | .[] |
         "\n[[rule]]\ntoolName = \"run_shell_command\"\ncommandPrefix = " + tojson +
         "\ndecision = \"deny\"\npriority = 900"
     ' "$meta"

@@ -1206,7 +1206,7 @@ run_al "$H42B" "$TEST_DIR/meta/t42b.json" install >/dev/null 2>&1 || rc=$?
 [ "$rc" -ne 0 ] || fail "T42b: install exited 0 on an unwritable Cursor CLI deny"
 [ -z "$(find "$H42B/.claude" "$H42B/.cursor" -name '.*-managed.json' -print -quit)" ] || fail "T42b: a sidecar was written"
 
-printf '[T42c] stray whitespace in a shell entry neither drops nor breaks the rule\n'
+printf '[T42c] stray whitespace in a shell entry neither drops nor breaks the rule, in any target\n'
 META42C="$TEST_DIR/meta/t42c.json"
 cat > "$META42C" <<'ENDJSON'
 {
@@ -1227,6 +1227,13 @@ for want in 'Bash(sudo:*)' 'Bash(git push:*)' 'Bash(rm -rf /:*)'; do
     in_list "$H42C/.claude/settings.json" deny "$want" || fail "T42c: Claude Code deny lacks $want: $(jq -c '.permissions.deny' "$H42C/.claude/settings.json")"
 done
 in_list "$H42C/.claude/settings.json" allow 'Bash(git status)' || fail "T42c: Claude Code allow lacks Bash(git status)"
+[ "$(jq -c '.terminalDenylist' "$H42C/.cursor/permissions.json")" = '["git push","rm -rf /","sudo"]' ] \
+    || fail "T42c: Cursor IDE terminalDenylist is not normalized: $(jq -c '.terminalDenylist' "$H42C/.cursor/permissions.json")"
+[ "$(jq -c '.terminalAllowlist' "$H42C/.cursor/permissions.json")" = '["git status"]' ] \
+    || fail "T42c: Cursor IDE terminalAllowlist is not normalized"
+for want in 'commandPrefix = "sudo"' 'commandPrefix = "git push"' 'commandPrefix = "rm -rf /"' 'commandPrefix = "git status"'; do
+    grep -qxF -- "$want" "$H42C/.gemini/policies/${ORG}-managed.toml" || fail "T42c: Gemini policy lacks $want"
+done
 H42D=$(mk_home t42d)
 jq '.shell.deny += ["   "]' "$META42C" > "$TEST_DIR/meta/t42d.json"
 rc=0
