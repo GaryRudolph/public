@@ -17,17 +17,21 @@ the allowlist work from GaryRudolph/public#100 (r1.f1, part of #45).
   renders `claude_permissions`. Existing tests adapted; `make -C agents
   validate test` green.
 
+- Owner answered after s1: continue through ship; shared lib: note it in the
+  PR, port to the other bok later.
+- s2 [exec] (commit `m3.s2 ...`): T46-T50 upgrade tests in
+  `agents/lib/allowlists-test.sh`, a Makefile-level leftover check in
+  `agents/tests/test-claude-dirs.sh`; docs updated (allowlists README row,
+  agents README, runbook m3.s6 new with Verify now s7, Makefile header, org
+  README, spec). T49/T50 caught `gemini_dirs` returning 1 under `set -e`,
+  which skipped `claude_dirs` in clean and the uninstall history prompt; fixed.
+  `make -C agents validate test` green.
+
 ## Pending
 
-- Question to the Owner, verbatim: "s1 is committed and pushed. Go on to s2
-  (upgrade tests, docs), then validate/test and ship the PR?"
-- s2 [exec]: upgrade tests in `agents/lib/allowlists-test.sh` (HOME rendered by
-  the old installer: user entries kept, ours gone, sidecars gone, second install
-  a no-op); docs: `agents/allowlists/README.md` "Claude Code, local" row,
-  `agents/README.md`, `agents/runbook.md`, `agents/Makefile` header,
-  `specs/agent-distribution.md`.
-- Then `make -C agents validate test`, then personal-ship-pr. PR says the Owner
-  runs `make -C agents install` on the Mac and checks `~/.claude/settings.json`.
+- personal-ship-pr: draft PR, /code-review, CI, ready, Copilot rounds. PR says
+  the Owner runs `make -C agents install` on the Mac and checks
+  `~/.claude/settings.json`. Remove this handoff before marking ready.
 
 ## Gotchas
 

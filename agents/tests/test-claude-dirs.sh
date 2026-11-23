@@ -63,6 +63,19 @@ mk() {
 snapshot > "$SB/before.txt"
 LIST="$A:$B"
 
+# What the previous installer left in each dir: our sidecar and a settings.json
+# holding only that render. install clears both; uninstall then leaves the
+# pre-install snapshot.
+printf 'leftovers from the previous allowlist installer\n'
+for d in "$A" "$B"; do
+    jq -S "$(cat "$AGENTS_DIR/lib/allowlist.jq")"'claude_permissions' "$AGENTS_DIR/allowlists/personal.json" \
+        > "$d/.settings.$ORG-managed.json"
+    cp "$d/.settings.$ORG-managed.json" "$d/settings.json"
+done
+mk status-allowlists CLAUDE_CONFIG_DIRS="$LIST" > "$SB/status-left.allow.out" 2>&1
+check "allowlists status names the pending cleanup in both dirs" \
+    test "$(grep -cE "\.claude-[ab]/settings.json .*still holds $ORG entries" "$SB/status-left.allow.out")" = 2
+
 printf 'two dirs install together\n'
 mk install CLAUDE_MODE=home CLAUDE_CONFIG_DIRS="$LIST" > "$SB/install.out" 2>&1 \
     || { cat "$SB/install.out" >&2; fail "install failed"; }
@@ -72,7 +85,8 @@ for d in "$A" "$B"; do
     check "$n: its own notes kept" grep -qF "notes ${n#.claude-}" "$d/CLAUDE.md"
     check "$n: skills linked" test -L "$d/skills/$SKILL"
     check "$n: command linked" test -L "$d/commands/fake-command.md"
-    check "$n: no settings.json written (managed settings carry the rules)" test ! -e "$d/settings.json"
+    check "$n: settings.json cleared and none written (managed settings carry the rules)" test ! -e "$d/settings.json"
+    check "$n: no settings sidecar left" test -z "$(find "$d" -maxdepth 1 -name '.settings.*' -print -quit)"
 done
 check "the default ~/.claude was not created" test ! -e "$H/.claude"
 

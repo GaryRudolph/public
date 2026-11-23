@@ -22,8 +22,10 @@ unexport CCR_AGENT_PROXY_ENABLED
 #      symlinks for home-dir skills); the rest get symlinks.
 #   3. Cursor user hooks (lib/hooks.sh): the denylist hook, and a refresh
 #      hook for copy-mode skills.
-#   4. Allowlists (lib/allowlists.sh): plugins can't ship permission rules.
-#      Claude Code also gets them as org managed settings (org/README.md).
+#   4. Allowlists (lib/allowlists.sh) for Cursor and Gemini: plugins can't
+#      ship permission rules. Claude Code gets them only as org managed
+#      settings (org/README.md); install takes back out what earlier versions
+#      wrote into each Claude config dir's settings.json.
 #   5. Optionally, this checkout as a local Claude marketplace for live
 #      edits (lib/local-marketplace.sh).
 
@@ -48,10 +50,10 @@ MAKEFILE_LABEL    ?= ~/Projects/personal/public/agents/Makefile
 
 # Claude Code config dirs the Claude targets manage: colon-separated absolute
 # paths (a space in a path is fine). Each gets its own CLAUDE.md block, skills
-# and commands, allowlist (settings.json, sidecars, history) and local
-# marketplace. Set it in agents/local.mk, or export it from the shell (the
-# allowlist scout reads the exported list too), to match the CLAUDE_CONFIG_DIR
-# your shell and launchers route to, e.g.
+# and commands, and local marketplace; the allowlist pass clears what earlier
+# versions wrote into its settings.json. Set it in agents/local.mk, or export
+# it from the shell (the allowlist scout reads the exported list too), to
+# match the CLAUDE_CONFIG_DIR your shell and launchers route to, e.g.
 #   CLAUDE_CONFIG_DIRS := $(HOME)/.claude-lolay:$(HOME)/.claude-agerpoint
 # `make status` names any ~/.claude* dir that isn't listed.
 CLAUDE_CONFIG_DIRS ?= $(HOME)/.claude
@@ -239,8 +241,8 @@ MARKETPLACE_ENV = \
     PLUGINS="$(PLUGINS)"
 
 # ---------------------------------------------------------------------------
-# Allowlists pass — tool-agnostic meta-source → Cursor IDE/CLI + Claude Code
-#                   + Gemini CLI Policy Engine
+# Allowlists pass — tool-agnostic meta-source → Cursor IDE/CLI + Gemini CLI
+#                   Policy Engine (Claude Code: org managed settings, org/)
 # ---------------------------------------------------------------------------
 
 ALLOWLISTS_SRC    ?= $(AGENTS_DIR)/allowlists/personal.json
@@ -435,7 +437,7 @@ status-hooks:
 	@$(HOOKS_ENV) bash "$(AGENTS_DIR)/lib/hooks.sh" status
 
 # ---------------------------------------------------------------------------
-# Allowlists (Cursor IDE/CLI + Claude Code)
+# Allowlists (Cursor IDE/CLI + Gemini; clears Claude Code's old settings.json entries)
 # ---------------------------------------------------------------------------
 
 install-allowlists:

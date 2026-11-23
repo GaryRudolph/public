@@ -7,7 +7,9 @@
 # flock serialization, CLI passthrough, Claude format translation, Windows
 # dual-pass (via a sandboxed WIN_HOME — no real WSL required), and the Gemini
 # Policy Engine TOML render path (create, deny mapping, idempotence, rotation,
-# uninstall + peer coexistence, dual-pass, restore, WIN_HOME gating, clean).
+# uninstall + peer coexistence, dual-pass, restore, WIN_HOME gating, clean),
+# and the upgrade that clears what earlier versions rendered into Claude
+# Code's settings.json (Claude Code's rules are org managed settings now).
 #
 # All assertions are local to the sandbox. Every runner pins GEMINI_DATA_HOME
 # (and WIN_GEMINI_DATA_HOME) into the sandbox too, so the real ~/.gemini is
@@ -1348,6 +1350,184 @@ for bad in '{"shell":{"allow":["ls"]},"shel":{"allow":["rm"]}}' \
     done
     find "$H45/.gemini" -name '*.toml' | grep -q . && fail "T45: $bad wrote a Gemini policy"
 done
+
+# ---------------------------------------------------------------------------
+# Claude Code upgrade: clear what the previous installer rendered (m3)
+# ---------------------------------------------------------------------------
+
+# What the previous installer left in a Claude config dir: our sidecar (the
+# claude_permissions render of the meta), an optional user-managed sidecar and
+# passthrough, and settings.json, the passthrough merged over the union of
+# every *-managed sidecar there (a peer org's included), keys sorted.
+seed_old_claude() {
+    local dir="$1" meta="$2" user="${3:-}" pt="${4:-}"
+    mkdir -p "$dir"
+    claude_render "$meta" > "$dir/.settings.${ORG}-managed.json"
+    [ -z "$user" ] || printf '%s\n' "$user" | jq -S . > "$dir/.settings.user-managed.json"
+    [ -z "$pt" ]   || printf '%s\n' "$pt"   | jq -S . > "$dir/.settings.passthrough.json"
+    jq -s -S 'reduce .[] as $f ({permissions:{allow:[],deny:[]}};
+        .permissions.allow = ((.permissions.allow + ($f.permissions.allow // [])) | unique) |
+        .permissions.deny  = ((.permissions.deny  + ($f.permissions.deny  // [])) | unique))' \
+        "$dir"/.settings.*-managed.json > "$dir/union.tmp"
+    if [ -n "$pt" ]; then
+        jq -s -S '.[0] * .[1]' "$dir/.settings.passthrough.json" "$dir/union.tmp" > "$dir/settings.json"
+    else
+        jq -S . "$dir/union.tmp" > "$dir/settings.json"
+    fi
+    rm -f "$dir/union.tmp"
+}
+
+snap_tree() { (cd "$1" && find . -print | LC_ALL=C sort | while IFS= read -r p; do
+    if [ -f "$p" ]; then printf 'F %s %s\n' "$p" "$(cksum < "$p")"; else printf 'D %s\n' "$p"; fi
+done); }
+
+# ---------------------------------------------------------------------------
+# T46: upgrade from a HOME the previous installer rendered. The user's own
+# entries (promoted into user-managed, or added since and not yet promoted)
+# and every other key stay, in order; ours go, a stale one included (the
+# sidecar is the baseline, not the meta); the sidecars go; a second install is
+# a no-op.
+# ---------------------------------------------------------------------------
+printf '[T46] upgrade: our Claude entries and sidecars go, the user'"'"'s stay\n'
+H46=$(mk_home t46)
+C46="$H46/.claude"
+# The meta the previous install rendered held "old cmd", since dropped.
+jq '.shell.allow += ["old cmd"]' "$META" > "$TEST_DIR/meta/t46-old.json"
+seed_old_claude "$C46" "$TEST_DIR/meta/t46-old.json" \
+    '{"permissions":{"allow":["Bash(mine)","Bash(git status)"],"deny":["Bash(curl:*)"]}}' \
+    '{"model":"opus","permissions":{"defaultMode":"acceptEdits"}}'
+# Added by hand after that install, never promoted.
+jq '.permissions.allow += ["Bash(later)"]' "$C46/settings.json" > "$C46/s.tmp" && mv "$C46/s.tmp" "$C46/settings.json"
+cp "$C46/settings.json" "$TEST_DIR/t46.before"
+jq -e '.permissions.allow | index("Bash(old cmd)") != null and index("mcp__notion__*") != null' "$C46/settings.json" >/dev/null \
+    || fail "T46: setup, the old render is not in settings.json"
+
+snap_tree "$H46" > "$TEST_DIR/t46.tree.before"
+out46=$(run_al "$H46" "$META" dry-run 2>&1) || fail "T46: dry-run failed: $out46"
+snap_tree "$H46" > "$TEST_DIR/t46.tree.after"
+cmp -s "$TEST_DIR/t46.tree.before" "$TEST_DIR/t46.tree.after" || fail "T46: dry-run changed $(basename "$H46")"
+case "$out46" in *"settings.json"*"would remove"*"$ORG entries"*) ;; *) fail "T46: dry-run does not preview the removal: $out46" ;; esac
+case "$(run_al "$H46" "$META" status 2>&1)" in *"settings.json"*"still holds $ORG entries"*) ;; *) fail "T46: status does not report the pending cleanup" ;; esac
+diff46=$(run_al "$H46" "$META" diff 2>&1)
+case "$diff46" in *'-      "mcp__notion__*",'*) ;; *) fail "T46: diff does not show our entries leaving: $diff46" ;; esac
+
+run_al "$H46" "$META" install > "$TEST_DIR/t46.out" 2>&1 || fail "T46: install failed: $(cat "$TEST_DIR/t46.out")"
+S46="$C46/settings.json"
+[ "$(jq -c '.permissions.allow' "$S46")" = '["Bash(git status)","Bash(mine)","Bash(later)"]' ] \
+    || fail "T46: allow after upgrade: $(jq -c '.permissions.allow' "$S46")"
+[ "$(jq -c '.permissions.deny' "$S46")" = '["Bash(curl:*)"]' ] \
+    || fail "T46: deny after upgrade: $(jq -c '.permissions.deny' "$S46")"
+[ "$(jq -r '.model' "$S46")" = "opus" ] || fail "T46: model lost"
+[ "$(jq -r '.permissions.defaultMode' "$S46")" = "acceptEdits" ] || fail "T46: defaultMode lost"
+[ "$(jq -c 'keys_unsorted' "$S46")" = "$(jq -c 'keys_unsorted' "$TEST_DIR/t46.before")" ] || fail "T46: key order changed"
+[ -z "$(find "$C46" -maxdepth 1 -name '.settings.*' -print -quit)" ] \
+    || fail "T46: a settings sidecar is left: $(find "$C46" -maxdepth 1 -name '.settings.*')"
+[ "$(count_hist settings "$C46")" = "1" ] || fail "T46: expected one backup of settings.json, got $(count_hist settings "$C46")"
+cmp -s "$TEST_DIR/t46.before" "$C46/.history/settings.json.1" || fail "T46: the backup is not the pre-upgrade file"
+grep -q "settings.json.*removed .* $ORG entries" "$TEST_DIR/t46.out" || fail "T46: install output does not report the removal"
+# Second install: nothing to clear, nothing written, nothing said about it.
+cp "$S46" "$TEST_DIR/t46.after1"
+out46b=$(run_al "$H46" "$META" install 2>&1) || fail "T46: second install failed"
+cmp -s "$TEST_DIR/t46.after1" "$S46" || fail "T46: second install changed settings.json"
+[ "$(count_hist settings "$C46")" = "1" ] || fail "T46: second install backed settings.json up again"
+case "$out46b" in *settings.json*) fail "T46: second install mentions settings.json: $out46b" ;; esac
+case "$(run_al "$H46" "$META" status 2>&1)" in *settings.json*) fail "T46: status still reports settings.json after the upgrade" ;; esac
+
+# ---------------------------------------------------------------------------
+# T47: a settings.json that only held our render is removed (its backup kept);
+# uninstall clears it too, and REMOVE_HISTORY=yes takes the backup with it.
+# ---------------------------------------------------------------------------
+printf '[T47] a settings.json of only our entries is removed, by install or uninstall\n'
+H47=$(mk_home t47)
+seed_old_claude "$H47/.claude" "$META"
+run_al "$H47" "$META" install >/dev/null || fail "T47: install failed"
+[ ! -e "$H47/.claude/settings.json" ] || fail "T47: settings.json kept: $(cat "$H47/.claude/settings.json")"
+[ "$(ls -A "$H47/.claude")" = ".history" ] || fail "T47: .claude holds more than .history/: $(ls -A "$H47/.claude")"
+[ -f "$H47/.claude/.history/settings.json.1" ] || fail "T47: no backup of the removed settings.json"
+
+H47B=$(mk_home t47b)
+run_al "$H47B" "$META" install >/dev/null
+seed_old_claude "$H47B/.claude" "$META" '' '{"model":"opus"}'
+REMOVE_HISTORY=yes run_al "$H47B" "$META" uninstall >/dev/null || fail "T47b: uninstall failed"
+[ "$(cat "$H47B/.claude/settings.json" 2>/dev/null)" = "$(printf '{\n  "model": "opus"\n}')" ] \
+    || fail "T47b: uninstall left settings.json as: $(cat "$H47B/.claude/settings.json" 2>&1)"
+[ "$(ls -A "$H47B/.claude")" = "settings.json" ] || fail "T47b: uninstall left: $(ls -A "$H47B/.claude")"
+
+# ---------------------------------------------------------------------------
+# T48: another org's render is still in the file. Its entries stay, and so do
+# entries both orgs wrote; the user-managed and passthrough sidecars stay for
+# its installer; only our sidecar goes; lists are not tidied.
+# ---------------------------------------------------------------------------
+printf '[T48] a peer org still rendering settings.json keeps its entries and sidecars\n'
+H48=$(mk_home t48)
+C48="$H48/.claude"
+mkdir -p "$C48"
+# The peer also ships "git status".
+jq '.shell.allow += ["git status"]' "$META2" > "$TEST_DIR/meta/t48-peer.json"
+claude_render "$TEST_DIR/meta/t48-peer.json" > "$C48/.settings.testpeer-managed.json"
+seed_old_claude "$C48" "$META" '{"permissions":{"allow":["Bash(mine)"],"deny":[]}}' '{"model":"opus"}'
+cp "$C48/.settings.testpeer-managed.json" "$TEST_DIR/t48.peer"
+run_al "$H48" "$META" install >/dev/null || fail "T48: install failed"
+want48=$(jq -c '[.permissions.allow[]] + ["Bash(mine)"] | unique' "$TEST_DIR/t48.peer")
+[ "$(jq -c '.permissions.allow | sort' "$C48/settings.json")" = "$want48" ] \
+    || fail "T48: allow is $(jq -c '.permissions.allow' "$C48/settings.json"), want $want48"
+[ "$(jq -c '.permissions.deny' "$C48/settings.json")" = '[]' ] || fail "T48: deny was tidied or kept ours: $(jq -c '.permissions.deny' "$C48/settings.json")"
+[ ! -f "$C48/.settings.${ORG}-managed.json" ] || fail "T48: our sidecar is left"
+cmp -s "$TEST_DIR/t48.peer" "$C48/.settings.testpeer-managed.json" || fail "T48: the peer's sidecar changed"
+[ -f "$C48/.settings.user-managed.json" ] && [ -f "$C48/.settings.passthrough.json" ] \
+    || fail "T48: user-managed or passthrough removed while the peer still renders"
+# The peer's own installer (the previous version, still on that machine) would
+# re-render the same file: the union of what is left.
+jq -s -S '.[0] * {permissions:{allow:((.[1].permissions.allow + .[2].permissions.allow) | unique),
+                               deny:((.[1].permissions.deny + .[2].permissions.deny) | unique)}}' \
+    "$C48/.settings.passthrough.json" "$C48/.settings.testpeer-managed.json" "$C48/.settings.user-managed.json" \
+    > "$TEST_DIR/t48.peer-render"
+[ "$(jq -S -c . "$C48/settings.json")" = "$(jq -c . "$TEST_DIR/t48.peer-render")" ] \
+    || fail "T48: settings.json is not what the peer's installer would render"
+
+# ---------------------------------------------------------------------------
+# T49: every listed Claude config dir and the Windows one are cleared; a dir
+# with no sidecar of ours is left alone, byte for byte.
+# ---------------------------------------------------------------------------
+printf '[T49] every CLAUDE_CONFIG_DIRS dir and the Windows dir are cleared\n'
+H49=$(mk_home t49)
+W49=$(mk_win_home t49w)
+seed_old_claude "$H49/.claude-a" "$META" '' '{"model":"a"}'
+seed_old_claude "$H49/.claude-b" "$META" '' '{"model":"b"}'
+seed_old_claude "$W49/.claude" "$META" '' '{"model":"w"}'
+mkdir -p "$H49/.claude-c"
+printf '{"permissions":{"allow":["Bash(git status)"]}}\n' > "$H49/.claude-c/settings.json"
+cp "$H49/.claude-c/settings.json" "$TEST_DIR/t49.c"
+ORG="$ORG" ALLOWLISTS_SRC="$META" CURSOR_DATA_HOME="$H49/.cursor" GEMINI_DATA_HOME="$H49/.gemini" \
+CLAUDE_CONFIG_DIRS="$H49/.claude-a:$H49/.claude-b:$H49/.claude-c" \
+WIN_HOME="$W49" WIN_CURSOR_DATA_HOME="$W49/.cursor" WIN_CLAUDE_DATA_HOME="$W49/.claude" WIN_GEMINI_DATA_HOME="$W49/.gemini" \
+REMOVE_HISTORY=no bash "$ALLOWLISTS" install >/dev/null || fail "T49: install failed"
+for d in "$H49/.claude-a:a" "$H49/.claude-b:b" "$W49/.claude:w"; do
+    dir=${d%:*}; m=${d##*:}
+    [ "$(jq -c . "$dir/settings.json")" = "{\"model\":\"$m\"}" ] || fail "T49: $dir/settings.json is $(jq -c . "$dir/settings.json")"
+    [ -z "$(find "$dir" -maxdepth 1 -name '.settings.*' -print -quit)" ] || fail "T49: a sidecar is left in $dir"
+done
+cmp -s "$TEST_DIR/t49.c" "$H49/.claude-c/settings.json" || fail "T49: a dir with no sidecar of ours was changed"
+[ ! -d "$H49/.claude-c/.history" ] || fail "T49: a dir with no sidecar of ours got a .history/"
+
+# ---------------------------------------------------------------------------
+# T50: clean removes the Claude config dirs' .history/ too, and restore no
+# longer takes settings.json (a pre-upgrade backup would bring our entries
+# back with no sidecar to clear them).
+# ---------------------------------------------------------------------------
+printf '[T50] clean covers the Claude .history/; restore refuses settings.json\n'
+H50=$(mk_home t50)
+seed_old_claude "$H50/.claude" "$META" '' '{"model":"opus"}'
+run_al "$H50" "$META" install >/dev/null
+[ -d "$H50/.claude/.history" ] || fail "T50: setup, no Claude .history/"
+rc=0
+RESTORE_N=1 RESTORE_FILE=settings.json run_al "$H50" "$META" restore >/dev/null 2>&1 || rc=$?
+[ "$rc" -eq 2 ] || fail "T50: restore of settings.json exited $rc, want 2"
+RESTORE_N=1 run_al "$H50" "$META" restore >/dev/null 2>&1
+[ "$(jq -c . "$H50/.claude/settings.json")" = '{"model":"opus"}' ] || fail "T50: restore brought settings.json back"
+run_al "$H50" "$META" clean >/dev/null
+[ ! -d "$H50/.claude/.history" ] || fail "T50: clean left the Claude .history/"
+[ -f "$H50/.claude/settings.json" ] || fail "T50: clean removed settings.json"
 
 # ---------------------------------------------------------------------------
 # Final report

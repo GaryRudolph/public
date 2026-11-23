@@ -281,8 +281,9 @@ Still local-only, with no plugin equivalent: the allowlists
 Xcode blocks. Claude Code is the exception for the allowlists: its rules go
 out as org managed settings, rendered from the same canonical file and pasted
 into each org from an issue (`agents/org/README.md`), which also reaches cloud
-sessions. The installer keeps writing Claude Code locally until those are
-live in every org.
+sessions. Once they were live, the installer stopped writing Claude Code's
+rules into each config dir's `settings.json`; `make install` now takes out
+what it wrote there before, so the managed settings are the one copy.
 
 ## Standards versus skills
 

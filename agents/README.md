@@ -111,13 +111,20 @@ its plugin is installed; the runbook (m7) covers each one.
 when your sessions run from routed dirs, for example
 `CLAUDE_CONFIG_DIRS := $(HOME)/.claude-lolay:$(HOME)/.claude-agerpoint`.
 Every `~/.claude/...` path in the tables above is then one per listed dir:
-the `CLAUDE.md` block, skills and commands, the `settings.json` allowlist with
-its sidecars and `.history/`, and the local marketplace. `make status` names
-any `~/.claude*` directory the list doesn't cover. The Windows-side copies
-(WSL) stay single, at `%USERPROFILE%\.claude`.
+the `CLAUDE.md` block, skills and commands, and the local marketplace.
+`make status` names any `~/.claude*` directory the list doesn't cover. The
+Windows-side copies (WSL) stay single, at `%USERPROFILE%\.claude`.
+
+The allowlist doesn't go into these dirs: Claude Code gets it as org managed
+settings ([`org/`](org/README.md)). Earlier versions wrote it into each dir's
+`settings.json`, so `make install` and `make uninstall` take this org's
+entries back out of every listed dir (and the Windows one) that still has a
+`.settings.<org>-managed.json` sidecar. Your own entries and every other key
+stay, the file is backed up to `.history/` first, and the sidecars go.
 
 `make install` also sweeps what earlier versions wrote: links into the old
-`agents/skills/`, and anything of ours in the retired per-tool skill dirs.
+`agents/skills/`, anything of ours in the retired per-tool skill dirs, and
+the allowlist entries in each Claude config dir's `settings.json`.
 All managed skills are prefixed `personal-`. Copies are ours when they carry
 the `.personal-managed` marker; symlinks are ours when they point into a
 current or former source.

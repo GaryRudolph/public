@@ -186,8 +186,8 @@ set -gx CLAUDE_CONFIG_DIRS "$HOME/.claude-lolay:$HOME/.claude-agerpoint"
 ```
 
 Every Claude target loops over the list, and each dir keeps its own
-`CLAUDE.md` block, skills and commands links, `settings.json` with its
-sidecars and `.history/`, and local marketplace and plugin installs.
+`CLAUDE.md` block, skills and commands links, and local marketplace and plugin
+installs. The allowlist isn't one of them any more (s6).
 `make install` and `make uninstall` handle all of them together. `make status`
 starts with the managed dirs and names any other `~/.claude*` directory it
 finds (`? not managed`), which is the sign the list is missing a profile, and
@@ -197,7 +197,28 @@ Nothing is ever written to a dir that isn't listed.
 `CLAUDE_HOME`, `CLAUDE_DATA_HOME`, `CLAUDE_SKILLS_HOME` and `CLAUDE_COMMANDS_HOME`
 no longer exist; `make` stops with an error if `local.mk` still sets one.
 
-#### s6 - Verify
+#### s6 - Check the allowlist moved to managed settings
+
+Claude Code gets its permission rules as org managed settings
+([`org/README.md`](org/README.md)), not from the installer. On a Mac an
+earlier version installed, `make install` takes them back out of each config
+dir's `settings.json`: the entries recorded in its
+`.settings.personal-managed.json` sidecar go, your own entries and every other
+key stay, the file is backed up to `.history/settings.json.<N>` first, and the
+sidecars are deleted.
+
+```bash
+make dry-run-allowlists     # expect: settings.json "would remove <N> personal entries"
+make install
+jq '.permissions' ~/.claude/settings.json   # only your own rules (or no file, if it held only ours)
+make status-allowlists      # no settings.json line: nothing left to clear
+```
+
+Then open a session and run `/permissions`: the rules are still listed, now
+from the managed settings. A second `make install` doesn't touch
+`settings.json`.
+
+#### s7 - Verify
 
 ```bash
 claude plugin list        # personal@personal enabled; personal@synced "not loaded" (shadowed)

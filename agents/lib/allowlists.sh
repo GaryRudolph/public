@@ -260,6 +260,7 @@ stems_in_dir() {
 gemini_dirs() {
     printf '%s\n' "$GEMINI_DATA_HOME/policies"
     [ -n "$WIN_HOME" ] && printf '%s\n' "$WIN_GEMINI_DATA_HOME/policies"
+    return 0
 }
 
 # ---------------------------------------------------------------------------
