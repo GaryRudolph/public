@@ -19,6 +19,31 @@
 # writes, .history/ rotation, the WSL dual-pass, and full subcommand parity
 # (mcp / webfetch are out of scope for the Gemini policy in v1).
 #
+# Shell entries reach each target in the form that target reads (the meta holds
+# plain command prefixes, `git status`, `rm -rf /`):
+#   Cursor IDE   terminalAllowlist / terminalDenylist: the entry as written.
+#   Cursor CLI   allow: the exact command line, `Shell(<base>:<args>)` for a
+#                multi-word entry, and no rule for a one-word entry (Cursor reads
+#                `Shell(<word>)` as any arguments, and `rg --pre` or `sort -o`
+#                would run without a prompt) or one with `*` or `?` or a colon in
+#                its first word. deny: the prefix, `Shell(<base>:<args>*)`
+#                for a multi-word entry, `Shell(<word>)` for a one-word entry,
+#                and an entry whose args already end in `*` as written
+#                (`rm -rf /*` is `Shell(rm:-rf /*)`). A prefix deny also blocks
+#                longer commands (`rm -rf /tmp/x`), the safe direction.
+#   Claude Code  allow: the exact command, `Bash(<entry>)`, so `git log` does not
+#                also approve `git log --output=<path>`; an entry with a `*` gets
+#                no rule. deny: the prefix, `Bash(<entry>:*)`; an entry that
+#                holds a `*` is written `Bash(<entry>)` as it is, since a `*`
+#                before the suffix would make `<entry> *` miss the entry itself.
+#                Allows are exact and denies prefixes in both tools, the
+#                Owner's call of 2026-11-23 (r1.f1).
+#   Gemini       commandPrefix rules in the policy TOML.
+# A bare string in Cursor CLI's or Claude Code's permissions list matches
+# nothing in either tool. MCP entries are `server:tool`: Cursor IDE as written,
+# Cursor CLI `Mcp(server:tool)`, Claude Code `mcp__server__tool`
+# (`server:*` is `mcp__server__*`); Gemini gets none.
+#
 # When running under WSL, the same files are also rendered into the Windows
 # host home (%USERPROFILE%) so that native (non-WSL) Cursor and Claude Code
 # can read them. Each Windows-side target gets its own sidecars, .history/
@@ -296,45 +321,79 @@ gemini_history_file() { printf '%s/.history/%s-managed.toml.%s' "$1" "$ORG" "$2"
 # Output is canonical (sorted keys, deduped + sorted arrays via `unique`) so
 # the diff between two renders of the same inputs is byte-identical.
 
+# Every shell entry is trimmed and, unless it quotes, its runs of whitespace
+# collapsed before any target renders it, so " sudo" or "git  push" can't
+# render a rule that matches nothing; an empty entry stops the render.
+SHELL_NORM_JQ='def shell_norm: gsub("^\\s+|\\s+$"; "") | if test("[\"\u0027]") then . else gsub("\\s+"; " ") end | if . == "" then error("empty shell entry") else . end; '
+
 render_target_schema() {
     local kind="$1" meta="$2"
     case "$kind" in
         cursor_ide)
-            jq -S '{
-                terminalAllowlist: ((.shell.allow    // []) | unique),
-                terminalDenylist:  ((.shell.deny     // []) | unique),
+            jq -S "$SHELL_NORM_JQ"'{
+                terminalAllowlist: ((.shell.allow    // []) | map(shell_norm) | unique),
+                terminalDenylist:  ((.shell.deny     // []) | map(shell_norm) | unique),
                 mcpAllowlist:      ((.mcp.allow      // []) | unique),
                 mcpDenylist:       ((.mcp.deny       // []) | unique)
             }' "$meta"
             ;;
         cursor_cli)
-            jq -S '{
+            # allow: the exact command line; deny: the prefix. See the header.
+            jq -S "$SHELL_NORM_JQ"'def cli_parts: capture("^(?<base>\\S+)\\s+(?<args>.+)$");
+                   def cli_first_word_colon: test("^[^\\s:]*:");
+                   def cli_allow:
+                       if test("[*?]") or cli_first_word_colon or (test("\\s") | not) then empty
+                       else cli_parts | "Shell(" + .base + ":" + .args + ")"
+                       end;
+                   def cli_deny:
+                       if cli_first_word_colon then error("no Cursor CLI deny form for: " + .)
+                       elif test("\\s")
+                       then cli_parts | "Shell(" + .base + ":" + .args
+                            + (if .args | endswith("*") then "" else "*" end) + ")"
+                       else "Shell(" + . + ")"
+                       end;
+                   {
                 permissions: {
                     allow: (
-                        ((.shell.allow // []) +
-                         ((.mcp.allow  // []) | map("Mcp(" + . + ")"))
+                        (((.shell.allow // []) | map(shell_norm | cli_allow)) +
+                         ((.mcp.allow   // []) | map("Mcp(" + . + ")"))
                         ) | unique
                     ),
                     deny: (
-                        ((.shell.deny // []) +
-                         ((.mcp.deny  // []) | map("Mcp(" + . + ")"))
+                        (((.shell.deny // []) | map(shell_norm | cli_deny)) +
+                         ((.mcp.deny   // []) | map("Mcp(" + . + ")"))
                         ) | unique
                     )
                 }
             }' "$meta"
             ;;
         claude)
-            jq -S '{
+            # server:tool -> mcp__server__tool, server:* -> mcp__server__*.
+            # Split at the first colon (the tool part is the rest). An entry
+            # with no colon, no server or no tool stops the render rather than
+            # produce a rule such as mcp____tool. A shell allow is the exact
+            # command, Bash(<entry>); a shell deny is the prefix, Bash(<entry>:*),
+            # or as written when it holds a *. See the header.
+            jq -S "$SHELL_NORM_JQ"'def claude_mcp:
+                       if test("^[^:]+:.+$")
+                       then index(":") as $i | "mcp__" + .[:$i] + "__" + .[$i+1:]
+                       else error("bad mcp entry: " + .)
+                       end;
+                   def claude_allow:
+                       if test("[*]") then empty else "Bash(" + . + ")" end;
+                   def claude_deny:
+                       if test("[*]") then "Bash(" + . + ")" else "Bash(" + . + ":*)" end;
+                   {
                 permissions: {
                     allow: (
-                        ((.shell.allow    // []) +
-                         ((.mcp.allow     // []) | map("mcp__" + (split(":")[0]) + "__*")) +
+                        (((.shell.allow   // []) | map(shell_norm | claude_allow)) +
+                         ((.mcp.allow     // []) | map(claude_mcp)) +
                          ((.webfetch.allow // []) | map("WebFetch(domain:" + . + ")"))
                         ) | unique
                     ),
                     deny: (
-                        ((.shell.deny    // []) +
-                         ((.mcp.deny     // []) | map("mcp__" + (split(":")[0]) + "__*")) +
+                        (((.shell.deny   // []) | map(shell_norm | claude_deny)) +
+                         ((.mcp.deny     // []) | map(claude_mcp)) +
                          ((.webfetch.deny // []) | map("WebFetch(domain:" + . + ")"))
                         ) | unique
                     )
@@ -759,6 +818,21 @@ has_any_sidecar() {
 # ---------------------------------------------------------------------------
 # Input validation: nothing is written unless every live file and sidecar parses
 # ---------------------------------------------------------------------------
+
+# The meta must render for every target before any target is written, so a
+# meta one target rejects (a malformed mcp entry stops the Claude render)
+# leaves the other targets as they were.
+validate_meta() {
+    local kind
+    for kind in cursor_ide cursor_cli claude; do
+        if ! render_target_schema "$kind" "$ALLOWLISTS_SRC" >/dev/null; then
+            printf 'error: rendering %s for %s failed; nothing was written.\n' \
+                "$(pretty_path "$ALLOWLISTS_SRC")" "$kind" >&2
+            ABORTED=1
+            return 1
+        fi
+    done
+}
 
 validate_inputs() {
     local stem dir kind f bad=0 live shape
@@ -1207,13 +1281,13 @@ render_gemini_toml() {
     printf '# Generated from %s; edits here are overwritten on re-render.\n' "$(pretty_path "$ALLOWLISTS_SRC")"
     printf '# Regenerate with the agents Makefile: make install-allowlists\n'
     printf '# Other *.toml files in this directory are never read or modified.\n'
-    jq -r '
-        (.shell.allow // []) | unique | .[] |
+    jq -r "$SHELL_NORM_JQ"'
+        (.shell.allow // []) | map(shell_norm) | unique | .[] |
         "\n[[rule]]\ntoolName = \"run_shell_command\"\ncommandPrefix = " + tojson +
         "\ndecision = \"allow\"\npriority = 100"
     ' "$meta"
-    jq -r '
-        (.shell.deny // []) | unique | .[] |
+    jq -r "$SHELL_NORM_JQ"'
+        (.shell.deny // []) | map(shell_norm) | unique | .[] |
         "\n[[rule]]\ntoolName = \"run_shell_command\"\ncommandPrefix = " + tojson +
         "\ndecision = \"deny\"\npriority = 900"
     ' "$meta"
@@ -1453,6 +1527,7 @@ cmd_install() {
     print_header "install-allowlists"
     local stem dir kind gdir
     validate_inputs || exit 1
+    validate_meta || exit 1
     while IFS='|' read -r stem dir kind; do
         apply_one_target "$stem" "$dir" "$kind" || ABORTED=1
         [ "$ABORTED" = "1" ] && break
@@ -1495,6 +1570,7 @@ cmd_dry_run() {
     print_header "dry-run-allowlists"
     local stem dir kind gdir
     validate_inputs || exit 1
+    validate_meta || exit 1
     while IFS='|' read -r stem dir kind; do
         apply_one_target "$stem" "$dir" "$kind" || ABORTED=1
         [ "$ABORTED" = "1" ] && break

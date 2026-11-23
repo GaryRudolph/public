@@ -27,7 +27,7 @@ another (see § Project tool-use preference below).
 
 | Class | Meaning | Examples |
 |---|---|---|
-| **Inspect** | Reads state only, no side effects — **including read-only remote access** | `git status`, `git fetch`, `git remote -v`, `make help`, `swift package describe`, `xcodebuild -list`, `gh pr view`, `kubectl get`, `databricks … list`, `curl -X GET`, `terraform plan`, `terraform fmt -check`, `cargo fmt --check`, `go vet ./…`, `dotnet format --verify-no-changes` |
+| **Inspect** | Reads state only, no side effects — **including read-only remote access** | `git status`, `git fetch`, `git remote -v`, `make help`, `swift package describe`, `xcodebuild -list`, `gh pr view`, `kubectl get`, `databricks … list`, `terraform plan`, `terraform fmt -check`, `cargo fmt --check`, `go vet ./…`, `dotnet format --verify-no-changes` |
 | **Build & test** | Compiles, tests, lints, formats (check mode), or produces a **local** artifact — no remote distribution | `make build`, `make test`, `make lint`, `swift build`, `swift test`, `xcodebuild build`, `xcodebuild test`, `go build ./…`, `go test ./…`, `cargo build`, `cargo test`, `cargo clippy`, `pytest`, `ruff check`, `mypy`, `dotnet build`, `dotnet test`, `./gradlew test`, **`make archive`**, **`make sign`** |
 
 **Read-only remote access is Inspect, not Remote Write.** Fetching refs,
@@ -44,11 +44,33 @@ push a release — those are Remote Write.
 
 | Class | Meaning | Examples |
 |---|---|---|
-| **Remote Write** | Writes to or mutates a remote / external service: pushes, deploys, publishes, distributes, or applies remote changes | `git push`, `make testflight`, `make appstore`, `make notarize`, `make deploy`, `make release`, `make publish-*`, `npm publish`, `pnpm publish`, `firebase deploy`, `terraform apply`, `kubectl apply`, `helm install/upgrade`, `docker push`, `twine upload`, `cargo publish`, `rsync`/`scp` to a server, `gh release create`, `aws s3 cp/sync`, `gcloud … deploy`, `xcrun notarytool`, `fastlane pilot/deliver` |
-| **Sensitive** | Touches secrets, credentials, or security material: decrypts/exposes keys or tokens, reads a keychain/keystore | `*decrypt*`, `sops -d`, `gpg -d`, `ansible-vault decrypt`, `security find-*`, `vault kv get`, `print-secret`, `unseal`, `.env.enc` access |
-| **Destructive** | Irreversible or privileged: removes files unconditionally, formats storage, requires root, or performs a global install | `rm -rf`, `dd if=`, `mkfs`, `sudo *`, `git reset --hard`, `git clean -fd`, `make init` (clones or installs), `make setup`, `make bootstrap` |
+| **Remote Write** | Writes to or mutates a remote / external service: pushes, deploys, publishes, distributes, or applies remote changes | `git push`, `make testflight`, `make appstore`, `make notarize`, `make deploy`, `make release`, `make publish-*`, `npm publish`, `pnpm publish`, `firebase deploy`, `terraform apply`, `kubectl apply`, `helm install/upgrade`, `docker push`, `twine upload`, `cargo publish`, `rsync`/`scp` to a server, `gh release create`, `aws s3 cp/sync`, `gcloud … deploy`, `xcrun notarytool`, `fastlane pilot/deliver`, `curl` sending data (`-G`/`--get`, `-d`, `--data*`, `-F`, `--form*`, `-T`, `--json`, attached or combined as in `-d@file` or `-Gd x`), `wget --method`/`--post-*`/`--body-*` |
+| **Sensitive** | Touches secrets, credentials, or security material: decrypts/exposes keys or tokens, reads a keychain/keystore | `*decrypt*`, `sops -d`, `gpg -d`, `ansible-vault decrypt`, `security find-*`, `vault kv get`, `print-secret`, `unseal`, `.env.enc` access, `op read`, `op run`, `op inject` |
+| **Destructive** | Irreversible or privileged: removes files unconditionally, formats storage, requires root, performs a global install, or passes a flag that writes any path or runs any program (below) | `rm -rf`, `dd if=`, `mkfs`, `sudo *`, `git reset --hard`, `git clean -fd`, `make init` (clones or installs), `make setup`, `make bootstrap`, `git log --output=<path>`, `rg --pre <cmd>`, `git fetch --upload-pack=<cmd>` |
 | **Long-running** | Interactive or never-returns: would block or hang an agent indefinitely | `make dev`, `make serve`, `make watch`, `make start`, `next dev`, `ng serve`, `nodemon`, `webpack-dev-server`, `vite` (dev mode), `jekyll serve`, `mkdocs serve`, `tail -f` |
 | **Unclassified** | `scan.py`'s heuristics could not confidently assign a class | *(see § Unclassified below)* |
+
+**Flags that make a command Destructive.** A command that passes one of these
+flags is never proposed, as Build & test or Inspect or anything else, whatever
+its name or tool says. The flag is caught in the command text and in the
+target's own recipe or script body: a `package.json` script named `lint` that
+runs `rg --pre x` is caught. What that body calls is not followed: a make
+prerequisite, a `$(MAKE)` call, npm's `pre<name>` hook, or a script the recipe
+runs (r1.f14), and `scan.py` reads only a script's first 60 lines.
+
+| Flag | Why |
+|---|---|
+| `--output`, `--output-directory` | writes any path (`git log`, `git diff`, `git format-patch`) |
+| `--pre` | runs any program over each file (`rg --pre cat`) |
+| `--upload-pack`, `--exec` | runs any program on the remote end (`git fetch`, `git ls-remote`, `git clone`); git's abbreviations `--upload-p`, `--upload-pa` and `--upload-pac` count |
+
+Whole flags only, as `--flag value` or `--flag=value`: `--output-format`,
+`--prefix`, `--pre-release` and `--exec-path` do not match. Every `--output`
+counts, even one that picks a format (`kubectl get --output json`): the scout
+can't tell a format from a path (`git log --output=json` writes a file named
+`json`), or a read from a write (`aws dynamodb put-item --output json`), so it
+fails closed. Short forms such
+as `git format-patch -o` or `sort -o` are not caught.
 
 **Security-scanning tools are Inspect, not Sensitive.** `bandit`, `pip-audit`,
 `trivy`, `semgrep` and similar static analysis / dependency audit tools are
@@ -108,8 +130,8 @@ The four first-class harness targets and the token format each uses:
 | Harness | File | Array / key | Token format |
 |---|---|---|---|
 | **Cursor IDE** | `<repo>/.cursor/permissions.json` | `terminalAllowlist` | Raw prefix string: `"make test"` |
-| **Cursor CLI** | `<repo>/.cursor/cli.json` | `permissions.allow` | `"Shell(<base>:<args>)"` for a multi-word segment, args literal (`Shell(make:test)`); `"Shell(<word>)"` for a one-word segment; no token for a segment containing `*` or `?` or a colon in its first word |
-| **Claude Code** | `<repo>/.claude/settings.json` | `permissions.allow` | `"Bash(<cmd>:*)"` |
+| **Cursor CLI** | `<repo>/.cursor/cli.json` | `permissions.allow` | `"Shell(<base>:<args>)"` for a multi-word segment, args literal (`Shell(make:test)`); no token for a one-word segment, or one containing `*` or `?` or a colon in its first word |
+| **Claude Code** | `<repo>/.claude/settings.json` | `permissions.allow` | `"Bash(<cmd>)"`, the exact command; no token for a segment containing `*` |
 | **Gemini** | `<repo>/.gemini/policies/<name>.toml` | additive `[[rule]]` blocks | `toolName = "run_shell_command"`, `commandPrefix = "<segment>"`, `decision = "allow"`, `priority = 100` |
 
 **Cursor CLI rule.** Cursor's permissions docs define `Shell(commandBase)`
@@ -122,14 +144,27 @@ also grant `make release`. The docs state the glob rule but never show an
 exact `command:args` example, so this relies on a glob without a wildcard
 matching only itself. A segment containing `*` or `?`, or whose first word
 contains a colon, can't be written exactly, so the Cursor CLI gets no rule
-for it and `render.py` says so. A one-word segment is `Shell(<word>)`, which
-Cursor reads as the command with any arguments, so approving a bare word
-(`pytest`, which `scan.py` proposes whenever a `tests/` directory exists)
-grants every flag and argument. Review a bare-word candidate with that in
-mind before approving it; the scout doesn't check each variant.
+for it and `render.py` says so. A one-word segment gets no rule either:
+Cursor reads `Shell(<word>)` as the command with any arguments, so
+`Shell(rg)` would also allow `rg --pre <prog>`.
+
+**Claude Code rule.** `render.py` writes `Bash(<cmd>)`, which Claude Code
+matches as that exact command, never the prefix `Bash(<cmd>:*)`: `Bash(git
+log:*)` would also allow `git log --output=<path>`, and `Bash(make test:*)`
+would allow `make test x --eval=...`. A segment holding a `*` gets no rule.
+The agent allowlist installer renders allows the same way in both tools
+(r1.f1, the Owner's call of 2026-11-23).
 `scan.py` reads `Shell(cmd:args)` back as covering only `cmd args`, and
-`Shell(cmd:*)` or `Bash(cmd:*)` as the prefix `cmd`. This keeps § 4 rule 2:
+`Shell(cmd:*)`, `Bash(cmd:*)` or `Bash(cmd *)` as the prefix `cmd`, and
+`Bash(cmd)` with no wildcard as covering only `cmd`, as Claude Code reads it. This keeps § 4 rule 2:
 no entry subsumes a command the scout would never propose.
+
+**A bare entry covers nothing.** Neither Cursor CLI nor Claude Code reads an
+unwrapped string such as `"make test"` in `permissions.allow`; the agent
+allowlist installer wrote them that way before r1.f1. `scan.py` reads one in
+either file as covering no command, so the scout proposes the wrapped rule
+for it. Cursor IDE's `terminalAllowlist` and Gemini's `commandPrefix` are raw
+strings by design and still count.
 
 All writes are **union-only**: `render.py` adds missing allow entries and never
 removes anything, never writes a `deny` / `ask_user` / `confirmationRequired`

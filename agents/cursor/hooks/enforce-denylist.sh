@@ -10,11 +10,15 @@
 #
 # Cursor removed auto-run denylists in v1.3; permissions.json only honors
 # mcpAllowlist / terminalAllowlist / autoRun, and silently drops everything
-# else. The bok allowlist installer (~/agerpoint/bok/agents/lib/allowlists.sh)
-# still renders terminalDenylist into permissions.json, and those same deny
-# entries ARE honored in ~/.cursor/cli-config.json (Cursor CLI) and
-# ~/.claude/settings.json (Claude Code) -- the IDE is the only harness where
-# they do nothing. This hook narrows that gap.
+# else. The allowlist installer (agents/lib/allowlists.sh) still renders
+# terminalDenylist into permissions.json as plain strings, which the IDE
+# ignores. The same deny entries are also rendered into
+# ~/.cursor/cli-config.json (Cursor CLI) as prefix rules,
+# Shell(<base>:<args>*), and into ~/.claude/settings.json (Claude Code) as
+# Bash(<entry>:*); both tools read those. Before that wrapping, the installer
+# wrote them as bare strings, which neither tool matched, so the denies did
+# nothing anywhere. The IDE is now the only harness where they do nothing,
+# and this hook narrows that gap.
 #
 # Live path: ~/.cursor/hooks/enforce-denylist.sh (copy preferred over a
 # symlink into a git worktree). Wired from ~/.cursor/hooks.json as
