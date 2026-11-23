@@ -65,15 +65,16 @@ target. Each recommends the option above, with these alternatives:
 
 - Cursor IDE: "I'd prefer to just do what permissions.json can do, and if
   cursor can't support it we skip". No plugin hook and no flag seatbelt; the
-  installer renders only what `permissions.json` honours. Asked to choose
-  between readings, the Owner repeated the answer, so it's taken literally:
+  installer renders only what `permissions.json` honours. Revised later the
+  same day: "keep the hooks the same rather than have differences between
+  them if hooks.sh is being used throughout". So nothing changes for the IDE:
   - prefix `terminalAllowlist` and `mcpAllowlist` stay;
-  - `terminalDenylist` is no longer rendered;
-  - `enforce-denylist.sh` is no longer installed.
+  - `terminalDenylist` is still rendered, since the hook reads it;
+  - `hooks.sh` keeps installing `enforce-denylist.sh` unchanged;
+  - no flag seatbelt and no plugin hook.
 
-  So `rg --pre`, `sort -o` and `git log --output=` auto-run in the IDE with
-  only the sandbox behind them. `hooks.sh` is shared with the other org's
-  `agents/lib`, so dropping the denylist part needs porting both ways.
+  `rg --pre`, `sort -o` and `git log --output=` keep auto-running in the
+  IDE, as they do today.
 - Cursor CLI: "Installer only". Keep `cli-config.json` as is, no plugin hook.
 - Gemini CLI: "only support what they can do natively in the user home
   directory in the cloud settings". Read as: keep the installer writing
