@@ -133,8 +133,9 @@ DESTRUCTIVE_BODY = [
 # name and in its own recipe or script body (reference.md section 1).
 UNSAFE_FLAG = re.compile(
     r"(?<![\w-])--(output|output-directory|pre|exec|upload-p(?:a(?:c(?:k)?)?)?)(?![\w-])")
-# `--output <format>` picks a format (kubectl, aws, az, gcloud), not a path;
-# never for git, where `--output=json` writes a file named json.
+# `--output <format>` picks a format, not a path, only for these CLIs; for any
+# other command (git: `--output=json` writes a file named json) it fails closed.
+OUTPUT_FORMAT_TOOLS = {"kubectl", "aws", "az", "gcloud", "helm", "oc", "doctl"}
 OUTPUT_FORMATS = re.compile(
     r"(?:json|jsonc|yaml|yml|table|wide|text|tsv|csv|name|none|raw"
     r"|jsonpath|go-template|custom-columns|template)(?:[=-].*)?$")
@@ -185,20 +186,33 @@ INSPECT_NAME = {
 }
 
 
-def _is_git_command(text: str, at: int) -> bool:
-    """True when the command holding position *at* runs git, whose `--output`
-    always names a file (`git log --output=json` writes `./json`)."""
+def _command_word(text: str, at: int) -> str:
+    """The program the command holding position *at* runs: its first word
+    after any `VAR=value` assignments and wrappers (`env`, `command`, `time`,
+    `nice`, `timeout <n>`, `xargs`), without a directory. Empty when unknown."""
     start = max(text.rfind(sep, 0, at) for sep in (";", "&", "|", "\n", "(", "`"))
     words = text[start + 1:at].split()
-    return bool(words) and words[0].rsplit("/", 1)[-1] == "git"
+    i = 0
+    while i < len(words):
+        w = words[i]
+        if re.match(r"^[A-Za-z_][A-Za-z0-9_]*=", w) or w.startswith("-"):
+            i += 1
+        elif w in ("env", "command", "time", "nice", "xargs", "exec"):
+            i += 1
+        elif w == "timeout":
+            i += 2
+        else:
+            return w.rsplit("/", 1)[-1]
+    return ""
 
 
 def _unsafe_flag(text: str):
     """The first UNSAFE_FLAG match in *text*, skipping `--output` followed by
-    a format word (`--output json`, `--output=jsonpath={..}`) unless the
-    command is git."""
+    a format word (`--output json`, `--output=jsonpath={..}`) when the command
+    is one of OUTPUT_FORMAT_TOOLS. Any other command's `--output` names a file,
+    as far as the scout can tell, so it fails closed."""
     for m in UNSAFE_FLAG.finditer(text):
-        if m.group(1) == "output" and not _is_git_command(text, m.start()):
+        if m.group(1) == "output" and _command_word(text, m.start()) in OUTPUT_FORMAT_TOOLS:
             value = re.match(r"[=\s]+(\S+)", text[m.end():])
             if value and OUTPUT_FORMATS.match(value.group(1).strip("'\"")):
                 continue

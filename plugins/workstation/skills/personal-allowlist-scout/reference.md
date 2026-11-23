@@ -66,9 +66,10 @@ runs (r1.f14), and `scan.py` reads only a script's first 60 lines.
 
 Whole flags only, as `--flag value` or `--flag=value`: `--output-format`,
 `--prefix`, `--pre-release` and `--exec-path` do not match, and neither does
-`--output` followed by a format word (`--output json`, `--output=jsonpath=...`),
-as kubectl, aws and az use it, except under git, where `--output=json` writes
-a file named `json`. Short forms such
+`--output` followed by a format word (`--output json`, `--output=jsonpath=...`)
+under kubectl, aws, az, gcloud, helm, oc or doctl, which use it for formats.
+Under any other command, git included (`--output=json` writes a file named
+`json`), `--output` counts. Short forms such
 as `git format-patch -o` or `sort -o` are not caught.
 
 **Security-scanning tools are Inspect, not Sensitive.** `bandit`, `pip-audit`,

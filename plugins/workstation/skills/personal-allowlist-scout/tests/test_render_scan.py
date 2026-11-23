@@ -189,11 +189,14 @@ class UnsafeFlags(unittest.TestCase):
                          scan.DESTRUCTIVE)
         # git's --output always names a file, even one called json.
         for text in ("git log --output=json", "git diff --output table",
-                     "cd src && /usr/bin/git show --output=yaml HEAD"):
+                     "cd src && /usr/bin/git show --output=yaml HEAD",
+                     "GIT_PAGER=cat git log --output=json", "env git diff --output table",
+                     "custom-tool --output json"):
             self.assertEqual(scan._classify_text("check", text)[0], scan.DESTRUCTIVE, text)
         for text in ("git --exec-path", "git log --output-indicator-new=+",
                      "kubectl get pods --output json", "aws sts get-caller-identity --output=json",
-                     "az account show --output table", "kubectl get pods --output=jsonpath={.items}"):
+                     "az account show --output table", "kubectl get pods --output=jsonpath={.items}",
+                     "KUBECONFIG=x env kubectl get pods --output json"):
             self.assertEqual(scan._classify_text("check", text)[0], scan.BUILD, text)
 
     def test_similar_flags_classify_as_before(self):
