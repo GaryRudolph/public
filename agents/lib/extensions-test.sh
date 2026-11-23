@@ -12,6 +12,9 @@
 #   AGENTS_DIR   - absolute path to the agents/ dir
 
 set -euo pipefail
+# The real config dirs must stay out of the sandbox: the dotfiles export
+# CLAUDE_CONFIG_DIRS, and the lib scripts and the Makefile default from it.
+unset CLAUDE_CONFIG_DIRS CLAUDE_CONFIG_DIR
 
 : "${ORG:?ORG required}"
 : "${AGENTS_DIR:?AGENTS_DIR required}"
@@ -70,10 +73,9 @@ run_ext() {
     SKILLS_SRC="$FAKE_SKILLS_SRC" \
     COMMANDS_SRC="$FAKE_COMMANDS_SRC" \
     CURSOR_SKILLS_HOME="$FAKE_HOME/.cursor/skills" \
-    CLAUDE_SKILLS_HOME="$FAKE_HOME/.claude/skills" \
+    CLAUDE_CONFIG_DIRS="$FAKE_HOME/.claude" \
     AGENTS_SKILLS_HOME="$FAKE_HOME/.agents/skills" \
     LEGACY_SKILLS_HOMES="$FAKE_HOME/.gemini/skills:$FAKE_HOME/.codex/skills" \
-    CLAUDE_COMMANDS_HOME="$FAKE_HOME/.claude/commands" \
     WIN_HOME="$FAKE_WIN_HOME" \
     WIN_CURSOR_SKILLS_HOME="$FAKE_WIN_HOME/.cursor/skills" \
     WIN_CLAUDE_SKILLS_HOME="$FAKE_WIN_HOME/.claude/skills" \
@@ -457,8 +459,7 @@ AGENTS_DIR="$AGENTS_DIR" \
 SKILLS_SRC="$FAKE_SKILLS_SRC" \
 COMMANDS_SRC="$FAKE_COMMANDS_SRC" \
 CURSOR_SKILLS_HOME="$TEST_DIR_MIG/home/.cursor/skills" \
-CLAUDE_SKILLS_HOME="$TEST_DIR_MIG/home/.claude/skills" \
-CLAUDE_COMMANDS_HOME="$TEST_DIR_MIG/home/.claude/commands" \
+CLAUDE_CONFIG_DIRS="$TEST_DIR_MIG/home/.claude" \
 WIN_HOME="" \
 WIN_CURSOR_SKILLS_HOME="" \
 WIN_CLAUDE_SKILLS_HOME="" \
@@ -492,9 +493,8 @@ AGENTS_DIR="$AGENTS_DIR" \
 SKILLS_SRC="$FAKE_SKILLS_SRC" \
 COMMANDS_SRC="$FAKE_COMMANDS_SRC" \
 CURSOR_SKILLS_HOME="$TEST_DIR2/home/.cursor/skills" \
-CLAUDE_SKILLS_HOME="$TEST_DIR2/home/.claude/skills" \
+CLAUDE_CONFIG_DIRS="$TEST_DIR2/home/.claude" \
 AGENTS_SKILLS_HOME="$TEST_DIR2/home/.agents/skills" \
-CLAUDE_COMMANDS_HOME="$TEST_DIR2/home/.claude/commands" \
 WIN_HOME="" \
 WIN_CURSOR_SKILLS_HOME="" \
 WIN_CLAUDE_SKILLS_HOME="" \

@@ -7,6 +7,9 @@
 #   AGENTS_DIR   - absolute path to the agents/ dir
 
 set -euo pipefail
+# The real config dirs must stay out of the sandbox: the dotfiles export
+# CLAUDE_CONFIG_DIRS, and the lib scripts and the Makefile default from it.
+unset CLAUDE_CONFIG_DIRS CLAUDE_CONFIG_DIR
 
 : "${ORG:?ORG required}"
 : "${AGENTS_DIR:?AGENTS_DIR required}"
@@ -78,8 +81,7 @@ run_ext_install() {
     SKILLS_SRC="$FAKE_SKILLS_SRC" \
     COMMANDS_SRC="$FAKE_COMMANDS_SRC" \
     CURSOR_SKILLS_HOME="$CURSOR_SKILLS" \
-    CLAUDE_SKILLS_HOME="$FAKE_HOME/.claude/skills" \
-    CLAUDE_COMMANDS_HOME="$FAKE_HOME/.claude/commands" \
+    CLAUDE_CONFIG_DIRS="$FAKE_HOME/.claude" \
     WIN_HOME="" \
     bash "$EXTENSIONS" install
 }

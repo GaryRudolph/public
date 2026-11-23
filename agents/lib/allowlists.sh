@@ -4,7 +4,8 @@
 #
 #   ~/.cursor/permissions.json             (Cursor IDE)
 #   ~/.cursor/cli-config.json              (Cursor CLI)
-#   ~/.claude/settings.json                (Claude Code / VS Code + Cursor ext)
+#   <claude dir>/settings.json             (Claude Code / VS Code + Cursor ext;
+#                                          one per dir in CLAUDE_CONFIG_DIRS)
 #   ~/.gemini/policies/<org>-managed.toml  (Gemini CLI Policy Engine)
 #
 # The first three are JSON and share the sidecar / union / passthrough
@@ -55,7 +56,7 @@
 # (.<stem>.user-managed.json) and passthrough keys (.<stem>.passthrough.json).
 #
 # Backups live in a hidden .history/ subdirectory next to each live file
-# (~/.cursor/.history/permissions.json.1, .2, ... and ~/.claude/.history/
+# (~/.cursor/.history/permissions.json.1, .2, ... and <claude dir>/.history/
 # settings.json.1, .2, ...). Numbering is unbounded and per-file; engineer
 # prunes manually or via `make clean-allowlists`.
 #
@@ -65,7 +66,8 @@
 #
 # Optional env (defaults shown):
 #   CURSOR_DATA_HOME      ~/.cursor
-#   CLAUDE_DATA_HOME      ~/.claude
+#   CLAUDE_CONFIG_DIRS    ~/.claude   (colon-separated absolute paths; each gets
+#                         its own settings.json, sidecars and .history/)
 #   GEMINI_DATA_HOME      ~/.gemini   (managed file lives in $GEMINI_DATA_HOME/policies)
 #   WIN_HOME              (empty; auto-detected when /proc/version contains
 #                         "microsoft" — the WSL Windows host home directory)
@@ -114,7 +116,7 @@ set -euo pipefail
 : "${ORG:?ORG must be set}"
 : "${ALLOWLISTS_SRC:?ALLOWLISTS_SRC must be set}"
 : "${CURSOR_DATA_HOME:=$HOME/.cursor}"
-: "${CLAUDE_DATA_HOME:=$HOME/.claude}"
+: "${CLAUDE_CONFIG_DIRS:=$HOME/.claude}"
 : "${GEMINI_DATA_HOME:=$HOME/.gemini}"
 : "${MAKEFILE_LABEL:=${ALLOWLISTS_SRC%/*}/Makefile}"
 
@@ -202,15 +204,22 @@ init_win_dests() {
 #   kind = cursor_ide | cursor_cli | claude  (drives schema translation)
 
 all_targets() {
+    local claude_dir
     printf '%s\n' \
         "permissions|$CURSOR_DATA_HOME|cursor_ide" \
-        "cli-config|$CURSOR_DATA_HOME|cursor_cli" \
-        "settings|$CLAUDE_DATA_HOME|claude"
+        "cli-config|$CURSOR_DATA_HOME|cursor_cli"
+    while IFS= read -r claude_dir; do
+        printf '%s\n' "settings|$claude_dir|claude"
+    done < <(claude_dirs)
     [ -n "$WIN_HOME" ] && printf '%s\n' \
         "permissions|$WIN_CURSOR_DATA_HOME|cursor_ide" \
         "cli-config|$WIN_CURSOR_DATA_HOME|cursor_cli" \
         "settings|$WIN_CLAUDE_DATA_HOME|claude"
 }
+
+# One Claude config dir per line, from the colon-separated list. Read as text,
+# so a space or glob character in a path is kept literally.
+claude_dirs() { printf '%s\n' "$CLAUDE_CONFIG_DIRS" | tr ':' '\n' | sed '/^$/d'; }
 
 # Stems-per-directory map, used by foreign-history detection so each
 # .history/ dir only flags files that don't belong to any installed target
@@ -1692,7 +1701,7 @@ This script is invoked by the agents Makefile with the appropriate environment.
 Run \`make help\` from the Makefile directory for user-facing entry points.
 
 Required env: ORG, ALLOWLISTS_SRC
-Optional env: CURSOR_DATA_HOME, CLAUDE_DATA_HOME, GEMINI_DATA_HOME, MAKEFILE_LABEL
+Optional env: CURSOR_DATA_HOME, CLAUDE_CONFIG_DIRS, GEMINI_DATA_HOME, MAKEFILE_LABEL
               WIN_HOME (auto-detected under WSL; set to "" to disable dual pass)
               WIN_CURSOR_DATA_HOME, WIN_CLAUDE_DATA_HOME, WIN_GEMINI_DATA_HOME
               (derived from WIN_HOME)

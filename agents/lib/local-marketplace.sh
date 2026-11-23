@@ -10,6 +10,10 @@
 # points anywhere else (another checkout, or GitHub).
 #
 # Required env: REPO_DIR, MARKETPLACE, PLUGINS (space-separated plugin names)
+# Optional env: CLAUDE_BIN (claude), CLAUDE_CONFIG_DIRS (~/.claude; colon-separated
+#               absolute paths). Each dir is handled on its own, with
+#               CLAUDE_CONFIG_DIR set to it, so each has its own marketplace list
+#               and plugin installs.
 #
 # Subcommands: install | uninstall | status | dry-run
 
@@ -19,6 +23,7 @@ set -euo pipefail
 : "${MARKETPLACE:?MARKETPLACE must be set}"
 : "${PLUGINS:?PLUGINS must be set}"
 : "${CLAUDE_BIN:=claude}"
+: "${CLAUDE_CONFIG_DIRS:=$HOME/.claude}"
 
 DRY_RUN=0
 
@@ -76,14 +81,14 @@ cmd_install() {
         printf '  remove it first: %s plugin marketplace remove %s\n' "$CLAUDE_BIN" "$MARKETPLACE" >&2
         return 1
     fi
-    [ -n "$current" ] || run "$CLAUDE_BIN" plugin marketplace add "$REPO_DIR"
+    [ -n "$current" ] || run "$CLAUDE_BIN" plugin marketplace add "$REPO_DIR" || return 1
     local p installed
     installed=$(installed_plugins)
     for p in $PLUGINS; do
         if printf '%s\n' "$installed" | grep -qxF "$p@$MARKETPLACE"; then
             printf 'local-marketplace: %s@%s already installed\n' "$p" "$MARKETPLACE"
         else
-            run "$CLAUDE_BIN" plugin install "$p@$MARKETPLACE" --scope user
+            run "$CLAUDE_BIN" plugin install "$p@$MARKETPLACE" --scope user || return 1
         fi
     done
 }
@@ -99,9 +104,9 @@ cmd_uninstall() {
     fi
     local p
     for p in $(installed_plugins); do
-        run "$CLAUDE_BIN" plugin uninstall "$p"
+        run "$CLAUDE_BIN" plugin uninstall "$p" || return 1
     done
-    run "$CLAUDE_BIN" plugin marketplace remove "$MARKETPLACE"
+    run "$CLAUDE_BIN" plugin marketplace remove "$MARKETPLACE" || return 1
 }
 
 cmd_status() {
@@ -120,10 +125,28 @@ cmd_status() {
     fi
 }
 
+# One Claude config dir per line, from the colon-separated list. Read as text,
+# so a space or glob character in a path is kept literally.
+claude_dirs() { printf '%s\n' "$CLAUDE_CONFIG_DIRS" | tr ':' '\n' | sed '/^$/d'; }
+
+# Runs one command against every Claude config dir, each in a subshell with
+# CLAUDE_CONFIG_DIR pointed at it. A failure in one dir doesn't skip the others;
+# the exit status is non-zero if any dir failed.
+for_each_config_dir() {
+    local dir rc=0
+    # Without the CLI there is nothing per dir to do; the command says so once.
+    have_claude || { "$@"; return; }
+    while IFS= read -r dir <&3; do
+        printf 'local-marketplace: config dir %s\n' "$dir"
+        ( export CLAUDE_CONFIG_DIR="$dir"; "$@" ) || rc=1
+    done 3< <(claude_dirs)
+    return "$rc"
+}
+
 case "${1:-}" in
-    install)   cmd_install ;;
-    uninstall) cmd_uninstall ;;
-    dry-run)   DRY_RUN=1; cmd_install ;;
-    status)    cmd_status ;;
+    install)   for_each_config_dir cmd_install ;;
+    uninstall) for_each_config_dir cmd_uninstall ;;
+    dry-run)   DRY_RUN=1; for_each_config_dir cmd_install ;;
+    status)    for_each_config_dir cmd_status ;;
     *) printf 'usage: %s {install|uninstall|dry-run|status}\n' "$0" >&2; exit 2 ;;
 esac
