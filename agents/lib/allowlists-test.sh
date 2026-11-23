@@ -1407,6 +1407,9 @@ out46=$(run_al "$H46" "$META" dry-run 2>&1) || fail "T46: dry-run failed: $out46
 snap_tree "$H46" > "$TEST_DIR/t46.tree.after"
 cmp -s "$TEST_DIR/t46.tree.before" "$TEST_DIR/t46.tree.after" || fail "T46: dry-run changed $(basename "$H46")"
 case "$out46" in *"settings.json"*"would remove"*"$ORG entries"*) ;; *) fail "T46: dry-run does not preview the removal: $out46" ;; esac
+for sc in ".settings.${ORG}-managed.json" .settings.user-managed.json .settings.passthrough.json; do
+    case "$out46" in *"would remove sidecar"*"$sc"*) ;; *) fail "T46: dry-run does not preview removing $sc" ;; esac
+done
 case "$(run_al "$H46" "$META" status 2>&1)" in *"settings.json"*"still holds $ORG entries"*) ;; *) fail "T46: status does not report the pending cleanup" ;; esac
 diff46=$(run_al "$H46" "$META" diff 2>&1)
 case "$diff46" in *'-      "mcp__notion__*",'*) ;; *) fail "T46: diff does not show our entries leaving: $diff46" ;; esac

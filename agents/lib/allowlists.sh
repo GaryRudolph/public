@@ -1336,7 +1336,7 @@ claude_dir_shared() {
 
 clear_claude_dir() {
     local dir="$1"
-    local live ours pretty label alone=1 n=0 new="" drop_file=0
+    local live ours pretty label alone=1 n=0 new="" drop_file=0 f
     live=$(target_path settings "$dir")
     ours=$(org_sidecar settings "$dir")
     pretty=$(pretty_path "$live")
@@ -1361,6 +1361,11 @@ clear_claude_dir() {
             printf '%-50s - would remove %s %s entries (now in managed settings)%s\n' "$pretty" "$n" "$ORG" "$label"
         fi
         printf '%-50s - would remove sidecar %s%s\n' "$pretty" "$(pretty_path "$ours")" "$label"
+        if [ "$alone" = "1" ]; then
+            claude_feed_sidecars "$dir" | while IFS= read -r f; do
+                printf '%-50s - would remove sidecar %s%s\n' "$pretty" "$(pretty_path "$f")" "$label"
+            done
+        fi
         rm -f "$new"
         return 0
     fi
@@ -1385,10 +1390,24 @@ clear_claude_dir() {
     rm -f "$new"
 
     rm -f -- "$ours" || return 1
-    if [ "$alone" = "1" ]; then
-        rm -f -- "$(user_sidecar settings "$dir")" "$(passthrough_path settings "$dir")" || return 1
-    fi
     printf '%-50s - removed sidecar %s%s\n' "$pretty" "$(pretty_path "$ours")" "$label"
+    if [ "$alone" = "1" ]; then
+        local f
+        while IFS= read -r f; do
+            rm -f -- "$f" || return 1
+            printf '%-50s - removed sidecar %s%s\n' "$pretty" "$(pretty_path "$f")" "$label"
+        done < <(claude_feed_sidecars "$dir")
+    fi
+}
+
+# The user-managed and passthrough sidecars present in $1: they only fed the
+# render, so they go with ours once no other org's sidecar is left.
+claude_feed_sidecars() {
+    local f
+    for f in "$(user_sidecar settings "$1")" "$(passthrough_path settings "$1")"; do
+        if [ -e "$f" ] || [ -L "$f" ]; then printf '%s\n' "$f"; fi
+    done
+    return 0
 }
 
 status_claude_dir() {
@@ -1689,6 +1708,7 @@ cmd_install() {
     if [ "$ABORTED" != "1" ]; then
         while IFS= read -r cdir; do
             clear_claude_dir "$cdir" || ABORTED=1
+            [ "$ABORTED" = "1" ] && break
         done < <(claude_dirs)
     fi
     if [ "$ABORTED" != "1" ]; then
@@ -1741,6 +1761,7 @@ cmd_dry_run() {
     if [ "$ABORTED" != "1" ]; then
         while IFS= read -r cdir; do
             clear_claude_dir "$cdir" || ABORTED=1
+            [ "$ABORTED" = "1" ] && break
         done < <(claude_dirs)
     fi
     if [ "$ABORTED" != "1" ]; then

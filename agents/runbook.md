@@ -208,7 +208,8 @@ key stay, the file is backed up to `.history/settings.json.<N>` first, and the
 sidecars are deleted.
 
 ```bash
-make dry-run-allowlists     # expect: settings.json "would remove <N> personal entries"
+make dry-run-allowlists     # expect: settings.json "would remove <N> personal entries",
+                            #   or "would remove (only held personal entries)", and its sidecars
 make install
 jq '.permissions' ~/.claude/settings.json   # only your own rules (or no file, if it held only ours)
 make status-allowlists      # no settings.json line: nothing left to clear
