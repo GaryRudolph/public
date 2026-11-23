@@ -93,6 +93,14 @@ def load_registry(path: Path) -> Setting:
     return Setting(id=data["id"], name=data["name"], content=data["content"], steps=data["steps"], orgs=orgs)
 
 
+def by_workflow(raw: dict) -> bool:
+    """Only the workflow's own issues count: the repo is public, and an issue
+    someone else got labelled must not decide what's due or what was pasted.
+    gh names the Actions bot app/github-actions or github-actions[bot]."""
+    author = raw.get("author") or {}
+    return bool(author.get("is_bot")) and author.get("login") in ("app/github-actions", "github-actions", "github-actions[bot]")
+
+
 def same(a: bytes | None, b: bytes | None) -> bool:
     if a is None or b is None:
         return a is b
@@ -213,14 +221,12 @@ class GitHub:
         return subprocess.run(["gh", *args, "-R", self.repo], capture_output=True, text=True, check=True).stdout
 
     def issues(self, state: str) -> list[dict]:
-        # One issue per change, so the history stays in reach for years. Only
-        # the workflow's own issues: the repo is public, and an issue someone
-        # else got labelled must not decide what's due or what was pasted.
+        # One issue per change, so the history stays in reach for years.
         out = self._gh(
-            "issue", "list", "--label", LABEL, "--author", "app/github-actions", "--state", state, "--limit", "5000",
-            "--json", "number,body,url,stateReason,closedAt",
+            "issue", "list", "--label", LABEL, "--state", state, "--limit", "5000",
+            "--json", "number,body,url,stateReason,closedAt,author",
         )
-        return json.loads(out)
+        return [r for r in json.loads(out) if by_workflow(r)]
 
     def ensure_label(self) -> None:
         subprocess.run(

@@ -202,6 +202,16 @@ class Run(unittest.TestCase):
         self.assertEqual(o.action, "skip")
 
 
+class Authors(unittest.TestCase):
+    def test_only_the_workflow_bot_counts(self) -> None:
+        self.assertTrue(si.by_workflow({"author": {"login": "app/github-actions", "is_bot": True}}))
+        self.assertTrue(si.by_workflow({"author": {"login": "github-actions[bot]", "is_bot": True}}))
+        self.assertFalse(si.by_workflow({"author": {"login": "someone", "is_bot": False}}))
+        self.assertFalse(si.by_workflow({"author": {"login": "app/github-actions", "is_bot": False}}))
+        self.assertFalse(si.by_workflow({"author": {"login": "app/other-bot", "is_bot": True}}))
+        self.assertFalse(si.by_workflow({}))
+
+
 class Slack(unittest.TestCase):
     def outcome(self, changed: bool, orgs: list[str]) -> si.Outcome:
         return si.Outcome("file", "", orgs=orgs, changed=changed,
