@@ -1,6 +1,6 @@
 # Plan: one canonical allowlist, Claude through managed settings, a smaller local layer
 
-Status: drafted 2026-11-23, waiting for the Owner's go on m1.
+Status: m1 and m2 built on this branch as PR 1 (trimmed m1 folded in, Owner's go 2026-11-23); m3 and m4 open.
 Branch: `claude/nice-bohr-xt3iuw` (harness-assigned task branch).
 Supersedes: `plan-allowlist-prefix-gap-quill.md` (its Gemini and Cursor IDE work folds into m4).
 Refs: r1.f1, https://github.com/GaryRudolph/public/issues/45.
@@ -30,21 +30,21 @@ New files in this repo don't name another organization or its repo.
 - Lolay org membership: managed settings apply to every member.
 - Each later org's claude.ai name and GitHub owner, when it's added to `orgs`.
 
-## m1 - Canonical file, written down and rendered per target
+## m1 - Canonical file, written down (done, folded into PR 1)
 
-- s1 [deep] `agents/allowlists/README.md`: the format, what each key means, how each
-  target reads it (the per-target table below, kept current). A JSON Schema
-  (`agents/allowlists/schema.json`) checked by `make -C agents validate`.
-- s2 [deep] Move each target's render out of `allowlists.sh` into its own jq file
-  under `agents/lib/render/` (`claude.jq`, `cursor-ide.jq`, `cursor-cli.jq`,
-  `gemini.jq`), called by the installer and, for Claude, by m2. Behavior unchanged:
-  the existing T41/T42/T43 tests pass untouched.
-- s3 [exec] Claude render gains `read.deny` as `Read(...)` and `write.deny` as
-  `Edit(...)` deny rules (today they reach Cursor CLI only). Tests.
+Trimmed by the Owner (2026-11-23): the Cursor IDE, Cursor CLI and Gemini renders
+stay in `allowlists.sh`, since m4 may replace them.
 
-STOP: Owner reviews the README table and the schema.
+- s1 (done) `agents/allowlists/README.md`: the format and the per-target table.
+  `meta_check` in `agents/lib/allowlist.jq` instead of a JSON Schema (no validator
+  dependency on macOS CI); the installer and `render.sh` both run it.
+- s2 (done) The Claude render moved to `allowlist.jq` (`claude_permissions`), shared
+  by the installer and the managed-settings render. Behavior unchanged; T41 to T43
+  pass untouched.
+- s3 (done) `read.deny` renders as `Read()` and `write.deny` as `Edit()` denies
+  (T44); a file outside the format stops the install (T45).
 
-## m2 - Org pipeline: one issue plus one Slack post on a change
+## m2 - Org pipeline: one issue plus one Slack post on a change (done, PR 1)
 
 Owner decisions (2026-11-23): reuse the Slack app that lolay/infrastructure posts with
 (already added to this repo), post to the same `#infrastructure` channel, and file one
@@ -58,15 +58,16 @@ issue that covers every org the file is published to, Lolay first.
   control, plus each later org's GitHub owner, `$defaults` kept; a commit stamp key
   rendered last) and one generated `claude-managed-settings.json`, the same paste for
   every org, committed and checked stale by `make -C agents test`.
-- s2 [exec] `agents/org/Makefile`: `render`, `check`, `install` (render, copy to the
-  clipboard, print the paste steps).
+- s2 (done, changed) `agents/org/Makefile`: `render`, `check`, `test`. No `install`:
+  the issue carries the JSON with its stamp filled in, so the paste needs no checkout.
 - s3 [deep] `agents/org/settings_issue.py` plus tests: on a push to `main`, compare the
   pasted file at the commit that last changed it with the last applied one (the last
   issue closed as completed). On a real change, open one `org-settings` issue, replacing
   any open one, with the shared steps and a checkbox per org; the Owner closes it as
   completed once every box is ticked. An org added to `orgs` with no content change gets
   the same issue, listing only the new org. Post each new issue to Slack, best effort.
-- s4 [exec] `agents/org/slack-post.sh`, the same shape as infrastructure's
+- s4 (done, changed: the post is inline in `settings_issue.py`, one language and
+  testable with a fake opener) Slack post in the same shape as infrastructure's
   `scripts/slack-post.sh` (token in a curl config file, text escaped, bot-token and
   channel-id checks, exit 1 on a Slack refusal), without the Claude Tag mention: the
   paste is console-only, so there's nothing for Claude to pick up. The post is one line that

@@ -278,7 +278,11 @@ doesn't manage.
 
 Still local-only, with no plugin equivalent: the allowlists
 (`install-allowlists`), because plugins can't ship permission rules, and the
-Xcode blocks.
+Xcode blocks. Claude Code is the exception for the allowlists: its rules go
+out as org managed settings, rendered from the same canonical file and pasted
+into each org from an issue (`agents/org/README.md`), which also reaches cloud
+sessions. The installer keeps writing Claude Code locally until those are
+live in every org.
 
 ## Standards versus skills
 

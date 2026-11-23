@@ -23,6 +23,7 @@ unexport CCR_AGENT_PROXY_ENABLED
 #   3. Cursor user hooks (lib/hooks.sh): the denylist hook, and a refresh
 #      hook for copy-mode skills.
 #   4. Allowlists (lib/allowlists.sh): plugins can't ship permission rules.
+#      Claude Code also gets them as org managed settings (org/README.md).
 #   5. Optionally, this checkout as a local Claude marketplace for live
 #      edits (lib/local-marketplace.sh).
 
@@ -275,7 +276,7 @@ TEST_ENV = \
     LEGACY_JETBRAINS_GLOB="$(LEGACY_JETBRAINS_GLOB)"
 
 .PHONY: help install uninstall dry-run status doctor test test-blocks test-extensions test-hooks test-allowlists \
-        test-secrets test-release test-repo-baseline test-ship-pr test-codebase-review test-media-preview test-orchestrate test-origin test-doctor test-session-doctor test-session-start test-allowlist-scout test-claude-dirs clean-test \
+        test-secrets test-release test-repo-baseline test-ship-pr test-codebase-review test-media-preview test-orchestrate test-origin test-doctor test-session-doctor test-session-start test-allowlist-scout test-claude-dirs test-org clean-test \
         install-blocks uninstall-blocks dry-run-blocks status-blocks \
         install-extensions uninstall-extensions dry-run-extensions status-extensions \
         install-hooks uninstall-hooks dry-run-hooks status-hooks \
@@ -314,6 +315,7 @@ help:
 	@echo "  validate                   Manifest checks + claude plugin validate"
 	@echo "  package                    Zip each plugin into build/plugins/"
 	@echo "  test-orchestrate           Run the plan-orchestrate kit's offline tests (part of test)"
+	@echo "  test-org                   Check the org managed-settings render; test its issue script (part of test)"
 	@echo "  cursor-core-rule           Regenerate plugins/personal/cursor/rules/personal-core.mdc"
 	@echo "  install-local-marketplace  Load the plugins from this checkout in Claude Code (live edits)"
 	@echo ""
@@ -476,7 +478,11 @@ doctor:
 # test
 # ---------------------------------------------------------------------------
 
-test: test-blocks test-extensions test-hooks test-allowlists test-manifests test-secrets test-release test-orchestrate test-repo-baseline test-review-guide test-ship-pr test-codebase-review test-media-preview test-origin test-doctor test-session-doctor test-session-start test-allowlist-scout test-claude-dirs test-roundtrip
+test: test-blocks test-extensions test-hooks test-allowlists test-manifests test-secrets test-release test-orchestrate test-repo-baseline test-review-guide test-ship-pr test-codebase-review test-media-preview test-origin test-doctor test-session-doctor test-session-start test-allowlist-scout test-claude-dirs test-roundtrip test-org
+
+# The managed settings render is current, and the org-settings issue script's tests.
+test-org:
+	@$(MAKE) --no-print-directory -C "$(AGENTS_DIR)/org" test
 
 # Install + uninstall through this Makefile into a sandboxed $HOME.
 test-roundtrip:
