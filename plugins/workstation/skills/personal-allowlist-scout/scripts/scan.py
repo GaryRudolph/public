@@ -117,8 +117,14 @@ REMOTE_BODY = [
     r"pod\s+trunk\s+push", r"netlify\s+deploy", r"vercel\s+(deploy|--prod)",
     r"databricks\s+\S+\s+(create|deploy|run|submit)", r"\bcurl\b[^|]*\s-X\s*(POST|PUT|PATCH|DELETE)",
     # Sends data out even as a GET: `curl -G --data-urlencode @~/.ssh/id_ed25519`.
-    r"\bcurl\b[^|;&\n]*\s(-G|--get|-d|--data(-[a-z]+)?|-F|--form|-T|--upload-file)(?=[\s=]|$)",
+    r"\bcurl\b[^|;&\n]*\s--(get|data[a-z-]*|form[a-z-]*|upload-file|json)(?![\w-])",
     r"\bwget\b[^|;&\n]*\s--(method|post-data|post-file|body-data|body-file)\b",
+]
+# Matched against the body as written: curl's short options are case-sensitive
+# (`-F` sends a form, `-f` fails quietly), and may be attached or combined
+# (`-d@file`, `-Gdx`, `-T/etc/x`).
+REMOTE_BODY_CASED = [
+    r"\bcurl\b[^|;&\n]*\s-[A-Za-z]*[GdFT]",
 ]
 SENSITIVE_BODY = [
     r"decrypt", r"gpg\s+-d\b", r"gpg\s+--decrypt", r"openssl\s+enc[^\n]*-d\b",
@@ -145,12 +151,9 @@ DESTRUCTIVE_BODY = [
 # name and in its own recipe or script body (reference.md section 1).
 UNSAFE_FLAG = re.compile(
     r"(?<![\w-])--(output|output-directory|pre|exec|upload-p(?:a(?:c(?:k)?)?)?)(?![\w-])")
-# `--output <format>` picks a format, not a path, only for these CLIs; for any
-# other command (git: `--output=json` writes a file named json) it fails closed.
-OUTPUT_FORMAT_TOOLS = {"kubectl", "aws", "az", "gcloud", "helm", "oc", "doctl"}
-OUTPUT_FORMATS = re.compile(
-    r"(?:json|jsonc|yaml|yml|table|wide|text|tsv|csv|name|none|raw"
-    r"|jsonpath|go-template|custom-columns|template)(?:[=-].*)?$")
+# Any `--output` counts, even as a format (`kubectl get --output json`): the
+# scout can't tell a format from a path, or a read from a write
+# (`aws dynamodb put-item --output json`), so it fails closed.
 UNSAFE_FLAG_WHY = {
     "output": "writes any path",
     "output-directory": "writes any path",
@@ -198,38 +201,9 @@ INSPECT_NAME = {
 }
 
 
-def _command_word(text: str, at: int) -> str:
-    """The program the command holding position *at* runs: its first word
-    after any `VAR=value` assignments and wrappers (`env`, `command`, `time`,
-    `nice`, `timeout <n>`, `xargs`), without a directory. Empty when unknown."""
-    start = max(text.rfind(sep, 0, at) for sep in (";", "&", "|", "\n", "(", "`"))
-    words = text[start + 1:at].split()
-    i = 0
-    while i < len(words):
-        w = words[i]
-        if re.match(r"^[A-Za-z_][A-Za-z0-9_]*=", w) or w.startswith("-"):
-            i += 1
-        elif w in ("env", "command", "time", "nice", "xargs", "exec"):
-            i += 1
-        elif w == "timeout":
-            i += 2
-        else:
-            return w.rsplit("/", 1)[-1]
-    return ""
-
-
 def _unsafe_flag(text: str):
-    """The first UNSAFE_FLAG match in *text*, skipping `--output` followed by
-    a format word (`--output json`, `--output=jsonpath={..}`) when the command
-    is one of OUTPUT_FORMAT_TOOLS. Any other command's `--output` names a file,
-    as far as the scout can tell, so it fails closed."""
-    for m in UNSAFE_FLAG.finditer(text):
-        if m.group(1) == "output" and _command_word(text, m.start()) in OUTPUT_FORMAT_TOOLS:
-            value = re.match(r"[=\s]+(\S+)", text[m.end():])
-            if value and OUTPUT_FORMATS.match(value.group(1).strip("'\"")):
-                continue
-        return m
-    return None
+    """The first UNSAFE_FLAG match in *text*, or None."""
+    return UNSAFE_FLAG.search(text)
 
 
 def _classify_text(name: str, body: str = ""):
@@ -250,6 +224,9 @@ def _classify_text(name: str, body: str = ""):
     for pat in REMOTE_BODY:
         m = re.search(pat, body_l)
         if m:
+            return REMOTE, "body matched /%s/" % pat
+    for pat in REMOTE_BODY_CASED:
+        if re.search(pat, body or ""):
             return REMOTE, "body matched /%s/" % pat
     for pat in DESTRUCTIVE_BODY:
         m = re.search(pat, body_l)

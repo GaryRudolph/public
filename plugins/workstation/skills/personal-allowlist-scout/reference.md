@@ -44,7 +44,7 @@ push a release — those are Remote Write.
 
 | Class | Meaning | Examples |
 |---|---|---|
-| **Remote Write** | Writes to or mutates a remote / external service: pushes, deploys, publishes, distributes, or applies remote changes | `git push`, `make testflight`, `make appstore`, `make notarize`, `make deploy`, `make release`, `make publish-*`, `npm publish`, `pnpm publish`, `firebase deploy`, `terraform apply`, `kubectl apply`, `helm install/upgrade`, `docker push`, `twine upload`, `cargo publish`, `rsync`/`scp` to a server, `gh release create`, `aws s3 cp/sync`, `gcloud … deploy`, `xcrun notarytool`, `fastlane pilot/deliver`, `curl` sending data (`-G`/`--get`, `-d`, `--data*`, `-F`, `-T`), `wget --method`/`--post-*`/`--body-*` |
+| **Remote Write** | Writes to or mutates a remote / external service: pushes, deploys, publishes, distributes, or applies remote changes | `git push`, `make testflight`, `make appstore`, `make notarize`, `make deploy`, `make release`, `make publish-*`, `npm publish`, `pnpm publish`, `firebase deploy`, `terraform apply`, `kubectl apply`, `helm install/upgrade`, `docker push`, `twine upload`, `cargo publish`, `rsync`/`scp` to a server, `gh release create`, `aws s3 cp/sync`, `gcloud … deploy`, `xcrun notarytool`, `fastlane pilot/deliver`, `curl` sending data (`-G`/`--get`, `-d`, `--data*`, `-F`, `--form*`, `-T`, `--json`, attached or combined as in `-d@file` or `-Gd x`), `wget --method`/`--post-*`/`--body-*` |
 | **Sensitive** | Touches secrets, credentials, or security material: decrypts/exposes keys or tokens, reads a keychain/keystore | `*decrypt*`, `sops -d`, `gpg -d`, `ansible-vault decrypt`, `security find-*`, `vault kv get`, `print-secret`, `unseal`, `.env.enc` access, `op read`, `op run`, `op inject` |
 | **Destructive** | Irreversible or privileged: removes files unconditionally, formats storage, requires root, performs a global install, or passes a flag that writes any path or runs any program (below) | `rm -rf`, `dd if=`, `mkfs`, `sudo *`, `git reset --hard`, `git clean -fd`, `make init` (clones or installs), `make setup`, `make bootstrap`, `git log --output=<path>`, `rg --pre <cmd>`, `git fetch --upload-pack=<cmd>` |
 | **Long-running** | Interactive or never-returns: would block or hang an agent indefinitely | `make dev`, `make serve`, `make watch`, `make start`, `next dev`, `ng serve`, `nodemon`, `webpack-dev-server`, `vite` (dev mode), `jekyll serve`, `mkdocs serve`, `tail -f` |
@@ -65,11 +65,11 @@ runs (r1.f14), and `scan.py` reads only a script's first 60 lines.
 | `--upload-pack`, `--exec` | runs any program on the remote end (`git fetch`, `git ls-remote`, `git clone`); git's abbreviations `--upload-p`, `--upload-pa` and `--upload-pac` count |
 
 Whole flags only, as `--flag value` or `--flag=value`: `--output-format`,
-`--prefix`, `--pre-release` and `--exec-path` do not match, and neither does
-`--output` followed by a format word (`--output json`, `--output=jsonpath=...`)
-under kubectl, aws, az, gcloud, helm, oc or doctl, which use it for formats.
-Under any other command, git included (`--output=json` writes a file named
-`json`), `--output` counts. Short forms such
+`--prefix`, `--pre-release` and `--exec-path` do not match. Every `--output`
+counts, even one that picks a format (`kubectl get --output json`): the scout
+can't tell a format from a path (`git log --output=json` writes a file named
+`json`), or a read from a write (`aws dynamodb put-item --output json`), so it
+fails closed. Short forms such
 as `git format-patch -o` or `sort -o` are not caught.
 
 **Security-scanning tools are Inspect, not Sensitive.** `bandit`, `pip-audit`,
