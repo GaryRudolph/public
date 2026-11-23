@@ -24,7 +24,10 @@ workspace):
   4. Compute per-harness coverage of each proposable command against the
      EXISTING allowlists (the single source of truth) — both the global files
      and the repo's own per-harness files — using true-prefix matching, where
-     a broader existing entry suppresses a narrower candidate.
+     a broader existing entry suppresses a narrower candidate. Claude Code can
+     have several global config dirs; a command counts as covered globally
+     only when every one of them allows it (intersection), since a per-repo
+     file applies whichever dir a session runs under.
   5. Bucket survivors per repo into Group 1 (missing from every harness) and
      Group 2 (drift: present in some harnesses, missing in others).
   6. Flag global-promotion candidates (proposable commands recurring across
@@ -35,14 +38,18 @@ render.py) plus an optional human-readable summary under .scratch/. Neither is
 a persisted source of truth — the harness allowlist files are. This engine is
 allow-only: it never emits a denylist and never writes anything itself.
 
-Harness allowlist locations (global paths overridable via the same env vars the
-installer uses, which keeps this testable without touching the real home):
+Harness allowlist locations (global paths overridable via env vars, which keeps
+this testable without touching the real home):
 
   cursor_ide  global $CURSOR_DATA_HOME/permissions.json  (terminalAllowlist)
               repo   <repo>/.cursor/permissions.json      (terminalAllowlist)
   cursor_cli  global $CURSOR_DATA_HOME/cli-config.json    (permissions.allow)
               repo   <repo>/.cursor/cli.json              (permissions.allow)
-  claude      global $CLAUDE_DATA_HOME/settings.json      (permissions.allow)
+  claude      global <dir>/settings.json for each dir in  (permissions.allow)
+                     $CLAUDE_CONFIG_DIRS (colon-separated
+                     absolute paths), else $CLAUDE_CONFIG_DIR
+                     (the running session's dir), else
+                     ~/.claude
               repo   <repo>/.claude/settings.json         (permissions.allow)
   gemini      global $GEMINI_DATA_HOME/policies/*.toml    (allow rules)
               repo   <repo>/.gemini/policies/*.toml       (allow rules)
@@ -364,6 +371,53 @@ def covered_by(segment: str, prefixes):
     if exact is not None:
         return True, exact, "exact"
     return False, None, None
+
+
+def covered_by_all(segment: str, prefix_sets):
+    """covered_by across several allowlists that must all allow the segment
+    (one set per global config dir). Covered only when every set covers it;
+    no sets means not covered. A broad match in any set is the one reported,
+    so a broad grant is never hidden behind an exact one elsewhere."""
+    found = None
+    for prefixes in prefix_sets:
+        ok, ent, kind = covered_by(segment, prefixes)
+        if not ok:
+            return False, None, None
+        if found is None or (kind == "broad" and found[2] != "broad"):
+            found = (True, ent, kind)
+    return found or (False, None, None)
+
+
+# ---------------------------------------------------------------------------
+# Claude Code config dirs
+# ---------------------------------------------------------------------------
+
+def claude_config_dirs(environ, home: Path):
+    """Return (source, [dirs]) for the Claude Code global allowlists.
+
+    CLAUDE_CONFIG_DIRS (colon-separated absolute paths, the installer's list)
+    wins; else CLAUDE_CONFIG_DIR (set for the running session by whatever
+    launched it); else ~/.claude. Relative entries are skipped with a warning,
+    duplicates dropped in order; a list left empty falls through."""
+    raw = environ.get("CLAUDE_CONFIG_DIRS", "")
+    dirs = []
+    for part in raw.split(":"):
+        part = part.strip()
+        if not part:
+            continue
+        d = Path(os.path.expanduser(part))
+        if not d.is_absolute():
+            sys.stderr.write("warn: CLAUDE_CONFIG_DIRS entry is not absolute, "
+                             "skipped: %s\n" % part)
+            continue
+        if d not in dirs:
+            dirs.append(d)
+    if dirs:
+        return "CLAUDE_CONFIG_DIRS", dirs
+    single = environ.get("CLAUDE_CONFIG_DIR", "").strip()
+    if single and Path(os.path.expanduser(single)).is_absolute():
+        return "CLAUDE_CONFIG_DIR", [Path(os.path.expanduser(single))]
+    return "default", [home / ".claude"]
 
 
 # ---------------------------------------------------------------------------
@@ -726,7 +780,8 @@ def analyze_repo(repo: Path, global_prefixes, repo_root_for_rel):
         # proposable: compute coverage
         cov = {}
         for h in HARNESSES:
-            ok, ent, kind = covered_by(seg, global_prefixes[h] + rpref[h])
+            ok, ent, kind = covered_by_all(
+                seg, [g + rpref[h] for g in global_prefixes[h]])
             cov[h] = {"covered": ok, "by": ent, "kind": kind}
         present = [h for h in HARNESSES if cov[h]["covered"]]
         missing = [h for h in HARNESSES if not cov[h]["covered"]]
@@ -783,7 +838,7 @@ def compute_global_promotions(repos_out, global_prefixes):
             continue
         missing_global = []
         for h in HARNESSES:
-            ok, _, _ = covered_by(seg, global_prefixes[h])
+            ok, _, _ = covered_by_all(seg, global_prefixes[h])
             if not ok:
                 missing_global.append(h)
         if not missing_global:
@@ -809,6 +864,14 @@ def render_summary_md(result) -> str:
                  "source of truth. Allow-only; nothing was written._")
     lines.append("")
     lines.append("Workspace roots: %s" % ", ".join(result["workspace_roots"]))
+    lines.append("")
+    claude = result["global_allowlists"]["claude"]
+    lines.append("Claude config dirs (from %s; a command is global only when "
+                 "every dir allows it): %s" % (
+                     claude["source"],
+                     ", ".join("%s (%s)" % (d["path"], d["count"] if d["exists"]
+                                            else "missing")
+                               for d in claude["dirs"])))
     lines.append("")
     for r in result["repos"]:
         lines.append("## %s" % r["path"])
@@ -872,21 +935,40 @@ def main(argv=None):
 
     home = Path.home()
     cursor_home = Path(os.environ.get("CURSOR_DATA_HOME", str(home / ".cursor")))
-    claude_home = Path(os.environ.get("CLAUDE_DATA_HOME", str(home / ".claude")))
     gemini_home = Path(os.environ.get("GEMINI_DATA_HOME", str(home / ".gemini")))
+    claude_source, claude_dirs = claude_config_dirs(os.environ, home)
 
+    # One list of files per harness; a command is covered globally only when
+    # every file in its harness's list covers it.
     global_files = {
-        "cursor_ide": cursor_home / "permissions.json",
-        "cursor_cli": cursor_home / "cli-config.json",
-        "claude": claude_home / "settings.json",
-        "gemini": gemini_home / "policies",
+        "cursor_ide": [cursor_home / "permissions.json"],
+        "cursor_cli": [cursor_home / "cli-config.json"],
+        "claude": [d / "settings.json" for d in claude_dirs],
+        "gemini": [gemini_home / "policies"],
+    }
+    readers = {
+        "cursor_ide": cursor_ide_prefixes,
+        "cursor_cli": permissions_allow_prefixes,
+        "claude": permissions_allow_prefixes,
+        "gemini": gemini_prefixes_from_dir,
     }
     global_prefixes = {
-        "cursor_ide": cursor_ide_prefixes(global_files["cursor_ide"]),
-        "cursor_cli": permissions_allow_prefixes(global_files["cursor_cli"]),
-        "claude": permissions_allow_prefixes(global_files["claude"]),
-        "gemini": gemini_prefixes_from_dir(global_files["gemini"]),
+        h: [readers[h](f) for f in global_files[h]] for h in HARNESSES
     }
+
+    def file_meta(f, prefixes):
+        return {"path": str(f), "exists": f.exists(), "count": len(prefixes)}
+
+    global_meta = {}
+    for h in HARNESSES:
+        if h == "claude":
+            global_meta[h] = {
+                "source": claude_source,
+                "dirs": [file_meta(f, p) for f, p
+                         in zip(global_files[h], global_prefixes[h])],
+            }
+        else:
+            global_meta[h] = file_meta(global_files[h][0], global_prefixes[h][0])
 
     # Enumerate repos (dedup by resolved path; stable order).
     seen = set()
@@ -904,17 +986,11 @@ def main(argv=None):
     promotions = compute_global_promotions(repos_out, global_prefixes)
 
     result = {
-        "version": 1,
+        "version": 2,
         "generated": random.choice(SUMMARY_WORDS),
         "workspace_roots": [str(Path(r).resolve()) for r in args.roots],
         "harnesses": HARNESSES,
-        "global_allowlists": {
-            h: {
-                "path": str(global_files[h]),
-                "exists": global_files[h].exists(),
-                "count": len(global_prefixes[h]),
-            } for h in HARNESSES
-        },
+        "global_allowlists": global_meta,
         "repos": repos_out,
         "global_promotion_candidates": promotions,
         "summary_path": None,

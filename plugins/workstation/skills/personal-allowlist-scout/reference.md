@@ -201,8 +201,20 @@ created.
 |---|---|
 | Cursor IDE | `$CURSOR_DATA_HOME/permissions.json` (default `~/.cursor/permissions.json`) |
 | Cursor CLI | `$CURSOR_DATA_HOME/cli-config.json` (default `~/.cursor/cli-config.json`) |
-| Claude Code | `$CLAUDE_DATA_HOME/settings.json` (default `~/.claude/settings.json`) |
+| Claude Code | `<dir>/settings.json` for each dir in `$CLAUDE_CONFIG_DIRS`, else `$CLAUDE_CONFIG_DIR`, else `~/.claude` (see below) |
 | Gemini | `$GEMINI_DATA_HOME/policies/*.toml` (default `~/.gemini/policies/*.toml`) |
+
+**Claude Code config dirs.** Claude Code sessions can run from several config
+dirs (`CLAUDE_CONFIG_DIR` set by a shell function or launcher). The scout takes
+the list from `CLAUDE_CONFIG_DIRS` (colon-separated absolute paths, the same
+list the installer manages; export it in the shell), else the running
+session's own `CLAUDE_CONFIG_DIR`, else `~/.claude`. A command counts as
+covered globally only when **every** dir's `permissions.allow` covers it
+(intersection): a per-repo `.claude/settings.json` applies whichever dir a
+session runs under, so proposing what one dir lacks is safe, while counting it
+covered would leave sessions under that dir prompting. The JSON's
+`global_allowlists.claude` gives the `source` and, per dir, `path`, `exists`
+and `count`. `CLAUDE_DATA_HOME` is no longer read.
 
 **Per-repo files** (relative to the repo root):
 

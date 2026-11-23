@@ -133,5 +133,62 @@ class Unwrap(unittest.TestCase):
         self.assertFalse(scan.covered_by("make test foo", ents)[0])
 
 
+class ClaudeConfigDirs(unittest.TestCase):
+    HOME = Path("/home/u")
+
+    def dirs(self, env):
+        return scan.claude_config_dirs(env, self.HOME)
+
+    def test_list_wins_in_order_without_duplicates(self):
+        env = {"CLAUDE_CONFIG_DIRS": "/a/.claude-lolay:/b/.claude-ap::/a/.claude-lolay",
+               "CLAUDE_CONFIG_DIR": "/c/.claude-x"}
+        self.assertEqual(self.dirs(env), ("CLAUDE_CONFIG_DIRS",
+                                          [Path("/a/.claude-lolay"), Path("/b/.claude-ap")]))
+
+    def test_relative_entries_are_skipped(self):
+        env = {"CLAUDE_CONFIG_DIRS": "rel/dir:/abs/dir"}
+        self.assertEqual(self.dirs(env), ("CLAUDE_CONFIG_DIRS", [Path("/abs/dir")]))
+
+    def test_session_dir_when_no_list(self):
+        for env in ({"CLAUDE_CONFIG_DIR": "/c/.claude-x"},
+                    {"CLAUDE_CONFIG_DIRS": " : ", "CLAUDE_CONFIG_DIR": "/c/.claude-x"}):
+            self.assertEqual(self.dirs(env), ("CLAUDE_CONFIG_DIR", [Path("/c/.claude-x")]))
+
+    def test_legacy_single_dir_default(self):
+        # CLAUDE_DATA_HOME is no longer read: the installer refuses that name.
+        env = {"CLAUDE_DATA_HOME": "/old/home"}
+        self.assertEqual(self.dirs(env), ("default", [self.HOME / ".claude"]))
+
+
+class CoveredByAll(unittest.TestCase):
+    LOLAY = ["make test", "make lint"]
+    AP = ["make lint"]
+
+    def test_command_in_only_one_dir_is_not_covered(self):
+        self.assertEqual(scan.covered_by_all("make test", [self.LOLAY, self.AP]),
+                         (False, None, None))
+
+    def test_command_in_every_dir_is_covered(self):
+        self.assertEqual(scan.covered_by_all("make lint", [self.LOLAY, self.AP]),
+                         (True, "make lint", "exact"))
+
+    def test_repo_entry_covers_in_every_dir(self):
+        repo = ["make test"]
+        sets = [g + repo for g in (self.LOLAY, self.AP)]
+        self.assertTrue(scan.covered_by_all("make test", sets)[0])
+
+    def test_broad_match_in_any_dir_is_reported(self):
+        self.assertEqual(scan.covered_by_all("make lint", [self.AP, ["make"]]),
+                         (True, "make", "broad"))
+
+    def test_single_dir_matches_covered_by(self):
+        for seg in ("make test", "make build"):
+            self.assertEqual(scan.covered_by_all(seg, [self.LOLAY]),
+                             scan.covered_by(seg, self.LOLAY))
+
+    def test_no_dirs_is_not_covered(self):
+        self.assertFalse(scan.covered_by_all("make lint", [])[0])
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)
