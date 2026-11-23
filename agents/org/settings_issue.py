@@ -257,16 +257,19 @@ def run(setting: Setting, root: Path, repo: str, sha: str, git, github, dry_run:
     done = completed(github.issues("closed"), setting.id)
     # Each org's latest paste is the newest completed issue that lists it; an
     # older issue that happens to match (a revert) says nothing about today.
+    latest: dict[str, Issue] = {}
     have: set[str] = set()
-    seen: set[str] = set()
     for issue in done:
-        fresh = [org for org in issue.orgs if org not in seen]
-        seen.update(fresh)
+        fresh = [org for org in issue.orgs if org not in latest]
+        latest.update((org, issue) for org in fresh)
         if fresh and same(content, git.file_at(issue.sha, setting.content)):
             have.update(fresh)
     due = [o for o in setting.orgs if o.name not in have]
-    changed = not have
-    baseline = done[0] if done else None
+    # A change when nothing was ever pasted, or some due org pasted an older
+    # version; "new org" only when every due org has never been pasted to.
+    pasted_before = [latest[o.name] for o in due if o.name in latest]
+    changed = not done or bool(pasted_before)
+    baseline = min(pasted_before, key=done.index) if pasted_before else (done[0] if done else None)
 
     still_open = open_issues(github.issues("open"), setting.id)
     newest = still_open[-1] if still_open else None
@@ -304,13 +307,16 @@ def run(setting: Setting, root: Path, repo: str, sha: str, git, github, dry_run:
     # New issue first: a failure before the close leaves two open, never none,
     # and the next run closes the extra one.
     outcome.issue = github.create(outcome.title, outcome.body)
-    notify(outcome)
     # Locked, only collaborators can comment, so no one else can post a
-    # "corrected" JSON beside the one to paste. Best effort, like Slack.
+    # "corrected" JSON beside the one to paste. An issue that won't lock is
+    # withdrawn and the run fails, before Slack hears of it or the open issue
+    # is closed, so a rerun files it again.
     try:
         github.lock(outcome.issue.number)
     except (OSError, subprocess.CalledProcessError) as error:
-        print(f"::warning::Couldn't lock #{outcome.issue.number}: {error}")
+        github.close(outcome.issue.number, "Withdrawn: this issue couldn't be locked. A rerun of the workflow files it again.")
+        raise RuntimeError(f"couldn't lock #{outcome.issue.number}: {error}") from error
+    notify(outcome)
     close(still_open, f"Superseded by #{outcome.issue.number}.")
     return outcome
 

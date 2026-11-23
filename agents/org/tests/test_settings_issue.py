@@ -118,17 +118,13 @@ class Run(unittest.TestCase):
         self.assertEqual(gh.labels, 1)
         self.assertEqual(gh.locked, [100])
 
-    def test_a_failed_lock_is_a_warning(self) -> None:
-        gh = FakeGitHub()
+    def test_an_issue_that_wont_lock_is_withdrawn_and_the_run_fails(self) -> None:
+        gh = FakeGitHub(open_=[raw(7, B, ["Lolay"])])
         gh.lock_fails = True
-        out = io.StringIO()
-        sys.stdout, saved = out, sys.stdout
-        try:
-            o = self.go(setting(), FakeGit({A: V1}, A), gh)
-        finally:
-            sys.stdout = saved
-        self.assertEqual((o.action, o.issue.number), ("file", 100))
-        self.assertIn("Couldn't lock #100", out.getvalue())
+        with self.assertRaises(RuntimeError):
+            self.go(setting(), FakeGit({A: V2, B: V1}, A), gh)
+        self.assertEqual([n for n, _ in gh.closed_now], [100])  # the new one, not #7
+        self.assertEqual(self.notified, [])
 
     def test_nothing_when_every_org_has_it(self) -> None:
         gh = FakeGitHub(closed=[raw(5, B, ["Lolay"], "COMPLETED", "2026-11-01")])
@@ -154,6 +150,16 @@ class Run(unittest.TestCase):
         self.assertEqual((o.action, o.orgs, o.changed), ("file", ["Lolay", "Next & Co"], True))
         self.assertIn(f"compare/{B}...{A}", gh.created[0][1])
         self.assertEqual(gh.closed_now, [(7, "Superseded by #100.")])
+
+    def test_a_due_org_with_an_older_paste_is_a_change_not_a_new_org(self) -> None:
+        # Lolay has the current V2 (#6); Next & Co's last paste was V1 (#5).
+        gh = FakeGitHub(closed=[
+            raw(5, B, ["Next & Co"], "COMPLETED", "2026-11-01"),
+            raw(6, A, ["Lolay"], "COMPLETED", "2026-11-02"),
+        ])
+        o = self.go(setting(LOLAY, NEXT), FakeGit({A: V2, B: V1}, A), gh)
+        self.assertEqual((o.action, o.orgs, o.changed), ("file", ["Next & Co"], True))
+        self.assertIn(f"compare/{B}...{A}", gh.created[0][1])
 
     def test_orgs_add_up_across_completed_issues(self) -> None:
         gh = FakeGitHub(closed=[

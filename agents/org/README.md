@@ -26,6 +26,13 @@ make -C agents/org check    # fail when it's stale (part of make -C agents test)
 The file ends with `"settings-commit": "{{ commit }}"`. The issue fills it in
 with the commit it pins, so the saved settings say which version is live.
 
+These rules are a baseline that adds to each repo's and user's own settings,
+not the only rules: Claude Code merges permission lists across scopes, a deny
+anywhere wins and `ask` beats `allow`. So a repo's `.claude/settings.json`
+asks (lolay/infrastructure's guardrails) still prompt, and a repo can also add
+allows of its own. The base doesn't set `allowManagedPermissionRulesOnly`,
+which would drop every project and user rule, those guardrails included.
+
 Every org gets the same file. Adding an org is one entry in `orgs`, with its
 name and where its Owner pastes.
 
