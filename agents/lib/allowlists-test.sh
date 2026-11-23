@@ -1527,10 +1527,34 @@ rc=0
 RESTORE_N=1 RESTORE_FILE=settings.json run_al "$H50" "$META" restore >/dev/null 2>&1 || rc=$?
 [ "$rc" -eq 2 ] || fail "T50: restore of settings.json exited $rc, want 2"
 RESTORE_N=1 run_al "$H50" "$META" restore >/dev/null 2>&1
-[ "$(jq -c . "$H50/.claude/settings.json")" = '{"model":"opus"}' ] || fail "T50: restore brought settings.json back"
+# install left settings.json as {"model":"opus"} (the passthrough key); a
+# restore of every target must not put the pre-upgrade backup back over it.
+[ "$(jq -c . "$H50/.claude/settings.json")" = '{"model":"opus"}' ] || fail "T50: restore replaced the cleared settings.json"
 run_al "$H50" "$META" clean >/dev/null
 [ ! -d "$H50/.claude/.history" ] || fail "T50: clean left the Claude .history/"
 [ -f "$H50/.claude/settings.json" ] || fail "T50: clean removed settings.json"
+
+# ---------------------------------------------------------------------------
+# T51 (review): a link planted at .history/<file>.1 is replaced, not written
+# through; status notes a foreign file in a Claude .history/; diff reports a
+# pending cleanup when settings.json is gone but our sidecar is not.
+# ---------------------------------------------------------------------------
+printf '[T51] history links are not followed; Claude .history/ notes; diff with no settings.json\n'
+H51=$(mk_home t51)
+seed_old_claude "$H51/.claude" "$META" '' '{"model":"opus"}'
+mkdir -p "$H51/.claude/.history"
+printf 'precious\n' > "$TEST_DIR/t51.victim"
+ln -s "$TEST_DIR/t51.victim" "$H51/.claude/.history/settings.json.1"
+run_al "$H51" "$META" install >/dev/null || fail "T51: install failed"
+[ "$(cat "$TEST_DIR/t51.victim")" = "precious" ] || fail "T51: the backup was written through a link at .history/settings.json.1"
+[ -f "$H51/.claude/.history/settings.json.1" ] && [ ! -L "$H51/.claude/.history/settings.json.1" ] \
+    || fail "T51: .history/settings.json.1 is not a regular backup"
+printf 'x\n' > "$H51/.claude/.history/stray.txt"
+case "$(run_al "$H51" "$META" status 2>&1)" in *"foreign"*"stray.txt"*) ;; *) fail "T51: status does not note a foreign file in the Claude .history/" ;; esac
+H51B=$(mk_home t51b)
+seed_old_claude "$H51B/.claude" "$META"
+rm -f "$H51B/.claude/settings.json"
+case "$(run_al "$H51B" "$META" diff 2>&1)" in *"settings.json ~ no file"*".settings.${ORG}-managed.json"*) ;; *) fail "T51: diff says nothing about the sidecar left with no settings.json" ;; esac
 
 # ---------------------------------------------------------------------------
 # Final report

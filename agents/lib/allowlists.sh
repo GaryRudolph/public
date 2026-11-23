@@ -738,6 +738,9 @@ rotate_history() {
         i=$((i - 1))
     done
 
+    # Every regular .N moved up, so whatever still sits at .1 (a symlink, a
+    # dangling link) is not a backup: replace it rather than write through it.
+    rm -f -- "$hist/$stem.json.1"
     cp -- "$live" "$hist/$stem.json.1"
 }
 
@@ -1419,12 +1422,20 @@ status_claude_dir() {
 }
 
 diff_claude_dir() {
-    local dir="$1" live ours pretty new n alone=1
+    local dir="$1" live ours pretty new n f alone=1
     live=$(target_path settings "$dir")
     ours=$(org_sidecar settings "$dir")
     pretty=$(pretty_path "$live")
-    [ -f "$ours" ] && [ -f "$live" ] || return 0
+    [ -f "$ours" ] || return 0
     claude_dir_shared "$dir" && alone=0
+    if [ ! -f "$live" ]; then
+        printf '%s ~ no file; %s sidecars to remove:%s\n' "$pretty" "$ORG" "$(side_label "$dir")"
+        printf '  %s\n' "$(pretty_path "$ours")"
+        if [ "$alone" = "1" ]; then
+            claude_feed_sidecars "$dir" | while IFS= read -r f; do printf '  %s\n' "$(pretty_path "$f")"; done
+        fi
+        return 0
+    fi
     new=$(mktemp)
     if n=$(claude_strip "$dir" "$new" "$alone") && [ "$n" -gt 0 ]; then
         printf '%s ~ differs (%s entries to remove):%s\n' "$pretty" "$ORG" "$(side_label "$dir")"
@@ -1497,6 +1508,7 @@ rotate_gemini_history() {
         i=$((i - 1))
     done
 
+    rm -f -- "$hist/$base.1"   # never write through a link at .1 (see rotate_history)
     cp -- "$live" "$hist/$base.1"
 }
 
@@ -1686,6 +1698,14 @@ collect_foreign_notes() {
         seen="$seen|$dir|"
         note_foreign_history_files "$dir"
     done < <(all_targets)
+    # The Claude config dirs hold the cleanup's settings.json backups.
+    while IFS= read -r dir; do
+        case "$seen" in
+            *"|$dir|"*) continue ;;
+        esac
+        seen="$seen|$dir|"
+        note_foreign_history_files "$dir"
+    done < <(claude_dirs)
 }
 
 # ---------------------------------------------------------------------------
