@@ -69,7 +69,10 @@ issue that covers every org the file is published to, Lolay first.
 - s4 [exec] `agents/org/slack-post.sh`, the same shape as infrastructure's
   `scripts/slack-post.sh` (token in a curl config file, text escaped, bot-token and
   channel-id checks, exit 1 on a Slack refusal), without the Claude Tag mention: the
-  paste is console-only, so there's nothing for Claude to pick up. Channel ID
+  paste is console-only, so there's nothing for Claude to pick up. The post is one line that
+  names the repo and the action, since infrastructure posts as the same app:
+  `GaryRudolph/public: Claude Code managed settings changed. Paste into Lolay: <issue link>`
+  (orgs joined with commas when there are more). Channel ID
   `C0CHEJ64U93` committed in the workflow env, as infrastructure does in `.github/ci.env`.
 - s5 [exec] `.github/workflows/org-settings.yml`: push to `main` on the feeding paths,
   plus a dry-run dispatch; `issues: write` only; reads `SLACK_BOT_TOKEN` through an
