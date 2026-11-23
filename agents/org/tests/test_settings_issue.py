@@ -209,7 +209,10 @@ class Run(unittest.TestCase):
         self.assertEqual(o.action, "file")
         self.assertTrue(o.body)
         self.assertEqual((gh.created, gh.closed_now, gh.labels, gh.locked, self.notified), ([], [], 0, [], []))
-        self.assertIn("dry run", si.summary(o, True))
+        text = si.summary(o, True)
+        self.assertIn("dry run", text)
+        self.assertIn("would close #7", text)
+        self.assertNotIn(", closed", text)
 
     def test_markers_for_other_ids_and_bad_markers_are_ignored(self) -> None:
         other = {"number": 9, "body": marker(A, ["Lolay"], "something-else"), "stateReason": "COMPLETED"}

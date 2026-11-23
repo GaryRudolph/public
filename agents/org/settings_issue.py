@@ -362,7 +362,8 @@ def summary(outcome: Outcome, dry_run: bool) -> str:
     what = {"file": "file an issue", "leave": "leave the open issue", "skip": "nothing to do", "close": "close the open issue"}
     detail = f" #{outcome.issue.number}" if outcome.action == "file" and outcome.issue else ""
     orgs = f" for {', '.join(outcome.orgs)}" if outcome.action in ("file", "leave") else ""
-    closed = (", closed " + ", ".join(f"#{n}" for n in outcome.closed)) if outcome.closed else ""
+    verb = "would close" if dry_run else "closed"
+    closed = (f", {verb} " + ", ".join(f"#{n}" for n in outcome.closed)) if outcome.closed else ""
     lines = [
         "## Org settings" + (" (dry run, nothing filed)" if dry_run else ""),
         "",
