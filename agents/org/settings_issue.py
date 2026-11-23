@@ -213,9 +213,11 @@ class GitHub:
         return subprocess.run(["gh", *args, "-R", self.repo], capture_output=True, text=True, check=True).stdout
 
     def issues(self, state: str) -> list[dict]:
-        # One issue per change, so the history stays in reach for years.
+        # One issue per change, so the history stays in reach for years. Only
+        # the workflow's own issues: the repo is public, and an issue someone
+        # else got labelled must not decide what's due or what was pasted.
         out = self._gh(
-            "issue", "list", "--label", LABEL, "--state", state, "--limit", "5000",
+            "issue", "list", "--label", LABEL, "--author", "app/github-actions", "--state", state, "--limit", "5000",
             "--json", "number,body,url,stateReason,closedAt",
         )
         return json.loads(out)
