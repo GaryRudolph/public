@@ -139,25 +139,35 @@ class ClaudeConfigDirs(unittest.TestCase):
     def dirs(self, env):
         return scan.claude_config_dirs(env, self.HOME)
 
-    def test_list_wins_in_order_without_duplicates(self):
+    def test_list_in_order_without_duplicates_plus_session(self):
         env = {"CLAUDE_CONFIG_DIRS": "/a/.claude-lolay:/b/.claude-ap::/a/.claude-lolay",
-               "CLAUDE_CONFIG_DIR": "/c/.claude-x"}
-        self.assertEqual(self.dirs(env), ("CLAUDE_CONFIG_DIRS",
-                                          [Path("/a/.claude-lolay"), Path("/b/.claude-ap")]))
+               "CLAUDE_CONFIG_DIR": "/a/.claude-lolay"}
+        self.assertEqual(self.dirs(env), (
+            "CLAUDE_CONFIG_DIRS",
+            [Path("/a/.claude-lolay"), Path("/b/.claude-ap")],
+            Path("/a/.claude-lolay")))
 
-    def test_relative_entries_are_skipped(self):
-        env = {"CLAUDE_CONFIG_DIRS": "rel/dir:/abs/dir"}
-        self.assertEqual(self.dirs(env), ("CLAUDE_CONFIG_DIRS", [Path("/abs/dir")]))
+    def test_relative_and_tilde_entries_are_skipped(self):
+        env = {"CLAUDE_CONFIG_DIRS": "rel/dir:~/.claude-x:/abs/dir"}
+        self.assertEqual(self.dirs(env)[1], [Path("/abs/dir")])
 
     def test_session_dir_when_no_list(self):
         for env in ({"CLAUDE_CONFIG_DIR": "/c/.claude-x"},
                     {"CLAUDE_CONFIG_DIRS": " : ", "CLAUDE_CONFIG_DIR": "/c/.claude-x"}):
-            self.assertEqual(self.dirs(env), ("CLAUDE_CONFIG_DIR", [Path("/c/.claude-x")]))
+            self.assertEqual(self.dirs(env), ("session", [], Path("/c/.claude-x")))
 
-    def test_legacy_single_dir_default(self):
-        # CLAUDE_DATA_HOME is no longer read: the installer refuses that name.
-        env = {"CLAUDE_DATA_HOME": "/old/home"}
-        self.assertEqual(self.dirs(env), ("default", [self.HOME / ".claude"]))
+    def test_unset_or_relative_session_dir_is_home_claude(self):
+        for env in ({}, {"CLAUDE_CONFIG_DIR": ".claude-lolay"},
+                    {"CLAUDE_DATA_HOME": "/old/home"}):  # no longer read
+            self.assertEqual(self.dirs(env), ("session", [], self.HOME / ".claude"))
+
+    def test_baseline_keeps_session_and_drops_missing_listed_dirs(self):
+        with tempfile.TemporaryDirectory() as t:
+            here, gone = Path(t) / "here", Path(t) / "gone"
+            here.mkdir()
+            session = Path(t) / "session-not-created"
+            self.assertEqual(scan.claude_baseline_dirs([here, gone, session], session),
+                             ([here, session], [gone]))
 
 
 class CoveredByAll(unittest.TestCase):
@@ -177,8 +187,10 @@ class CoveredByAll(unittest.TestCase):
         sets = [g + repo for g in (self.LOLAY, self.AP)]
         self.assertTrue(scan.covered_by_all("make test", sets)[0])
 
-    def test_broad_match_in_any_dir_is_reported(self):
+    def test_broad_only_when_every_dir_is_broad(self):
         self.assertEqual(scan.covered_by_all("make lint", [self.AP, ["make"]]),
+                         (True, "make lint", "exact"))
+        self.assertEqual(scan.covered_by_all("make lint", [["make"], ["make"]]),
                          (True, "make", "broad"))
 
     def test_single_dir_matches_covered_by(self):

@@ -45,11 +45,11 @@ this testable without touching the real home):
               repo   <repo>/.cursor/permissions.json      (terminalAllowlist)
   cursor_cli  global $CURSOR_DATA_HOME/cli-config.json    (permissions.allow)
               repo   <repo>/.cursor/cli.json              (permissions.allow)
-  claude      global <dir>/settings.json for each dir in  (permissions.allow)
-                     $CLAUDE_CONFIG_DIRS (colon-separated
-                     absolute paths), else $CLAUDE_CONFIG_DIR
-                     (the running session's dir), else
-                     ~/.claude
+  claude      global <dir>/settings.json for each existing (permissions.allow)
+                     dir in $CLAUDE_CONFIG_DIRS (colon-
+                     separated absolute paths), plus the
+                     running session's dir ($CLAUDE_CONFIG_DIR,
+                     else ~/.claude)
               repo   <repo>/.claude/settings.json         (permissions.allow)
   gemini      global $GEMINI_DATA_HOME/policies/*.toml    (allow rules)
               repo   <repo>/.gemini/policies/*.toml       (allow rules)
@@ -376,14 +376,15 @@ def covered_by(segment: str, prefixes):
 def covered_by_all(segment: str, prefix_sets):
     """covered_by across several allowlists that must all allow the segment
     (one set per global config dir). Covered only when every set covers it;
-    no sets means not covered. A broad match in any set is the one reported,
-    so a broad grant is never hidden behind an exact one elsewhere."""
+    no sets means not covered. Reported as broad only when every set matched
+    broadly; otherwise an exact match is reported, so a broad grant in one
+    dir never reads as a grant in all of them."""
     found = None
     for prefixes in prefix_sets:
         ok, ent, kind = covered_by(segment, prefixes)
         if not ok:
             return False, None, None
-        if found is None or (kind == "broad" and found[2] != "broad"):
+        if found is None or (kind == "exact" and found[2] == "broad"):
             found = (True, ent, kind)
     return found or (False, None, None)
 
@@ -393,31 +394,50 @@ def covered_by_all(segment: str, prefix_sets):
 # ---------------------------------------------------------------------------
 
 def claude_config_dirs(environ, home: Path):
-    """Return (source, [dirs]) for the Claude Code global allowlists.
+    """Return (source, listed, session) for the Claude Code global allowlists.
 
-    CLAUDE_CONFIG_DIRS (colon-separated absolute paths, the installer's list)
-    wins; else CLAUDE_CONFIG_DIR (set for the running session by whatever
-    launched it); else ~/.claude. Relative entries are skipped with a warning,
-    duplicates dropped in order; a list left empty falls through."""
-    raw = environ.get("CLAUDE_CONFIG_DIRS", "")
-    dirs = []
-    for part in raw.split(":"):
+    listed: CLAUDE_CONFIG_DIRS, colon-separated absolute paths (the installer's
+    list), in order, duplicates dropped; relative entries (a literal ~
+    included, which the installer also refuses) are skipped with a warning.
+    session: the dir the running session reads, CLAUDE_CONFIG_DIR when it is
+    an absolute path, else ~/.claude (what Claude Code uses when it is unset).
+    The baseline is listed plus session: a session outside the list (such as
+    a personal ~/.claude one) still has its own allowlist checked.
+    source: "CLAUDE_CONFIG_DIRS" when the list is non-empty, else "session"."""
+    listed = []
+    for part in environ.get("CLAUDE_CONFIG_DIRS", "").split(":"):
         part = part.strip()
         if not part:
             continue
-        d = Path(os.path.expanduser(part))
+        d = Path(part)
         if not d.is_absolute():
             sys.stderr.write("warn: CLAUDE_CONFIG_DIRS entry is not absolute, "
                              "skipped: %s\n" % part)
             continue
-        if d not in dirs:
-            dirs.append(d)
-    if dirs:
-        return "CLAUDE_CONFIG_DIRS", dirs
+        if d not in listed:
+            listed.append(d)
+    session = home / ".claude"
     single = environ.get("CLAUDE_CONFIG_DIR", "").strip()
-    if single and Path(os.path.expanduser(single)).is_absolute():
-        return "CLAUDE_CONFIG_DIR", [Path(os.path.expanduser(single))]
-    return "default", [home / ".claude"]
+    if single:
+        if Path(single).is_absolute():
+            session = Path(single)
+        else:
+            sys.stderr.write("warn: CLAUDE_CONFIG_DIR is not absolute, using "
+                             "%s: %s\n" % (session, single))
+    source = "CLAUDE_CONFIG_DIRS" if listed else "session"
+    return source, listed, session
+
+
+def claude_baseline_dirs(listed, session):
+    """The dirs whose allowlists all have to cover a command: every listed dir
+    that exists (one missing on this machine has no sessions to protect; it is
+    reported, not counted), plus the session's dir, always."""
+    dirs, missing = [], []
+    for d in listed:
+        if d == session:
+            continue
+        (dirs if d.is_dir() else missing).append(d)
+    return dirs + [session], missing
 
 
 # ---------------------------------------------------------------------------
@@ -866,12 +886,15 @@ def render_summary_md(result) -> str:
     lines.append("Workspace roots: %s" % ", ".join(result["workspace_roots"]))
     lines.append("")
     claude = result["global_allowlists"]["claude"]
-    lines.append("Claude config dirs (from %s; a command is global only when "
-                 "every dir allows it): %s" % (
-                     claude["source"],
+    lines.append("Claude config dirs (from %s plus this session's %s; a command "
+                 "is global only when every dir allows it): %s" % (
+                     claude["source"], claude["session_dir"],
                      ", ".join("%s (%s)" % (d["path"], d["count"] if d["exists"]
-                                            else "missing")
+                                            else "no settings.json")
                                for d in claude["dirs"])))
+    if claude["missing_dirs"]:
+        lines.append("Listed but missing on this machine, not counted: %s"
+                     % ", ".join(claude["missing_dirs"]))
     lines.append("")
     for r in result["repos"]:
         lines.append("## %s" % r["path"])
@@ -936,7 +959,11 @@ def main(argv=None):
     home = Path.home()
     cursor_home = Path(os.environ.get("CURSOR_DATA_HOME", str(home / ".cursor")))
     gemini_home = Path(os.environ.get("GEMINI_DATA_HOME", str(home / ".gemini")))
-    claude_source, claude_dirs = claude_config_dirs(os.environ, home)
+    claude_source, claude_listed, claude_session = claude_config_dirs(os.environ, home)
+    claude_dirs, claude_missing = claude_baseline_dirs(claude_listed, claude_session)
+    for d in claude_missing:
+        sys.stderr.write("warn: listed Claude config dir does not exist, "
+                         "not counted: %s\n" % d)
 
     # One list of files per harness; a command is covered globally only when
     # every file in its harness's list covers it.
@@ -964,8 +991,10 @@ def main(argv=None):
         if h == "claude":
             global_meta[h] = {
                 "source": claude_source,
+                "session_dir": str(claude_session),
                 "dirs": [file_meta(f, p) for f, p
                          in zip(global_files[h], global_prefixes[h])],
+                "missing_dirs": [str(d) for d in claude_missing],
             }
         else:
             global_meta[h] = file_meta(global_files[h][0], global_prefixes[h][0])

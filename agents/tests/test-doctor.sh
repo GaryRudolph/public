@@ -3,6 +3,9 @@
 # floors, `make -C agents doctor` runs it, and the session doctor picks it.
 # Runs triage itself only when it is installed. Needs bash, git, and python3.
 set -uo pipefail
+# The real config dirs must stay out of the sandbox: the dotfiles export
+# CLAUDE_CONFIG_DIRS, and the lib scripts and the Makefile default from it.
+unset CLAUDE_CONFIG_DIRS CLAUDE_CONFIG_DIR
 
 here=$(cd "$(dirname "$0")" && pwd)
 repo=$(cd "$here/../.." && pwd -P)

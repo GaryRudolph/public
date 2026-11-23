@@ -16,6 +16,9 @@
 #   LEGACY_JETBRAINS_GLOB        - optional
 
 set -euo pipefail
+# The real config dirs must stay out of the sandbox: the dotfiles export
+# CLAUDE_CONFIG_DIRS, and the lib scripts and the Makefile default from it.
+unset CLAUDE_CONFIG_DIRS CLAUDE_CONFIG_DIR
 
 : "${ORG:?ORG required}"
 : "${AGENTS_DIR:?AGENTS_DIR required}"

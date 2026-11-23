@@ -7,6 +7,9 @@
 # Required env: AGENTS_DIR, ORG
 
 set -uo pipefail
+# The real config dirs must stay out of the sandbox: the dotfiles export
+# CLAUDE_CONFIG_DIRS, and the lib scripts and the Makefile default from it.
+unset CLAUDE_CONFIG_DIRS CLAUDE_CONFIG_DIR
 
 : "${AGENTS_DIR:?AGENTS_DIR required}"
 : "${ORG:?ORG required}"

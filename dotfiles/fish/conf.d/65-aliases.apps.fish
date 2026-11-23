@@ -85,10 +85,11 @@ function code --description 'VS Code, routed to agerpoint app or personal defaul
     end
 end
 
-# Every Claude config dir the routing above and below can pick. The agents
-# installer (agents/Makefile, when local.mk doesn't set it) and the allowlist
-# scout read this list; keep it in step with the CLAUDE_CONFIG_DIR values here
-# and in macos-launchers.
+# The routed Claude config dirs, for the agents installer (agents/Makefile,
+# when local.mk doesn't set it) and the allowlist scout. The personal ~/.claude
+# (claude-personal) is left out, so the installer doesn't manage it; the scout
+# still checks a session's own dir. Keep it in step with the CLAUDE_CONFIG_DIR
+# values here, in dotfiles/zshrc and in macos-launchers.
 set -gx CLAUDE_CONFIG_DIRS "$HOME/.claude-lolay:$HOME/.claude-agerpoint"
 
 function claude --description 'Claude Code CLI, routed to agerpoint or lolay config'
