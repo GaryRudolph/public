@@ -383,5 +383,79 @@ class CoveredByAll(unittest.TestCase):
         self.assertFalse(scan.covered_by_all("make lint", [])[0])
 
 
+class GeminiPolicy(unittest.TestCase):
+    # The shape the agent allowlist installer writes: allows as an exact
+    # commandRegex (JSON-escaped, RE2-escaped, closed with `"`), denies as a
+    # commandPrefix.
+    TOML = r'''
+[[rule]]
+toolName = "run_shell_command"
+commandRegex = "git log\""
+decision = "allow"
+priority = 100
+
+[[rule]]
+toolName = "run_shell_command"
+commandRegex = "npm run \\\\\"a b\\\\\"\""
+decision = "allow"
+priority = 100
+
+[[rule]]
+toolName = "run_shell_command"
+commandRegex = "make test\\.x\""
+decision = "allow"
+priority = 100
+
+[[rule]]
+toolName = "run_shell_command"
+commandRegex = "git (status|diff)"
+decision = "allow"
+priority = 100
+
+[[rule]]
+toolName = "run_shell_command"
+commandPrefix = "make lint"
+decision = "allow"
+priority = 100
+
+[[rule]]
+toolName = "run_shell_command"
+commandPrefix = "rm -rf /"
+decision = "deny"
+priority = 900
+'''
+
+    def test_installer_regex_reads_back_as_exact(self):
+        got = scan.gemini_allow_prefixes_from_text(self.TOML)
+        self.assertEqual(got, ["git log", 'npm run "a b"', "make test.x", "make lint"])
+        self.assertIsInstance(got[0], scan._Exact)
+        self.assertNotIsInstance(got[3], scan._Exact)
+
+    def test_exact_regex_does_not_cover_longer_commands(self):
+        got = scan.gemini_allow_prefixes_from_text(self.TOML)
+        self.assertFalse(scan.covered_by("git log --output=x", got)[0])
+        self.assertEqual(scan.covered_by("git log", got), (True, "git log", "exact"))
+        self.assertEqual(scan.covered_by("make lint fix", got), (True, "make lint", "broad"))
+
+    def test_comment_and_literal_string_still_read(self):
+        text = (
+            '[[rule]]\ncommandRegex = "git log\\"" # mine\ndecision = "allow"\n'
+            "[[rule]]\ncommandRegex = 'git diff\"'\ndecision = \"allow\"\n"
+        )
+        got = scan.gemini_allow_prefixes_from_text(text)
+        self.assertEqual(got, ["git log", "git diff"])
+        self.assertTrue(all(isinstance(g, scan._Exact) for g in got))
+
+    def test_prefix_escapes_decode(self):
+        self.assertEqual(scan._toml_strings('"printf a\\tb"'), ["printf a\tb"])
+        self.assertEqual(scan._toml_strings('["a \\"b\\"", "c\\\\"]'), ['a "b"', "c\\"])
+
+    def test_other_regexes_cover_nothing(self):
+        self.assertIsNone(scan.gemini_exact_from_regex('git (status|diff)"'))
+        self.assertIsNone(scan.gemini_exact_from_regex("git log"))
+        self.assertIsNone(scan.gemini_exact_from_regex('git\\slog"'))
+        self.assertFalse(scan.covered_by("git status", scan.gemini_allow_prefixes_from_text(self.TOML))[0])
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)
