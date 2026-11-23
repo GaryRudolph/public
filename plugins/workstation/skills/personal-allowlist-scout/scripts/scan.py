@@ -373,11 +373,43 @@ def _toml_strings(value: str):
     return out
 
 
+_RE2_META = set("\\.+*?()|[]{}^$")
+
+
+def gemini_exact_from_regex(rx: str):
+    """Read a commandRegex back as the one command it matches, the form the
+    agent allowlist installer writes (gemini_allow_regex in allowlist.jq):
+    the command JSON-escaped, then RE2-escaped, then a closing `"`. Returns
+    an _Exact entry, or None for any other regex (it covers nothing here, so
+    the scan keeps proposing the command)."""
+    if not rx.endswith('"'):
+        return None
+    body, lit, i = rx[:-1], [], 0
+    while i < len(body):
+        c = body[i]
+        if c == "\\":
+            if i + 1 >= len(body) or body[i + 1] not in _RE2_META:
+                return None
+            lit.append(body[i + 1])
+            i += 2
+            continue
+        if c in _RE2_META:
+            return None
+        lit.append(c)
+        i += 1
+    try:
+        cmd = json.loads('"' + "".join(lit) + '"')
+    except ValueError:
+        return None
+    return _Exact(cmd) if cmd else None
+
+
 def gemini_allow_prefixes_from_text(text: str):
-    """Parse `decision = "allow"` commandPrefix values out of a policy .toml.
-    Tolerant of the simple [[rule]] shape this project renders and that users
-    typically hand-write. commandRegex / argsPattern rules are ignored for
-    coverage (a regex is not a prefix); deny / ask_user never count."""
+    """Parse `decision = "allow"` rules out of a policy .toml. Tolerant of the
+    simple [[rule]] shape this project renders and that users typically
+    hand-write. A commandPrefix is a prefix; a commandRegex in the installer's
+    exact form covers only its command, and any other regex or argsPattern
+    covers nothing; deny / ask_user never count."""
     out = []
     blocks = re.split(r"(?m)^\s*\[\[\s*rule\s*\]\]\s*$", text)
     for b in blocks:
@@ -385,9 +417,20 @@ def gemini_allow_prefixes_from_text(text: str):
         if not dm or dm.group(1) != "allow":
             continue
         cpm = re.search(r"(?m)^\s*commandPrefix\s*=\s*(.+?)\s*$", b)
-        if not cpm:
+        if cpm:
+            out.extend(_toml_strings(cpm.group(1)))
             continue
-        out.extend(_toml_strings(cpm.group(1)))
+        crm = re.search(r"(?m)^\s*commandRegex\s*=\s*(.+?)\s*$", b)
+        if crm:
+            # One basic string, decoded as JSON: TOML basic-string escapes are
+            # JSON's, and the installer writes the value with jq's tojson.
+            try:
+                rx = json.loads(crm.group(1))
+            except ValueError:
+                continue
+            exact = gemini_exact_from_regex(rx) if isinstance(rx, str) else None
+            if exact is not None:
+                out.append(exact)
     return out
 
 

@@ -676,9 +676,24 @@ GTOML23="$H23/.gemini/policies/${ORG}-managed.toml"
 [ -f "$GTOML23" ] || fail "T23: gemini managed .toml not created"
 [ ! -d "$H23/.gemini/policies/.history" ] || fail "T23: gemini .history must not be created on first install"
 grep -q '^\[\[rule\]\]' "$GTOML23" || fail "T23: no [[rule]] blocks in managed .toml"
-grep -qF 'commandPrefix = "git status"' "$GTOML23" || fail "T23: allow entry 'git status' missing"
-grep -qF 'commandPrefix = "make test"'  "$GTOML23" || fail "T23: allow entry 'make test' missing"
+grep -qF 'commandRegex = "git status\""' "$GTOML23" || fail "T23: exact allow 'git status' missing"
+grep -qF 'commandRegex = "make test\""'  "$GTOML23" || fail "T23: exact allow 'make test' missing"
+grep -qF 'commandPrefix = "git status"' "$GTOML23" && fail "T23: allow 'git status' rendered as a prefix"
 grep -qF 'toolName = "run_shell_command"' "$GTOML23" || fail "T23: toolName line missing"
+
+# ---------------------------------------------------------------------------
+# T23b: Gemini allow escaping. The entry is JSON-escaped (as Gemini sees it in
+# the args), then RE2-escaped, then closed with `"`, then TOML-escaped.
+# ---------------------------------------------------------------------------
+printf '[T23b] gemini allow regex escapes RE2 and JSON\n'
+META23B="$TEST_DIR/meta/meta23b.json"
+printf '%s\n' '{"shell":{"allow":["make test.x","npm run \"a b\"","ls *.md"]}}' > "$META23B"
+H23B=$(mk_home t23b)
+run_al "$H23B" "$META23B" install >/dev/null
+GTOML23B="$H23B/.gemini/policies/${ORG}-managed.toml"
+grep -qF 'commandRegex = "make test\\.x\""' "$GTOML23B" || fail "T23b: '.' not escaped"
+grep -qF 'commandRegex = "ls \\*\\.md\""' "$GTOML23B" || fail "T23b: '*' not escaped"
+grep -qF 'commandRegex = "npm run \\\\\"a b\\\\\"\""' "$GTOML23B" || fail "T23b: quoted args not escaped"
 
 # ---------------------------------------------------------------------------
 # T24: Gemini deny mapping + idempotence
@@ -1234,7 +1249,7 @@ in_list "$H42C/.claude/settings.json" allow 'Bash(git status)' || fail "T42c: Cl
     || fail "T42c: Cursor IDE terminalDenylist is not normalized: $(jq -c '.terminalDenylist' "$H42C/.cursor/permissions.json")"
 [ "$(jq -c '.terminalAllowlist' "$H42C/.cursor/permissions.json")" = '["git status"]' ] \
     || fail "T42c: Cursor IDE terminalAllowlist is not normalized"
-for want in 'commandPrefix = "sudo"' 'commandPrefix = "git push"' 'commandPrefix = "rm -rf /"' 'commandPrefix = "git status"'; do
+for want in 'commandPrefix = "sudo"' 'commandPrefix = "git push"' 'commandPrefix = "rm -rf /"' 'commandRegex = "git status\""'; do
     grep -qxF -- "$want" "$H42C/.gemini/policies/${ORG}-managed.toml" || fail "T42c: Gemini policy lacks $want"
 done
 H42D=$(mk_home t42d)

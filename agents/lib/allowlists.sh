@@ -38,7 +38,9 @@
 #                before the suffix would make `<entry> *` miss the entry itself.
 #                Allows are exact and denies prefixes in both tools, the
 #                Owner's call of 2026-11-23 (r1.f1).
-#   Gemini       commandPrefix rules in the policy TOML.
+#   Gemini       allow: the exact command, a `commandRegex` (see gemini_allow_regex
+#                in allowlist.jq), so `git log` does not also approve
+#                `git log --output=<path>`. deny: the prefix, `commandPrefix`.
 # A bare string in Cursor CLI's or Claude Code's permissions list matches
 # nothing in either tool. MCP entries are `server:tool`: Cursor IDE as written,
 # Cursor CLI `Mcp(server:tool)`, Claude Code `mcp__server__tool`
@@ -1250,10 +1252,11 @@ maybe_remove_history_on_uninstall() {
 
 # Render the canonical managed .toml from the meta-source. Output is sorted +
 # deduped (via jq `unique`) so re-renders are byte-identical and idempotent.
-# shell.allow -> `decision = "allow"` (low priority); shell.deny -> higher
-# priority `decision = "deny"` so deny wins, mirroring the JSON harnesses.
-# commandPrefix values are emitted via jq `tojson`, which produces a properly
-# escaped string literal compatible with TOML basic strings.
+# shell.allow -> exact `commandRegex`, `decision = "allow"` (low priority);
+# shell.deny -> `commandPrefix`, higher priority `decision = "deny"` so deny
+# wins, mirroring the JSON harnesses. Values are emitted via jq `tojson`,
+# which produces a properly escaped string literal compatible with TOML
+# basic strings.
 render_gemini_toml() {
     local meta="$1"
     printf '# Gemini CLI Policy Engine rules managed by the %s allowlists installer.\n' "$ORG"
@@ -1262,7 +1265,7 @@ render_gemini_toml() {
     printf '# Other *.toml files in this directory are never read or modified.\n'
     jq -r "$ALLOWLIST_JQ"'
         (.shell.allow // []) | map(shell_norm) | unique | .[] |
-        "\n[[rule]]\ntoolName = \"run_shell_command\"\ncommandPrefix = " + tojson +
+        "\n[[rule]]\ntoolName = \"run_shell_command\"\ncommandRegex = " + (gemini_allow_regex | tojson) +
         "\ndecision = \"allow\"\npriority = 100"
     ' "$meta"
     jq -r "$ALLOWLIST_JQ"'

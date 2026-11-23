@@ -46,10 +46,23 @@ has the per-server classes.
 | Claude Code, local | The installer, each config dir's `settings.json` (until the managed settings are live) | same | same | same | same |
 | Cursor IDE | The installer, `~/.cursor/permissions.json` | raw prefix | not read by Cursor; the installed hook enforces it | `server:tool` | none |
 | Cursor CLI | The installer, `~/.cursor/cli-config.json` | `Shell(<base>:<args>)`, exact; no rule for one word | `Shell(<base>:<args>*)` | `Mcp(server:tool)` | none |
-| Gemini CLI | The installer, `~/.gemini/policies/<org>-managed.toml` | `commandPrefix` | `commandPrefix` | none | none |
+| Gemini CLI | The installer, `~/.gemini/policies/<org>-managed.toml` | `commandRegex`, exact | `commandPrefix` | none | none |
 
-Cursor IDE and Gemini still match allows as prefixes; closing that is m4 of
-the allowlist work (r1.f1).
+Cursor IDE alone still matches allows as prefixes. `permissions.json` has no
+exact form, and the Owner's call (2026-11-23, r1.f1 m4) is to keep it that
+way: `git log`, `make test` and `git fetch` keep auto-running there, and
+`enforce-denylist.sh` keeps enforcing the denies the IDE ignores, unchanged,
+so `hooks.sh` stays the same in every repo that shares it. Cursor CLI and
+Gemini stay with the installer too, since neither can take allows from a
+plugin or extension (below).
+
+A Gemini allow is a `commandRegex` that matches only the entry:
+`git log` becomes `commandRegex = "git log\""`. Gemini searches
+`\x00"command":"(?:<regex>)` in the JSON of the tool's arguments, so the
+entry is JSON-escaped, then RE2-escaped, then closed with the value's ending
+`"` (`gemini_allow_regex` in [`../lib/allowlist.jq`](../lib/allowlist.jq)).
+Gemini splits compound commands and checks each part, and a redirection still
+asks.
 
 ## What each harness offers
 

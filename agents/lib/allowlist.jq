@@ -49,6 +49,16 @@ def claude_mcp:
 def claude_allow: if test("[*]") then empty else "Bash(" + . + ")" end;
 def claude_deny: if test("[*]") then "Bash(" + . + ")" else "Bash(" + . + ":*)" end;
 
+# Gemini. A shell allow is a commandRegex matching the exact command: Gemini
+# searches `\x00"command":"(?:<re>)` in the JSON of the tool's args, so the
+# entry goes in JSON-escaped (as it appears there), then RE2-escaped, and a
+# closing `"` pins the end. Every `"` inside the value is escaped as `\"`,
+# so the bare one can only be the closing quote.
+def gemini_allow_regex:
+    tojson[1:-1]
+    | gsub("(?<c>[\\\\.+*?()|\\[\\]{}^$])"; "\\\(.c)")
+    | . + "\"";
+
 # The permissions object Claude Code reads, from the canonical file.
 def claude_permissions:
     {
