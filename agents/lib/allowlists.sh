@@ -1,14 +1,18 @@
 #!/usr/bin/env bash
 # Installer for agent allowlists: renders one tool-agnostic meta-source JSON
-# into tool-specific config files for four harnesses:
+# into tool-specific config files for three harnesses:
 #
 #   ~/.cursor/permissions.json             (Cursor IDE)
 #   ~/.cursor/cli-config.json              (Cursor CLI)
-#   <claude dir>/settings.json             (Claude Code / VS Code + Cursor ext;
-#                                          one per dir in CLAUDE_CONFIG_DIRS)
 #   ~/.gemini/policies/<org>-managed.toml  (Gemini CLI Policy Engine)
 #
-# The first three are JSON and share the sidecar / union / passthrough
+# Claude Code gets the same rules as org managed settings, rendered by
+# agents/org/render.sh from allowlist.jq's claude_permissions; this script
+# no longer writes them. Earlier versions also rendered them into each Claude
+# config dir's settings.json, so install and uninstall take those entries back
+# out (see "Claude Code: clear what earlier versions wrote" below).
+#
+# The two Cursor files are JSON and share the sidecar / union / passthrough
 # machinery below: multiple installers (agerpoint, personal, ...) co-manage one
 # shared file. Gemini is different. Its Policy Engine natively loads and
 # combines every *.toml in ~/.gemini/policies/, so each installer simply owns
@@ -31,26 +35,20 @@
 #                and an entry whose args already end in `*` as written
 #                (`rm -rf /*` is `Shell(rm:-rf /*)`). A prefix deny also blocks
 #                longer commands (`rm -rf /tmp/x`), the safe direction.
-#   Claude Code  allow: the exact command, `Bash(<entry>)`, so `git log` does not
-#                also approve `git log --output=<path>`; an entry with a `*` gets
-#                no rule. deny: the prefix, `Bash(<entry>:*)`; an entry that
-#                holds a `*` is written `Bash(<entry>)` as it is, since a `*`
-#                before the suffix would make `<entry> *` miss the entry itself.
-#                Allows are exact and denies prefixes in both tools, the
-#                Owner's call of 2026-11-23 (r1.f1).
+#                Allows are exact and denies prefixes, as in Claude Code's
+#                managed settings, the Owner's call of 2026-11-23 (r1.f1).
 #   Gemini       allow: the exact command, a `commandRegex` (see gemini_allow_regex
 #                in allowlist.jq), so `git log` does not also approve
 #                `git log --output=<path>`. deny: the prefix, `commandPrefix`.
-# A bare string in Cursor CLI's or Claude Code's permissions list matches
-# nothing in either tool. MCP entries are `server:tool`: Cursor IDE as written,
-# Cursor CLI `Mcp(server:tool)`, Claude Code `mcp__server__tool`
-# (`server:*` is `mcp__server__*`); Gemini gets none.
+# A bare string in Cursor CLI's permissions list matches nothing. MCP entries
+# are `server:tool`: Cursor IDE as written, Cursor CLI `Mcp(server:tool)`;
+# Gemini gets none.
 #
 # When running under WSL, the same files are also rendered into the Windows
-# host home (%USERPROFILE%) so that native (non-WSL) Cursor and Claude Code
-# can read them. Each Windows-side target gets its own sidecars, .history/
-# backups, user-edit promotion, and guardrail — identical to the Unix-side
-# targets and completely independent.
+# host home (%USERPROFILE%) so that native (non-WSL) Cursor can read them.
+# Each Windows-side target gets its own sidecars, .history/ backups, user-edit
+# promotion, and guardrail — identical to the Unix-side targets and completely
+# independent.
 #
 # Coexistence is handled by per-org sidecars (.<stem>.<org>-managed.json):
 # each installer (agerpoint, personal, ...) writes its own sidecar, the
@@ -58,9 +56,10 @@
 # (.<stem>.user-managed.json) and passthrough keys (.<stem>.passthrough.json).
 #
 # Backups live in a hidden .history/ subdirectory next to each live file
-# (~/.cursor/.history/permissions.json.1, .2, ... and <claude dir>/.history/
-# settings.json.1, .2, ...). Numbering is unbounded and per-file; engineer
-# prunes manually or via `make clean-allowlists`.
+# (~/.cursor/.history/permissions.json.1, .2, ...; the Claude cleanup backs
+# settings.json up the same way in <claude dir>/.history/). Numbering is
+# unbounded and per-file; engineer prunes manually or via
+# `make clean-allowlists`.
 #
 # Required env (set by the calling Makefile):
 #   ORG               installer identity ("agerpoint", "personal", ...)
@@ -68,19 +67,20 @@
 #
 # Optional env (defaults shown):
 #   CURSOR_DATA_HOME      ~/.cursor
-#   CLAUDE_CONFIG_DIRS    ~/.claude   (colon-separated absolute paths; each gets
-#                         its own settings.json, sidecars and .history/)
+#   CLAUDE_CONFIG_DIRS    ~/.claude   (colon-separated absolute paths; the dirs
+#                         whose settings.json install and uninstall clear of
+#                         what earlier versions wrote there)
 #   GEMINI_DATA_HOME      ~/.gemini   (managed file lives in $GEMINI_DATA_HOME/policies)
 #   WIN_HOME              (empty; auto-detected when /proc/version contains
 #                         "microsoft" — the WSL Windows host home directory)
 #   WIN_CURSOR_DATA_HOME  $WIN_HOME/.cursor   (derived from WIN_HOME)
-#   WIN_CLAUDE_DATA_HOME  $WIN_HOME/.claude   (derived from WIN_HOME)
+#   WIN_CLAUDE_DATA_HOME  $WIN_HOME/.claude   (derived from WIN_HOME; cleared
+#                         like CLAUDE_CONFIG_DIRS)
 #   WIN_GEMINI_DATA_HOME  $WIN_HOME/.gemini   (derived from WIN_HOME)
 #   MAKEFILE_LABEL        parent-of-ALLOWLISTS_SRC/Makefile
 #   RESTORE_N             (restore subcommand) which .history/<file>.<N> to restore
 #   RESTORE_FILE          (restore subcommand) restrict to one of:
-#                         permissions.json | cli-config.json | settings.json |
-#                         <org>-managed.toml
+#                         permissions.json | cli-config.json | <org>-managed.toml
 #                         (default: restore every target that has a matching .N)
 #   REMOVE_HISTORY        (uninstall subcommand) skip the interactive prompt:
 #                         yes/1 -> remove .history/, no/0 -> keep it. Unset ->
@@ -89,13 +89,15 @@
 # Requires: jq (any modern version; tested with 1.6+).
 #
 # Subcommands:
-#   install      Render all targets atomically (Unix + Windows if WSL).
+#   install      Render all targets atomically (Unix + Windows if WSL), and
+#                clear this $ORG's entries from each Claude config dir.
 #                Rotates .history/<file>.N only when bytes change.
 #                Idempotent: a second run is a no-op.
 #   uninstall    Remove this $ORG's sidecar from each JSON target and re-render
 #                (which removes our entries while preserving other orgs',
-#                user-managed entries, and passthrough keys), and rotate +
-#                delete this $ORG's Gemini <org>-managed.toml. On success,
+#                user-managed entries, and passthrough keys), rotate +
+#                delete this $ORG's Gemini <org>-managed.toml, and clear
+#                each Claude config dir as install does. On success,
 #                offers to remove .history/ (inline prompt on /dev/tty,
 #                default KEEP). Honors $REMOVE_HISTORY to skip the prompt;
 #                with no usable terminal the prompt is skipped and .history/
@@ -104,10 +106,11 @@
 #   status       Per-target report; flags foreign files inside .history/.
 #   diff         Show diff between expected (re-render) and live for each target.
 #   restore      Copy .history/<file>.<RESTORE_N> back over the live file for
-#                all targets (Unix + Windows) whose .N exists -- the three JSON
+#                all targets (Unix + Windows) whose .N exists -- the two JSON
 #                files plus the Gemini <org>-managed.toml. RESTORE_FILE
 #                restricts to one file, keeping both sides consistent.
-#   clean        Remove .history/ subdirectories entirely (explicit nuke knob).
+#   clean        Remove .history/ subdirectories entirely (explicit nuke knob),
+#                the Claude config dirs' included.
 
 set -euo pipefail
 
@@ -189,7 +192,7 @@ init_win_home() {
 }
 
 # Derive WIN_CURSOR_DATA_HOME / WIN_CLAUDE_DATA_HOME / WIN_GEMINI_DATA_HOME
-# from WIN_HOME. Safe to call repeatedly; only sets vars that are empty.
+# from WIN_HOME (the Claude one only for the cleanup). Safe to call repeatedly; only sets vars that are empty.
 init_win_dests() {
     [ -n "$WIN_HOME" ] || return 0
     : "${WIN_CURSOR_DATA_HOME:=$WIN_HOME/.cursor}"
@@ -203,29 +206,42 @@ init_win_dests() {
 # Each line: <stem>|<dir>|<kind>
 #   stem = filename without .json (e.g. "permissions")
 #   dir  = parent directory containing the live file and sidecars
-#   kind = cursor_ide | cursor_cli | claude  (drives schema translation)
+#   kind = cursor_ide | cursor_cli  (drives schema translation)
 
 all_targets() {
-    local claude_dir
     printf '%s\n' \
         "permissions|$CURSOR_DATA_HOME|cursor_ide" \
         "cli-config|$CURSOR_DATA_HOME|cursor_cli"
-    while IFS= read -r claude_dir; do
-        printf '%s\n' "settings|$claude_dir|claude"
-    done < <(claude_dirs)
     [ -n "$WIN_HOME" ] && printf '%s\n' \
         "permissions|$WIN_CURSOR_DATA_HOME|cursor_ide" \
-        "cli-config|$WIN_CURSOR_DATA_HOME|cursor_cli" \
-        "settings|$WIN_CLAUDE_DATA_HOME|claude"
+        "cli-config|$WIN_CURSOR_DATA_HOME|cursor_cli"
+    return 0
 }
 
-# One Claude config dir per line, from the colon-separated list. Read as text,
-# so a space or glob character in a path is kept literally.
-claude_dirs() { printf '%s\n' "$CLAUDE_CONFIG_DIRS" | tr ':' '\n' | sed '/^$/d'; }
+# The Claude config dirs to clear of what earlier versions rendered: one per
+# line, from the colon-separated list (read as text, so a space or glob
+# character in a path is kept literally), plus the Windows one under WSL.
+claude_dirs() {
+    printf '%s\n' "$CLAUDE_CONFIG_DIRS" | tr ':' '\n' | sed '/^$/d'
+    [ -n "$WIN_HOME" ] && printf '%s\n' "$WIN_CLAUDE_DATA_HOME"
+    return 0
+}
+
+# A target-table line for each Claude config dir that still holds this
+# $ORG's settings sidecar, so validate_inputs checks the files the cleanup
+# reads. Not a render target: nothing renders settings.json any more.
+claude_cleanup_targets() {
+    local dir
+    while IFS= read -r dir; do
+        [ -f "$(org_sidecar settings "$dir")" ] && printf '%s\n' "settings|$dir|claude_cleanup"
+    done < <(claude_dirs)
+    return 0
+}
 
 # Stems-per-directory map, used by foreign-history detection so each
 # .history/ dir only flags files that don't belong to any installed target
-# under its parent directory.
+# under its parent directory, and by the uninstall prompt. A Claude config
+# dir's stem is settings, whose backups the cleanup writes.
 stems_in_dir() {
     local target_dir="$1"
     local stem dir kind
@@ -233,6 +249,10 @@ stems_in_dir() {
         [ "$dir" = "$target_dir" ] || continue
         printf '%s\n' "$stem"
     done < <(all_targets)
+    while IFS= read -r dir; do
+        [ "$dir" = "$target_dir" ] && printf '%s\n' settings
+    done < <(claude_dirs)
+    return 0
 }
 
 # Gemini policy directories (one per side). Unlike the JSON targets there is no
@@ -242,6 +262,7 @@ stems_in_dir() {
 gemini_dirs() {
     printf '%s\n' "$GEMINI_DATA_HOME/policies"
     [ -n "$WIN_HOME" ] && printf '%s\n' "$WIN_GEMINI_DATA_HOME/policies"
+    return 0
 }
 
 # ---------------------------------------------------------------------------
@@ -319,13 +340,13 @@ gemini_history_file() { printf '%s/.history/%s-managed.toml.%s' "$1" "$ORG" "$2"
 # ---------------------------------------------------------------------------
 # Schema translation: meta-source JSON -> tool-specific shape
 # ---------------------------------------------------------------------------
-# kind = cursor_ide | cursor_cli | claude
+# kind = cursor_ide | cursor_cli
 # Output is canonical (sorted keys, deduped + sorted arrays via `unique`) so
 # the diff between two renders of the same inputs is byte-identical.
 
-# The definitions every render shares (shell_norm, meta_check, the Claude Code
-# rules) live in allowlist.jq beside this file; each jq program below starts
-# with them.
+# The definitions every render shares (shell_norm, meta_check, and the Claude
+# Code rules agents/org/render.sh uses) live in allowlist.jq beside this file;
+# each jq program below starts with them.
 ALLOWLIST_JQ="$(cat "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/allowlist.jq")
 "
 
@@ -370,11 +391,6 @@ render_target_schema() {
                 }
             }' "$meta"
             ;;
-        claude)
-            # allowlist.jq's claude_permissions, which agents/org/render.sh
-            # also renders the managed settings from.
-            jq -S "$ALLOWLIST_JQ"'claude_permissions' "$meta"
-            ;;
         *)
             printf 'render_target_schema: unknown kind %s\n' "$kind" >&2
             return 2
@@ -395,7 +411,7 @@ union_target_schema() {
                 .mcpDenylist       = (((.mcpDenylist       // []) + ($f.mcpDenylist       // [])) | unique)
             )' "$@"
             ;;
-        cursor_cli|claude)
+        cursor_cli)
             jq -s -S 'reduce .[] as $f ({permissions:{allow:[],deny:[]}};
                 .permissions.allow = (((.permissions.allow // []) + ($f.permissions.allow // [])) | unique) |
                 .permissions.deny  = (((.permissions.deny  // []) + ($f.permissions.deny  // [])) | unique)
@@ -406,14 +422,14 @@ union_target_schema() {
 
 # Strip the permission keys from a JSON file so what's left is the
 # "passthrough" — everything the engineer has at the top level that we
-# don't manage (cli version, editor, claude theme, model, ...).
+# don't manage (cli version, editor, ...).
 extract_passthrough() {
     local kind="$1" live="$2"
     case "$kind" in
         cursor_ide)
             jq -S 'del(.terminalAllowlist, .terminalDenylist, .mcpAllowlist, .mcpDenylist)' "$live"
             ;;
-        cursor_cli|claude)
+        cursor_cli)
             # Only allow and deny are ours; ask, defaultMode, additionalDirectories
             # and the rest stay in the passthrough and deep-merge back at render.
             jq -S 'if (.permissions? | type) == "object"
@@ -647,7 +663,7 @@ promote_user_edits() {
                 | with_entries(select(.value | length > 0))
             ' "$live" "$expected_no_user" "$user_in" > "$user_out"
             ;;
-        cursor_cli|claude)
+        cursor_cli)
             jq -s -S '
                 .[0] as $live | .[1] as $exp | .[2] as $u |
                 {
@@ -672,7 +688,7 @@ promote_user_edits() {
         cursor_ide)
             total=$(jq '[(.terminalAllowlist // []), (.terminalDenylist // []), (.mcpAllowlist // []), (.mcpDenylist // [])] | map(length) | add // 0' "$user_out")
             ;;
-        cursor_cli|claude)
+        cursor_cli)
             total=$(jq '[(.permissions.allow // []), (.permissions.deny // [])] | map(length) | add // 0' "$user_out")
             ;;
     esac
@@ -720,10 +736,17 @@ rotate_history() {
     while [ "$i" -ge 1 ]; do
         src="$hist/$stem.json.$i"
         dst="$hist/$stem.json.$((i+1))"
-        [ -f "$src" ] && mv -- "$src" "$dst"
+        # A link at the destination would take the backup into its target.
+        if [ -f "$src" ]; then
+            if [ -L "$dst" ]; then rm -f -- "$dst"; fi
+            mv -- "$src" "$dst"
+        fi
         i=$((i - 1))
     done
 
+    # Every regular .N moved up, so whatever still sits at .1 (a symlink, a
+    # dangling link) is not a backup: replace it rather than write through it.
+    rm -f -- "$hist/$stem.json.1"
     cp -- "$live" "$hist/$stem.json.1"
 }
 
@@ -795,8 +818,9 @@ has_any_sidecar() {
 # ---------------------------------------------------------------------------
 
 # The meta must render for every target before any target is written, so a
-# meta one target rejects (a malformed mcp entry stops the Claude render)
-# leaves the other targets as they were.
+# meta one target rejects leaves the other targets as they were. It must also
+# render as Claude Code's managed settings (agents/org/render.sh), which stop
+# on a malformed mcp entry the Cursor forms would pass through as written.
 validate_meta() {
     local kind
     if ! jq "$ALLOWLIST_JQ"'meta_check' "$ALLOWLISTS_SRC" >/dev/null; then
@@ -805,7 +829,7 @@ validate_meta() {
         ABORTED=1
         return 1
     fi
-    for kind in cursor_ide cursor_cli claude; do
+    for kind in cursor_ide cursor_cli; do
         if ! render_target_schema "$kind" "$ALLOWLISTS_SRC" >/dev/null; then
             printf 'error: rendering %s for %s failed; nothing was written.\n' \
                 "$(pretty_path "$ALLOWLISTS_SRC")" "$kind" >&2
@@ -813,6 +837,12 @@ validate_meta() {
             return 1
         fi
     done
+    if ! jq "$ALLOWLIST_JQ"'claude_permissions' "$ALLOWLISTS_SRC" >/dev/null; then
+        printf 'error: %s does not render as the Claude Code managed settings; nothing was written.\n' \
+            "$(pretty_path "$ALLOWLISTS_SRC")" >&2
+        ABORTED=1
+        return 1
+    fi
 }
 
 validate_inputs() {
@@ -842,7 +872,7 @@ validate_inputs() {
                 bad=1
             fi
         done < <({ [ -f "$live" ] && printf '%s\0' "$live"; list_consumed_sidecars "$stem" "$dir"; } || true)
-    done < <(all_targets)
+    done < <(all_targets; claude_cleanup_targets)
     if [ "$bad" = "1" ]; then
         ABORTED=1
         return 1
@@ -1072,7 +1102,7 @@ status_one_target() {
         cursor_ide)
             entries=$(jq '[(.terminalAllowlist // []), (.terminalDenylist // []), (.mcpAllowlist // []), (.mcpDenylist // [])] | map(length) | add' "$live")
             ;;
-        cursor_cli|claude)
+        cursor_cli)
             entries=$(jq '[(.permissions.allow // []), (.permissions.deny // [])] | map(length) | add' "$live")
             ;;
     esac
@@ -1195,7 +1225,7 @@ maybe_remove_history_on_uninstall() {
         seen="$seen|$gdir|"
         hist=$(history_dir_of "$gdir")
         [ -d "$hist" ] && dirs+=("$gdir")
-    done < <(gemini_dirs)
+    done < <(gemini_dirs; claude_dirs)
 
     [ "${#dirs[@]}" -gt 0 ] || return 0
 
@@ -1239,6 +1269,199 @@ maybe_remove_history_on_uninstall() {
     else
         printf '%-50s = kept .history/ (backups preserved)\n' "(uninstall)"
     fi
+}
+
+# ---------------------------------------------------------------------------
+# Claude Code: clear what earlier versions wrote
+# ---------------------------------------------------------------------------
+# Earlier versions rendered the allowlist into each Claude config dir's
+# settings.json, through the same sidecars as the Cursor files. Claude Code
+# now gets those rules as org managed settings, so install and uninstall take
+# this $ORG's entries back out of every dir in claude_dirs that still has our
+# .settings.<org>-managed.json:
+#   - the sidecar is the baseline: an entry in it leaves settings.json unless
+#     another org's sidecar or the user-managed one also holds it;
+#   - everything else in settings.json stays, in its order: the user's own
+#     entries (promoted or not), other orgs' entries, every other key;
+#   - the sidecar goes. Once no other org's settings sidecar is left, so do
+#     the user-managed and passthrough ones, which only fed the render, and a
+#     permission list (or permissions object) the cleanup emptied.
+# settings.json is backed up to .history/ before it changes. With no sidecar
+# of ours a dir is left alone, so a second run is a no-op.
+
+# Writes settings.json without this $ORG's entries to $2 and prints how many
+# entries that removes. $3 is 1 when no other org's settings sidecar is left.
+claude_strip() {
+    local dir="$1" out="$2" alone="$3"
+    local live ours keep f n
+    live=$(target_path settings "$dir")
+    ours=$(org_sidecar settings "$dir")
+    keep=$(mktemp)
+    local claimed=()
+    while IFS= read -r f; do
+        [ -n "$f" ] && claimed+=("$f")
+    done < <(list_other_org_sidecars settings "$dir")
+    f=$(user_sidecar settings "$dir")
+    [ -f "$f" ] && claimed+=("$f")
+    if [ "${#claimed[@]}" -gt 0 ]; then
+        union_target_schema cursor_cli "${claimed[@]}" > "$keep" || { rm -f "$keep"; return 1; }
+    else
+        printf '{"permissions":{"allow":[],"deny":[]}}\n' > "$keep"
+    fi
+    # $gone: ours and nobody else's. A list loses only those entries; with
+    # $alone, a list or permissions object this emptied goes too.
+    local alone_json=false
+    [ "$alone" = "1" ] && alone_json=true
+    if ! jq --slurpfile ours "$ours" --slurpfile keep "$keep" --argjson alone "$alone_json" '
+        def strip($l):
+            (($ours[0].permissions[$l] // []) - ($keep[0].permissions[$l] // [])) as $gone
+            | if (.permissions | type) == "object" and (.permissions[$l] | type) == "array"
+              then (.permissions[$l] | length) as $was
+                   | .permissions[$l] |= map(select(IN($gone[]; .) | not))
+                   | if $alone and $was > 0 and (.permissions[$l] | length) == 0
+                     then del(.permissions[$l]) else . end
+              else . end;
+        . as $before
+        | strip("allow") | strip("deny")
+        | if $alone and (.permissions | type) == "object" and (.permissions | length) == 0
+             and ($before.permissions | length) > 0
+          then del(.permissions) else . end
+        ' "$live" > "$out"; then
+        rm -f "$keep"
+        return 1
+    fi
+    rm -f "$keep"
+    n=$(jq -n --slurpfile a "$live" --slurpfile b "$out" '
+        [($a[0].permissions.allow? // []), ($a[0].permissions.deny? // [])] as [$aa, $ad]
+        | [($b[0].permissions.allow? // []), ($b[0].permissions.deny? // [])] as [$ba, $bd]
+        | (($aa | length) - ($ba | length)) + (($ad | length) - ($bd | length))') || return 1
+    printf '%s\n' "$n"
+}
+
+# True when some other org's settings sidecar is still in $1.
+claude_dir_shared() {
+    [ -n "$(list_other_org_sidecars settings "$1")" ]
+}
+
+clear_claude_dir() {
+    local dir="$1"
+    local live ours pretty label alone=1 n=0 new="" drop_file=0 f
+    live=$(target_path settings "$dir")
+    ours=$(org_sidecar settings "$dir")
+    pretty=$(pretty_path "$live")
+    label=$(side_label "$dir")
+    [ -f "$ours" ] || return 0
+    claude_dir_shared "$dir" && alone=0
+    # With no settings.json, the user-managed sidecar is the only copy of the
+    # user's own entries: keep it, and the passthrough with it.
+    local keep_feed=0
+    [ "$alone" = "1" ] && [ ! -f "$live" ] && keep_feed=1
+
+    if [ -f "$live" ]; then
+        new=$(mktemp)
+        if ! n=$(claude_strip "$dir" "$new" "$alone"); then
+            printf 'error: could not compute %s without %s entries; left untouched.\n' "$pretty" "$ORG" >&2
+            rm -f "$new"
+            return 1
+        fi
+        [ "$alone" = "1" ] && [ "$n" -gt 0 ] && jq -e '. == {}' "$new" >/dev/null 2>&1 && drop_file=1
+    fi
+
+    if [ "$DRY_RUN" = "1" ]; then
+        if [ "$drop_file" = "1" ]; then
+            printf '%-50s - would remove (only held %s entries)%s\n' "$pretty" "$ORG" "$label"
+        elif [ "$n" -gt 0 ]; then
+            printf '%-50s - would remove %s %s entries (now in managed settings)%s\n' "$pretty" "$n" "$ORG" "$label"
+        fi
+        printf '%-50s - would remove sidecar %s%s\n' "$pretty" "$(pretty_path "$ours")" "$label"
+        if [ "$alone" = "1" ] && [ "$keep_feed" = "0" ]; then
+            claude_feed_sidecars "$dir" | while IFS= read -r f; do
+                printf '%-50s - would remove sidecar %s%s\n' "$pretty" "$(pretty_path "$f")" "$label"
+            done
+        fi
+        rm -f "$new"
+        return 0
+    fi
+
+    # The live file changes before the sidecar goes, so a failed write
+    # leaves the baseline for the next run.
+    if [ "$drop_file" = "1" ]; then
+        if ! rotate_history settings "$dir" || ! rm -f -- "$live"; then
+            printf 'error: could not remove %s; sidecar kept, rerun install.\n' "$pretty" >&2
+            rm -f "$new"
+            return 1
+        fi
+        printf '%-50s - removed (only held %s entries)%s\n' "$pretty" "$ORG" "$label"
+    elif [ "$n" -gt 0 ]; then
+        if ! rotate_history settings "$dir" || ! atomic_write "$live" "$new"; then
+            printf 'error: could not write %s; sidecar kept, rerun install.\n' "$pretty" >&2
+            rm -f "$new"
+            return 1
+        fi
+        printf '%-50s - removed %s %s entries (now in managed settings)%s\n' "$pretty" "$n" "$ORG" "$label"
+    fi
+    rm -f "$new"
+
+    rm -f -- "$ours" || return 1
+    printf '%-50s - removed sidecar %s%s\n' "$pretty" "$(pretty_path "$ours")" "$label"
+    if [ "$keep_feed" = "1" ]; then
+        while IFS= read -r f; do
+            printf '%-50s = kept %s (no settings.json: the only copy of your own entries)%s\n' \
+                "$pretty" "$(pretty_path "$f")" "$label"
+        done < <(claude_feed_sidecars "$dir")
+    elif [ "$alone" = "1" ]; then
+        while IFS= read -r f; do
+            rm -f -- "$f" || return 1
+            printf '%-50s - removed sidecar %s%s\n' "$pretty" "$(pretty_path "$f")" "$label"
+        done < <(claude_feed_sidecars "$dir")
+    fi
+}
+
+# The user-managed and passthrough sidecars present in $1: they only fed the
+# render, so they go with ours once no other org's sidecar is left.
+claude_feed_sidecars() {
+    local f
+    for f in "$(user_sidecar settings "$1")" "$(passthrough_path settings "$1")"; do
+        if [ -e "$f" ] || [ -L "$f" ]; then printf '%s\n' "$f"; fi
+    done
+    return 0
+}
+
+status_claude_dir() {
+    local dir="$1" ours
+    ours=$(org_sidecar settings "$dir")
+    [ -f "$ours" ] || return 0
+    printf '%-50s ~ still holds %s entries; make install removes them%s\n' \
+        "$(pretty_path "$(target_path settings "$dir")")" "$ORG" "$(side_label "$dir")"
+}
+
+diff_claude_dir() {
+    local dir="$1" live ours pretty new n f alone=1
+    live=$(target_path settings "$dir")
+    ours=$(org_sidecar settings "$dir")
+    pretty=$(pretty_path "$live")
+    [ -f "$ours" ] || return 0
+    claude_dir_shared "$dir" && alone=0
+    if [ ! -f "$live" ]; then
+        printf '%s ~ no file; %s sidecar to remove:%s\n' "$pretty" "$ORG" "$(side_label "$dir")"
+        printf '  %s\n' "$(pretty_path "$ours")"
+        return 0
+    fi
+    new=$(mktemp)
+    if ! n=$(claude_strip "$dir" "$new" "$alone"); then
+        printf '%s ! cannot compute the %s cleanup (does it parse?); install will stop here%s\n' \
+            "$pretty" "$ORG" "$(side_label "$dir")"
+    elif [ "$n" -gt 0 ]; then
+        printf '%s ~ differs (%s entries to remove):%s\n' "$pretty" "$ORG" "$(side_label "$dir")"
+        diff -u "$live" "$new" || true
+    else
+        printf '%s ~ no %s entries left; sidecars to remove:%s\n' "$pretty" "$ORG" "$(side_label "$dir")"
+        printf '  %s\n' "$(pretty_path "$ours")"
+        if [ "$alone" = "1" ]; then
+            claude_feed_sidecars "$dir" | while IFS= read -r f; do printf '  %s\n' "$(pretty_path "$f")"; done
+        fi
+    fi
+    rm -f "$new"
 }
 
 # ---------------------------------------------------------------------------
@@ -1302,10 +1525,15 @@ rotate_gemini_history() {
     while [ "$i" -ge 1 ]; do
         src="$hist/$base.$i"
         dst="$hist/$base.$((i+1))"
-        [ -f "$src" ] && mv -- "$src" "$dst"
+        # A link at the destination would take the backup into its target.
+        if [ -f "$src" ]; then
+            if [ -L "$dst" ]; then rm -f -- "$dst"; fi
+            mv -- "$src" "$dst"
+        fi
         i=$((i - 1))
     done
 
+    rm -f -- "$hist/$base.1"   # never write through a link at .1 (see rotate_history)
     cp -- "$live" "$hist/$base.1"
 }
 
@@ -1495,6 +1723,14 @@ collect_foreign_notes() {
         seen="$seen|$dir|"
         note_foreign_history_files "$dir"
     done < <(all_targets)
+    # The Claude config dirs hold the cleanup's settings.json backups.
+    while IFS= read -r dir; do
+        case "$seen" in
+            *"|$dir|"*) continue ;;
+        esac
+        seen="$seen|$dir|"
+        note_foreign_history_files "$dir"
+    done < <(claude_dirs)
 }
 
 # ---------------------------------------------------------------------------
@@ -1507,13 +1743,19 @@ cmd_install() {
     init_win_dests
     acquire_lock
     print_header "install-allowlists"
-    local stem dir kind gdir
+    local stem dir kind gdir cdir
     validate_inputs || exit 1
     validate_meta || exit 1
     while IFS='|' read -r stem dir kind; do
         apply_one_target "$stem" "$dir" "$kind" || ABORTED=1
         [ "$ABORTED" = "1" ] && break
     done < <(all_targets)
+    if [ "$ABORTED" != "1" ]; then
+        while IFS= read -r cdir; do
+            clear_claude_dir "$cdir" || ABORTED=1
+            [ "$ABORTED" = "1" ] && break
+        done < <(claude_dirs)
+    fi
     if [ "$ABORTED" != "1" ]; then
         while IFS= read -r gdir; do
             apply_gemini_target "$gdir"
@@ -1531,14 +1773,18 @@ cmd_uninstall() {
     init_win_dests
     acquire_lock
     print_header "uninstall-allowlists"
-    local stem dir kind gdir
+    local stem dir kind gdir cdir
     validate_inputs || exit 1
     while IFS='|' read -r stem dir kind; do
         remove_one_target "$stem" "$dir" "$kind"
     done < <(all_targets)
+    while IFS= read -r cdir; do
+        clear_claude_dir "$cdir" || ABORTED=1
+    done < <(claude_dirs)
     while IFS= read -r gdir; do
         remove_gemini_target "$gdir"
     done < <(gemini_dirs)
+    if [ "$ABORTED" = "1" ]; then exit 1; fi
     maybe_remove_history_on_uninstall
     print_notes
     print_conflicts
@@ -1550,13 +1796,19 @@ cmd_dry_run() {
     init_win_dests
     acquire_lock
     print_header "dry-run-allowlists"
-    local stem dir kind gdir
+    local stem dir kind gdir cdir
     validate_inputs || exit 1
     validate_meta || exit 1
     while IFS='|' read -r stem dir kind; do
         apply_one_target "$stem" "$dir" "$kind" || ABORTED=1
         [ "$ABORTED" = "1" ] && break
     done < <(all_targets)
+    if [ "$ABORTED" != "1" ]; then
+        while IFS= read -r cdir; do
+            clear_claude_dir "$cdir" || ABORTED=1
+            [ "$ABORTED" = "1" ] && break
+        done < <(claude_dirs)
+    fi
     if [ "$ABORTED" != "1" ]; then
         while IFS= read -r gdir; do
             apply_gemini_target "$gdir"
@@ -1573,10 +1825,13 @@ cmd_status() {
     init_win_home
     init_win_dests
     print_header "status-allowlists"
-    local stem dir kind gdir
+    local stem dir kind gdir cdir
     while IFS='|' read -r stem dir kind; do
         status_one_target "$stem" "$dir" "$kind"
     done < <(all_targets)
+    while IFS= read -r cdir; do
+        status_claude_dir "$cdir"
+    done < <(claude_dirs)
     while IFS= read -r gdir; do
         status_gemini_target "$gdir"
     done < <(gemini_dirs)
@@ -1590,10 +1845,13 @@ cmd_diff() {
     init_win_home
     init_win_dests
     print_header "diff-allowlists"
-    local stem dir kind gdir
+    local stem dir kind gdir cdir
     while IFS='|' read -r stem dir kind; do
         diff_one_target "$stem" "$dir" "$kind"
     done < <(all_targets)
+    while IFS= read -r cdir; do
+        diff_claude_dir "$cdir"
+    done < <(claude_dirs)
     while IFS= read -r gdir; do
         diff_gemini_target "$gdir"
     done < <(gemini_dirs)
@@ -1618,7 +1876,7 @@ cmd_restore() {
     local restrict_stem="" do_json=1 do_gemini=1
     if [ -n "$RESTORE_FILE" ]; then
         case "$RESTORE_FILE" in
-            permissions.json|cli-config.json|settings.json)
+            permissions.json|cli-config.json)
                 restrict_stem="${RESTORE_FILE%.json}"
                 do_gemini=0
                 ;;
@@ -1626,7 +1884,7 @@ cmd_restore() {
                 do_json=0
                 ;;
             *)
-                printf 'error: RESTORE_FILE must be one of permissions.json, cli-config.json, settings.json, %s-managed.toml\n' "$ORG" >&2
+                printf 'error: RESTORE_FILE must be one of permissions.json, cli-config.json, %s-managed.toml\n' "$ORG" >&2
                 exit 2
                 ;;
         esac
@@ -1668,7 +1926,7 @@ cmd_clean() {
         esac
         seen="$seen|$gdir|"
         clean_one_dir "$gdir"
-    done < <(gemini_dirs)
+    done < <(gemini_dirs; claude_dirs)
 }
 
 # ---------------------------------------------------------------------------
@@ -1688,7 +1946,7 @@ Optional env: CURSOR_DATA_HOME, CLAUDE_CONFIG_DIRS, GEMINI_DATA_HOME, MAKEFILE_L
               WIN_CURSOR_DATA_HOME, WIN_CLAUDE_DATA_HOME, WIN_GEMINI_DATA_HOME
               (derived from WIN_HOME)
               RESTORE_N (for restore), RESTORE_FILE (for restore, optional:
-              permissions.json | cli-config.json | settings.json | <org>-managed.toml)
+              permissions.json | cli-config.json | <org>-managed.toml)
               REMOVE_HISTORY (for uninstall: yes/no to skip the prompt)
 EOF
 }

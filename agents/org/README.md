@@ -17,8 +17,9 @@ make -C agents/org check    # fail when it's stale (part of make -C agents test)
 [`render.sh`](render.sh) from:
 
 - the canonical allowlist, [`../allowlists/personal.json`](../allowlists/README.md),
-  rendered by `claude_permissions` in [`../lib/allowlist.jq`](../lib/allowlist.jq),
-  the same rules the local installer writes;
+  rendered by `claude_permissions` in [`../lib/allowlist.jq`](../lib/allowlist.jq).
+  The local installer no longer writes these into `settings.json`; it clears
+  what earlier versions wrote there ([`../README.md`](../README.md));
 - [`claude-managed-base.json`](claude-managed-base.json) for everything else:
   attribution (`Assisted-by: Claude Code`), and auto mode's trusted source
   control and the PR review-thread replies the git standard asks for.

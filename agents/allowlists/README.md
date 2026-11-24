@@ -43,7 +43,7 @@ has the per-server classes.
 | Target | Gets the file through | Shell allow | Shell deny | MCP | Web, read, write |
 | --- | --- | --- | --- | --- | --- |
 | Claude Code (CLI, IDE, cloud) | Managed settings the Owner pastes into each org ([`../org/`](../org/README.md)) | `Bash(<entry>)`, exact | `Bash(<entry>:*)` | `mcp__server__tool` | `WebFetch(domain:)`, `Read()`, `Edit()` denies |
-| Claude Code, local | The installer, each config dir's `settings.json` (until the managed settings are live) | same | same | same | same |
+| Claude Code, local | The managed settings above; the installer writes none. `make install` takes out what earlier versions wrote into each config dir's `settings.json`, keeping your own entries | same | same | same | same |
 | Cursor IDE | The installer, `~/.cursor/permissions.json` | raw prefix | not read by Cursor; the installed hook enforces it | `server:tool` | none |
 | Cursor CLI | The installer, `~/.cursor/cli-config.json` | `Shell(<base>:<args>)`, exact by our reading (untested, below); no rule for one word | `Shell(<base>:<args>*)` | `Mcp(server:tool)` | none |
 | Gemini CLI | The installer, `~/.gemini/policies/<org>-managed.toml` | `commandRegex`, exact | `commandPrefix` | none | none |
