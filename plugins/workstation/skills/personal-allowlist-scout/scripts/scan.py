@@ -356,8 +356,10 @@ def permissions_allow_prefixes(path):
     data = load_json_lenient(path)
     if not isinstance(data, dict):
         return []
-    perms = data.get("permissions") or {}
-    arr = perms.get("allow") or []
+    perms = data.get("permissions")
+    arr = perms.get("allow") if isinstance(perms, dict) else None
+    if not isinstance(arr, list):
+        return []
     out = []
     for tok in arr:
         if isinstance(tok, str):
@@ -583,7 +585,8 @@ def claude_managed_files(environ, flags=(), platform=None, base=None):
     drop = base / "managed-settings.d"
     if drop.is_dir():
         for f in sorted(drop.glob("*.json")):
-            add(f)
+            if not f.name.startswith("."):  # hidden drop-ins aren't loaded
+                add(f)
     return out
 
 

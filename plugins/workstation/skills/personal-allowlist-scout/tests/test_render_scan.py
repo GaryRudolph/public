@@ -375,6 +375,18 @@ class ClaudeManagedFiles(unittest.TestCase):
             self.base / "managed-settings.d" / "10-a.json",
             self.base / "managed-settings.d" / "20-b.json"])
 
+    def test_hidden_drop_ins_are_ignored(self):
+        (self.base / "managed-settings.d" / ".10-off.json").write_text("{}")
+        (self.base / "managed-settings.d" / "20-on.json").write_text("{}")
+        self.assertEqual(self.files(), [self.base / "managed-settings.d" / "20-on.json"])
+
+    def test_malformed_permissions_read_as_no_rules(self):
+        f = self.t / "m.json"
+        for body in ('{"permissions": ["x"]}', '{"permissions": {"allow": "Bash(x)"}}',
+                     '{"permissions": null}', '[]'):
+            f.write_text(body)
+            self.assertEqual(scan.permissions_allow_prefixes(f), [], body)
+
     def test_flag_relative_path_resolves_against_cwd(self):
         got = self.files({}, ["rel/org.json"])
         self.assertEqual(got, [Path("rel/org.json").resolve()])

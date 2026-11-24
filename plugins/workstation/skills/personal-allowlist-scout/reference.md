@@ -285,9 +285,11 @@ scout says so in the summary and `global_allowlists.claude.managed` is empty;
 Claude coverage then comes only from the config dirs, as before. The JSON's
 `global_allowlists.claude.managed` lists each file's `path`, `exists` and
 `count`; a named file that doesn't exist is reported and not counted, and one that
-isn't a JSON object warns on stderr. Only `permissions.allow` is read: a
+isn't a JSON object warns on stderr. Hidden drop-ins (`.name.json`) are skipped. Only `permissions.allow` is read: a
 managed `deny` or `ask` rule doesn't remove coverage, same as for the
-config dirs' files.
+config dirs' files. Likewise `allowManagedPermissionRulesOnly` isn't
+modeled: if an org sets it, local rules stop applying but the scout still
+counts them (the org's base settings don't set it).
 
 **Per-repo files** (relative to the repo root):
 
