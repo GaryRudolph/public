@@ -180,6 +180,8 @@ rm macos-launchers/profiles/company2.{env,png}
 
 Then remove the matching aliases from the dotfiles.
 
+`make uninstall` only removes wrappers for apps that still have an `apps/<app>.env`. A wrapper for an app that's since been dropped (such as `Cursor AP.app`, built before Cursor support was removed) has to be deleted by hand from `~/Applications/`.
+
 ### Known limitations (accepted, not bugs)
 
 - **Cmd-Tab / Mission Control / Activity Monitor / menu bar all show "Claude" or "Code"**, never "Claude C1" / "Visual Studio Code C1". They show the *running* process; the wrapper exits immediately after launching it. The Dock icon (clicked launcher) is correctly branded; the running-window icon is the standard one.
