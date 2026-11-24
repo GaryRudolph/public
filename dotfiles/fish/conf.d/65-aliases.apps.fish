@@ -68,7 +68,9 @@ function _opencode_launch_desktop --description 'open -a OpenCode [paths...]'
     if contains -- $profile agerpoint ussander
         env OPENCODE_APPNAME=opencode-$profile open -a OpenCode -- $argv
     else
-        open -a OpenCode -- $argv
+        # Drop a profile marker inherited from this shell's pwd, so a path
+        # outside the profile trees opens the default profile.
+        env -u OPENCODE_APPNAME open -a OpenCode -- $argv
     end
 end
 
@@ -122,8 +124,11 @@ function opencode --description 'OpenCode: path-aware profile; CLI if installed 
     if command -vq opencode
         if contains -- $ctx agerpoint ussander
             set -lx OPENCODE_APPNAME opencode-$ctx
+            command opencode $argv
+        else
+            # As above: the default profile, whatever this shell's pwd set.
+            env -u OPENCODE_APPNAME opencode $argv
         end
-        command opencode $argv
     else
         _opencode_launch_desktop $ctx $argv
     end
