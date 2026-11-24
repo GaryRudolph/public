@@ -4,11 +4,9 @@ ALL_APPS      := $(sort $(notdir $(basename $(wildcard apps/*.env))))
 PROFILES      := $(sort $(notdir $(basename $(wildcard profiles/*.env))))
 .DEFAULT_GOAL := help
 
-# Resolve per-app CLI binaries once at parse time.
-# CURSOR_BIN fallback path has no spaces; CODE_BIN fallback does, so the
-# vscode AppleScript template single-quotes __CODE_BIN__.
-CURSOR_BIN := $(shell command -v cursor 2>/dev/null || echo /Applications/Cursor.app/Contents/Resources/app/bin/cursor)
-CODE_BIN   := $(shell command -v code   2>/dev/null || echo /Applications/Visual\ Studio\ Code.app/Contents/Resources/app/bin/code)
+# Resolve per-app CLI binaries once at parse time. The CODE_BIN fallback path
+# has spaces, so the vscode AppleScript template single-quotes __CODE_BIN__.
+CODE_BIN := $(shell command -v code   2>/dev/null || echo /Applications/Visual\ Studio\ Code.app/Contents/Resources/app/bin/code)
 
 .PHONY: help install uninstall clean check validate-profiles validate-templates dry-run
 
@@ -47,7 +45,6 @@ validate-templates: validate-profiles
 	      for app in $${APPS//,/ }; do \
 	          work=$$(mktemp -d); \
 	          sed -e "s|__SLUG__|$$p|g" \
-	              -e "s|__CURSOR_BIN__|$(CURSOR_BIN)|g" \
 	              -e "s|__CODE_BIN__|$(CODE_BIN)|g" \
 	              "apps/$$app.applescript" > "$$work/script.applescript"; \
 	          osacompile -o "$$work/test.scpt" "$$work/script.applescript" >/dev/null 2>&1 \
@@ -103,8 +100,8 @@ check:
 
 # Build wrappers for one or all profiles. After sourcing profiles/$$SLUG.env:
 # NAME = profile NAME, LABEL = profile LABEL. After `. apps/$$app.env` NAME
-# is overridden to the app NAME (Cursor / Claude); LABEL persists. Output
-# naming = "$$NAME $$LABEL.app" (e.g. "Cursor AP.app").
+# is overridden to the app NAME (Claude / Visual Studio Code); LABEL persists. Output
+# naming = "$$NAME $$LABEL.app" (e.g. "Claude AP.app").
 #
 # Notes on the recipe shape:
 # 1. No `install-%` pattern rule because GNU Make 3.81 (shipped with macOS)
@@ -132,7 +129,6 @@ install: check validate-profiles validate-templates
 	        out="$(DEST)/$$NAME $$LABEL.app"; \
 	        work=$$(mktemp -d); \
 	        sed -e "s|__SLUG__|$$SLUG|g" \
-	            -e "s|__CURSOR_BIN__|$(CURSOR_BIN)|g" \
 	            -e "s|__CODE_BIN__|$(CODE_BIN)|g" \
 	            "apps/$$app.applescript" > "$$work/script.applescript"; \
 	        rm -rf "$$out"; \
