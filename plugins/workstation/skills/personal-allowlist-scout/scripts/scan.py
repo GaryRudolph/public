@@ -52,8 +52,9 @@ this testable without touching the real home):
                      else ~/.claude); plus managed settings
                      (--managed-settings / $CLAUDE_MANAGED_SETTINGS
                      JSON files, and the OS managed-settings.json
-                     and managed-settings.d/*.json), whose rules
-                     count for every dir
+                     and managed-settings.d/*.json, whose directory
+                     $CLAUDE_MANAGED_SETTINGS_DIR replaces), whose
+                     rules count for every dir
               repo   <repo>/.claude/settings.json         (permissions.allow)
   gemini      global $GEMINI_DATA_HOME/policies/*.toml    (allow rules)
               repo   <repo>/.gemini/policies/*.toml       (allow rules)
@@ -562,11 +563,15 @@ def claude_managed_files(environ, flags=(), platform=None, base=None):
         if path not in out:
             out.append(path)
 
-    for part in list(flags) + environ.get("CLAUDE_MANAGED_SETTINGS", "").split(":"):
+    named = [(p, True) for p in flags] + [
+        (p, False) for p in environ.get("CLAUDE_MANAGED_SETTINGS", "").split(os.pathsep)]
+    for part, from_flag in named:
         part = part.strip()
         if not part:
             continue
         f = Path(part)
+        if from_flag:
+            f = f.resolve()  # a flag's relative path is relative to the CWD
         if not f.is_absolute():
             sys.stderr.write("warn: managed settings path is not absolute, "
                              "skipped: %s\n" % part)
@@ -1136,6 +1141,10 @@ def main(argv=None):
         os.environ, args.managed_settings,
         base=Path(os.environ["CLAUDE_MANAGED_SETTINGS_DIR"])
         if os.environ.get("CLAUDE_MANAGED_SETTINGS_DIR") else None)
+    for f in managed_files:
+        if f.is_file() and not isinstance(load_json_lenient(f), dict):
+            sys.stderr.write("warn: managed settings file is not a JSON "
+                             "object, no rules counted: %s\n" % f)
     managed_prefixes = [permissions_allow_prefixes(f) for f in managed_files]
     managed_flat = [p for ps in managed_prefixes for p in ps]
 

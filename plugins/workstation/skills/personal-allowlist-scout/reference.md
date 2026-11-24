@@ -265,12 +265,14 @@ rules before the every-dir intersection. The scout reads these JSON files'
 `permissions.allow`, in this order:
 
 1. `--managed-settings FILE` (repeatable).
-2. `$CLAUDE_MANAGED_SETTINGS`, colon-separated absolute paths.
+2. `$CLAUDE_MANAGED_SETTINGS`, absolute paths separated by the OS path
+   separator (`:` on macOS and Linux). A flag's relative path is taken from
+   the current directory.
 3. The OS file-based managed settings, when present: `managed-settings.json`
    and `managed-settings.d/*.json` under `/etc/claude-code` (Linux),
    `/Library/Application Support/ClaudeCode` (macOS) or
    `C:\Program Files\ClaudeCode` (Windows). `$CLAUDE_MANAGED_SETTINGS_DIR`
-   replaces that directory (used by the tests).
+   replaces that directory (the tests use it).
 
 Why this source: the org rules are server-managed, delivered through the admin
 console, and Claude Code documents no local copy of server-managed settings to
@@ -282,7 +284,10 @@ deploy managed settings as a file get them with no setup. With none found the
 scout says so in the summary and `global_allowlists.claude.managed` is empty;
 Claude coverage then comes only from the config dirs, as before. The JSON's
 `global_allowlists.claude.managed` lists each file's `path`, `exists` and
-`count`; a named file that doesn't exist is reported and not counted.
+`count`; a named file that doesn't exist is reported and not counted, and one that
+isn't a JSON object warns on stderr. Only `permissions.allow` is read: a
+managed `deny` or `ask` rule doesn't remove coverage, same as for the
+config dirs' files.
 
 **Per-repo files** (relative to the repo root):
 

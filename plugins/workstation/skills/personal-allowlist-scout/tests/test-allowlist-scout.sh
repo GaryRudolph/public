@@ -100,7 +100,7 @@ check S6 "$out" 'dir_names() == [".claude-lolay"]'
 check S6 "$out" '[p.split("/")[-1] for p in claude["missing_dirs"]] == [".claude-gone"]'
 check S6 "$out" '"make test" not in claude_missing("r2")'
 
-printf '[S7] managed settings count for every dir (flag, env var, OS drop-in)\n'
+printf '[S7] managed settings count for every dir (flag, env var, OS drop-in, bad file warns)\n'
 managed="$tmp/managed.json"
 printf '{"permissions":{"allow":["Bash(make test)","Bash(make lint)"]}}\n' > "$managed"
 out=$(run_scan CLAUDE_CONFIG_DIRS="$lolay:$ap" CLAUDE_CONFIG_DIR="$lolay" \
@@ -118,6 +118,11 @@ cp "$managed" "$tmp/os/managed-settings.d/10-org.json"
 out=$(run_scan CLAUDE_CONFIG_DIR="$tmp/home/.claude-none" CLAUDE_MANAGED_SETTINGS_DIR="$tmp/os") \
     || fail "S7: drop-in exited non-zero"
 check S7 "$out" '"make test" not in claude_missing("r2")'
+
+printf '{not json' > "$tmp/bad.json"
+out=$(run_scan CLAUDE_CONFIG_DIR="$lolay" CLAUDE_MANAGED_SETTINGS="$tmp/bad.json" 2>"$tmp/err") \
+    || fail "S7: bad file exited non-zero"
+grep -q 'not a JSON object' "$tmp/err" || fail "S7: no warning for an unparsable managed file"
 
 printf '[S8] no managed file: unchanged, and reported empty\n'
 out=$(run_scan CLAUDE_CONFIG_DIR="$lolay") || fail "S8: scan exited non-zero"

@@ -375,6 +375,10 @@ class ClaudeManagedFiles(unittest.TestCase):
             self.base / "managed-settings.d" / "10-a.json",
             self.base / "managed-settings.d" / "20-b.json"])
 
+    def test_flag_relative_path_resolves_against_cwd(self):
+        got = self.files({}, ["rel/org.json"])
+        self.assertEqual(got, [Path("rel/org.json").resolve()])
+
     def test_relative_paths_skipped_and_absent_os_files_unlisted(self):
         self.assertEqual(self.files({"CLAUDE_MANAGED_SETTINGS": "rel.json:~/x.json"}), [])
 
