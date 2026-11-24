@@ -3,26 +3,24 @@
 #
 # Personal = default behavior of bare `cursor`, `code`, and `opencode`. Bare
 # `claude` defaults to the lolay account instead (personal via claude-personal).
-# Each profile gets one alias per app: cursor-<slug>, claude-<slug>, code-<slug>.
+# Each profile gets one alias per app: claude-<slug>, code-<slug>. Cursor has
+# no per-profile wrappers; it's always the personal account.
 #
-# cursor-<slug> / code-<slug> require the matching <App> <LABEL>.app, built by
+# code-<slug> requires the matching Visual Studio Code <LABEL>.app, built by
 # `cd macos-launchers && make install` (installs to ~/Applications).
 #
-# Bare `cursor` / `claude` / `code` / `opencode` (defined below the explicit aliases) are
-# path-aware wrappers: they route to the agerpoint app/config when the first
-# path argument or pwd is inside ~/Projects/agerpoint/, otherwise they fall
-# through to the default (personal; lolay for claude). See dotfiles/fish/README.md.
+# Bare `claude` / `code` / `opencode` (defined below the explicit aliases) are
+# path-aware wrappers: they route to a profile's app/config when the first path
+# argument or pwd is inside ~/Projects/agerpoint/ or ~/Projects/ussander/,
+# otherwise they fall through to the default (personal; lolay for claude). See
+# dotfiles/fish/README.md.
 #
 # Editor launches go through `env (_context_clean_env)` (conf.d/80-context.fish):
 # `open` and the editor CLIs hand the shell's env to the app, so this shell's
-# context markers would otherwise leak into it. The AP wrappers set the
+# context markers would otherwise leak into it. The profile wrappers set the
 # profile's own env (CLAUDE_CONFIG_DIR, extensions dir) themselves.
 
 # --- agerpoint (slug=agerpoint, LABEL=AP) ---
-
-function cursor-agerpoint --description 'Launch Cursor (Agerpoint, via Cursor AP.app)'
-    env (_context_clean_env) open -a "Cursor AP" $argv
-end
 
 function claude-agerpoint --description 'Claude Code CLI (Agerpoint account)'
     set -lx CLAUDE_CONFIG_DIR "$HOME/.claude-agerpoint"
@@ -33,8 +31,20 @@ function code-agerpoint --description 'Launch VS Code (Agerpoint, via Visual Stu
     env (_context_clean_env) open -a "Visual Studio Code AP" $argv
 end
 
+# --- ussander (slug=ussander, LABEL=US) ---
+
+function claude-ussander --description 'Claude Code CLI (US Sander account)'
+    set -lx CLAUDE_CONFIG_DIR "$HOME/.claude-ussander"
+    command claude $argv
+end
+
+function code-ussander --description 'Launch VS Code (US Sander, via Visual Studio Code US.app)'
+    env (_context_clean_env) open -a "Visual Studio Code US" $argv
+end
+
 # --- lolay (slug=lolay, LABEL=LO) — Claude only ---
-# Claude Team account; the routed default for everything outside agerpoint.
+# Claude Team account; the routed default for everything outside agerpoint
+# and ussander.
 # Desktop counterpart is Claude LO.app.
 
 function claude-lolay --description 'Claude Code CLI (Lolay account)'
@@ -45,7 +55,7 @@ end
 # --- personal — explicit escape hatch (default ~/.claude, no longer routed) ---
 
 function claude-personal --description 'Claude Code CLI (personal account, ~/.claude)'
-    # env -u, not `set -e`: inside agerpoint the marker is a global, and
+    # env -u, not `set -e`: inside agerpoint or ussander the marker is a global, and
     # `set -e` would erase it for the whole shell.
     env -u CLAUDE_CONFIG_DIR claude $argv
 end
@@ -55,8 +65,8 @@ end
 function _opencode_launch_desktop --description 'open -a OpenCode [paths...]'
     set -l profile $argv[1]
     set -e argv[1]
-    if test "$profile" = agerpoint
-        env OPENCODE_APPNAME=opencode-agerpoint open -a OpenCode -- $argv
+    if contains -- $profile agerpoint ussander
+        env OPENCODE_APPNAME=opencode-$profile open -a OpenCode -- $argv
     else
         open -a OpenCode -- $argv
     end
@@ -64,22 +74,21 @@ end
 
 # --- Path-aware bare commands ------------------------------------------------
 # Use _context_from_argv to derive the context from the first path-like arg
-# (or pwd if no path arg). Agerpoint is the only context with its own paid
-# Cursor/Claude account today, so the routing is just "agerpoint or default."
+# (or pwd if no path arg). Agerpoint and ussander have their own accounts;
+# everything else takes the default.
 
-function cursor --description 'Cursor, routed to agerpoint app or personal default'
-    switch (_context_from_argv $argv)
-        case agerpoint
-            env (_context_clean_env) open -a "Cursor AP" $argv
-        case '*'
-            env (_context_clean_env) cursor $argv
-    end
+# Cursor has no per-profile app: always the personal one, minus this shell's
+# context markers.
+function cursor --description 'Cursor (personal), without the shell context env'
+    env (_context_clean_env) cursor $argv
 end
 
-function code --description 'VS Code, routed to agerpoint app or personal default'
+function code --description 'VS Code, routed to agerpoint/ussander app or personal default'
     switch (_context_from_argv $argv)
         case agerpoint
             env (_context_clean_env) open -a "Visual Studio Code AP" $argv
+        case ussander
+            env (_context_clean_env) open -a "Visual Studio Code US" $argv
         case '*'
             env (_context_clean_env) code $argv
     end
@@ -90,17 +99,18 @@ end
 # (claude-personal) is left out, so the installer doesn't manage it; the scout
 # still checks a session's own dir. Keep it in step with the CLAUDE_CONFIG_DIR
 # values here, in dotfiles/zshrc and in macos-launchers.
-set -gx CLAUDE_CONFIG_DIRS "$HOME/.claude-lolay:$HOME/.claude-agerpoint"
+set -gx CLAUDE_CONFIG_DIRS "$HOME/.claude-lolay:$HOME/.claude-agerpoint:$HOME/.claude-ussander"
 
-function claude --description 'Claude Code CLI, routed to agerpoint or lolay config'
-    switch (_context_from_argv $argv)
-        case agerpoint
-            set -lx CLAUDE_CONFIG_DIR "$HOME/.claude-agerpoint"
+function claude --description 'Claude Code CLI, routed to agerpoint, ussander or lolay config'
+    set -l ctx (_context_from_argv $argv)
+    switch $ctx
+        case agerpoint ussander
+            set -lx CLAUDE_CONFIG_DIR "$HOME/.claude-$ctx"
             command claude $argv
         case '*'
             # Personal/lolay/nowline/deskhound all use the lolay Claude Team
-            # account. Set explicitly so a path arg outside agerpoint wins over
-            # the agerpoint marker inherited from pwd. Personal ~/.claude is
+            # account. Set explicitly so a path arg outside agerpoint/ussander
+            # wins over a marker inherited from pwd. Personal ~/.claude is
             # still reachable via claude-personal.
             set -lx CLAUDE_CONFIG_DIR "$HOME/.claude-lolay"
             command claude $argv
@@ -110,8 +120,8 @@ end
 function opencode --description 'OpenCode: path-aware profile; CLI if installed else desktop app'
     set -l ctx (_context_from_argv $argv)
     if command -vq opencode
-        if test "$ctx" = agerpoint
-            set -lx OPENCODE_APPNAME opencode-agerpoint
+        if contains -- $ctx agerpoint ussander
+            set -lx OPENCODE_APPNAME opencode-$ctx
         end
         command opencode $argv
     else

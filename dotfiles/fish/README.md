@@ -159,13 +159,14 @@ opening a new one.
 
 ## Per-context auto-switching
 
-The five "worlds" you live in are derived from your `~/Projects/` layout:
+The six "worlds" you live in are derived from your `~/Projects/` layout:
 
 | Tree                       | Context     |
 | -------------------------- | ----------- |
 | anywhere else              | `personal`  |
 | `~/Projects/lolay/`        | `lolay`     |
 | `~/Projects/agerpoint/`    | `agerpoint` |
+| `~/Projects/ussander/`     | `ussander`  |
 | `~/Projects/nowline/`      | `nowline`   |
 | `~/Projects/deskhound/`    | `deskhound` |
 
@@ -211,7 +212,7 @@ what each context wants. Each `context_register` call takes two kinds of values:
   the regular login (for `gcloud` CLI) and the application-default login (for
   SDK clients / Terraform, which read `GOOGLE_APPLICATION_CREDENTIALS`):
   ```sh
-  for ctx in agerpoint nowline deskhound
+  for ctx in agerpoint ussander nowline deskhound
       env CLOUDSDK_CONFIG=$HOME/.config/gcloud-$ctx gcloud auth login
       env CLOUDSDK_CONFIG=$HOME/.config/gcloud-$ctx gcloud auth application-default login
   end
@@ -228,36 +229,39 @@ Bare `cursor .` / `code .` / `claude .` / `opencode` are path-aware wrappers (se
 context from the first path-like argument — or pwd if none — via
 `_context_from_argv`, and route:
 
-- **agerpoint** → `Cursor AP.app` / `Visual Studio Code AP.app` / `~/.claude-agerpoint` / `OPENCODE_APPNAME=opencode-agerpoint`
-- **everything else** → the bare `cursor` / `code` / `opencode` (personal account),
+- **agerpoint** → `Visual Studio Code AP.app` / `~/.claude-agerpoint` / `OPENCODE_APPNAME=opencode-agerpoint`
+- **ussander** → `Visual Studio Code US.app` / `~/.claude-ussander` / `OPENCODE_APPNAME=opencode-ussander`
+- **everything else** → the bare `code` / `opencode` (personal account),
   and `claude` with `~/.claude-lolay` (lolay Claude Team account, used for billing and the Claude runners beta)
 
-This means `cd ~/Projects/agerpoint/bok && cursor .` opens the agerpoint
-Cursor, and `cursor ~/Projects/agerpoint/bok` from anywhere does the same.
-Personal, lolay, nowline, and deskhound all share the personal Cursor/VS Code/OpenCode
+This means `cd ~/Projects/agerpoint/bok && code .` opens the agerpoint
+VS Code, and `code ~/Projects/agerpoint/bok` from anywhere does the same.
+Cursor isn't routed: bare `cursor` is always the personal Cursor, launched
+without this shell's context markers.
+Personal, lolay, nowline, and deskhound all share the personal VS Code/OpenCode
 and the lolay Claude account. The personal Claude login in `~/.claude` is no
 longer routed; force it with `claude-personal`.
 
 Editors always launch through `env (_context_clean_env)`: `open` and the editor
 CLIs hand this shell's environment to the app, so without it a personal Cursor
 started from an agerpoint pwd would pick up agerpoint's gcloud, AWS and Claude
-markers (and an AP app started from a nowline pwd, nowline's). The AP wrappers
+markers (and an AP app started from a nowline pwd, nowline's). The profile wrappers
 set the profile's own `CLAUDE_CONFIG_DIR` and extensions dir themselves, so an
 app gets the same environment from the shell as from Spotlight.
 
 OpenCode config is symlinked from [`dotfiles/opencode/`](../opencode/README.md)
-(`personal.json` / `agerpoint.json` → `~/.config/opencode*/opencode.json`).
+(`personal.json` / `agerpoint.json` / `ussander.json` → `~/.config/opencode*/opencode.json`).
 Credentials stay machine-local under `~/.local/share/opencode*/auth.json`.
 
 Bare `opencode` uses the **CLI** when `opencode` is on PATH (`brew install
 anomalyco/tap/opencode`); otherwise it launches the **desktop app** via
 `open -a OpenCode` (never run `Contents/MacOS/OpenCode` directly — that can
-trigger EPIPE errors). Profile routing (personal vs agerpoint) follows the same
-path rules as `cursor` and `claude`.
+trigger EPIPE errors). Profile routing (personal, agerpoint, ussander) follows the same
+path rules as `code` and `claude`.
 
-The explicit `cursor-agerpoint` / `code-agerpoint` / `claude-agerpoint`
-functions stay around for when you want to force agerpoint from outside its
-tree without typing the path. For OpenCode, `opencode ~/Projects/agerpoint/bok`
+The explicit `code-agerpoint` / `claude-agerpoint` and `code-ussander` /
+`claude-ussander` functions stay around for when you want to force a profile
+from outside its tree without typing the path. For OpenCode, `opencode ~/Projects/agerpoint/bok`
 does the same. `claude-lolay` forces the lolay account, and `claude-personal`
 clears `CLAUDE_CONFIG_DIR` so Claude Code uses the standard `~/.claude`.
 

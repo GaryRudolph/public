@@ -11,6 +11,7 @@ Multi-profile OpenCode config mirroring the Cursor / Claude Code setup in
 | ------------------ | -------------- |
 | `personal.json` | `~/.config/opencode/opencode.json` |
 | `agerpoint.json` | `~/.config/opencode-agerpoint/opencode.json` |
+| `ussander.json` | `~/.config/opencode-ussander/opencode.json` |
 
 OpenCode always reads `opencode.json` inside each profile's config directory.
 Only the repo-side filenames use the flat `personal.json` / `agerpoint.json`
@@ -21,9 +22,10 @@ shape (same idea as `dotfiles/git/agerpoint.gitconfig`).
 | Context | Profile |
 | ------- | ------- |
 | `agerpoint` | `OPENCODE_APPNAME=opencode-agerpoint` |
+| `ussander` | `OPENCODE_APPNAME=opencode-ussander` |
 | personal, lolay, nowline, deskhound | default (no marker) |
 
-Inside `~/Projects/agerpoint/`, the fish context switcher sets
+Inside `~/Projects/agerpoint/` or `~/Projects/ussander/`, the fish context switcher sets
 `OPENCODE_APPNAME` automatically. The bare `opencode` wrapper routes by path
 when launched from outside the tree (see [`dotfiles/fish/README.md`](../fish/README.md)).
 
@@ -45,12 +47,14 @@ Credentials live in runtime data dirs — never symlinked or committed:
 
 - Personal: `~/.local/share/opencode/auth.json`
 - Agerpoint: `~/.local/share/opencode-agerpoint/auth.json`
+- US Sander: `~/.local/share/opencode-ussander/auth.json`
 
 After linking configs, authenticate once per profile:
 
 ```sh
 opencode auth login
 OPENCODE_APPNAME=opencode-agerpoint opencode auth login
+OPENCODE_APPNAME=opencode-ussander opencode auth login
 ```
 
 OAuth (Claude Pro/Max login) is recommended for daily use. Re-run on a new
@@ -168,8 +172,8 @@ Reversible. Dotfiles stay in git; you only detach the machine.
 
 ```sh
 rm -f ~/.config/opencode/opencode.json
-rm -f ~/.config/opencode-agerpoint/opencode.json
-rmdir ~/.config/opencode ~/.config/opencode-agerpoint 2>/dev/null || true
+rm -f ~/.config/opencode-agerpoint/opencode.json ~/.config/opencode-ussander/opencode.json
+rmdir ~/.config/opencode ~/.config/opencode-agerpoint ~/.config/opencode-ussander 2>/dev/null || true
 ```
 
 **2. Disable the fish wrapper** (pick one)
@@ -179,10 +183,10 @@ rmdir ~/.config/opencode ~/.config/opencode-agerpoint 2>/dev/null || true
 - Revert `65-aliases.apps.fish` from git (Option B step 2) while keeping the
   rest of the repo.
 
-**3. Remove agerpoint context marker** (private repo)
+**3. Remove the agerpoint and ussander context markers** (private repo)
 
 Edit `~/Projects/personal/private/dotfiles/fish/conf.d/context-registry.fish`
-and delete the `OPENCODE_APPNAME=opencode-agerpoint \` line (and trim the
+and delete the `OPENCODE_APPNAME=opencode-agerpoint \` and `OPENCODE_APPNAME=opencode-ussander \` lines (and trim the
 OpenCode mention in the header comment if you like). Then:
 
 ```sh
@@ -193,8 +197,8 @@ context reload   # or open a new fish tab
 
 ```sh
 # Quit OpenCode first (Cmd+Q)
-rm -rf ~/.local/share/opencode ~/.local/share/opencode-agerpoint
-rm -rf ~/.cache/opencode ~/.cache/opencode-agerpoint
+rm -rf ~/.local/share/opencode ~/.local/share/opencode-agerpoint ~/.local/share/opencode-ussander
+rm -rf ~/.cache/opencode ~/.cache/opencode-agerpoint ~/.cache/opencode-ussander
 rm -rf ~/Library/Application\ Support/ai.opencode.desktop   # desktop app state
 # rm -rf /Applications/OpenCode.app                          # if you installed the .app
 # brew uninstall opencode                                    # if you installed the CLI

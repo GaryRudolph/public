@@ -213,19 +213,20 @@ esac
 
 # Multi-account launchers (per-profile).
 # Each profile = one alias per app. See macos-launchers/README.md to add more.
-# cursor-agerpoint / code-agerpoint require the matching <App> AP.app — built by
-# `cd macos-launchers && make install`.
-alias cursor-agerpoint='open -a "Cursor AP"'
+# code-<slug> requires the matching Visual Studio Code <LABEL>.app, built by
+# `cd macos-launchers && make install`. Cursor has no per-profile wrappers.
 alias claude-agerpoint='CLAUDE_CONFIG_DIR="$HOME/.claude-agerpoint" claude'
 alias code-agerpoint='open -a "Visual Studio Code AP"'
+alias claude-ussander='CLAUDE_CONFIG_DIR="$HOME/.claude-ussander" claude'
+alias code-ussander='open -a "Visual Studio Code US"'
 # lolay = Claude Team account (Claude only; desktop is Claude LO.app). Fish routes
-# bare `claude` to it outside agerpoint; zsh has no path routing, so bare
+# bare `claude` to it outside agerpoint and ussander; zsh has no path routing, so bare
 # `claude` here stays on the personal ~/.claude.
 alias claude-lolay='CLAUDE_CONFIG_DIR="$HOME/.claude-lolay" claude'
 alias claude-personal='env -u CLAUDE_CONFIG_DIR claude'
 # The routed config dirs, for the agents installer and the allowlist scout;
 # same list as dotfiles/fish/conf.d/65-aliases.apps.fish.
-export CLAUDE_CONFIG_DIRS="$HOME/.claude-lolay:$HOME/.claude-agerpoint"
+export CLAUDE_CONFIG_DIRS="$HOME/.claude-lolay:$HOME/.claude-agerpoint:$HOME/.claude-ussander"
 # nvm
 export NVM_DIR="$HOME/.nvm"
 [ -s "/opt/homebrew/opt/nvm/nvm.sh" ] && \. "/opt/homebrew/opt/nvm/nvm.sh"

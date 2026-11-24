@@ -54,7 +54,7 @@ MAKEFILE_LABEL    ?= ~/Projects/personal/public/agents/Makefile
 # versions wrote into its settings.json. Set it in agents/local.mk, or export
 # it from the shell (the allowlist scout reads the exported list too), to
 # match the CLAUDE_CONFIG_DIR your shell and launchers route to, e.g.
-#   CLAUDE_CONFIG_DIRS := $(HOME)/.claude-lolay:$(HOME)/.claude-agerpoint
+#   CLAUDE_CONFIG_DIRS := $(HOME)/.claude-lolay:$(HOME)/.claude-agerpoint:$(HOME)/.claude-ussander
 # `make status` names any ~/.claude* dir that isn't listed.
 CLAUDE_CONFIG_DIRS ?= $(HOME)/.claude
 

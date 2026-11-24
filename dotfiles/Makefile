@@ -10,6 +10,7 @@ GIT_FRAGMENTS := $(wildcard $(DOTFILES_DIR)/git/*.gitconfig)
 GHOSTTY_CONFIG_DIR := $(HOME)/.config/ghostty
 OPENCODE_PERSONAL_DIR := $(HOME)/.config/opencode
 OPENCODE_AGERPOINT_DIR := $(HOME)/.config/opencode-agerpoint
+OPENCODE_USSANDER_DIR := $(HOME)/.config/opencode-ussander
 
 .DEFAULT_GOAL := help
 .PHONY: help install link-git link-ghostty link-opencode
@@ -42,8 +43,10 @@ link-ghostty: ## Symlink dotfiles/ghostty/config into ~/.config/ghostty/ (backs 
 	fi
 
 link-opencode: ## Symlink dotfiles/opencode/*.json into ~/.config/opencode*/opencode.json
-	@mkdir -p $(OPENCODE_PERSONAL_DIR) $(OPENCODE_AGERPOINT_DIR)
+	@mkdir -p $(OPENCODE_PERSONAL_DIR) $(OPENCODE_AGERPOINT_DIR) $(OPENCODE_USSANDER_DIR)
 	@ln -snf $(DOTFILES_DIR)/opencode/personal.json $(OPENCODE_PERSONAL_DIR)/opencode.json \
 		&& echo "linked $(OPENCODE_PERSONAL_DIR)/opencode.json -> $(DOTFILES_DIR)/opencode/personal.json"
 	@ln -snf $(DOTFILES_DIR)/opencode/agerpoint.json $(OPENCODE_AGERPOINT_DIR)/opencode.json \
 		&& echo "linked $(OPENCODE_AGERPOINT_DIR)/opencode.json -> $(DOTFILES_DIR)/opencode/agerpoint.json"
+	@ln -snf $(DOTFILES_DIR)/opencode/ussander.json $(OPENCODE_USSANDER_DIR)/opencode.json \
+		&& echo "linked $(OPENCODE_USSANDER_DIR)/opencode.json -> $(DOTFILES_DIR)/opencode/ussander.json"
