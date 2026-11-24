@@ -238,7 +238,7 @@ created.
 |---|---|
 | Cursor IDE | `$CURSOR_DATA_HOME/permissions.json` (default `~/.cursor/permissions.json`) |
 | Cursor CLI | `$CURSOR_DATA_HOME/cli-config.json` (default `~/.cursor/cli-config.json`) |
-| Claude Code | `<dir>/settings.json` for each existing dir in `$CLAUDE_CONFIG_DIRS`, plus the session's `$CLAUDE_CONFIG_DIR` (else `~/.claude`) (see below) |
+| Claude Code | `<dir>/settings.json` for each existing dir in `$CLAUDE_CONFIG_DIRS`, plus the session's `$CLAUDE_CONFIG_DIR` (else `~/.claude`), plus managed settings (see below) |
 | Gemini | `$GEMINI_DATA_HOME/policies/*.toml` (default `~/.gemini/policies/*.toml`) |
 
 **Claude Code config dirs.** Claude Code sessions can run from several config
@@ -256,6 +256,40 @@ every dir matched broadly. The JSON's `global_allowlists.claude` gives
 `source` (`CLAUDE_CONFIG_DIRS` or `session`), `session_dir`, per dir `path`,
 `exists` and `count`, and `missing_dirs` (listed, not on this machine, not
 counted). `CLAUDE_DATA_HOME` is no longer read.
+
+**Claude Code managed settings.** The org allowlist reaches Claude Code only
+as managed settings, so the `settings.json` files above no longer hold it, and
+without it every allowed command would read as uncovered and be proposed as
+drift. Managed rules apply under every config dir, so they join each dir's
+rules before the every-dir intersection. The scout reads these JSON files'
+`permissions.allow`, in this order:
+
+1. `--managed-settings FILE` (repeatable).
+2. `$CLAUDE_MANAGED_SETTINGS`, absolute paths separated by the OS path
+   separator (`:` on macOS and Linux). A flag's relative path is taken from
+   the current directory.
+3. The OS file-based managed settings, when present: `managed-settings.json`
+   and `managed-settings.d/*.json` under `/etc/claude-code` (Linux),
+   `/Library/Application Support/ClaudeCode` (macOS) or
+   `C:\Program Files\ClaudeCode` (Windows). `$CLAUDE_MANAGED_SETTINGS_DIR`
+   replaces that directory (the tests use it).
+
+Why this source: the org rules are server-managed, delivered through the admin
+console, and Claude Code documents no local copy of server-managed settings to
+read, so the scout doesn't guess at one. The plugin also can't read the repo's
+`agents/org/` render (self-contained rule). An explicit file works on any
+machine: save the rendered managed settings JSON somewhere stable and export
+`CLAUDE_MANAGED_SETTINGS=/path/to/claude-managed-settings.json`. Machines that
+deploy managed settings as a file get them with no setup. With none found the
+scout says so in the summary and `global_allowlists.claude.managed` is empty;
+Claude coverage then comes only from the config dirs, as before. The JSON's
+`global_allowlists.claude.managed` lists each file's `path`, `exists` and
+`count`; a named file that doesn't exist is reported and not counted, and one that
+isn't a JSON object warns on stderr. Hidden drop-ins (`.name.json`) are skipped. Only `permissions.allow` is read: a
+managed `deny` or `ask` rule doesn't remove coverage, same as for the
+config dirs' files. Likewise `allowManagedPermissionRulesOnly` isn't
+modeled: if an org sets it, local rules stop applying but the scout still
+counts them (the org's base settings don't set it).
 
 **Per-repo files** (relative to the repo root):
 

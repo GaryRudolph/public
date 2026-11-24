@@ -351,6 +351,58 @@ class ClaudeConfigDirs(unittest.TestCase):
                              ([here, session], [gone]))
 
 
+class ClaudeManagedFiles(unittest.TestCase):
+    def setUp(self):
+        self._tmp = tempfile.TemporaryDirectory()
+        self.t = Path(self._tmp.name)
+        self.base = self.t / "os"
+        (self.base / "managed-settings.d").mkdir(parents=True)
+
+    def tearDown(self):
+        self._tmp.cleanup()
+
+    def files(self, env=None, flags=()):
+        return scan.claude_managed_files(env or {}, flags, base=self.base)
+
+    def test_flags_then_env_then_os_files_without_duplicates(self):
+        (self.base / "managed-settings.json").write_text("{}")
+        (self.base / "managed-settings.d" / "20-b.json").write_text("{}")
+        (self.base / "managed-settings.d" / "10-a.json").write_text("{}")
+        env = {"CLAUDE_MANAGED_SETTINGS": "/e/one.json::/f/two.json:/f/flag.json"}
+        self.assertEqual(self.files(env, ["/f/flag.json"]), [
+            Path("/f/flag.json"), Path("/e/one.json"), Path("/f/two.json"),
+            self.base / "managed-settings.json",
+            self.base / "managed-settings.d" / "10-a.json",
+            self.base / "managed-settings.d" / "20-b.json"])
+
+    def test_hidden_drop_ins_are_ignored(self):
+        (self.base / "managed-settings.d" / ".10-off.json").write_text("{}")
+        (self.base / "managed-settings.d" / "20-on.json").write_text("{}")
+        self.assertEqual(self.files(), [self.base / "managed-settings.d" / "20-on.json"])
+
+    def test_malformed_permissions_read_as_no_rules(self):
+        f = self.t / "m.json"
+        for body in ('{"permissions": ["x"]}', '{"permissions": {"allow": "Bash(x)"}}',
+                     '{"permissions": null}', '[]'):
+            f.write_text(body)
+            self.assertEqual(scan.permissions_allow_prefixes(f), [], body)
+
+    def test_flag_relative_path_resolves_against_cwd(self):
+        got = self.files({}, ["rel/org.json"])
+        self.assertEqual(got, [Path("rel/org.json").resolve()])
+
+    def test_relative_paths_skipped_and_absent_os_files_unlisted(self):
+        self.assertEqual(self.files({"CLAUDE_MANAGED_SETTINGS": "rel.json:~/x.json"}), [])
+
+    def test_named_file_that_is_absent_is_kept(self):
+        self.assertEqual(self.files({}, ["/nope.json"]), [Path("/nope.json")])
+
+    def test_os_dir_per_platform(self):
+        self.assertEqual(scan.os_managed_settings_dir("linux"), Path("/etc/claude-code"))
+        self.assertEqual(scan.os_managed_settings_dir("darwin"),
+                         Path("/Library/Application Support/ClaudeCode"))
+
+
 class CoveredByAll(unittest.TestCase):
     LOLAY = ["make test", "make lint"]
     AP = ["make lint"]
