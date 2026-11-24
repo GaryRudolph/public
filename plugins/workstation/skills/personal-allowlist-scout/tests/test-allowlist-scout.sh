@@ -39,6 +39,7 @@ claude_allow "$tmp/home/.claude" "Bash(make test:*)" "Bash(make build:*)"
 
 run_scan() {  # extra env assignments...
     env -u CLAUDE_CONFIG_DIRS -u CLAUDE_CONFIG_DIR -u CLAUDE_DATA_HOME \
+        -u CLAUDE_MANAGED_SETTINGS CLAUDE_MANAGED_SETTINGS_DIR="$tmp/os-none" \
         HOME="$tmp/home" CURSOR_DATA_HOME="$tmp/home/.cursor" \
         GEMINI_DATA_HOME="$tmp/home/.gemini" "$@" \
         python3 -I "$scan" --no-summary "$tmp/ws"
@@ -98,6 +99,29 @@ out=$(run_scan CLAUDE_CONFIG_DIRS="$tmp/home/.claude-gone:$lolay" CLAUDE_CONFIG_
 check S6 "$out" 'dir_names() == [".claude-lolay"]'
 check S6 "$out" '[p.split("/")[-1] for p in claude["missing_dirs"]] == [".claude-gone"]'
 check S6 "$out" '"make test" not in claude_missing("r2")'
+
+printf '[S7] managed settings count for every dir (flag, env var, OS drop-in)\n'
+managed="$tmp/managed.json"
+printf '{"permissions":{"allow":["Bash(make test)","Bash(make lint)"]}}\n' > "$managed"
+out=$(run_scan CLAUDE_CONFIG_DIRS="$lolay:$ap" CLAUDE_CONFIG_DIR="$lolay" \
+    CLAUDE_MANAGED_SETTINGS="$managed") || fail "S7: scan exited non-zero"
+check S7 "$out" '[m["count"] for m in claude["managed"]] == [2]'
+check S7 "$out" '[x["count"] for x in claude["dirs"]] == [1, 2]'
+check S7 "$out" '"make test" not in claude_missing("r2") and "make lint" not in claude_missing("r2")'
+check S7 "$out" '"make build" in claude_missing("r2")'
+out=$(run_scan CLAUDE_CONFIG_DIRS="$lolay:$ap" CLAUDE_CONFIG_DIR="$lolay" \
+    CLAUDE_MANAGED_SETTINGS="$tmp/absent.json" 2>/dev/null) || fail "S7: absent file exited non-zero"
+check S7 "$out" '[m["exists"] for m in claude["managed"]] == [False]'
+check S7 "$out" '"make test" in claude_missing("r2")'
+mkdir -p "$tmp/os/managed-settings.d"
+cp "$managed" "$tmp/os/managed-settings.d/10-org.json"
+out=$(run_scan CLAUDE_CONFIG_DIR="$tmp/home/.claude-none" CLAUDE_MANAGED_SETTINGS_DIR="$tmp/os") \
+    || fail "S7: drop-in exited non-zero"
+check S7 "$out" '"make test" not in claude_missing("r2")'
+
+printf '[S8] no managed file: unchanged, and reported empty\n'
+out=$(run_scan CLAUDE_CONFIG_DIR="$lolay") || fail "S8: scan exited non-zero"
+check S8 "$out" 'claude["managed"] == []'
 
 if [ "$fails" -ne 0 ]; then
     printf '%d allowlist-scout check(s) failed\n' "$fails"

@@ -49,7 +49,11 @@ this testable without touching the real home):
                      dir in $CLAUDE_CONFIG_DIRS (colon-
                      separated absolute paths), plus the
                      running session's dir ($CLAUDE_CONFIG_DIR,
-                     else ~/.claude)
+                     else ~/.claude); plus managed settings
+                     (--managed-settings / $CLAUDE_MANAGED_SETTINGS
+                     JSON files, and the OS managed-settings.json
+                     and managed-settings.d/*.json), whose rules
+                     count for every dir
               repo   <repo>/.claude/settings.json         (permissions.allow)
   gemini      global $GEMINI_DATA_HOME/policies/*.toml    (allow rules)
               repo   <repo>/.gemini/policies/*.toml       (allow rules)
@@ -535,6 +539,49 @@ def claude_config_dirs(environ, home: Path):
     return source, listed, session
 
 
+def os_managed_settings_dir(platform=None):
+    """Where Claude Code looks for file-based managed settings on this OS."""
+    platform = platform or sys.platform
+    if platform == "darwin":
+        return Path("/Library/Application Support/ClaudeCode")
+    if platform.startswith("win"):
+        return Path("C:/Program Files/ClaudeCode")
+    return Path("/etc/claude-code")
+
+
+def claude_managed_files(environ, flags=(), platform=None, base=None):
+    """Managed-settings JSON files whose permissions.allow count as global
+    Claude coverage for every config dir: --managed-settings paths, then the
+    colon-separated $CLAUDE_MANAGED_SETTINGS, then the OS managed-settings.json
+    and managed-settings.d/*.json (sorted). Relative paths are skipped with a
+    warning; duplicates dropped. A named file that is absent is kept so the
+    report shows it as missing; the OS locations are listed only if present."""
+    out = []
+
+    def add(path):
+        if path not in out:
+            out.append(path)
+
+    for part in list(flags) + environ.get("CLAUDE_MANAGED_SETTINGS", "").split(":"):
+        part = part.strip()
+        if not part:
+            continue
+        f = Path(part)
+        if not f.is_absolute():
+            sys.stderr.write("warn: managed settings path is not absolute, "
+                             "skipped: %s\n" % part)
+            continue
+        add(f)
+    base = base or os_managed_settings_dir(platform)
+    if (base / "managed-settings.json").is_file():
+        add(base / "managed-settings.json")
+    drop = base / "managed-settings.d"
+    if drop.is_dir():
+        for f in sorted(drop.glob("*.json")):
+            add(f)
+    return out
+
+
 def claude_baseline_dirs(listed, session):
     """The dirs whose allowlists all have to cover a command: every listed dir
     that exists (one missing on this machine has no sessions to protect; it is
@@ -999,6 +1046,13 @@ def render_summary_md(result) -> str:
                      ", ".join("%s (%s)" % (d["path"], d["count"] if d["exists"]
                                             else "no settings.json")
                                for d in claude["dirs"])))
+    if claude["managed"]:
+        lines.append("Claude managed settings (count for every dir): %s" % ", ".join(
+            "%s (%s)" % (m["path"], m["count"] if m["exists"] else "missing")
+            for m in claude["managed"]))
+    else:
+        lines.append("Claude managed settings: none found, so org rules are "
+                     "not counted (see reference.md section 6)")
     if claude["missing_dirs"]:
         lines.append("Listed but missing on this machine, not counted: %s"
                      % ", ".join(claude["missing_dirs"]))
@@ -1059,6 +1113,12 @@ def main(argv=None):
     parser.add_argument("--summary-dir", default=".scratch",
                         help="directory for the human-readable summary "
                              "(default: .scratch under CWD)")
+    parser.add_argument("--managed-settings", action="append", default=[],
+                        metavar="FILE",
+                        help="Claude Code managed-settings JSON file whose "
+                             "permissions.allow counts as global coverage "
+                             "(repeatable; also $CLAUDE_MANAGED_SETTINGS, "
+                             "colon-separated)")
     parser.add_argument("--no-summary", action="store_true",
                         help="emit JSON only; do not write a summary file")
     args = parser.parse_args(argv)
@@ -1071,6 +1131,13 @@ def main(argv=None):
     for d in claude_missing:
         sys.stderr.write("warn: listed Claude config dir does not exist, "
                          "not counted: %s\n" % d)
+
+    managed_files = claude_managed_files(
+        os.environ, args.managed_settings,
+        base=Path(os.environ["CLAUDE_MANAGED_SETTINGS_DIR"])
+        if os.environ.get("CLAUDE_MANAGED_SETTINGS_DIR") else None)
+    managed_prefixes = [permissions_allow_prefixes(f) for f in managed_files]
+    managed_flat = [p for ps in managed_prefixes for p in ps]
 
     # One list of files per harness; a command is covered globally only when
     # every file in its harness's list covers it.
@@ -1089,6 +1156,11 @@ def main(argv=None):
     global_prefixes = {
         h: [readers[h](f) for f in global_files[h]] for h in HARNESSES
     }
+    own_counts = [len(ps) for ps in global_prefixes["claude"]]
+    # Managed rules apply under every config dir, so they join each dir's set
+    # before the every-dir intersection.
+    global_prefixes["claude"] = [ps + managed_flat
+                                 for ps in global_prefixes["claude"]]
 
     def file_meta(f, prefixes):
         return {"path": str(f), "exists": f.exists(), "count": len(prefixes)}
@@ -1099,8 +1171,10 @@ def main(argv=None):
             global_meta[h] = {
                 "source": claude_source,
                 "session_dir": str(claude_session),
-                "dirs": [file_meta(f, p) for f, p
-                         in zip(global_files[h], global_prefixes[h])],
+                "dirs": [{"path": str(f), "exists": f.exists(), "count": n}
+                         for f, n in zip(global_files[h], own_counts)],
+                "managed": [file_meta(f, p) for f, p
+                            in zip(managed_files, managed_prefixes)],
                 "missing_dirs": [str(d) for d in claude_missing],
             }
         else:
