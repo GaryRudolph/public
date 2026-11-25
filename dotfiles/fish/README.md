@@ -201,6 +201,13 @@ what each context wants. Each `context_register` call takes two kinds of values:
   `$GOOGLE_APPLICATION_CREDENTIALS`. Point it at
   `<CLOUDSDK_CONFIG>/application_default_credentials.json` so per-tenant
   `gcloud auth application-default login` keeps working with Terraform.
+  On every context change the switcher also erases `GOOGLE_OAUTH_ACCESS_TOKEN`
+  and `GOOGLE_CREDENTIALS` if they're set, with a note on stderr. Terraform
+  reads both ahead of `GOOGLE_APPLICATION_CREDENTIALS`, so one exported by
+  hand would carry the old context's identity along, and an access token
+  expires after an hour. No sign-in is lost; pass the token on one command
+  (`GOOGLE_OAUTH_ACCESS_TOKEN=(gcloud auth print-access-token) make plan`)
+  rather than exporting it.
 - **`--loadenv`** — short names of private dotenv files to source (see the
   `loadenv` registry above). Files live at
   `~/Projects/personal/private/dotfiles/<ctx>/<thing>.env` and short names
