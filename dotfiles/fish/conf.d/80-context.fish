@@ -138,7 +138,7 @@ end
 # this the app's profile would depend on the shell's pwd rather than on the
 # launcher. Prints `-u KEY` pairs, one word per line.
 function _context_clean_env --description 'Print env(1) -u args that drop all context state'
-    set -l keys __active_context
+    set -l keys __active_context $__context_session_token_keys
     for ctx in $__context_registered
         set -l marker_var __context_markers_$ctx
         for kv in $$marker_var
@@ -164,8 +164,11 @@ set -g __context_session_token_keys GOOGLE_OAUTH_ACCESS_TOKEN GOOGLE_CREDENTIALS
 function _context_drop_session_tokens --description 'Erase hand-set Google tokens on a context change'
     for key in $__context_session_token_keys
         set -q $key; or continue
-        set -eg $key
-        echo "context: cleared $key (it belonged to the previous context)" >&2
+        # Loop so a universal under the global goes too, not just uncovered.
+        while set -q $key
+            set -e $key
+        end
+        echo "context: cleared $key on the context change" >&2
     end
 end
 
