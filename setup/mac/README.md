@@ -79,7 +79,7 @@
 - Git identity per directory tree (built-in `includeIf`; see
 [dotfiles/git/README.md](../../dotfiles/git/README.md))
   - `~/.gitconfig` sets the name and personal email (`GaryRudolph@mac.com`);
-  repos under `~/Projects/{lolay,agerpoint,nowline,deskhound}/` get that
+  repos under `~/Projects/{lolay,agerpoint,ussander,nowline,deskhound}/` get that
   company's email from fragments in `~/.config/git/`
   - Link the base config (backs up any existing `~/.gitconfig`)
 
@@ -139,6 +139,10 @@
   OPENCODE_APPNAME=opencode-agerpoint opencode auth login
   ```
 
+  ```bash
+  OPENCODE_APPNAME=opencode-ussander opencode auth login
+  ```
+
 - Checkout the private repo to `Projects/personal/private` and
 create Symbolic Links
 
@@ -182,7 +186,7 @@ create Symbolic Links
   - WhatsApp
 - (Optional) Build branded multi-account launchers
 (see [macos-launchers/README.md](../../macos-launchers/README.md))
-  - Prereqs: Cursor.app and Claude.app (Standard Software above) plus
+  - Prereqs: Claude.app and Visual Studio Code.app (Standard Software above) plus
   `brew install imagemagick` (Brew section below)
   - Add your profile: `macos-launchers/profiles/<slug>.env` and `<slug>.png`
 
@@ -190,7 +194,7 @@ create Symbolic Links
   cd ~/Projects/personal/public/macos-launchers && make install
   ```
 
-  - Wrappers (e.g. `Cursor AP.app`, `Claude AP.app`) land in `~/Applications/`
+  - Wrappers (e.g. `Claude AP.app`, `Visual Studio Code US.app`) land in `~/Applications/`
 - Install Xcode
   - Install App & SDKs
 
@@ -418,7 +422,7 @@ fish adds it to PATH, so skip the installer's PATH update)
   company, each in its own config dir
 
   ```fish
-  for ctx in agerpoint nowline deskhound
+  for ctx in agerpoint ussander nowline deskhound
       env CLOUDSDK_CONFIG=$HOME/.config/gcloud-$ctx gcloud auth login
       env CLOUDSDK_CONFIG=$HOME/.config/gcloud-$ctx \
           gcloud auth application-default login
@@ -444,15 +448,20 @@ fish adds it to PATH, so skip the installer's PATH update)
   firebase login:ci
   ```
 
-  - Claude Code for the Agerpoint account: sign in once in its own config dir
+  - Claude Code for the Agerpoint and US Sander accounts: sign in once in each
+  one's own config dir
 
   ```bash
   claude-agerpoint
   ```
 
-  - Claude Desktop for Agerpoint (first sign-in only): quit Claude Desktop,
-  temporarily set Safari as the default browser, open `Claude AP.app` and sign
-  in, then switch the default browser back (see the `claude://` sign-in note in
+  ```bash
+  claude-ussander
+  ```
+
+  - Claude Desktop for Agerpoint and US Sander (first sign-in only): quit Claude
+  Desktop, temporarily set Safari as the default browser, open `Claude AP.app`
+  (then `Claude US.app`) and sign in, then switch the default browser back (see the `claude://` sign-in note in
   [macos-launchers/README.md](../../macos-launchers/README.md))
 - Windows Parallels
   - Windows 11 ARM Build

@@ -1,0 +1,9 @@
+# Loaded for repos under ~/Projects/ussander/ via includeIf in the base gitconfig.
+# Today: just stamps the right commit email. SSH still uses the shared key.
+#
+# To split ussander onto its own SSH key later, add here:
+#   [url "git@github.com-ussander:"]
+#       insteadOf = git@github.com:
+# ...and a matching `Host github.com-ussander` stanza in ~/.ssh/config.
+[user]
+	email = garyjr@ussander.com

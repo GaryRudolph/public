@@ -20,6 +20,8 @@
 	path = ~/.config/git/lolay.gitconfig
 [includeIf "gitdir:~/Projects/agerpoint/"]
 	path = ~/.config/git/agerpoint.gitconfig
+[includeIf "gitdir:~/Projects/ussander/"]
+	path = ~/.config/git/ussander.gitconfig
 [includeIf "gitdir:~/Projects/nowline/"]
 	path = ~/.config/git/nowline.gitconfig
 [includeIf "gitdir:~/Projects/deskhound/"]

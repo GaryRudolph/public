@@ -1,7 +1,7 @@
 # Per-context git identity
 
-Personal is the default. Anything inside one of the four work trees under
-`~/Projects/` (`lolay/`, `agerpoint/`, `nowline/`, `deskhound/`) overrides
+Personal is the default. Anything inside one of the five work trees under
+`~/Projects/` (`lolay/`, `agerpoint/`, `ussander/`, `nowline/`, `deskhound/`) overrides
 the commit email to the matching company address. SSH still uses the one
 shared `~/.ssh/id_ed25519` today; the scaffolding to split keys per context
 is in place but dormant.
@@ -15,7 +15,7 @@ Three pieces:
    that route per directory.
 
 2. **Per-context fragments** — `lolay.gitconfig`, `agerpoint.gitconfig`,
-   `nowline.gitconfig`, `deskhound.gitconfig` in this directory each set
+   `ussander.gitconfig`, `nowline.gitconfig`, `deskhound.gitconfig` in this directory each set
    only `user.email`. Symlinked into `~/.config/git/` by the dotfiles
    `Makefile`.
 
@@ -36,6 +36,7 @@ Three pieces:
 | anywhere else              | `GaryRudolph@mac.com`       |
 | `~/Projects/lolay/`        | `gary@lolay.com`            |
 | `~/Projects/agerpoint/`    | `grudolph@agerpoint.com`    |
+| `~/Projects/ussander/`     | `garyjr@ussander.com`       |
 | `~/Projects/nowline/`      | `gary@nowline.io`           |
 | `~/Projects/deskhound/`    | `gary@deskhound.ai`         |
 

@@ -2,7 +2,7 @@
 
 > Not an engineer, or just want a second Claude account next to your first? Use the [Mac how-to](../howtos/mac-two-claude-accounts.md) instead: you paste one prompt and Claude Code sets it up.
 
-Some apps (Cursor, Claude Desktop, VS Code) tie a single login to a single license, but you may need to run them under more than one account — personal and work, for example. The fix is to launch the same app twice with different `--user-data-dir` paths so each instance keeps its own login, settings, and data; this directory builds branded `.app` wrappers that do exactly that, with a small badge composited onto the icon so you can tell the instances apart in the Dock and Spotlight.
+Some apps (Claude Desktop, VS Code) tie a single login to a single license, but you may need to run them under more than one account — personal and work, for example. The fix is to launch the same app twice with different `--user-data-dir` paths so each instance keeps its own login, settings, and data; this directory builds branded `.app` wrappers that do exactly that, with a small badge composited onto the icon so you can tell the instances apart in the Dock and Spotlight.
 
 ---
 
@@ -12,15 +12,17 @@ Some apps (Cursor, Claude Desktop, VS Code) tie a single login to a single licen
 
 | Profile | Apps | Used for |
 |---|---|---|
-| `agerpoint` (`AP`) | Cursor, Claude, VS Code | `~/Projects/agerpoint/` — its own paid Cursor/Claude account. |
-| `lolay` (`LO`) | Claude only | Everything outside agerpoint, including personal paths. This is the Claude Team account, used for billing and the Claude runners beta. |
+| `agerpoint` (`AP`) | Claude, VS Code | `~/Projects/agerpoint/`: its own Claude account. |
+| `ussander` (`US`) | Claude, VS Code | `~/Projects/ussander/`: its own Claude account. |
+| `lolay` (`LO`) | Claude only | Everything outside agerpoint and ussander, including personal paths. This is the Claude Team account, used for billing and the Claude runners beta. |
 
 The personal Claude login stays in the default locations (stock `Claude.app`,
 `~/.claude`) and you can still reach it on purpose with `claude-personal`, but
 the smart `claude` wrapper in
 [`dotfiles/fish/conf.d/65-aliases.apps.fish`](../dotfiles/fish/conf.d/65-aliases.apps.fish)
-no longer routes anything there. Cursor and VS Code have no lolay profile, so
-every context except agerpoint uses the personal default for those.
+no longer routes anything there. VS Code has no lolay profile, so every context
+except agerpoint and ussander uses the personal default for it. Cursor has no
+wrappers at all: every context uses the personal Cursor.
 
 If `nowline` or `deskhound` ever gets its own paid account, follow
 [Adding a new profile](#adding-a-new-profile) below — that's the only thing
@@ -28,20 +30,19 @@ that has to change.
 
 ### What this gives you
 
-Up to three extra apps per profile (declared in the profile's `APPS=` list):
+Up to two extra apps per profile (declared in the profile's `APPS=` list):
 
-- `Cursor <LABEL>.app` — launches Cursor into its own profile (separate accounts, settings, extensions, indexes).
 - `Claude <LABEL>.app` — launches Claude Desktop into its own profile, with Code-tab sessions on the profile's Claude Code config.
 - `Visual Studio Code <LABEL>.app` — launches VS Code into its own profile.
 
 See [What each wrapper sets](#what-each-wrapper-sets) for exactly which directories move and which stay shared.
 
-All are branded with your overlay so they're distinct in the Dock and Spotlight. Personal Cursor, Claude Desktop, and VS Code are unchanged — bare `cursor`, the normal Claude Desktop launch, and bare `code` keep their existing profile.
+All are branded with your overlay so they're distinct in the Dock and Spotlight. Personal Claude Desktop and VS Code are unchanged: the normal Claude Desktop launch and bare `code` keep their existing profile.
 
 ### Prereqs
 
 - macOS.
-- Each app's `SRC` bundle from `apps/*.env` installed (today: `/Applications/Cursor.app`, `/Applications/Claude.app`, and `/Applications/Visual Studio Code.app`).
+- Each app's `SRC` bundle from `apps/*.env` installed (today: `/Applications/Claude.app` and `/Applications/Visual Studio Code.app`).
 - ImageMagick: `brew install imagemagick`.
 
 ### Install
@@ -63,8 +64,6 @@ make install DEST=/Applications
 Click the branded `.app` from Spotlight, Launchpad, or the Dock — or use the matching shell alias from the dotfiles:
 
 ```sh
-cursor-company1           # opens Cursor in the Company1 profile
-cursor-company1 .         # opens the current dir in Company1 Cursor
 claude-company1           # Claude Code CLI in the Company1 config dir
 code-company1             # opens VS Code in the Company1 profile
 code-company1 .           # opens the current dir in Company1 VS Code
@@ -85,12 +84,11 @@ Critical and easy to miss:
 >
 > After first sign-in this is no longer an issue and both Claude instances run side-by-side. (Source: the `claude-cursor-multi-account-handoff.md` doc this work is based on.)
 
-### First Cursor / VS Code launch
+### First VS Code launch
 
-Extensions live in the wrapper's `--extensions-dir` (`~/.cursor-<slug>/extensions`, `~/.vscode-<slug>/extensions`), so a new profile starts with none. To start from the personal set, copy the list over with the editor CLI:
+Extensions live in the wrapper's `--extensions-dir` (`~/.vscode-<slug>/extensions`), so a new profile starts with none. To start from the personal set, copy the list over with the editor CLI:
 
 ```sh
-cursor --list-extensions | xargs -n1 cursor --extensions-dir ~/.cursor-company1/extensions --install-extension
 code --list-extensions | xargs -n1 code --extensions-dir ~/.vscode-company1/extensions --install-extension
 ```
 
@@ -148,7 +146,7 @@ The same trick works for any CLI that respects a config-dir env var: `OP_ACCOUNT
 
 ### When to re-run `make install`
 
-After Cursor, Claude Desktop, or VS Code updates that change their app icons (rare). The wrapper itself doesn't depend on the source app's internals, so app updates generally don't require rebuilding.
+After Claude Desktop or VS Code updates that change their app icons (rare). The wrapper itself doesn't depend on the source app's internals, so app updates generally don't require rebuilding.
 
 ### Adding a new profile
 
@@ -160,10 +158,10 @@ Example: `company2` (a second work account alongside the primary `company1`).
    ```sh
    LABEL=C2
    NAME=Company2
-   APPS=cursor          # only build Cursor C2.app; skip Claude
+   APPS=claude          # only build Claude C2.app; skip VS Code
    ```
 
-   The slug `company2` is taken from the filename — no `SLUG=` line needed. List one or more app slugs in `APPS=` (matching `apps/<slug>.env` files); for all three wrappers, use `APPS=cursor,claude,vscode`.
+   The slug `company2` is taken from the filename — no `SLUG=` line needed. List one or more app slugs in `APPS=` (matching `apps/<slug>.env` files); for both wrappers, use `APPS=claude,vscode`.
 
 3. Build it:
 
@@ -171,7 +169,7 @@ Example: `company2` (a second work account alongside the primary `company1`).
    make install PROFILE=company2   # or just `make install` to rebuild all
    ```
 
-4. Add the matching shell aliases to `dotfiles/fish/conf.d/65-aliases.apps.fish` and `dotfiles/zshrc`, following the company1 pattern (one `cursor-<slug>`, one `claude-<slug>`, one `code-<slug>`).
+4. Add the matching shell aliases to `dotfiles/fish/conf.d/65-aliases.apps.fish` and `dotfiles/zshrc`, following the company1 pattern (one `claude-<slug>`, one `code-<slug>`).
 
 ### Removing a profile
 
@@ -182,10 +180,12 @@ rm macos-launchers/profiles/company2.{env,png}
 
 Then remove the matching aliases from the dotfiles.
 
+`make uninstall` only removes wrappers for apps that still have an `apps/<app>.env`. A wrapper for an app that's since been dropped (such as `Cursor AP.app`, built before Cursor support was removed) has to be deleted by hand from `~/Applications/`.
+
 ### Known limitations (accepted, not bugs)
 
-- **Cmd-Tab / Mission Control / Activity Monitor / menu bar all show "Cursor" or "Claude"** — never "Cursor C1" / "Claude C1". They show the *running* process; the wrapper exits immediately after launching it. The Dock icon (clicked launcher) is correctly branded; the running-window icon is the standard one.
-- **Quitting `Cursor C1` / `Claude C1` from the Dock** kills only the AppleScript stub. The real app stays open until Cmd-Q on its window.
+- **Cmd-Tab / Mission Control / Activity Monitor / menu bar all show "Claude" or "Code"**, never "Claude C1" / "Visual Studio Code C1". They show the *running* process; the wrapper exits immediately after launching it. The Dock icon (clicked launcher) is correctly branded; the running-window icon is the standard one.
+- **Quitting `Claude C1` / `Visual Studio Code C1` from the Dock** kills only the AppleScript stub. The real app stays open until Cmd-Q on its window.
 
 ---
 
@@ -198,13 +198,13 @@ For anyone who wants to understand the pieces, fork it for a different setup, or
 Each `.app` is an AppleScript application built with `osacompile`. The script has two handlers:
 
 - `on run` — launches the target app with the per-profile flags and environment ([What each wrapper sets](#what-each-wrapper-sets)).
-- `on open` — same, but appends any file paths macOS hands the wrapper. So `open -a "Cursor C1" .` opens the current directory.
+- `on open` — same, but appends any file paths macOS hands the wrapper. So `open -a "Visual Studio Code C1" .` opens the current directory.
 
 The wrapper *is* the launcher; it isn't trying to be a long-running app. Once it runs `do shell script` to launch the real app, the wrapper exits.
 
-### Why this over duplicating `Cursor.app` / `Claude.app`
+### Why this over duplicating `Claude.app` / `Visual Studio Code.app`
 
-A duplicated bundle would let Cmd-Tab show "Cursor C1" — but at the cost of:
+A duplicated bundle would let Cmd-Tab show "Claude C1" — but at the cost of:
 
 - Auto-update breakage on every release.
 - Ad-hoc code signature triggering Gatekeeper warnings.
@@ -217,21 +217,19 @@ We trade Cmd-Tab labeling for zero-maintenance.
 | Wrapper | Flags | Environment |
 |---|---|---|
 | `Claude <LABEL>.app` | `open -n … --args --user-data-dir=~/Library/Application Support/Claude-<slug>` | `CLAUDE_CONFIG_DIR=~/.claude-<slug>` (via `open --env`) |
-| `Cursor <LABEL>.app` | `--user-data-dir=~/.cursor-<slug> --extensions-dir=~/.cursor-<slug>/extensions` | `CLAUDE_CONFIG_DIR=~/.claude-<slug>` |
 | `Visual Studio Code <LABEL>.app` | `--user-data-dir=~/.vscode-<slug> --extensions-dir=~/.vscode-<slug>/extensions` | `CLAUDE_CONFIG_DIR=~/.claude-<slug>` |
 
 `CLAUDE_CONFIG_DIR` moves everything Claude Code keeps per account: `settings.json` (with its `env` block), `projects/` (transcripts and auto-memory), `file-history/`, `history.jsonl`, `plans/`, `ide/` lockfiles, and `.claude.json` (which then lives inside the config dir instead of at `~/.claude.json`). In the editors, the Claude Code extension and the `/ide` connection pick it up from the app's environment.
 
 Still shared with the personal apps:
 
-- Cursor's `~/.cursor/` home (global `mcp.json`, Cursor skills and rules, agent CLI state, `argv.json`). The wrappers don't move it.
 - Anything outside these directories: git config, `~/.ssh`, gcloud and AWS config.
 
 Per-profile environment beyond the config dir (gcloud, AWS) belongs in `~/.claude-<slug>/settings.json`'s `env` block, which applies to the CLI, the desktop Code tab and the editor extension alike. Keep secrets out of it.
 
 ### Launch environment
 
-An app started through `open` (including a wrapper) inherits the environment of whatever started it: nothing much from Spotlight or the Dock, but the whole shell environment when you run `open -a` from a terminal. The wrappers therefore set their profile's variables explicitly rather than relying on the caller. The fish `cursor` / `code` routes also launch through `env (_context_clean_env)`, so the calling shell's context markers don't leak into the app either way (see [`dotfiles/fish/README.md`](../dotfiles/fish/README.md)).
+An app started through `open` (including a wrapper) inherits the environment of whatever started it: nothing much from Spotlight or the Dock, but the whole shell environment when you run `open -a` from a terminal. The wrappers therefore set their profile's variables explicitly rather than relying on the caller. The fish `cursor` / `code` functions also launch through `env (_context_clean_env)`, so the calling shell's context markers don't leak into the app either way (see [`dotfiles/fish/README.md`](../dotfiles/fish/README.md)).
 
 Two Claude Desktop details:
 
@@ -246,7 +244,7 @@ Before this wrapper set `CLAUDE_CONFIG_DIR`, a profile's Code-tab sessions wrote
 
 ### Why `--user-data-dir`
 
-Both Cursor and Claude Desktop are Electron apps. Electron honors `--user-data-dir` to relocate the app's user-scoped data (auth tokens, settings, indexes) to that directory. VS Code forks keep extensions outside it, hence the separate `--extensions-dir`. `open -n` (Claude) is needed to spawn a new instance instead of focusing the existing single-instance lock holder. Cursor doesn't need `-n` because it's launched via its bundled `cursor` CLI, not `open -a`.
+Both VS Code and Claude Desktop are Electron apps. Electron honors `--user-data-dir` to relocate the app's user-scoped data (auth tokens, settings, indexes) to that directory. VS Code forks keep extensions outside it, hence the separate `--extensions-dir`. `open -n` (Claude) is needed to spawn a new instance instead of focusing the existing single-instance lock holder. VS Code doesn't need `-n` because it's launched via its bundled `code` CLI, not `open -a`.
 
 ### Profile config schema
 
@@ -254,7 +252,7 @@ Each profile is two files in `profiles/`: `<slug>.env` and `<slug>.png`. The env
 
 | Key | Source | Description |
 |---|---|---|
-| Slug | filename basename | Lowercase `[a-z0-9-]+`. Used everywhere a path or alias name is generated (`~/.cursor-<slug>`, `~/.claude-<slug>`, `~/Library/Application Support/Claude-<slug>`). |
+| Slug | filename basename | Lowercase `[a-z0-9-]+`. Used everywhere a path or alias name is generated (`~/.vscode-<slug>`, `~/.claude-<slug>`, `~/Library/Application Support/Claude-<slug>`). |
 | `LABEL` | `<slug>.env` | Required. Short string used in the visible `.app` name (`"<NAME> <LABEL>.app"` where the leading `NAME` comes from `apps/<app>.env`). |
 | `NAME` | `<slug>.env` | Required. Profile display name used in build output. Distinct from app env's `NAME`; the Makefile sources them into different scopes (profile in outer, app in inner subshell). |
 | `APPS` | `<slug>.env` | Required. Comma-separated app slugs (must match files in `apps/`). Whitespace around commas is tolerated. Determines which wrappers are built for this profile. |
@@ -269,11 +267,11 @@ Each wrappable app is two files in `apps/`: `<app>.env` and `<app>.applescript`.
 | Slug | filename basename | Lowercase `[a-z0-9-]+`. Cosmetic; not used in any path. |
 | `NAME` | `<app>.env` | Required. App display name used in the wrapper output (`"<NAME> <LABEL>.app"` where `LABEL` comes from the profile env). Distinct from profile env's `NAME`; see the install-% comment block in the Makefile for the shadowing rule. |
 | `SRC` | `<app>.env` | Required. Absolute path to the source `.app` bundle. Used for icon extraction and prereq existence checking. |
-| `<app>.applescript` | template | AppleScript launched by the wrapper. Tokens substituted at build: `__SLUG__` always, `__CURSOR_BIN__` when present. |
+| `<app>.applescript` | template | AppleScript launched by the wrapper. Tokens substituted at build: `__SLUG__` always, `__CODE_BIN__` when present. |
 
 ### Token substitution
 
-Templates in `apps/*.applescript` use `__SLUG__` and `__CURSOR_BIN__` (kept inside `do shell script "..."` strings so AppleScript editors don't flag them). The `install-%` Makefile recipe `sed`-renders them per profile before `osacompile`. `__CURSOR_BIN__` is resolved once at Makefile parse time via `$(shell command -v cursor)` so the wrapper has an absolute path baked in. `__CURSOR_BIN__` substitution runs against every template; it's a harmless no-op for templates that don't use it.
+Templates in `apps/*.applescript` use `__SLUG__` and `__CODE_BIN__` (kept inside `do shell script "..."` strings so AppleScript editors don't flag them). The `install` Makefile recipe `sed`-renders them per profile before `osacompile`. `__CODE_BIN__` is resolved once at Makefile parse time via `$(shell command -v code)` so the wrapper has an absolute path baked in. `__CODE_BIN__` substitution runs against every template; it's a harmless no-op for templates that don't use it.
 
 ### Icon pipeline
 
@@ -293,7 +291,7 @@ Drop in two files, then opt in each profile that should get it. The bundled `vsc
 
 Example: a hypothetical Electron editor `someeditor`.
 
-1. Create `apps/someeditor.applescript` modeled on `apps/cursor.applescript`, `apps/vscode.applescript`, or `apps/claude.applescript`. Use `__SLUG__` wherever the per-profile data dir name goes. If the app launches via a CLI binary, add a new token (e.g. `__SOMEEDITOR_BIN__`), resolve it at the top of the Makefile via `$(shell command -v someeditor)`, and add it to the `sed` line in both `validate-templates` and `install`. Single-quote the token in the AppleScript (`'__SOMEEDITOR_BIN__'`) if the binary's fallback path could contain spaces — that's why the `vscode` template quotes `__CODE_BIN__` and the `cursor` template doesn't.
+1. Create `apps/someeditor.applescript` modeled on `apps/vscode.applescript` or `apps/claude.applescript`. Use `__SLUG__` wherever the per-profile data dir name goes. If the app launches via a CLI binary, add a new token (e.g. `__SOMEEDITOR_BIN__`), resolve it at the top of the Makefile via `$(shell command -v someeditor)`, and add it to the `sed` line in both `validate-templates` and `install`. Single-quote the token in the AppleScript (`'__SOMEEDITOR_BIN__'`) if the binary's fallback path could contain spaces (that's why the `vscode` template quotes `__CODE_BIN__`).
 2. Create `apps/someeditor.env`:
 
    ```sh
@@ -301,10 +299,10 @@ Example: a hypothetical Electron editor `someeditor`.
    SRC=/Applications/Some Editor.app
    ```
 
-3. Edit each profile's `APPS=` to include `someeditor` (or leave it out for profiles that shouldn't get a wrapper). For example, `profiles/company1.env` becomes `APPS=cursor,claude,vscode,someeditor`.
+3. Edit each profile's `APPS=` to include `someeditor` (or leave it out for profiles that shouldn't get a wrapper). For example, `profiles/company1.env` becomes `APPS=claude,vscode,someeditor`.
 4. `make install` builds wrappers only for the (profile, app) pairs explicitly opted in (`Some Editor C1.app` appears in `~/Applications/`).
 5. Confirm the app actually honors profile isolation. Not every Electron app does.
-6. Optionally add matching shell aliases in `dotfiles/fish/conf.d/65-aliases.apps.fish` and `dotfiles/zshrc` (one per app per profile, following the `cursor-<slug>` / `claude-<slug>` / `code-<slug>` pattern).
+6. Optionally add matching shell aliases in `dotfiles/fish/conf.d/65-aliases.apps.fish` and `dotfiles/zshrc` (one per app per profile, following the `claude-<slug>` / `code-<slug>` pattern).
 
 ### What we deliberately did NOT build
 

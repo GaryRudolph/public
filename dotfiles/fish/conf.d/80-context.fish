@@ -1,5 +1,5 @@
 # Per-context auto-switching: on cd, detect which project tree you're in
-# (personal/lolay/agerpoint/nowline/deskhound), set the non-secret env markers
+# (personal/lolay/agerpoint/ussander/nowline/deskhound), set the non-secret env markers
 # for that context, and `loadenv` the registered private dotenv files. When you
 # cd out, unset/unload everything the previous context applied.
 #
@@ -13,6 +13,7 @@
 # unmatched is `personal`. Edit here to wire a new project tree.
 set -g __context_path_map \
     "$HOME/Projects/agerpoint" agerpoint \
+    "$HOME/Projects/ussander"  ussander \
     "$HOME/Projects/nowline"   nowline \
     "$HOME/Projects/deskhound" deskhound \
     "$HOME/Projects/lolay"     lolay
