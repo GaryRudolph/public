@@ -71,7 +71,8 @@ default for marketplaces added this way.
   `personal-plan-orchestrate`; the other tools ignore them. The fourth,
   `pr_body_guard.py` on `Bash` and MCP `create_pull_request`, denies
   creating a PR whose body has no `## Review guide` heading or
-  `Review tier:` line (`personal-review-guide`); `PERSONAL_REVIEW_GUIDE=0`
+  `Review tier:` line, or no `## Before and after` heading when the tier is
+  `[study]` or `[check]` (`personal-review-guide`); `PERSONAL_REVIEW_GUIDE=0`
   in the environment turns it off.
 - **Permissions for orchestrate.** An interactive session offers "don't ask
   again" for the plugin workflow. A headless run (`claude -p`, the SDK) has

@@ -9,8 +9,9 @@ Contents:
 - [Three moments](#three-moments): plan, pre-PR, PR
 - [Giving feedback](#giving-feedback): a label on every comment; `blocking:` names a trigger that happens in real use
 - [Agent reviews on a PR](#agent-reviews-on-a-pr): review levels by tier and risk, `/code-review` in the draft, Copilot once ready, the agent's triage, one push per round, the tally
-- [Description layout](#description-layout): the PR description, mobile first, a collapsible block per tier
+- [Description layout](#description-layout): the PR description, mobile first: today and the change, the before and after, the guide, then a collapsible block per tier
 - [Evidence](#evidence): commands and results, "not run" when it wasn't
+- [Before and after](#before-and-after): required and visible on a `[study]` or `[check]` PR; a table, a diagram pair or a surface's output, by what changed
 - [Diagrams](#diagrams): before from the base commit, after from head, only where structure changed
 - [Plan-time preview](#plan-time-preview): when cheap, else at completion
 - [Review surfaces](#review-surfaces): a repo's own before/after renderers, in `AGENTS.md`
@@ -92,7 +93,7 @@ Next to the tier, one line on who or what breaks if the change is wrong (callers
 
 ## Time to understand
 
-A reviewer should understand the change from the visible part of the description in about 2 minutes, on a phone. That's roughly 250 words, tables included. Each collapsed block fits on about one phone screen. If it doesn't fit, the writing is too long or the PR is too big.
+A reviewer should understand the change from the visible part of the description in about 2 minutes, on a phone. That's roughly 300 words, tables included. Each collapsed block fits on about one phone screen. If it doesn't fit, the writing is too long or the PR is too big.
 
 The guide states `Review time: ~N min`: the agent's estimate of reading the guide plus each area at its tag. A rough rate is a minute per 25 changed lines at `[study]`, per 75 at `[check]`, per 250 at `[skim]`, and nothing for `[skip]`. Above about 30 minutes, say so in the guide and propose a split; [git.md](git.md) already asks for PRs under 400 changed lines.
 
@@ -147,11 +148,22 @@ Where a repo lets an agent's approval count toward a required approval, it satis
 
 ## Description layout
 
-Everything goes in the PR description, because that's what a reviewer opens on GitHub, often from a phone, and because the squash copies it to `main` as the commit message ([git.md](git.md) "PR Body"). The always-visible part comes first; then one `<details>` block per tier present, deepest first, so each tier collapses on its own. `[study]` starts open.
+Everything goes in the PR description, because that's what a reviewer opens on GitHub, often from a phone, and because the squash copies it to `main` as the commit message ([git.md](git.md) "PR Body"). The always-visible part comes first: what's true today and what changes, the before and after, the review guide, validation and rollback. Then one `<details>` block per tier present, deepest first, so each tier collapses on its own. `[study]` starts open.
 
 ````markdown
-Adds a fulfillment status to orders so the mobile app can show shipping
-progress. Closes #123. Plan: `specs/fulfillment.md`.
+Today `GET /v1/orders/{id}` says nothing about shipping, so the mobile app
+can't show progress and support answers "where's my order" by hand.
+
+This adds a `fulfillment` status to that response, filled by polling the
+carrier. Closes #123. Plan: `specs/fulfillment.md`.
+
+## Before and after
+
+| `GET /v1/orders/{id}` | Before | After |
+| --- | --- | --- |
+| `fulfillment` | absent | `{status, carrier, updateTime}` |
+| Carrier is down | not called | 200, `status: unknown` |
+| Other fields | | unchanged |
 
 ## Review guide
 
@@ -159,9 +171,9 @@ Review tier: [study], because `GET /v1/orders/{id}` gains a field.
 Blast radius: every orders client; the field is additive, a revert is safe.
 Review time: ~12 min
 
-1. [study] [`api/orders.proto`](https://github.com/acme/orders/pull/124/files#diff-<sha256>): new `fulfillment` field
-2. [check] [`orders/service.go`](https://github.com/acme/orders/pull/124/files#diff-<sha256>): fills it, new carrier timeout path
-3. [check] [`orders/service_test.go`](https://github.com/acme/orders/pull/124/files#diff-<sha256>): two cases rewritten
+1. [study] [`api/orders.proto`](https://github.com/acme/orders/pull/124/files#diff-<sha256>): the field is optional, so old clients still parse the response
+2. [check] [`orders/service.go`](https://github.com/acme/orders/pull/124/files#diff-<sha256>): a carrier timeout returns `unknown`, never an error
+3. [check] [`orders/service_test.go`](https://github.com/acme/orders/pull/124/files#diff-<sha256>): the two rewritten cases still assert the old fields
 4. [skim] [`docs/orders.md`](https://github.com/acme/orders/pull/124/files#diff-<sha256>)
 5. [skim] [`orders/carrier.go`](https://github.com/acme/orders/pull/124/files#diff-<sha256>): nil check on an empty tracking number (tagalong: found while wiring the timeout)
 6. [skip] `gen/`, [`go.sum`](https://github.com/acme/orders/pull/124/files#diff-<sha256>) (buf, go mod tidy)
@@ -179,16 +191,18 @@ client ships.
 <details open>
 <summary>[study] Contracts</summary>
 
-| Field | Before | After |
-| --- | --- | --- |
-| `fulfillment` | absent | `{status, carrier, updateTime}` |
+| `status` | Means |
+| --- | --- |
+| `pending` | no carrier scan yet |
+| `shipped`, `delivered` | the carrier's last scan |
+| `unknown` | the carrier didn't answer in 2 s |
 
 </details>
 
 <details>
 <summary>[check] Control flow and error handling</summary>
 
-...before/after diagram, what's retried, what's surfaced...
+...before/after diagram of the carrier call, what's retried, what's surfaced...
 
 </details>
 
@@ -202,12 +216,18 @@ client ships.
 Assisted-by: Claude Code
 ````
 
-- **Intent**: one paragraph on what changes and why, linking the issue, spec or plan. No heading.
-- **Review guide**: the `Review tier:` line with its reason, the blast radius, the review time, and the reading order as a numbered, tagged list. Contracts and the tests that define new behavior come first. A tagalong ([git.md](git.md) "Creating") is an area like any other, tagged on its own merits and ending `(tagalong: <why>)`. Each path in the reading order links straight to its diff, `https://github.com/<owner>/<repo>/pull/<n>/files#diff-<sha256 of the path>`, the anchor GitHub gives each file in the PR's changed files; `[skip]` paths too, since a link is markup and adds nothing to the length on a phone. An area that's a directory links its main file, or nothing. The PR number doesn't exist until the PR opens, so the draft links the compare view (`/compare/<base>...<branch>#diff-<sha256>`, same anchor) and the description switches to the PR's links once it's open, since the compare view dies with the branch.
-- **Validation** and **Rollback**: see [Evidence](#evidence). Rollback says how to undo it, including flags and migrations.
-- **Tier blocks**: inside each, whichever of these the tier's areas need: Contracts (a before/after table), Control flow (before/after diagrams), Data and schema, Error handling (new failure modes, retries, what's swallowed). Leave a blank line after `<summary>` or the Markdown inside won't render.
+- **Title**: names the change the PR's tier comes from. A PR that carries two changes names both, or the deeper one, never only the easier one ([git.md](git.md) has the format).
+- **Today and the change**: two short paragraphs, no heading. The first says what's true today and what goes wrong or is missing; the second says what this PR changes, with the issue, spec or plan it closes or follows. Both are written for a reader who has seen neither the session nor the plan, since that's who reviews it and who reads `main` later:
+  - A link is for depth, not for understanding. A plan, decision, issue or other PR the paragraphs lean on gets its one-line content inline, a plan in another repo included.
+  - No label a session or a plan coined (a decision number, "change 2", "release A", a queue or milestone name) unless the same sentence says what it is. The same goes for the rest of the description.
+  - Bookkeeping lines (`Queue: <set> <n>`, a session link) go above the trailer paragraph, never first.
+  - A repo template with Summary and Motivation headings keeps them: Motivation is the today paragraph.
+- **Before and after**: its own visible section on a `[study]` or `[check]` PR; see [Before and after](#before-and-after).
+- **Review guide**: the `Review tier:` line with its reason, the blast radius, the review time, and the reading order as a numbered, tagged list. Contracts and the tests that define new behavior come first. Each line says what to confirm there, as a claim the diff can prove or refute ("a carrier timeout returns `unknown`, never an error"), in one line; listing what the diff contains (each field, each validation) is the diff's job. A tagalong ([git.md](git.md) "Creating") is an area like any other, tagged on its own merits and ending `(tagalong: <why>)`. Each path in the reading order links straight to its diff, `https://github.com/<owner>/<repo>/pull/<n>/files#diff-<sha256 of the path>`, the anchor GitHub gives each file in the PR's changed files; `[skip]` paths too, since a link is markup and adds nothing to the length on a phone. An area that's a directory links its main file, or nothing. The PR number doesn't exist until the PR opens, so the draft links the compare view (`/compare/<base>...<branch>#diff-<sha256>`, same anchor) and the description switches to the PR's links once it's open, since the compare view dies with the branch.
+- **Validation** and **Rollback**: see [Evidence](#evidence). Validation is a list, one check per line. Rollback says how to undo it, including flags and migrations.
+- **Tier blocks**: inside each, whichever of these the tier's areas need beyond the visible before and after: Contracts (a before/after table), Control flow (before/after diagrams), Data and schema, Error handling (new failure modes, retries, what's swallowed). Leave a blank line after `<summary>` or the Markdown inside won't render.
 - **Decisions**: alternatives ruled out and why, collapsed, last.
-- Drop any section or tier with nothing to say. A `[skip]` block, if any, is just the linked file list with the tool that produced each.
+- Drop any section or tier with nothing to say, except Before and after on a `[study]` or `[check]` PR, which says `None: <reason>` instead. A `[skip]` block, if any, is just the linked file list with the tool that produced each.
 - Keep tables to three or four narrow columns; wider ones scroll sideways on a phone.
 - Trailers stay the last paragraph, with any session link above them; set the description with the GitHub MCP tool, since an edit through `gh` on Claude Code's cloud proxy moves the harness footer below them ([git.md](git.md) "PR Body").
 
@@ -216,6 +236,26 @@ Assisted-by: Claude Code
 ## Evidence
 
 Show, don't assert. Validation lists each check that was run with its result (`pass`, `fail`, or the count), and each check that applies but wasn't run as `not run` with the reason. Never describe an unrun check as passing. Separate failures that exist on the base branch from new ones. When behavior changed, name the test that fails if the change is reverted. A screenshot or a rendered output is evidence for a visual change; a paragraph saying it looks right isn't.
+
+## Before and after
+
+A `[study]` or `[check]` PR shows what changed as a before and an after, in a `## Before and after` section between the opening paragraphs and the review guide. It's visible, not collapsed: it's the fastest way to understand a change, and it's what gets left out when it's optional. Pick the form by what changed:
+
+| What changed | Show |
+| --- | --- |
+| Who can do what: access, permissions, protection rules | A table, one row per actor or action |
+| A contract or config: fields, flags, settings, defaults, limits | A table, one row per field or setting |
+| Behavior for given inputs: validation, a guard or lint, a parser, error handling | A table, one row per input or case, with the result before and after |
+| A call path, orchestration, a lifecycle, a data model | A Mermaid pair ([Diagrams](#diagrams)) |
+| Output a [review surface](#review-surfaces) produces: a render, a screen, CLI output, an infrastructure plan | The surface's output where it publishes it, linked, with a table that sums it up |
+
+- **Before from the base commit, after from head**, read from the code, never from memory or the plan ([Diagrams](#diagrams) has the same rule). Keep a row the reader would worry about even when it didn't change, marked unchanged.
+- **One view above the fold**: the table (about six rows) or the one diagram pair that explains the change. Further views go in the tier blocks.
+- **Nothing existed before**: show the after alone and say so.
+- **Nothing to show**: the section is one line, `None: <reason>`, such as a behavior-preserving change tagged `[check]` by default-up bias. A small diff isn't a reason.
+- A `[skim]` or `[skip]` PR drops the section.
+
+The personal plugin's hook checks that the section is there when a `[study]` or `[check]` PR is created (`personal-review-guide`); what's in it is the author's.
 
 ## Diagrams
 

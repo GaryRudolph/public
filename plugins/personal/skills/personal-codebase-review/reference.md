@@ -139,7 +139,7 @@ Previously accepted, not raised again: r3.f2 (vendored parser), r5.f1 (CLI flag 
 Assisted-by: Claude Code
 ````
 
-Keep the visible part near 250 words, and drop empty sections. A full
+Keep the visible part near 300 words, and drop empty sections. A full
 review replaces "Since last review" with "Architecture": the current shape
 drawn from the code, beside the previous full review's when there is one.
 

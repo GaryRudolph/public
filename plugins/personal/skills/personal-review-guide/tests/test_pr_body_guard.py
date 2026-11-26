@@ -8,7 +8,8 @@ import sys
 import tempfile
 
 GUARD = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "scripts", "pr_body_guard.py")
-GOOD = "Intent.\n\n## Review guide\n\nReview tier: [check], because x.\n"
+GOOD = "Today x.\n\nThis y.\n\n## Before and after\n\n| | Before | After |\n\n## Review guide\n\nReview tier: [check], because x.\n"
+NO_BA = "Today x.\n\n## Review guide\n\nReview tier: {tier}, because x.\n"
 failures = 0
 
 
@@ -82,6 +83,29 @@ check("create_pull_request without: denied",
 check("plugin-namespaced server: denied too",
       run({"tool_name": "mcp__plugin_engineering_github__create_pull_request", "tool_input": {}}), True)
 check("update_pull_request: ignored", run({"tool_name": "mcp__github__update_pull_request", "tool_input": {}}), False)
+
+print("before and after")
+def mcp_body(body):
+    return {"tool_name": "mcp__github__create_pull_request", "tool_input": {"body": body}}
+check("[check] without the section: denied, names it", run(mcp_body(NO_BA.format(tier="[check]"))), True,
+      "`## Before and after` section")
+check("[study] with a risk tag, without it: denied", run(mcp_body(NO_BA.format(tier="[study] [security]"))), True,
+      "`## Before and after` section")
+check("[skim] without it: allowed", run(mcp_body(NO_BA.format(tier="[skim]"))), False)
+check("[skip] without it: allowed", run(mcp_body(NO_BA.format(tier="[skip]"))), False)
+check("[check] with `None: <reason>` under the heading: allowed",
+      run(mcp_body(NO_BA.format(tier="[check]") + "\n## Before and after\n\nNone: behavior preserved.\n")), False)
+check("a deeper heading level counts", run(mcp_body(NO_BA.format(tier="[check]") + "\n### Before and after\n")), False)
+check("the words in prose, no heading: denied",
+      run(mcp_body(NO_BA.format(tier="[check]") + "\nBefore and after: see the diff.\n")), True)
+check("[check] named only in the reading order of a [skim] PR: allowed",
+      run(mcp_body(NO_BA.format(tier="[skim]") + "\n1. [check] `a.go`\n")), False)
+check("gh api, [study] without it: denied",
+      run(bash("gh api repos/o/r/pulls -f title=x -f head=b -f base=main -f body='" + NO_BA.format(tier="[study]") + "'")),
+      True, "`## Before and after` section")
+got = run(mcp_body("## Summary"))
+check("no guide and no tier: denied for those", got, True, "`Review tier:` line")
+check("...and the section isn't asked for", None if got and "`## Before and after` section" not in got else got, False)
 
 print("off switch and failing open")
 check("PERSONAL_REVIEW_GUIDE=0: allowed", run(bash("gh pr create --fill"), {"PERSONAL_REVIEW_GUIDE": "0"}), False)

@@ -4,9 +4,10 @@ description: >
   Write the review guide for an agent-made change so a human understands it
   in about 2 minutes on a phone: tag each area [study], [check], [skim] or
   [skip], set the PR's tier (the highest tag), blast radius and review time,
-  read the code at the base commit and at head, draw before/after Mermaid
-  only where structure changed, run the repo's own review surfaces, and
-  write the PR description, collapsible by tier. Three modes: plan (the
+  read the code at the base commit and at head, show the before and after
+  (a table, a Mermaid pair where structure changed, or the repo's own review
+  surface), and write the PR description for a reader who hasn't seen the
+  session or the plan, collapsible by tier. Three modes: plan (the
   shape of the change, previewed when cheap), walkthrough (the draft
   description before opening the draft PR), pr (publish or refresh the
   description). Triggers: "walk me through it", "explain the change",
@@ -20,8 +21,8 @@ description: >
 Runs the procedure in
 [`../personal-standards/standards/review.md`](../personal-standards/standards/review.md),
 which says what a good guide looks like: the tiers and their checklists,
-the description layout, evidence, diagrams, the plan-time preview, review
-surfaces, and the draft. Read it first; this file doesn't repeat it.
+the description layout, the before and after, evidence, diagrams, the
+plan-time preview, review surfaces, and the draft. Read it first; this file doesn't repeat it.
 [`reference.md`](reference.md) has the bucket table, the diagram recipe, the
 review time arithmetic, and the shapes of the plan section and the terminal
 summary.
@@ -82,7 +83,12 @@ table and diagram comes from the base read, not from the plan or memory.
 
 ### 4. Draw and render
 
-- Contracts: a before/after table, three or four narrow columns.
+A `[study]` or `[check]` PR always gets a before and after; review.md
+"Before and after" picks the form by what changed:
+
+- Who can do what, a contract or config, behavior for given inputs: a
+  before/after table, three or four narrow columns, one row per actor,
+  field or case.
 - Control flow, lifecycle, data: a before/after Mermaid pair, only where the
   structure changed (reference.md "Diagram recipe").
 - Review surfaces: run each surface the change touches, per its `Render`
@@ -90,6 +96,10 @@ table and diagram comes from the base read, not from the plan or memory.
   worktree to get the before; use the surface's own recipe, or
   `git archive <merge_base> | tar -x -C .scratch/base`. In `plan` mode
   follow the surface's `Preview` (`if-cheap` when omitted).
+
+Choose the one view that explains the change for the visible
+`## Before and after` section; the rest go in the tier blocks. With nothing
+to show, the section is `None: <reason>`.
 
 ### 5. Tier, blast radius, review time
 
@@ -100,11 +110,26 @@ split.
 
 ### 6. Write the draft
 
-Follow review.md "Description layout": intent, `## Review guide`,
-Validation, Rollback, then one `<details>` per tier, deepest first, with
-`[study]` open, then Decisions. Validation lists only what ran, with
-results, and `not run` with a reason for the rest. Keep the visible part
-near 250 words. Link each path in the reading order, `[skip]`
+Follow review.md "Description layout": what's true today, what changes,
+`## Before and after`, `## Review guide`, Validation, Rollback, then one
+`<details>` per tier, deepest first, with `[study]` open, then Decisions.
+Validation lists only what ran, with results, and `not run` with a reason
+for the rest. Keep the visible part near 300 words.
+
+Write it for a reader who has seen neither this session nor the plan.
+Before showing it, reread it as that reader and fix what they couldn't
+follow:
+
+- The first paragraph says what's true today and what goes wrong, from the
+  base read in step 3, not "per the plan".
+- Every plan, decision, issue or PR it leans on has its one-line content
+  inline, a plan in another repo included.
+- No label this session or the plan coined (a decision number, "change 2",
+  "release A", a queue name) without what it means beside it; a `Queue:`
+  line sits above the trailer paragraph.
+- Each reading-order line says what to confirm in that file, in one line,
+  not what the diff contains.
+- The title names the change the tier comes from. Link each path in the reading order, `[skip]`
 included, to its diff with the anchor from step 1 (review.md "Description layout"):
 the compare view in the draft, the PR's changed files once it's open.
 
@@ -116,8 +141,8 @@ on every run. Once the PR is open the description is the copy: a runner
 writes later drafts to `.scratch/` and doesn't commit them.
 
 If the repo has a PR template, keep its sections and order, and put the
-review guide's sections in after the intent; an AI assistance or trailer
-section stays last.
+review guide's sections in after its summary and motivation (the today and
+change paragraphs); an AI assistance or trailer section stays last.
 
 ### 7. Show it
 
@@ -149,13 +174,16 @@ section stays last.
   description with the GitHub MCP tools only.
 
 The personal plugin's PreToolUse hook denies creating a PR whose body has
-no `## Review guide` heading or `Review tier:` line. A repo or machine that
+no `## Review guide` heading or `Review tier:` line, or whose tier is
+`[study]` or `[check]` with no `## Before and after` heading. A repo or machine that
 doesn't want it sets `PERSONAL_REVIEW_GUIDE=0` in the harness environment.
 
 ## Don't
 
 - Don't describe a check that didn't run as passing, or draw a before from
   memory.
+- Don't explain by reference: a reviewer who has to open the plan or the
+  session to follow the description hasn't been given a guide.
 - Don't pad: drop sections and tiers with nothing to say.
 - Don't review your own change and call it reviewed. The guide is the
   author's account; a fresh-context reviewer (Claude Code Review,

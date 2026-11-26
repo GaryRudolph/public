@@ -2,8 +2,10 @@
 """Claude Code PreToolUse hook: a PR is created with a review guide in its body.
 
 Denies creating a pull request whose body has no `## Review guide` heading
-or no `Review tier:` line (standards/review.md "Description layout"). It
-checks that both are present, nothing more: what they say is the
+or no `Review tier:` line (standards/review.md "Description layout"), or
+whose `Review tier:` line says `[study]` or `[check]` with no
+`## Before and after` heading (standards/review.md "Before and after"). It
+checks that they are present, nothing more: what they say is the
 personal-review-guide skill's job and the author's.
 
 It sees PR creation through:
@@ -38,7 +40,9 @@ GH_API = re.compile(START + r"gh\s+api\b([^;&|\n]*)")
 PULLS_PATH = re.compile(r"(?:^|/)repos/[^/\s'\"]+/[^/\s'\"]+/pulls/?$")
 HEREDOC = re.compile(r"<<-?\s*(['\"]?)([A-Za-z_]\w*)\1")
 GUIDE = re.compile(r"##\s+Review guide", re.I)
-TIER = re.compile(r"Review tier:", re.I)
+TIER = re.compile(r"Review tier:([^\n]*)", re.I)
+DEEP_TAG = re.compile(r"\[(?:study|check)\]", re.I)
+BEFORE_AFTER = re.compile(r"##+\s+Before and after", re.I)
 
 
 def strip_heredocs(command):
@@ -141,6 +145,10 @@ def decide(event):
     for body in bodies:
         missing = [what for what, rx in (("a `## Review guide` heading", GUIDE), ("a `Review tier:` line", TIER))
                    if not rx.search(body)]
+        # Any tier line that says [study] or [check] counts: a body quoted twice in one command is still one PR.
+        if any(DEEP_TAG.search(m.group(1)) for m in TIER.finditer(body)) and not BEFORE_AFTER.search(body):
+            missing.append("a `## Before and after` section, which a `[study]` or `[check]` PR needs "
+                           "(a table, a diagram pair, or `None: <reason>`)")
         if missing:
             return " and ".join(missing)
     return None
@@ -156,7 +164,7 @@ def main():
             "hookEventName": "PreToolUse", "permissionDecision": "deny",
             "permissionDecisionReason": f"personal-review-guide: this PR's body has no {missing}. Write the review "
             "guide with the personal-review-guide skill (pr mode) and use its draft as the body, per "
-            "standards/review.md \"Description layout\". A repo or machine that doesn't use review guides sets "
+            "standards/review.md \"Description layout\" and \"Before and after\". A repo or machine that doesn't use review guides sets "
             "PERSONAL_REVIEW_GUIDE=0 in the harness environment; ask the Owner rather than setting it yourself."}}))
 
 

@@ -88,7 +88,7 @@ Written first, by the reviewers and the verifier. The intent line (kind, range w
 
 ### The summary
 
-Written second, from the register, for a human who has about 2 minutes. It follows [review.md](review.md) "Description layout" (a visible part near 250 words, a collapsed block per area, Mermaid only where structure changed, readable on a phone), with these sections:
+Written second, from the register, for a human who has about 2 minutes. It follows [review.md](review.md) "Description layout" (a visible part near 300 words, a collapsed block per area, Mermaid only where structure changed, readable on a phone), with these sections:
 
 - **Intent**, no heading: the kind, the range, the scope, and the previous review it follows.
 - **Verdict**: one line, with the counts by severity and the review time to read it.

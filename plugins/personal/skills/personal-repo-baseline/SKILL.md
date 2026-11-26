@@ -33,7 +33,7 @@ Behavior, and Merging) for the rules these settings serve.
 |------|----------|--------|-------------------|
 | **Agent attribution** | `.claude/settings.json` | [`templates/claude-settings.json`](templates/claude-settings.json): `$schema`, and `attribution.commit` and `attribution.pr` set to `Assisted-by: Claude Code` | Unset, Claude Code adds `Co-authored-by: Claude`. A plugin's settings carry only `agent` and `subagentStatusLine`, and cloud sessions read the repo's `.claude/settings.json`, never `~/.claude/settings.json` |
 | **Merge settings** | GitHub repo settings | [`templates/github-merge-settings.json`](templates/github-merge-settings.json): squash only, `PR_TITLE` and `PR_BODY`, head branches deleted | Squash makes the PR opener the author on `main` and the description, with its `Assisted-by` trailer, the commit message. GitHub still appends a `Co-authored-by` for a runner's branch commits, which git.md accepts. GitHub's defaults (`COMMIT_OR_PR_TITLE` and `COMMIT_MESSAGES`, merge commits and rebase on) copy every branch trailer onto `main`, and a rebase merge puts the agent there as author |
-| **PR template** | `.github/pull_request_template.md` (or another name GitHub reads) | [`templates/pull_request_template.md`](templates/pull_request_template.md): a review guide (`standards/review.md`), with `## Review guide` and a `Review tier:` line | Agents get the layout from the plugin and the `personal-review-guide` skill; people opening a PR on GitHub, and tools the plugin doesn't reach, get it only from the repo |
+| **PR template** | `.github/pull_request_template.md` (or another name GitHub reads) | [`templates/pull_request_template.md`](templates/pull_request_template.md): a review guide (`standards/review.md`), with the today and change paragraphs, `## Before and after`, `## Review guide` and a `Review tier:` line | Agents get the layout from the plugin and the `personal-review-guide` skill; people opening a PR on GitHub, and tools the plugin doesn't reach, get it only from the repo |
 | **Reviewer instructions** | `.github/copilot-instructions.md` | [`templates/copilot-instructions.md`](templates/copilot-instructions.md): label every comment (`blocking:`, `suggestion:`, `nit:`, `question:`), `blocking:` only with a trigger that happens in real use, security always blocking (review.md "Giving feedback") | Copilot's code review reads the repo's instructions, never the plugin; without them it rates every finding by its own scale and flags scenarios nobody runs |
 | **CI on draft PRs** | `.github/workflows/*.yml` | Every workflow a PR runs, runs on a draft: no `if:` that skips drafts (`github.event.pull_request.draft == false`, `!github.event.pull_request.draft`), or, where a skip stays, `ready_for_review` in its `pull_request` `types` (git.md "CI on draft PRs") | `personal-ship-pr` fixes CI while the PR is a draft; a workflow that skips drafts reports nothing then, and without `ready_for_review` it doesn't run on that commit when the PR goes ready either, so a required check waits for the next push |
 
@@ -51,10 +51,13 @@ Behavior, and Merging) for the rules these settings serve.
   `Generated with Claude Code` line into a new PR's description, and the
   description edit right after opening removes it (git.md, PR Body).
 - **A PR template that exists stays the repo's** — when it has no `## Review
-  guide`, propose a hand edit that adds the Review guide, Validation and
-  Rollback sections after its summary and the per-tier `<details>` after
-  those, keeping its own sections and leaving any AI assistance or trailer
-  section last. Never replace it wholesale. A repo with a template folder
+  guide`, propose a hand edit that adds the Before and after, Review guide,
+  Validation and Rollback sections after its summary and the per-tier
+  `<details>` after those, keeping its own sections and leaving any AI
+  assistance or trailer section last. When it has the guide but no
+  `## Before and after`, propose adding that section before the guide, and
+  a prompt for what's true today if its summary has none; a repo's own
+  before/after section (screenshots, renders) is renamed, not doubled. Never replace it wholesale. A repo with a template folder
   (`.github/PULL_REQUEST_TEMPLATE/`) gets the same proposal per file.
 - **A repo that uses Claude Code Review** — if it has a `REVIEW.md`, propose
   one line asking the reviewer to check the diff against the PR's stated
@@ -101,7 +104,8 @@ Per repo (default: the current directory) it prints:
 - for the PR template: each file GitHub reads (any case of
   `pull_request_template.md` at the root, in `.github/` or in `docs/`, and a
   `.github/PULL_REQUEST_TEMPLATE/` folder), whether it has `## Review
-  guide` and a `Review tier:` line, and its contents verbatim
+  guide`, a `Review tier:` line and `## Before and after`, and its contents
+  verbatim
 - for `.github/copilot-instructions.md`: whether it exists, whether it has
   a "Code review" heading and the `blocking:` label, and its contents
   verbatim
@@ -142,7 +146,8 @@ the Owner confirms the repo. Call out:
 - a local `attribution` override
 - GitHub values that differ, and whether `permissions.admin` allows the change
 - a repo that isn't on GitHub yet: its GitHub item waits
-- a PR template that's missing, or lacks `## Review guide` or `Review tier:`
+- a PR template that's missing, or lacks `## Review guide`, `Review tier:` or
+  `## Before and after`
 - Copilot instructions that are missing, or have no "Code review" section
 - a workflow that skips draft PRs. Read the file where the lines alone
   don't settle it, such as a `types:` line when the workflow has more than
@@ -206,7 +211,8 @@ change: commit it per `core.md`.
 **PR template.** No template: copy
 `<skill-dir>/templates/pull_request_template.md` to
 `<repo>/.github/pull_request_template.md`. A template without a review
-guide: the hand edit from the bullet under the table, shown as a diff first.
+guide, or without its before and after: the hand edit from the bullet under
+the table, shown as a diff first.
 Either is an ordinary change: commit it per `core.md`.
 
 **Reviewer instructions.** No file: copy
