@@ -138,7 +138,7 @@ end
 # this the app's profile would depend on the shell's pwd rather than on the
 # launcher. Prints `-u KEY` pairs, one word per line.
 function _context_clean_env --description 'Print env(1) -u args that drop all context state'
-    set -l keys __active_context
+    set -l keys __active_context $__context_session_token_keys
     for ctx in $__context_registered
         set -l marker_var __context_markers_$ctx
         for kv in $$marker_var
@@ -153,12 +153,32 @@ function _context_clean_env --description 'Print env(1) -u args that drop all co
     end
 end
 
+# --- Hand-set Google tokens ---------------------------------------------------
+# Terraform's google provider reads these ahead of GOOGLE_APPLICATION_CREDENTIALS,
+# so one exported by hand (`set -gx GOOGLE_OAUTH_ACCESS_TOKEN (gcloud auth
+# print-access-token ...)`) would carry the old context's identity into the new
+# one, and an access token dies after an hour anyway. Dropping it loses no
+# sign-in: each context's login stays on disk under its CLOUDSDK_CONFIG.
+set -g __context_session_token_keys GOOGLE_OAUTH_ACCESS_TOKEN GOOGLE_CREDENTIALS
+
+function _context_drop_session_tokens --description 'Erase hand-set Google tokens on a context change'
+    for key in $__context_session_token_keys
+        set -q $key; or continue
+        # Loop so a universal under the global goes too, not just uncovered.
+        while set -q $key
+            set -e $key
+        end
+        echo "context: cleared $key on the context change" >&2
+    end
+end
+
 # --- PWD handler --------------------------------------------------------------
 function __context_on_pwd_changed --on-variable PWD
     set -l new (_context_from_path (pwd))
     set -l old $__active_context
     test "$new" = "$old"; and return 0
 
+    _context_drop_session_tokens
     test -n "$old"; and _context_unapply $old
     set -gx __active_context $new
     _context_apply $new
