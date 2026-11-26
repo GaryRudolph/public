@@ -15,7 +15,9 @@
 
 # Per-context identity overrides. Anything under one of these trees uses the
 # matching fragment in ~/.config/git/ (managed by `make link-git` in this repo).
-# Anything else keeps the personal identity set above.
+# Anything else keeps the personal identity set above. When two match, the one
+# included later wins, so lolay/nowline* sits after lolay/.
+# Keep in step with __context_path_map in fish/conf.d/80-context.fish.
 [includeIf "gitdir:~/Projects/lolay/"]
 	path = ~/.config/git/lolay.gitconfig
 [includeIf "gitdir:~/Projects/agerpoint/"]
@@ -23,6 +25,8 @@
 [includeIf "gitdir:~/Projects/ussander/"]
 	path = ~/.config/git/ussander.gitconfig
 [includeIf "gitdir:~/Projects/nowline/"]
+	path = ~/.config/git/nowline.gitconfig
+[includeIf "gitdir:~/Projects/lolay/nowline*/"]
 	path = ~/.config/git/nowline.gitconfig
 [includeIf "gitdir:~/Projects/deskhound/"]
 	path = ~/.config/git/deskhound.gitconfig
