@@ -9,14 +9,18 @@
 # markers and loadenv files each context wants. See dotfiles/fish/README.md.
 
 # --- Directory → context mapping ----------------------------------------------
-# Alternating pairs of (path-prefix, context-name). First match wins, anything
+# Alternating pairs of (path-prefix, context-name). A prefix may be a fish glob
+# (`*` crosses `/`), matching that folder and everything under it. First match
+# wins, so a narrower entry goes above the tree it carves out of; anything
 # unmatched is `personal`. Edit here to wire a new project tree.
+# Keep in step with the includeIf blocks in dotfiles/gitconfig.
 set -g __context_path_map \
-    "$HOME/Projects/agerpoint" agerpoint \
-    "$HOME/Projects/ussander"  ussander \
-    "$HOME/Projects/nowline"   nowline \
-    "$HOME/Projects/deskhound" deskhound \
-    "$HOME/Projects/lolay"     lolay
+    "$HOME/Projects/agerpoint"           agerpoint \
+    "$HOME/Projects/ussander"            ussander \
+    "$HOME/Projects/nowline"             nowline \
+    "$HOME/Projects/lolay/nowline*"      nowline \
+    "$HOME/Projects/deskhound"           deskhound \
+    "$HOME/Projects/lolay"               lolay
 
 # --- Registry (populated by private context-registry.fish) -------------------
 # `context_register <name> --markers K=v ... --loadenv name1 name2`
@@ -75,7 +79,7 @@ function _context_from_path --description 'Return context name (personal/...) fo
     for i in (seq 1 2 $n)
         set -l prefix $pairs[$i]
         set -l name $pairs[(math $i + 1)]
-        if test "$abs" = "$prefix"; or string match -q "$prefix/*" -- "$abs"
+        if string match -q -- "$prefix" "$abs"; or string match -q -- "$prefix/*" "$abs"
             echo $name
             return 0
         end

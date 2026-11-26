@@ -1,4 +1,5 @@
-# Loaded for repos under ~/Projects/nowline/ via includeIf in the base gitconfig.
+# Loaded for repos under ~/Projects/nowline/ and ~/Projects/lolay/nowline*/
+# via includeIf in the base gitconfig.
 # Today: just stamps the right commit email. SSH still uses the shared key.
 #
 # To split nowline onto its own SSH key later, add here:

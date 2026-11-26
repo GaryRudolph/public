@@ -31,14 +31,18 @@ Three pieces:
         path = ~/.config/git/<ctx>.gitconfig       # overrides email per tree
 ```
 
-| Tree                       | Email                       |
-| -------------------------- | --------------------------- |
-| anywhere else              | `GaryRudolph@mac.com`       |
-| `~/Projects/lolay/`        | `gary@lolay.com`            |
-| `~/Projects/agerpoint/`    | `grudolph@agerpoint.com`    |
-| `~/Projects/ussander/`     | `garyjr@ussander.com`       |
-| `~/Projects/nowline/`      | `gary@nowline.io`           |
-| `~/Projects/deskhound/`    | `gary@deskhound.ai`         |
+| Tree                         | Email                    |
+| ---------------------------- | ------------------------ |
+| anywhere else                | `GaryRudolph@mac.com`    |
+| `~/Projects/lolay/`          | `gary@lolay.com`         |
+| `~/Projects/lolay/nowline*/` | `gary@nowline.io`        |
+| `~/Projects/agerpoint/`      | `grudolph@agerpoint.com` |
+| `~/Projects/ussander/`       | `garyjr@ussander.com`    |
+| `~/Projects/nowline/`        | `gary@nowline.io`        |
+| `~/Projects/deskhound/`      | `gary@deskhound.ai`      |
+
+The nowline repos nested under `lolay/` commit as nowline: their `includeIf`
+comes after lolay's in the base config, and the later include wins.
 
 `includeIf "gitdir:"` matches once a repo's `.git` exists, so this only fires
 in actual git repos under those trees — `cd ~/Projects/agerpoint` (the parent
