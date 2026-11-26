@@ -161,14 +161,15 @@ opening a new one.
 
 The six "worlds" you live in are derived from your `~/Projects/` layout:
 
-| Tree                       | Context     |
-| -------------------------- | ----------- |
-| anywhere else              | `personal`  |
-| `~/Projects/lolay/`        | `lolay`     |
-| `~/Projects/agerpoint/`    | `agerpoint` |
-| `~/Projects/ussander/`     | `ussander`  |
-| `~/Projects/nowline/`      | `nowline`   |
-| `~/Projects/deskhound/`    | `deskhound` |
+| Tree                         | Context     |
+| ---------------------------- | ----------- |
+| anywhere else                | `personal`  |
+| `~/Projects/lolay/`          | `lolay`     |
+| `~/Projects/lolay/nowline*/` | `nowline`   |
+| `~/Projects/agerpoint/`      | `agerpoint` |
+| `~/Projects/ussander/`       | `ussander`  |
+| `~/Projects/nowline/`        | `nowline`   |
+| `~/Projects/deskhound/`      | `deskhound` |
 
 Whenever `PWD` changes, a fish event handler computes the new context, undoes
 whatever the previous context applied (markers + loadenvs), then applies the
