@@ -102,6 +102,11 @@ check("[check] named only in the reading order of a [skim] PR: allowed",
       run(mcp_body(NO_BA.format(tier="[skim]") + "\n1. [check] `a.go`\n")), False)
 check("[skim] whose reason names [check]: allowed",
       run(mcp_body("## Review guide\n\nReview tier: [skim], because the [check] areas moved to another PR.\n")), False)
+check("[skim] that quotes `Review tier: [check]` further down: allowed",
+      run(mcp_body(NO_BA.format(tier="[skim]") + "\nThe template's line reads `Review tier: [check], because <reason>.`\n")), False)
+check("an untagged mention of the tier line before a [check] one: still denied",
+      run(mcp_body("The `Review tier:` line is below.\n\n" + NO_BA.format(tier="[check]"))), True,
+      "`## Before and after` section")
 check("the heading only quoted in a sentence: denied",
       run(mcp_body(NO_BA.format(tier="[check]") + "\nThis skips the `## Before and after` section.\n")), True)
 with tempfile.TemporaryDirectory() as d:
