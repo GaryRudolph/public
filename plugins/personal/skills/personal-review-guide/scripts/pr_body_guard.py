@@ -41,12 +41,14 @@ PULLS_PATH = re.compile(r"(?:^|/)repos/[^/\s'\"]+/[^/\s'\"]+/pulls/?$")
 HEREDOC = re.compile(r"<<-?\s*(['\"]?)([A-Za-z_]\w*)\1")
 GUIDE = re.compile(r"##\s+Review guide", re.I)
 TIER = re.compile(r"Review tier:", re.I)
-# The tier is the first tag after the colon of the first tagged tier line: a later tag is a risk tag
-# or part of the reason, a body inside a JSON file has no real newline to end the line at, and a
-# later `Review tier: [check]` is an example the body quotes.
-TAGGED_TIER = re.compile(r"Review tier:[ \t]*\[(study|check|skim|skip)\]", re.I)
-# A heading, not a mention: at the start of a line, where a JSON body's line starts after a literal \n.
-BEFORE_AFTER = re.compile(r"(?:^|\n|\\n)[ \t]*##+[ \t]+Before and after", re.I)
+# Where a line of the body starts: a JSON body's lines start after a literal \n.
+LINE_START = r"(?:^|\n|\\n)[ \t]*"
+# The tier is the first tag on the first line that starts with `Review tier:`. A later tag on that
+# line is a risk tag or part of the reason, and a `Review tier: [check]` quoted inside a sentence,
+# before or after the guide's own line, is an example, not the tier.
+TAGGED_TIER = re.compile(LINE_START + r"Review tier:[ \t]*\[(study|check|skim|skip)\]", re.I)
+# A heading, not a mention.
+BEFORE_AFTER = re.compile(LINE_START + r"##+[ \t]+Before and after", re.I)
 
 
 def strip_heredocs(command):

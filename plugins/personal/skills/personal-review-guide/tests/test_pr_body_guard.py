@@ -107,6 +107,11 @@ check("[skim] that quotes `Review tier: [check]` further down: allowed",
 check("an untagged mention of the tier line before a [check] one: still denied",
       run(mcp_body("The `Review tier:` line is below.\n\n" + NO_BA.format(tier="[check]"))), True,
       "`## Before and after` section")
+check("[skim] with `Review tier: [check]` quoted in a sentence above its own line: allowed",
+      run(mcp_body("The old template said `Review tier: [check]`.\n\n" + NO_BA.format(tier="[skim]"))), False)
+check("[check] with `Review tier: [skim]` quoted in a sentence above its own line: denied",
+      run(mcp_body("The old template said `Review tier: [skim]`.\n\n" + NO_BA.format(tier="[check]"))), True,
+      "`## Before and after` section")
 check("the heading only quoted in a sentence: denied",
       run(mcp_body(NO_BA.format(tier="[check]") + "\nThis skips the `## Before and after` section.\n")), True)
 with tempfile.TemporaryDirectory() as d:
