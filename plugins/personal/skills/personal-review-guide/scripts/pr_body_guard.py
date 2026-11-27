@@ -40,9 +40,12 @@ GH_API = re.compile(START + r"gh\s+api\b([^;&|\n]*)")
 PULLS_PATH = re.compile(r"(?:^|/)repos/[^/\s'\"]+/[^/\s'\"]+/pulls/?$")
 HEREDOC = re.compile(r"<<-?\s*(['\"]?)([A-Za-z_]\w*)\1")
 GUIDE = re.compile(r"##\s+Review guide", re.I)
-TIER = re.compile(r"Review tier:([^\n]*)", re.I)
-DEEP_TAG = re.compile(r"\[(?:study|check)\]", re.I)
-BEFORE_AFTER = re.compile(r"##+\s+Before and after", re.I)
+TIER = re.compile(r"Review tier:", re.I)
+# The tier is the first tag after the colon: a later tag is a risk tag or part of the reason, and a
+# body inside a JSON file has no real newline to end the line at.
+DEEP_TIER = re.compile(r"Review tier:[ \t]*\[(?:study|check)\]", re.I)
+# A heading, not a mention: at the start of a line, where a JSON body's line starts after a literal \n.
+BEFORE_AFTER = re.compile(r"(?:^|\n|\\n)[ \t]*##+[ \t]+Before and after", re.I)
 
 
 def strip_heredocs(command):
@@ -145,8 +148,7 @@ def decide(event):
     for body in bodies:
         missing = [what for what, rx in (("a `## Review guide` heading", GUIDE), ("a `Review tier:` line", TIER))
                    if not rx.search(body)]
-        # Any tier line that says [study] or [check] counts: a body quoted twice in one command is still one PR.
-        if any(DEEP_TAG.search(m.group(1)) for m in TIER.finditer(body)) and not BEFORE_AFTER.search(body):
+        if DEEP_TIER.search(body) and not BEFORE_AFTER.search(body):
             missing.append("a `## Before and after` section, which a `[study]` or `[check]` PR needs "
                            "(a table, a diagram pair, or `None: <reason>`)")
         if missing:

@@ -100,6 +100,19 @@ check("the words in prose, no heading: denied",
       run(mcp_body(NO_BA.format(tier="[check]") + "\nBefore and after: see the diff.\n")), True)
 check("[check] named only in the reading order of a [skim] PR: allowed",
       run(mcp_body(NO_BA.format(tier="[skim]") + "\n1. [check] `a.go`\n")), False)
+check("[skim] whose reason names [check]: allowed",
+      run(mcp_body("## Review guide\n\nReview tier: [skim], because the [check] areas moved to another PR.\n")), False)
+check("the heading only quoted in a sentence: denied",
+      run(mcp_body(NO_BA.format(tier="[check]") + "\nThis skips the `## Before and after` section.\n")), True)
+with tempfile.TemporaryDirectory() as d:
+    skim = NO_BA.format(tier="[skim]") + "\n1. [skim] `a.md`: the [check] PRs in range are listed\n"
+    open(os.path.join(d, "skim.json"), "w").write(json.dumps({"title": "x", "body": skim}))
+    check("--input JSON, [skim] naming [check] later: allowed", run(bash("gh api repos/o/r/pulls --input skim.json", d)), False)
+    open(os.path.join(d, "deep.json"), "w").write(json.dumps({"title": "x", "body": NO_BA.format(tier="[check]")}))
+    check("--input JSON, [check] without it: denied", run(bash("gh api repos/o/r/pulls --input deep.json", d)), True,
+          "`## Before and after` section")
+    open(os.path.join(d, "good.json"), "w").write(json.dumps({"title": "x", "body": GOOD}))
+    check("--input JSON, [check] with the heading: allowed", run(bash("gh api repos/o/r/pulls --input good.json", d)), False)
 check("gh api, [study] without it: denied",
       run(bash("gh api repos/o/r/pulls -f title=x -f head=b -f base=main -f body='" + NO_BA.format(tier="[study]") + "'")),
       True, "`## Before and after` section")

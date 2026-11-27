@@ -349,7 +349,7 @@ for rel in found:
     print(f"  path: {rel}")
     has_guide = "yes" if re.search(r"^##[ \t]+Review guide[ \t]*$", text, re.M | re.I) else "no"
     has_tier = "yes" if re.search(r"Review tier:", text, re.I) else "no"
-    has_before_after = "yes" if re.search(r"^##[ \t]+Before and after[ \t]*$", text, re.M | re.I) else "no"
+    has_before_after = "yes" if re.search(r"^##+[ \t]+Before and after[ \t]*$", text, re.M | re.I) else "no"
     print(f"  has ## Review guide: {has_guide}")
     print(f"  has Review tier: line: {has_tier}")
     print(f"  has ## Before and after: {has_before_after}")
