@@ -34,6 +34,7 @@ expect_ok "github-merge-settings.json parses"    python3 -m json.tool "$gh_tmpl"
 expect_eq "\$schema comes first"                 "$(first_key "$tmpl")" '$schema'
 pr_tmpl="$here/../templates/pull_request_template.md"
 if grep -qE '^## Review guide$' "$pr_tmpl" && grep -q '^Review tier: ' "$pr_tmpl"; then pass "PR template has the review guide and tier"; else fail "PR template lacks ## Review guide or Review tier:"; fi
+if grep -qE '^## Before and after$' "$pr_tmpl"; then pass "PR template has the before and after"; else fail "PR template lacks ## Before and after"; fi
 if PERSONAL_REVIEW_GUIDE= python3 -I "$here/../../personal-review-guide/scripts/pr_body_guard.py" <<<"$(python3 -c 'import json,sys; print(json.dumps({"tool_name": "mcp__github__create_pull_request", "tool_input": {"body": open(sys.argv[1]).read()}}))' "$pr_tmpl")" | grep -q deny; then
     fail "PR template trips the review-guide hook"
 else
@@ -248,11 +249,13 @@ mkdir -p "$repo/.github" && printf '## Summary\n\n## AI assistance\n' > "$repo/.
 expect_ok "PR template without a review guide"   env PATH="$stub:$PATH" "$bash_bin" "$facts" "$repo"
 expect_grep "  ...path in its own case"          out 'path: .github/PULL_REQUEST_TEMPLATE.md'
 expect_grep "  ...no review guide"               out 'has ## Review guide: no'
+expect_grep "  ...no before and after"           out 'has ## Before and after: no'
 expect_grep "  ...contents verbatim"             out '    | ## AI assistance'
 cp "$here/../templates/pull_request_template.md" "$repo/.github/PULL_REQUEST_TEMPLATE.md"
 expect_ok "PR template from the baseline"        env PATH="$stub:$PATH" "$bash_bin" "$facts" "$repo"
 expect_grep "  ...review guide"                  out 'has ## Review guide: yes'
 expect_grep "  ...tier line"                     out 'has Review tier: line: yes'
+expect_grep "  ...before and after"              out 'has ## Before and after: yes'
 rm -r "$repo/.github"
 
 mkdir -p "$repo/.github" && printf '# Style\n\nUse tabs.\n' > "$repo/.github/copilot-instructions.md"

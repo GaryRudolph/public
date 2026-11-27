@@ -20,7 +20,8 @@ harness's:
   beside `hooks/hooks.json`: a `PreToolUse` gate on `Workflow` and two
   guards on `Bash`, one keeping the orchestrate reviewers read-only and one
   keeping its workers from outward commands, plus `personal-review-guide`'s
-  check that a new PR's body has a review guide (on `Bash` and MCP
+  check that a new PR's body has a review guide, and a before and after
+  when its tier is `[study]` or `[check]` (on `Bash` and MCP
   `create_pull_request`), and a `PostToolUse` hook from `personal-ship-pr`
   that starts its loop once a PR opens.
 - `claude-agents/` and `claude-workflows/` inside `personal-plan-orchestrate`:
@@ -161,7 +162,7 @@ cleaned up, then push.
 | `personal` | `personal-secrets` | Run SOPS + age secrets in a private repo's own `secrets/` folder or the estate's secrets repo: set up from tested kits, edit secrets in cleartext beside ciphertext, mint and rotate CI and environment keys, grant estate access, wire CI and deploy syncs with least privilege |
 | `personal` | `personal-release` | Cut SemVer releases and hotfixes: propose the level from what changed, bump every version in lock-step, move the changelog, tag; set up version.txt and a Release workflow |
 | `personal` | `personal-repo-baseline` | Audit and apply the per-repo settings the plugin can't carry: `.claude/settings.json` attribution (`Assisted-by: Claude Code`), GitHub squash-only merge settings, the review-guide PR template, Copilot review instructions (feedback labels, the real-use bar), and CI that runs on draft PRs. Dry-run first; re-run to bring a repo up to the current baseline |
-| `personal` | `personal-review-guide` | Write the review guide for a change: tag areas `[study]` / `[check]` / `[skim]` / `[skip]`, read base and head, draw before/after only where structure changed, run the repo's review surfaces, and write the PR description collapsible by tier. Modes: plan, walkthrough, pr |
+| `personal` | `personal-review-guide` | Write the review guide for a change: tag areas `[study]` / `[check]` / `[skim]` / `[skip]`, read base and head, show the before and after (a table, a diagram pair where structure changed, or the repo's review surfaces), and write the PR description for a reader who hasn't seen the session, collapsible by tier. Modes: plan, walkthrough, pr |
 | `personal` | `personal-ship-pr` | Take a finished change from draft PR to merge-ready unattended: open the draft with the review guide as soon as the work is done, the harness's `/code-review` at the level the tier and risk tags set (or say why it's skipped), fix CI, remove runner handoff files, mark ready, work Copilot's review in rounds until every comment has an outcome, waiting on CI and reviews itself (`pr_state.py`, PR events), then notify and report the tally. A `PostToolUse` hook starts it when a PR opens. Never merges |
 | `personal` | `personal-codebase-review` | Review `main`, not a diff: incremental (every line since the last logged review, via `/code-review` on the range), full (architecture, contracts, boundaries, hotspots) or estate (architecture and duplication across repos, with or without a workspace). Writes a findings register and a PR-shaped summary to `specs/reviews/`, logs the range, and drafts the review PR and a tracking issue. Modes: status, incremental, full, estate |
 | `personal` | `personal-review-walk` | Go through a review's decisions, findings or recommendations with the Owner one item per turn: a paragraph on the problem, one on the fix and its trade-offs, that item's choices in a dialog, the answer recorded in a walk file committed (and on a runner pushed) after every answer so a respawned session resumes where it left off. Ends with one summary on the source and remediation cards |

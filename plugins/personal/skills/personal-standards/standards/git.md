@@ -151,10 +151,18 @@ Merge queues need GitHub Enterprise Cloud for private org repos, and a small rep
 
 ### PR Body
 
-The description is a review guide: what a reviewer needs to understand the change in about 2 minutes on a phone, with the rest collapsed by review tier. [review.md](review.md) "Description layout" has the full example and the rules for tiers, evidence and diagrams; the skeleton is:
+The description is a review guide: what a reviewer needs to understand the change in about 2 minutes on a phone, with the rest collapsed by review tier. It's written for a reader who has seen neither the session nor the plan: what's true today, what changes, and on a `[study]` or `[check]` PR the before and after. [review.md](review.md) "Description layout" has the full example and the rules for tiers, the before and after, evidence and diagrams; the skeleton is:
 
 ```markdown
-One paragraph: what changes and why. Closes #123.
+Today <what's true now, and what goes wrong or is missing>.
+
+This <what changes>. Closes #123.
+
+## Before and after
+
+| <what> | Before | After |
+| --- | --- | --- |
+| <actor, field or case> | <from the base commit> | <from head> |
 
 ## Review guide
 
@@ -162,7 +170,7 @@ Review tier: [check], because <reason>.
 Blast radius: <who or what breaks if it's wrong; how reversible>.
 Review time: ~N min
 
-1. [check] `path/one`: <what to look at>
+1. [check] `path/one`: <what to confirm there>
 2. [skim] `path/two`
 
 ## Validation
@@ -177,7 +185,7 @@ Review time: ~N min
 <details>
 <summary>[check] Control flow and error handling</summary>
 
-<before/after, for this tier's areas>
+<further before/after, for this tier's areas>
 
 </details>
 
